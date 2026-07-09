@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -10,6 +12,8 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase
 
 from .config import settings
+
+log = logging.getLogger("db")
 
 engine = create_async_engine(settings.database_url, echo=False, future=True)
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
@@ -40,6 +44,20 @@ async def init_db() -> None:
         await _ensure_columns(conn, "raw_messages", {"reply_to_message_id": "INTEGER"})
         await _ensure_columns(conn, "threat_events", {"reply_to_message_id": "INTEGER"})
         await _ensure_columns(conn, "threats", {"target_count": "INTEGER DEFAULT 1"})
+        # create_all() only defines this constraint for BRAND NEW tables — a
+        # pre-existing raw_messages table needs it added as a unique index. Only
+        # succeeds if the data is already duplicate-free (see scripts/dedupe_ingest.py);
+        # skip with a warning rather than crash startup if stale dupes remain.
+        try:
+            await conn.exec_driver_sql(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_raw_message_source_msgid "
+                "ON raw_messages(source_id, message_id)"
+            )
+        except OperationalError:
+            log.warning(
+                "could not create uq_raw_message_source_msgid — duplicate "
+                "(source_id, message_id) rows still exist; run scripts/dedupe_ingest.py"
+            )
 
 
 async def _ensure_columns(conn, table: str, columns: dict[str, str]) -> None:

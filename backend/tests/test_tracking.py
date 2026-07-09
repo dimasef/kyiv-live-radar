@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.db import Base
 from app.gazetteer import DISTRICTS, SOURCES
 from app.ingest import ingest_message
-from app.models import District, Source, Threat
+from app.models import District, RawMessage, Source, Threat, ThreatEvent
 from app.parser import DistrictMatcher
 
 
@@ -257,6 +257,34 @@ async def test_target_count_grows_along_reply_chain(ctx):
                          message_id=3, reply_to_message_id=2)
     await s.refresh(t)
     assert t.target_count == 3
+
+
+async def test_duplicate_message_id_is_ignored(ctx):
+    """Re-ingesting the same (source_id, message_id) — e.g. a repeated Telegram
+    backfill on every restart — must be a no-op, not a second raw_message/event
+    (root cause of duplicate-looking feed rows with diverging track stats)."""
+    s, m, src = ctx
+    out1 = await ingest_message(s, text="🔴 Шахед над Оболонню", matcher=m, when=BASE,
+                                source_id=src[0].id, message_id=42)
+    out2 = await ingest_message(s, text="🔴 Шахед над Оболонню", matcher=m,
+                                when=BASE + timedelta(minutes=5),
+                                source_id=src[0].id, message_id=42)
+    assert len(out1) == 1
+    assert out2 == []
+    assert await s.scalar(select(func.count()).select_from(RawMessage)) == 1
+    assert await s.scalar(select(func.count()).select_from(ThreatEvent)) == 1
+    assert await _count_threats(s) == 1
+
+
+async def test_duplicate_message_id_scoped_per_source(ctx):
+    """The same numeric message_id from a DIFFERENT source is not a duplicate —
+    Telegram message ids are only unique within one channel."""
+    s, m, src = ctx
+    await ingest_message(s, text="🔴 Шахед над Оболонню", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="🔴 Шахед над Оболонню", matcher=m, when=BASE,
+                         source_id=src[1].id, message_id=1)
+    assert await s.scalar(select(func.count()).select_from(RawMessage)) == 2
 
 
 async def test_conflict_between_sources(ctx):

@@ -10,6 +10,8 @@ import asyncio
 from dataclasses import dataclass
 from datetime import datetime
 
+from sqlalchemy import select
+
 from .config import settings
 from .parser import DistrictMatcher, ParseResult, parse_message
 from .models import RawMessage, Threat, ThreatEvent
@@ -79,6 +81,20 @@ async def _ingest_locked(
     forwarded_from_id: int | None = None,
     reply_to_message_id: int | None = None,
 ) -> list[Broadcast]:
+    # 0. Idempotency guard: a real Telegram message_id is unique per channel.
+    #    Re-ingesting one (repeated backfill on every restart was doing exactly
+    #    this) must be a no-op, not a duplicate raw_message + duplicate events on
+    #    a possibly-different track. Simulator messages (message_id=None) skip
+    #    this check — they have no stable identity to dedupe on.
+    if message_id is not None:
+        dup = await session.scalar(
+            select(RawMessage.id).where(
+                RawMessage.source_id == source_id, RawMessage.message_id == message_id
+            )
+        )
+        if dup is not None:
+            return []
+
     # 1. Persist the raw message first (first-hand data, eval set, reprocessing).
     raw = RawMessage(
         source_id=source_id,

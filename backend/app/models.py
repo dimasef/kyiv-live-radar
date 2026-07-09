@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, String, Text
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -72,6 +72,10 @@ class RawMessage(Base):
     """
 
     __tablename__ = "raw_messages"
+    # A real Telegram message_id is unique per channel — the same (source,
+    # message_id) landing twice means a repeated backfill re-ingested it (SQLite
+    # treats NULL != NULL, so simulator rows with no message_id are unaffected).
+    __table_args__ = (UniqueConstraint("source_id", "message_id", name="uq_raw_message_source_msgid"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     source_id: Mapped[Optional[int]] = mapped_column(
