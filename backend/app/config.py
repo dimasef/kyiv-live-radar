@@ -48,7 +48,15 @@ class Settings(BaseSettings):
     # CORROBORATES: an open track seen over the SAME district within this window.
     # Otherwise it starts its own (possibly short) track. This is a same-target
     # MERGE rule between reports, NOT a distance/trajectory threshold.
-    corroboration_window_minutes: int = 10
+    # Empirically tuned 2026-07-09 (eval/track_eval.py against 74 hand-labeled
+    # real target sessions, backfilled from all 3 channels): swept 10/7/5/4/3/2
+    # minutes — 3 minimized false-merges of genuinely different targets that
+    # happen to transit the same busy corridor district (Бровари, Троєщина,
+    # Славутич/Десна) minutes apart during a multi-wave night, with ZERO loss of
+    # legitimate corroboration (session-purity unchanged from the window=10
+    # baseline; real cross-channel corroborations in the dataset land within
+    # ~1-2 min). Below 3 the metric reverses — starts cutting genuine matches.
+    corroboration_window_minutes: int = 3
 
     # Emit synthetic tracks (as raw Ukrainian text through the REAL parser) so
     # the frontend has live data before Telegram credentials are configured.

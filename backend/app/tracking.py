@@ -55,12 +55,20 @@ async def find_track_by_reply(
 async def find_corroborating_track(
     session, when: datetime, district_ids: set[int]
 ) -> Threat | None:
-    """Newest open track recently seen over one of `district_ids`.
+    """Newest open track whose MOST RECENT sighting was over one of `district_ids`.
 
     "Recently" = within `corroboration_window_minutes`. This is how a non-threaded
     report (prose/point channel with no reply) merges onto an existing target:
-    only when it names a district that track was just over — otherwise it's
-    treated as its own target. Never merges on recency alone.
+    only when it names a district that track's CURRENT (latest) position was
+    over — not any district it passed through earlier. Matching against the
+    full history let a track's match surface grow with every event it absorbed,
+    snowballing into false merges with unrelated LATER targets that happened to
+    pass through the same busy corridor district (Бровари, Троєщина, the
+    Славутич/Десна/Троя entry corridor...) within the window during a busy
+    multi-wave night — confirmed empirically via eval/track_eval.py against a
+    real backfill (mega-track-lite: a track absorbing 5-7 genuinely distinct
+    missiles/drones that all happened to transit the same chokepoint district
+    minutes apart). Never merges on recency alone.
     """
     if not district_ids:
         return None
@@ -72,9 +80,14 @@ async def find_corroborating_track(
         .order_by(Threat.created_at.desc())
     )
     for threat in await session.scalars(stmt):  # newest-first
-        for e in threat.events:
-            if e.district_id in district_ids and _within(e.event_time, when, window):
-                return threat
+        if not threat.events:
+            continue
+        latest_time = max(e.event_time for e in threat.events)
+        if not _within(latest_time, when, window):
+            continue
+        latest_districts = {e.district_id for e in threat.events if e.event_time == latest_time}
+        if latest_districts & district_ids:
+            return threat
     return None
 
 

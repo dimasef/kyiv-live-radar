@@ -71,6 +71,35 @@ async def test_corroboration_respects_window(ctx):
     assert await _count_threats(s) == 2
 
 
+async def test_corroboration_matches_latest_position_not_full_history(ctx):
+    """A track that has MOVED ON must not keep matching districts it passed
+    through earlier — only its current (latest) position corroborates.
+
+    Real failure found via eval/track_eval.py on a real backfill: a long-running
+    track that had ever touched a busy corridor district (e.g. Бровари) kept
+    absorbing unrelated LATER sightings of that same district for as long as it
+    stayed open, snowballing into a mega-track merging several genuinely
+    different real targets. Matching against the full event history (instead of
+    just the latest one) was the root cause.
+    """
+    s, m, src = ctx
+    # Track A: Оболонь (t=0), replied into by Виноградар (t=1) — one track,
+    # reply-linked, now sitting over Виноградар.
+    await ingest_message(s, text="🔴 Шахед над Оболонню", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Шахед курс на Виноградар", matcher=m,
+                         when=BASE + timedelta(minutes=1), source_id=src[0].id,
+                         message_id=2, reply_to_message_id=1)
+    assert await _count_threats(s) == 1
+
+    # A later, non-reply sighting of Оболонь — the district A passed through
+    # EARLIER, not where it is now — must NOT corroborate onto A.
+    await ingest_message(s, text="Шахед Оболонь", matcher=m,
+                         when=BASE + timedelta(minutes=2), source_id=src[0].id,
+                         message_id=3)
+    assert await _count_threats(s) == 2
+
+
 async def test_new_target_starts_new_track(ctx):
     s, m, src = ctx
     await ingest_message(s, text="🔴 Шахед над Оболонню", matcher=m, when=BASE,
