@@ -3,7 +3,10 @@ backend/.venv/
 __pycache__/
 *.pyc
 backend/*.db
+backend/*.db.bak-*
 backend/.env
+backend/kyiv_radar.session
+backend/*.session-journal
 
 # Node / frontend
 frontend/node_modules/
