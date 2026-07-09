@@ -174,7 +174,11 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Глеваха", "name_en": "Hlevakha", "lat": 50.2597, "lon": 30.3059, "aliases": []},
     {"name_uk": "Крюківщина", "name_en": "Kriukivshchyna", "lat": 50.3719, "lon": 30.3716, "aliases": []},
     {"name_uk": "Гатне", "name_en": "Hatne", "lat": 50.3585, "lon": 30.3963, "aliases": []},
-    {"name_uk": "Українка", "name_en": "Ukrainka", "lat": 50.1537, "lon": 30.7421, "aliases": []},
+    # (Українка deliberately omitted: name collides with "Ukrainka" — a Russian
+    #  strategic bomber airbase in Amur Oblast, ~7000km away — that gets named in
+    #  Ukrainian-language strategic aviation reports far more often than the Kyiv
+    #  suburb does. A real report about Ту-95МС at "аеродром «Українка»" was
+    #  mislocalized onto this Kyiv suburb. Same class of bug as Остер/"остерігайтеся".)
     {"name_uk": "Ржищів", "name_en": "Rzhyshchiv", "lat": 49.9682, "lon": 31.0412, "aliases": []},
     {"name_uk": "Козин", "name_en": "Kozyn", "lat": 50.229, "lon": 30.6479, "aliases": []},
     # D. North-West (from Belarus / Zhytomyr).

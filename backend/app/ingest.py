@@ -1,7 +1,10 @@
 """Ingest pipeline: one raw message -> stored + parsed + tracked + broadcast.
 
-Single entry point shared by the Telethon listener and the text simulator, so
-both exercise the exact same real parsing/tracking code.
+Single entry point (`ingest_message`) shared by the Telethon listener and the
+text simulator, so both exercise the exact same real parsing/tracking code.
+`_process_parsed` is the reusable inner half (parse -> track -> fuse) for an
+already-stored raw message — also used by `scripts/reprocess_raw.py` to replay
+history through an improved parser/gazetteer.
 """
 
 from __future__ import annotations
@@ -46,6 +49,10 @@ def _should_fallback(parsed: ParseResult) -> bool:
     """Route to the LLM only when rules couldn't localize a threat-flavored
     message — not for junk/news and not when rules already succeeded."""
     if parsed.aftermath:  # consequence/casualty news — not a live target
+        return False
+    if parsed.siren_only:  # technical "alarm is on here" echo — not a live target
+        return False
+    if parsed.negated:  # explicit denial ("не йде на...") — not a live target
         return False
     if parsed.districts or parsed.status in ("clear", "destroyed"):
         return False
@@ -107,6 +114,38 @@ async def _ingest_locked(
     session.add(raw)
     await session.commit()
 
+    return await _process_parsed(
+        session,
+        raw=raw,
+        text=text,
+        matcher=matcher,
+        when=when,
+        source_id=source_id,
+        message_id=message_id,
+        forwarded_from_id=forwarded_from_id,
+        reply_to_message_id=reply_to_message_id,
+    )
+
+
+async def _process_parsed(
+    session,
+    *,
+    raw: RawMessage,
+    text: str,
+    matcher: DistrictMatcher,
+    when: datetime,
+    source_id: int | None,
+    message_id: int | None,
+    forwarded_from_id: int | None,
+    reply_to_message_id: int | None,
+) -> list[Broadcast]:
+    """Parse -> track -> fuse an ALREADY-PERSISTED raw message.
+
+    Split out from `_ingest_locked` so `scripts/reprocess_raw.py` can replay
+    existing `raw_messages` rows through the current parser/gazetteer/tracking
+    logic (e.g. after growing the gazetteer) without re-inserting them — the
+    ingest-level dedup guard would otherwise make that a no-op.
+    """
     parsed, decision_source = await _resolve(text, matcher)
 
     async def done() -> None:

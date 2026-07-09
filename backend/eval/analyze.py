@@ -51,7 +51,7 @@ async def main() -> None:
     matcher = DistrictMatcher(districts)
 
     # --- 1. Ingestion funnel (re-parse rules over unique messages) ---
-    seen, localized, aftermath, unloc = set(), 0, 0, 0
+    seen, localized, aftermath, siren_only, negated, unloc = set(), 0, 0, 0, 0, 0
     for r in raws:
         t = (r.text or "").strip()
         if not t or t in seen:
@@ -60,6 +60,10 @@ async def main() -> None:
         p = parse_message(t, matcher)
         if p.aftermath:
             aftermath += 1
+        elif p.siren_only:
+            siren_only += 1
+        elif p.negated:
+            negated += 1
         elif p.districts:
             localized += 1
         else:
@@ -74,6 +78,8 @@ async def main() -> None:
     print(f"  unique messages:        {len(seen)}")
     print(f"  rule-localized:         {localized}")
     print(f"  dropped as aftermath:   {aftermath}")
+    print(f"  dropped as siren-only:  {siren_only}")
+    print(f"  dropped as negated:     {negated}")
     print(f"  not localized (other):  {unloc}")
     print(f"\n  events written: {len(all_events)}  "
           f"(rule={src_counter.get('rule',0)} llm={src_counter.get('llm',0)})")

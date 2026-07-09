@@ -135,3 +135,93 @@ def test_aftermath_news_is_not_a_sighting():
 def test_all_clear_survives_aftermath_words():
     # An all-clear must still close tracks even if phrased with consequence words.
     assert parse_message("Відбій тривоги, наслідки уточнюються", M).status == "clear"
+
+
+def test_fire_footage_and_funding_news_are_aftermath():
+    # Real feed examples that slipped through before _AFTERMATH grew these stems.
+    for txt in [
+        "Жесть! Кадри зараз пожежі на Трої…",
+        "Уряд виділить 3,04 млрд грн на відновлення Вишневого після обстрілу рф",
+    ]:
+        r = parse_message(txt, M)
+        assert not r.matched and r.aftermath and r.districts == [], txt
+
+
+def test_negation_suppresses_the_district():
+    # Real feed examples: explicit denial that a target is at/heading somewhere
+    # must NOT be recorded as a sighting there.
+    for txt in [
+        "Не йде на Оболонь",
+        "По третьому без загроз для Борисполя. Він все.",
+    ]:
+        r = parse_message(txt, M)
+        assert not r.matched and r.negated and r.districts == [], txt
+
+
+def test_negation_does_not_override_destroyed():
+    # An explicit destroyed keyword elsewhere still wins over a coincidental
+    # negation phrase in the same message ("не летить" = it no longer flies,
+    # i.e. it WAS just destroyed there — must not suppress the district).
+    r = parse_message("Знищено, більше не летить над Оболонню", M)
+    assert r.status == "destroyed" and not r.negated and r.districts != []
+
+
+def test_siren_only_suppresses_the_district():
+    # Real feed examples («Віраж Києва»): a technical siren-status echo that
+    # names a district but no target type — must NOT be recorded as a sighting.
+    for txt in [
+        "+ Бучанський район тривога",
+        "Тривога у Вишгородському районі",
+        "Сунуть в область, тривога у Вишгородському районі",
+    ]:
+        r = parse_message(txt, M)
+        assert not r.matched and r.siren_only and r.districts == [], txt
+
+
+def test_siren_word_does_not_suppress_a_real_sighting():
+    # The same "тривога" word alongside a stated target type is a real
+    # sighting and must NOT be suppressed.
+    r = parse_message("У Києві можлива знову тривога. 2х реактивних в район Жукин", M)
+    assert r.matched and not r.siren_only and r.districts != []
+
+
+def test_siren_only_does_not_override_clear_or_destroyed():
+    # An explicit clear/destroyed keyword elsewhere still wins over the
+    # siren-status wording.
+    r = parse_message("Відбій тривоги у Вишгородському районі", M)
+    assert r.status == "clear" and not r.siren_only and r.districts != []
+
+
+def test_street_name_collision_is_not_a_district():
+    # Real feed example: a utility-maintenance notice names a street that
+    # happens to share the raion's adjectival stem — must not be read as a
+    # district sighting (same collision class as Остер/"остерігайтеся").
+    r = parse_message(
+        "Планова промивка мереж по вулицях: Оболонський проспект, 23-30/51.", M
+    )
+    assert not r.matched and r.districts == []
+
+
+def test_street_name_collision_does_not_hide_a_real_district_elsewhere():
+    # If the street-collision word occurs but the SAME message also names a
+    # real district elsewhere, the real district must still be found.
+    r = parse_message(
+        "Шахед курсом на Дарницький район, а ще ремонт на Оболонському проспекті", M
+    )
+    assert names(r) == ["Дарницький"]
+
+
+def test_day_recap_lowers_confidence_but_keeps_district():
+    # Real feed example: a day-summary line ("...під атакою сьогодні") with no
+    # target type/vector is soft evidence, not a fresh sighting — keep the
+    # district (unlike siren_only) but drop confidence.
+    r = parse_message("Знову Деснянський район під атакою сьогодні", M)
+    assert r.matched and r.day_recap and names(r) == ["Деснянський"]
+    assert r.confidence <= 0.35
+
+
+def test_day_recap_word_does_not_lower_a_real_sighting():
+    # The same "сьогодні" word alongside a stated target type is a real
+    # sighting and must keep normal confidence.
+    r = parse_message("2х шахед курсом на Дніпровський район сьогодні вночі", M)
+    assert not r.day_recap and r.confidence > 0.35

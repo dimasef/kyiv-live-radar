@@ -48,7 +48,37 @@ _COUNT_RE = re.compile(r"(\d+)\s*[хx](?![а-яіїєґa-z])", re.IGNORECASE)
 _AFTERMATH = ("постраждал", "загинул", "поранен", "жертв", "уламк", "пошкодж",
               "зруйнов", "врятув", "рятувальник", "надзвичайник", "дснс",
               "багатоповерхів", "наслідк", "кмва", "госпіталіз", "медик",
-              "евакуй", "загибл", "потерпіл")
+              "евакуй", "загибл", "потерпіл",
+              "пожеж",       # "пожежі на Трої" — fire footage is aftermath, not a sighting
+              "відновленн")  # "виділить... на відновлення" — reconstruction-funding news
+
+# --- Explicit denial that a target is at/heading to a place ("Не йде на
+# Оболонь", "без загроз для Борисполя"). Curated phrases (not bare "не" — that
+# would also swallow "не підтверджено" = unconfirmed, a different status
+# entirely). LIMITATION: message-scoped — a negation anywhere in the message
+# suppresses ALL its district hits, so a hypothetical single message that both
+# denies one target AND reports a different live one would be wrongly dropped
+# in full; no real example of that shape has been seen in the feed yet. ---
+_NEGATION = ("не йде", "не летить", "не рухається", "не курсом", "не в бік",
+             "не фіксується", "не спостерігається", "не зафіксовано",
+             "без загроз", "поза загрозою")
+
+# --- Siren-status announcement ("+ Бучанський район тривога", "Тривога у
+# Вишгородському районі"). This is a technical "the siren went off in this
+# district" notice — NOT a target sighting: it names a district but no target
+# type (shahed/missile/jet) at all. A real sighting in this feed always states
+# a type alongside the district ("2х реактивних в район Жукин"), so the
+# compound signal (target unresolved + the "тривога" stem present) isolates
+# the siren-echo cleanly without a shape-specific regex. ---
+_SIREN_WORD = "тривог"
+
+# --- Day-summary commentary ("Знову Деснянський район під атакою сьогодні")
+# names a district but with no live target type/vector — a recap of the day
+# rather than a fresh sighting. Unlike siren_only there's no clean marker that
+# this ISN'T a real live report (the same "сьогодні" word can appear in an
+# actual sighting too), so this only lowers confidence and keeps the
+# district — safer than suppressing on a heuristic this soft. ---
+_DAY_RECAP_WORD = "сьогодн"
 
 # Case endings stripped (longest first) to reduce a Ukrainian word to a rough
 # stem, so one stem regex matches most forms (Троєщина/Троєщині/Троєщину).
@@ -59,6 +89,17 @@ _SUFFIXES = ("ого", "ому", "ій", "ої", "ою", "их", "ий", "им",
              "ам", "ів", "ь", "и", "а", "я", "у", "ю", "і", "е", "о")
 
 _APOSTROPHES = "'ʼ`’‘"
+
+# Street-name collision guard: a raion's adjectival form ("Оболонський",
+# "Дарницький"...) is also used as part of an actual street name ("Оболонський
+# проспект", "Дарницьке шосе") in utility/admin announcements ("промивка
+# мереж по вулицях..."). Same bug class as the Остер/"остерігайтеся" stem
+# collision — the fix here is contextual instead of dropping the toponym: a
+# district-stem match immediately adjacent to one of these street-type nouns
+# is a street reference, not a district mention, so DistrictMatcher discards
+# it and keeps looking for another (real) occurrence in the same message.
+_STREET_WORDS = ("проспект", "вулиц", "провулок", "бульвар", "узвіз", "шосе",
+                  "набережн", "площ")
 
 
 def normalize(text: str) -> str:
@@ -96,6 +137,22 @@ class ParseResult:
     raw_text: str = ""
     matched: bool = field(default=False)
     aftermath: bool = field(default=False)
+    negated: bool = field(default=False)
+    siren_only: bool = field(default=False)
+    day_recap: bool = field(default=False)
+
+
+def _is_street_reference(norm_text: str, start: int, end: int) -> bool:
+    """True if the district-stem match at [start:end) is really part of a
+    street name ("Оболонський проспект"), judged by the immediately adjacent
+    word on either side."""
+    before = norm_text[:start].rstrip(" ,.;:()–—-")
+    after = norm_text[end:].lstrip(" ,.;:()–—-")
+    before_word = before.rsplit(" ", 1)[-1] if before else ""
+    after_word = after.split(" ", 1)[0] if after else ""
+    return any(w in before_word for w in _STREET_WORDS) or any(
+        w in after_word for w in _STREET_WORDS
+    )
 
 
 class DistrictMatcher:
@@ -126,9 +183,11 @@ class DistrictMatcher:
     def find(self, norm_text: str) -> list[DistrictHit]:
         hits: dict[int, DistrictHit] = {}
         for did, name, pat, stem_len in self._patterns:
-            m = pat.search(norm_text)
-            if m and did not in hits:
+            for m in pat.finditer(norm_text):
+                if _is_street_reference(norm_text, m.start(), m.end()):
+                    continue
                 hits[did] = DistrictHit(did, name, m.start(), stem_len)
+                break
         # Resolve prefix overlaps (e.g. Оболонь vs Оболонський matching the same
         # word): among hits at the same start offset, keep the most specific
         # (longest stem) and drop the rest.
@@ -205,9 +264,44 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
     # it's an all-clear (which legitimately closes tracks).
     aftermath = any(k in norm for k in _AFTERMATH) and status != "clear"
 
+    # Explicit denial ("Не йде на Оболонь") mentions a district but says the
+    # target is NOT there — suppress it, same carve-out as aftermath: an
+    # explicit clear/destroyed keyword elsewhere in the message still wins (its
+    # own keyword signal is stronger evidence than a coincidental negation word).
+    negated = any(k in norm for k in _NEGATION) and status not in ("clear", "destroyed")
+
+    # Siren-status echo: names a district, mentions "тривога", but states no
+    # target type at all — the technical "alarm is on here" notice, not a
+    # sighting. Only applies to sighting/confirmed statuses; an explicit
+    # clear/destroyed keyword is still a real signal worth keeping.
+    siren_only = (
+        target_type == "unknown"
+        and status in ("sighting", "confirmed")
+        and bool(districts)
+        and _SIREN_WORD in norm
+    )
+
+    # Day-summary commentary ("...під атакою сьогодні"): same shape as
+    # siren_only (no target type at all), but "сьогодні" alone isn't a clean
+    # enough marker to justify dropping the district outright, so this only
+    # softens confidence instead of suppressing the sighting.
+    day_recap = (
+        target_type == "unknown"
+        and status == "sighting"
+        and bool(districts)
+        and _DAY_RECAP_WORD in norm
+    )
+    if day_recap:
+        conf = min(conf, 0.35)
+
     # No district and no actionable status -> nothing structured to record.
-    matched = (bool(districts) or status in ("clear", "destroyed")) and not aftermath
-    if aftermath:
+    matched = (
+        (bool(districts) or status in ("clear", "destroyed"))
+        and not aftermath
+        and not negated
+        and not siren_only
+    )
+    if aftermath or negated or siren_only:
         districts = []
     # Confidence drops when we can't localize the target.
     if not districts and status not in ("clear",):
@@ -223,4 +317,7 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
         raw_text=text,
         matched=matched,
         aftermath=aftermath,
+        negated=negated,
+        siren_only=siren_only,
+        day_recap=day_recap,
     )
