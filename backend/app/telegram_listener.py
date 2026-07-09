@@ -23,6 +23,17 @@ from .parser import DistrictMatcher
 log = logging.getLogger("telegram")
 
 
+def make_session():
+    """A file-backed session locally, or a StringSession (env var, no disk
+    needed) when TELEGRAM_SESSION_STRING is set — the latter is how Railway
+    runs this, since its filesystem doesn't persist across deploys."""
+    if settings.telegram_session_string:
+        from telethon.sessions import StringSession
+
+        return StringSession(settings.telegram_session_string)
+    return settings.telegram_session
+
+
 def _invite_hash(raw: str) -> str | None:
     """Extract the invite hash from a private-channel link, else None."""
     for marker in ("t.me/+", "t.me/joinchat/", "telegram.me/+"):
@@ -125,7 +136,7 @@ async def run_listener() -> None:
         return
 
     client = TelegramClient(
-        settings.telegram_session, settings.telegram_api_id, settings.telegram_api_hash
+        make_session(), settings.telegram_api_id, settings.telegram_api_hash
     )
     await client.start()
 

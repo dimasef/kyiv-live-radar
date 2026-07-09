@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     telegram_api_id: int = 0
     telegram_api_hash: str = ""
     telegram_session: str = "kyiv_radar.session"
+    # Alternative to telegram_session for platforms with an ephemeral filesystem
+    # (Railway): a Telethon StringSession held entirely in an env var, no
+    # session file/volume needed. Takes priority over telegram_session when set.
+    telegram_session_string: str = ""
     # Comma-separated channel usernames/handles to read (without @).
     telegram_channels: str = ""
     # On startup, ingest this many recent messages per channel (0 = none). Gives
