@@ -1,0 +1,72 @@
+{
+  "app": {
+    "title": "Kyiv Live Radar",
+    "subtitle": "Auxiliary aerial threat tracker"
+  },
+  "disclaimer": {
+    "title": "Important",
+    "text": "Unofficial auxiliary service. Data comes from manual text reports by volunteer spotters — district-level accuracy, seconds-to-minutes delay. It does NOT replace the official air-raid alert. Always act on the siren and official apps.",
+    "never": "No target on the map, or a vector 'not heading your way', is NOT a reason to ignore the alert.",
+    "dismiss": "Got it",
+    "dontShow": "Don't show again",
+    "reopen": "Show warning"
+  },
+  "sources": {
+    "official": "Official sources",
+    "alerts": "alerts.in.ua",
+    "app": "\"Air Alert\" app"
+  },
+  "legend": {
+    "title": "Legend",
+    "confirmed": "Confirmed",
+    "unconfirmed": "Unconfirmed",
+    "destroyed": "Destroyed / closed",
+    "clear": "All-clear",
+    "conflict": "Sources disagree",
+    "home": "Home"
+  },
+  "log": {
+    "title": "Event feed",
+    "empty": "Waiting for events…",
+    "corroboration": "sources",
+    "conflict": "source conflict",
+    "confidence": "confidence",
+    "unknownSource": "unknown source"
+  },
+  "target": {
+    "shahed": "Shahed",
+    "jet_drone": "Jet UAV",
+    "missile": "Missile",
+    "unknown": "Unknown"
+  },
+  "conn": {
+    "online": "Connection active",
+    "offline": "Disconnected"
+  },
+  "panel": {
+    "feed": "Feed",
+    "settings": "Settings",
+    "open": "Expand panel",
+    "close": "Collapse panel"
+  },
+  "settings": {
+    "title": "Settings"
+  },
+  "legendCtl": {
+    "show": "Show legend",
+    "hide": "Collapse legend"
+  },
+  "home": {
+    "title": "My home",
+    "notSet": "Not set",
+    "hint": "Click on the map to set home",
+    "place": "Set on map",
+    "placing": "Click on the map…",
+    "cancel": "Cancel",
+    "useGeo": "My location",
+    "geoDenied": "Geolocation denied — set home by clicking the map",
+    "radius": "Radius",
+    "clear": "Reset",
+    "district": "District"
+  }
+}
