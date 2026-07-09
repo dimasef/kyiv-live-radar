@@ -61,6 +61,12 @@ class Settings(BaseSettings):
     # Emit synthetic tracks (as raw Ukrainian text through the REAL parser) so
     # the frontend has live data before Telegram credentials are configured.
     simulator_enabled: bool = True
+    # Replay real captured messages (app/data/real_sample_messages.jsonl — 871
+    # messages backfilled 2026-07-05..09, see eval/ground_truth_sessions.json)
+    # through the real pipeline instead of the synthetic simulator, preserving
+    # their original reply chains so tracks/vectors look like the real thing.
+    # Takes priority over simulator_enabled; still skipped if telegram_enabled.
+    replay_real_data: bool = False
 
     # --- Real Telegram feed (Telethon). Off until credentials are set. ---
     telegram_enabled: bool = False

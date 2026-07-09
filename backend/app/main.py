@@ -25,13 +25,19 @@ async def lifespan(app: FastAPI):
     s = await seed_sources()
     log.info("db ready; seeded %d districts, %d sources", d, s)
 
-    # Feed source: real Telegram listener if configured, else the text simulator.
+    # Feed source: real Telegram listener if configured, else a replay of real
+    # captured messages if requested, else the synthetic text simulator.
     tasks: list[asyncio.Task] = []
     if settings.telegram_enabled and settings.telegram_api_id and settings.telegram_channel_list:
         from .telegram_listener import run_listener
 
         log.info("starting Telegram listener")
         tasks.append(asyncio.create_task(run_listener()))
+    elif settings.replay_real_data:
+        from .replay import run_replay
+
+        log.info("starting replay of real captured messages")
+        tasks.append(asyncio.create_task(run_replay()))
     elif settings.simulator_enabled:
         log.info("starting text simulator (no Telegram credentials configured)")
         tasks.append(asyncio.create_task(run_simulator()))
