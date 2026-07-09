@@ -12,7 +12,10 @@ from __future__ import annotations
 DISTRICTS: list[dict] = [
     # --- 10 administrative raions ---
     {"name_uk": "Голосіївський", "name_en": "Holosiivskyi", "lat": 50.381, "lon": 30.508,
-     "aliases": ["голосіїв", "голосіївський район"]},
+     # "голосіїв" is spelled with ї — its stem doesn't cover the common spotter
+     # form "Голосієво" (є, no ї); added explicitly rather than relying on the
+     # stemmer to bridge the two spellings.
+     "aliases": ["голосіїв", "голосіївський район", "голосієво"]},
     {"name_uk": "Дарницький", "name_en": "Darnytskyi", "lat": 50.410, "lon": 30.630,
      "aliases": ["дарниця", "дарницький район"]},
     {"name_uk": "Деснянський", "name_en": "Desnianskyi", "lat": 50.515, "lon": 30.605,
@@ -188,6 +191,56 @@ DISTRICTS: list[dict] = [
      "aliases": ["клавдієво-тарасове"]},
     {"name_uk": "Іванків", "name_en": "Ivankiv", "lat": 50.933, "lon": 29.9043, "aliases": []},
     {"name_uk": "Пісківка", "name_en": "Piskivka", "lat": 50.6969, "lon": 29.5931, "aliases": []},
+
+    # === In-city micro-neighborhoods/landmarks + a few more approach-corridor
+    #     villages, found via eval/ground_truth_sessions.json (2026-07-09
+    #     gazetteer-gap analysis on real backfilled feed data). Geocoded via
+    #     scripts/geocode_localities.py; false-positive-swept against the same
+    #     871-message real corpus before commit (see memory / commit message).
+    # E. In-city Kyiv neighborhoods/landmarks.
+    {"name_uk": "Труханів острів", "name_en": "TrukhanivIsland", "lat": 50.4852, "lon": 30.5484,
+     "aliases": ["труханів", "труханова"]},
+    {"name_uk": "Гідропарк", "name_en": "Hidropark", "lat": 50.4385, "lon": 30.5796, "aliases": []},
+    {"name_uk": "Контрактова площа", "name_en": "KontraktovaSquare", "lat": 50.4627, "lon": 30.5184,
+     "aliases": ["контрактова"]},
+    {"name_uk": "Липки", "name_en": "Lypky", "lat": 50.4449, "lon": 30.5331, "aliases": []},
+    {"name_uk": "Клов", "name_en": "Klov", "lat": 50.44, "lon": 30.5346, "aliases": []},
+    {"name_uk": "Куренівка", "name_en": "Kurenivka", "lat": 50.4885, "lon": 30.4703, "aliases": []},
+    {"name_uk": "Пріорка", "name_en": "Priorka", "lat": 50.5047, "lon": 30.4525, "aliases": []},
+    {"name_uk": "Мінський масив", "name_en": "MinskyiMasyv", "lat": 50.5192, "lon": 30.4619,
+     "aliases": ["мінський"]},
+    {"name_uk": "Шулявка", "name_en": "Shuliavka", "lat": 50.45, "lon": 30.444, "aliases": []},
+    {"name_uk": "Теличка", "name_en": "Telychka", "lat": 50.3956, "lon": 30.5711, "aliases": []},
+    {"name_uk": "Харківський масив", "name_en": "KharkivskyiMasyv", "lat": 50.4118, "lon": 30.6581,
+     "aliases": ["харківський"]},
+    {"name_uk": "Русанівські сади", "name_en": "RusanivskiSady", "lat": 50.4744, "lon": 30.5753,
+     "aliases": []},
+    {"name_uk": "Нижні Сади", "name_en": "NyzhniSady", "lat": 50.3682, "lon": 30.6076, "aliases": []},
+    {"name_uk": "Лісовий масив", "name_en": "LisovyiMasyv", "lat": 50.4746, "lon": 30.6302,
+     "aliases": []},
+    {"name_uk": "Жуляни", "name_en": "Zhuliany", "lat": 50.3928, "lon": 30.4422, "aliases": []},
+    {"name_uk": "Биківня", "name_en": "Bykivnia", "lat": 50.476, "lon": 30.6705, "aliases": []},
+    {"name_uk": "Вокзальна площа", "name_en": "VokzalnaSquare", "lat": 50.4406, "lon": 30.4901,
+     "aliases": ["вокзальна"]},
+    # (Наливайківка deliberately omitted: the in-city Sviatoshynskyi neighborhood
+    #  isn't resolvable via Nominatim — every query variant matched a same-named
+    #  but different village in Bucha raion, ~45km away. Same class of issue as
+    #  Заспа. Sky Mall / Калинівка / Новосілки: not found at all, skipped.)
+
+    # F. Villages/settlements near Kyiv, real sighting locations from the feed.
+    {"name_uk": "Ворзель", "name_en": "Vorzel", "lat": 50.5457, "lon": 30.1563, "aliases": []},
+    {"name_uk": "Воропаїв", "name_en": "Voropaiv", "lat": 50.7692, "lon": 30.6582, "aliases": []},
+    {"name_uk": "Вишеньки", "name_en": "Vyshenky", "lat": 50.3043, "lon": 30.7147, "aliases": []},
+    {"name_uk": "Гнідин", "name_en": "Hnidyn", "lat": 50.3287, "lon": 30.7058, "aliases": []},
+    {"name_uk": "Горенка", "name_en": "Horenka", "lat": 50.5596, "lon": 30.3123, "aliases": []},
+    {"name_uk": "Хотянівка", "name_en": "Khotianivka", "lat": 50.5959, "lon": 30.5668, "aliases": []},
+    {"name_uk": "Чабани", "name_en": "Chabany", "lat": 50.3414, "lon": 30.4271, "aliases": []},
+    # "Щасливе" also means "happy" (щасливий/-а/-е) — a very common Ukrainian
+    # adjective/farewell word ("будьте щасливі"). High collision risk, same
+    # class as Остер; kept ONLY because the false-positive sweep (see commit)
+    # found zero bad matches in the real corpus — revisit if that changes.
+    {"name_uk": "Щасливе", "name_en": "Shchaslyve", "lat": 50.3782, "lon": 30.7913, "aliases": []},
+    {"name_uk": "Згурівка", "name_en": "Zghurivka", "lat": 50.4951, "lon": 31.7692, "aliases": []},
 ]
 
 # Rough geographic center of Kyiv, for initial map framing.
