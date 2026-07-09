@@ -57,6 +57,14 @@ class Settings(BaseSettings):
     # --- Real Telegram feed (Telethon). Off until credentials are set. ---
     telegram_enabled: bool = False
     telegram_api_id: int = 0
+
+    @field_validator("telegram_api_id", mode="before")
+    @classmethod
+    def _blank_api_id_is_unset(cls, v):
+        # A platform env-var UI can leave this set-but-empty (rather than
+        # absent) — treat that the same as "not configured" instead of
+        # crashing the whole app on an int-parse error before it even starts.
+        return 0 if v == "" else v
     telegram_api_hash: str = ""
     telegram_session: str = "kyiv_radar.session"
     # Alternative to telegram_session for platforms with an ephemeral filesystem
