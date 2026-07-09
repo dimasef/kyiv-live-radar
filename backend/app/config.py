@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,6 +15,18 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str = "sqlite+aiosqlite:///./kyiv_radar.db"
+
+    @field_validator("database_url")
+    @classmethod
+    def _async_pg_scheme(cls, v: str) -> str:
+        # Railway's Postgres plugin injects DATABASE_URL as plain
+        # "postgres://" / "postgresql://" (libpq scheme) — SQLAlchemy's async
+        # engine needs the asyncpg driver named explicitly. Rewrite rather
+        # than requiring a hand-edited env var on every deploy.
+        for prefix in ("postgres://", "postgresql://"):
+            if v.startswith(prefix) and "+asyncpg" not in v:
+                return "postgresql+asyncpg://" + v[len(prefix):]
+        return v
 
     # Comma-separated list of allowed CORS origins (the Vite dev server by default).
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"

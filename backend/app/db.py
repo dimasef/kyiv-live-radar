@@ -40,10 +40,14 @@ async def init_db() -> None:
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        # create_all never ALTERs existing tables; add columns we know are new.
-        await _ensure_columns(conn, "raw_messages", {"reply_to_message_id": "INTEGER"})
-        await _ensure_columns(conn, "threat_events", {"reply_to_message_id": "INTEGER"})
-        await _ensure_columns(conn, "threats", {"target_count": "INTEGER DEFAULT 1"})
+        # The ADD COLUMN dance below is a SQLite-only migration path for a
+        # pre-existing dev DB predating these columns (PRAGMA table_info isn't
+        # valid on Postgres). A fresh Postgres DB already gets every current
+        # column straight from create_all(), so there's nothing to migrate.
+        if engine.dialect.name == "sqlite":
+            await _ensure_columns(conn, "raw_messages", {"reply_to_message_id": "INTEGER"})
+            await _ensure_columns(conn, "threat_events", {"reply_to_message_id": "INTEGER"})
+            await _ensure_columns(conn, "threats", {"target_count": "INTEGER DEFAULT 1"})
         # create_all() only defines this constraint for BRAND NEW tables — a
         # pre-existing raw_messages table needs it added as a unique index. Only
         # succeeds if the data is already duplicate-free (see scripts/dedupe_ingest.py);
