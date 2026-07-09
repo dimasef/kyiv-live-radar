@@ -1,6 +1,6 @@
 import L from 'leaflet'
 import type { CSSProperties } from 'react'
-import { useEffect, useRef } from 'react'
+import { memo, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Circle,
@@ -145,14 +145,29 @@ function ThreatPopup({ threat }: { threat: Threat }) {
   )
 }
 
-function ThreatLayer({ threat }: { threat: Threat }) {
+// Memoized so a new event on ONE track doesn't re-render every OTHER track's
+// layer too — react-leaflet calls marker.setIcon() whenever the `icon` prop
+// object changes identity, which makes Leaflet tear down and recreate the
+// marker's DOM (the pulse-ring spans, the arrow svg), restarting their CSS
+// keyframe animations from 0%. Unrelated markers would visibly "pop" back in
+// on every unrelated update. Icons are additionally useMemo'd so even a
+// re-render of THIS track's own layer reuses the same icon object when color
+// and heading haven't actually changed.
+const ThreatLayer = memo(function ThreatLayer({ threat }: { threat: Threat }) {
   const pts = trackPoints(threat)
+  const color = threatColor(threat)
+  const heading = headingOf(threat)
+
+  const pulse = useMemo(() => pulseIcon(color), [color])
+  const arrow = useMemo(
+    () => (heading != null ? arrowIcon(color, heading) : null),
+    [color, heading],
+  )
+
   if (pts.length === 0) return null
 
-  const color = threatColor(threat)
   const latlngs = pts.map((p) => [p.lat, p.lon] as [number, number])
   const head = pts[pts.length - 1]
-  const heading = headingOf(threat)
   const active = !threat.closed_at
 
   return (
@@ -183,13 +198,13 @@ function ThreatLayer({ threat }: { threat: Threat }) {
       {active && (
         <Marker
           position={[head.lat, head.lon]}
-          icon={pulseIcon(color)}
+          icon={pulse}
           interactive={false}
           zIndexOffset={-100}
         />
       )}
-      {heading != null ? (
-        <Marker position={[head.lat, head.lon]} icon={arrowIcon(color, heading)}>
+      {arrow ? (
+        <Marker position={[head.lat, head.lon]} icon={arrow}>
           <ThreatPopup threat={threat} />
         </Marker>
       ) : (
@@ -203,7 +218,7 @@ function ThreatLayer({ threat }: { threat: Threat }) {
       )}
     </>
   )
-}
+})
 
 const DISTRICT_STYLE = {
   color: '#64748b',
