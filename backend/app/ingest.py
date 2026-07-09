@@ -16,7 +16,7 @@ from datetime import datetime
 from sqlalchemy import select
 
 from .config import settings
-from .parser import DistrictMatcher, ParseResult, parse_message
+from .parser import DistrictMatcher, ParseResult, normalize, parse_message
 from .models import RawMessage, Threat, ThreatEvent
 from .tracking import (
     apply_fusion,
@@ -45,6 +45,19 @@ def _threat_status_for(parsed: ParseResult) -> str:
     return "tracking"
 
 
+# Other oblasts/cities/border regions this feed regularly mentions as a launch
+# origin or transit point ("з Брянщини", "на Чернігівщині") — the exact same
+# set the LLM's own system prompt (llm_fallback._SYSTEM) is told to return
+# empty for. If rules found no Kyiv-area district AND the message only names
+# one of these, an LLM call can't recover anything either — it's paying for a
+# guaranteed-empty response. Only checked once districts is already empty, so
+# this never masks a real Kyiv-area place mentioned alongside one of these.
+_OTHER_OBLAST = ("чернігівщин", "чернігів", "брянщин", "курщин", "ростов", "воронеж",
+                  "дніпропетровщин", "дніпро", "запоріжж", "миколаївщин", "сумщин",
+                  "полтавщин", "харківщин", "харков", "білорус", "крим",
+                  "житомирщин", "вінницьк", "черкащин", "одещин", "херсонщин")
+
+
 def _should_fallback(parsed: ParseResult) -> bool:
     """Route to the LLM only when rules couldn't localize a threat-flavored
     message — not for junk/news and not when rules already succeeded."""
@@ -55,6 +68,8 @@ def _should_fallback(parsed: ParseResult) -> bool:
     if parsed.negated:  # explicit denial ("не йде на...") — not a live target
         return False
     if parsed.districts or parsed.status in ("clear", "destroyed"):
+        return False
+    if any(w in normalize(parsed.raw_text) for w in _OTHER_OBLAST):
         return False
     return parsed.target_type != "unknown" or parsed.status in ("confirmed", "unconfirmed")
 
