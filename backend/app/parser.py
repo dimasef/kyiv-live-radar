@@ -342,8 +342,14 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
     # unstated, no targets at all) — a real stand-down signal handled directly
     # by ingest.py (closes matching open tracks), not a suppression like the
     # flags above. Gate is deliberately just "no district" — see _LOST_WORD's
-    # comment for why a district-bearing message must never match this.
-    lost_signal = _LOST_WORD in norm and not districts
+    # comment for why a district-bearing message must never match this. Same
+    # carve-out as negated/siren_only: an explicit clear/destroyed keyword in
+    # the SAME message ("Мінуснули, Дорозвідка" — one target confirmed
+    # destroyed, "дорозвідка" here is just a follow-up status note) is the
+    # stronger, more specific signal and must win — otherwise it would
+    # incorrectly close EVERY open track as "lost" instead of just the one
+    # destroyed target.
+    lost_signal = _LOST_WORD in norm and not districts and status not in ("clear", "destroyed")
 
     # No district and no actionable status -> nothing structured to record.
     matched = (

@@ -241,6 +241,14 @@ DISTRICTS: list[dict] = [
     # found zero bad matches in the real corpus — revisit if that changes.
     {"name_uk": "Щасливе", "name_en": "Shchaslyve", "lat": 50.3782, "lon": 30.7913, "aliases": []},
     {"name_uk": "Згурівка", "name_en": "Zghurivka", "lat": 50.4951, "lon": 31.7692, "aliases": []},
+    # Kyiv Reservoir (north of the city near Vyshhorod) — real spotters say
+    # just "водосховище" (bare word), never the full official name, hence the
+    # alias. "водосховище" is generic (there are other reservoirs downstream
+    # on the Dnipro — Канівське/Каховське etc.), but swept the full real
+    # corpus first: only 2 occurrences, both unambiguously this one (one
+    # explicitly ties it to Оболонь, a Kyiv district right next to it).
+    {"name_uk": "Київське водосховище", "name_en": "KyivReservoir", "lat": 50.9218, "lon": 30.5047,
+     "aliases": ["водосховище"]},
 ]
 
 # Rough geographic center of Kyiv, for initial map framing.

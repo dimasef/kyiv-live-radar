@@ -222,6 +222,28 @@ async def test_lost_signal_does_not_close_a_track_with_a_concurrent_real_sightin
     assert all(t.closed_at is None for t in ts)
 
 
+async def test_lost_signal_does_not_override_destroyed(ctx):
+    # Real feed example: "Мінуснули, Дорозвідка" — one target confirmed
+    # destroyed. Must close only the matching track as "destroyed", NOT every
+    # open track as "lost" (the bug: lost_signal's ingest branch ran before
+    # the destroyed branch, so a coincidental "дорозвідка" in a destroyed
+    # message wrongly mass-closed everything).
+    s, m, src = ctx
+    await ingest_message(s, text="🔴 Шахед над Оболонню", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Ракета над Позняками", matcher=m,
+                         when=BASE + timedelta(minutes=1), source_id=src[0].id, message_id=2)
+    await ingest_message(s, text="Мінуснули, Дорозвідка", matcher=m,
+                         when=BASE + timedelta(minutes=2), source_id=src[0].id, message_id=3)
+    ts = list(await s.scalars(select(Threat).order_by(Threat.id)))
+    # find_open_track (no reply, no named district) picks the most recently
+    # active track — only ONE track closes, as "destroyed", the other stays open.
+    closed = [t for t in ts if t.closed_at is not None]
+    open_ = [t for t in ts if t.closed_at is None]
+    assert len(closed) == 1 and closed[0].status == "destroyed"
+    assert len(open_) == 1
+
+
 async def test_all_clear_closes_everything(ctx):
     s, m, src = ctx
     await ingest_message(s, text="Шахед над Оболонню", matcher=m, when=BASE,

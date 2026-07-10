@@ -274,3 +274,13 @@ def test_lost_signal_does_not_swallow_a_concurrent_real_sighting():
         "Дорозвідка по крилатим ракетам. Залишаються БПЛА. Найближчий в районі Позняки", M
     )
     assert not r.lost_signal and r.matched and names(r) == ["Позняки"]
+
+
+def test_lost_signal_does_not_override_destroyed():
+    # Real feed example: "Мінуснули, Дорозвідка" — one target confirmed
+    # destroyed, "дорозвідка" here is a follow-up status note, not a broader
+    # stand-down. The explicit destroyed keyword must win (same carve-out as
+    # negated/siren_only/political_quote) — otherwise this would incorrectly
+    # close EVERY open track as "lost" instead of just the destroyed one.
+    r = parse_message("Мінуснули, Дорозвідка", M)
+    assert r.status == "destroyed" and not r.lost_signal
