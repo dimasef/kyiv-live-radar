@@ -1,9 +1,9 @@
-import { RadioTower, TriangleAlert } from 'lucide-react'
+import { CheckCircle2, RadioTower, TriangleAlert } from 'lucide-react'
 import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useRadar } from '../store'
-import { threatColor } from '../theme'
+import { STATUS_COLORS, threatColor } from '../theme'
 import type { FeedEntry } from '../types'
 
 const KYIV_TZ = 'Europe/Kyiv'
@@ -188,14 +188,24 @@ export default function ThreatLog() {
             // Several tracks closed by ONE real message ("дорозвідка" with no
             // stated type closes every open track at once) — one card, one
             // clickable chip per closed track so each can still be inspected.
+            // Green accent (same as legend.clear) — this card is good news,
+            // it's reporting resolved/closed tracks, not a live sighting.
+            const closedColor = STATUS_COLORS.clear
             return (
               <Fragment key={`group-${head.event.id}`}>
                 {separator}
-                <li className="feed-item rounded-lg border border-white/[0.05] bg-white/[0.03] px-2.5 py-2 text-xs backdrop-blur-sm">
+                <li
+                  className="feed-item rounded-lg border border-emerald-400/20 bg-emerald-400/[0.05] px-2.5 py-2 text-xs backdrop-blur-sm"
+                  style={{
+                    borderLeft: `2px solid ${closedColor}`,
+                    boxShadow: `inset 2px 0 10px -4px ${closedColor}55`,
+                  }}
+                >
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className="font-medium text-slate-100">
+                    <span className="flex items-center gap-1.5 font-medium text-emerald-300">
+                      <CheckCircle2 size={12} className="flex-none" />
                       {t('log.closedMultiple')}
-                      <span className="ml-1 font-mono font-semibold text-amber-300">
+                      <span className="font-mono font-semibold text-emerald-200">
                         ×{group.length}
                       </span>
                     </span>
