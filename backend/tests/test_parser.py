@@ -43,6 +43,25 @@ def test_jet_drone():
     assert BY_EN["Pozniaky"] in {h.district_id for h in r.districts}
 
 
+def test_masculine_one_infers_shahed_when_no_type_stated():
+    # Ukrainian numeral agreement: "один"/"одне" (masculine/neuter) implies a
+    # masculine-gender noun (шахед/дрон/БПЛА), not "ракета" (feminine). Real
+    # feed examples, none of which name a type directly.
+    for txt in ["Один на водосховище", "Оболонь 🔴. Один залишився.",
+                "ще один на Славутич", "Один збили, залишився ще один"]:
+        r = parse_message(txt, M)
+        assert r.target_type == "shahed", txt
+
+
+def test_masculine_one_does_not_override_an_explicit_type():
+    # An explicit "реактивний"/"ракета" elsewhere in the message still wins —
+    # the gender guess is only a fallback for when nothing else is stated.
+    r = parse_message("Залишився один реактивний в ЧЗВ", M)
+    assert r.target_type == "jet_drone"
+    r = parse_message("Ракета, одна на Позняки", M)
+    assert r.target_type == "missile"
+
+
 def test_destroyed_closes():
     r = parse_message("Збили ціль над Дніпровським районом", M)
     assert r.status == "destroyed"

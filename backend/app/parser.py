@@ -21,6 +21,23 @@ _JET = ("реактивн", "швидкісн", "реактивного бпла
 _SHAHED = ("шахед", "shahed", "мопед", "герань", "герані", "дрон", "бпла",
            "безпілотник", "безпілотн")
 
+# Grammatical-gender fallback: Ukrainian numeral agreement implies the target
+# type even when the spotter never names it — "Один на водосховище" agrees
+# with a masculine noun (шахед/дрон/БПЛА all masculine), so a bare "один"/
+# "одне" with no other type keyword is almost certainly one of those, not a
+# missile ("ракета" is feminine — "одна" would agree with THAT). Swept the
+# real corpus: masculine forms appeared in 6/6 real target-count messages
+# with zero counter-examples ("Один на водосховище", "Оболонь. Один
+# залишився", "ще один на Славутич"...); feminine forms had ZERO real
+# support for a missile reading — every "одна"/"одне" hit was casualty news
+# ("Одна людина... загинула") where it agrees with "людина"/"тіло", not
+# "ракета" — NOT adopted, real collision risk with a generic "одна ціль"
+# phrasing we haven't seen yet but can't rule out. Reactive drones are
+# excluded here since spotters always name "реактивний" explicitly (caught
+# by _JET above) rather than omitting the type — a bare "один" is the
+# unremarkable default (shahed/generic drone), not the jet variant.
+_MASC_ONE_RE = re.compile(r"(?<![а-яіїєґ])(?:один|одне)(?![а-яіїєґ])", re.IGNORECASE)
+
 # --- Status keywords ---
 _CLEAR = ("відбій",)
 # "мінус" = spotter shorthand for a downed target ("Мінус", "мінус ще один") —
@@ -260,6 +277,8 @@ def _target_type(norm: str) -> str:
     if _JET_RE.search(norm):
         return "jet_drone"
     if _SHAHED_RE.search(norm):
+        return "shahed"
+    if _MASC_ONE_RE.search(norm):
         return "shahed"
     return "unknown"
 
