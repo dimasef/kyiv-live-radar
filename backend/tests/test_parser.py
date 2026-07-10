@@ -220,8 +220,57 @@ def test_day_recap_lowers_confidence_but_keeps_district():
     assert r.confidence <= 0.35
 
 
+def test_political_quote_suppresses_the_district():
+    # Real feed examples («ППО - Київ»): a news repost of a Zelensky statement
+    # naming a place — not a live spotter sighting.
+    for txt in [
+        "❗️Я очікую від СБУ і розвідки детального зʼясування того, "
+        "що сталось у Вишневому, — Зеленський",
+        '❗️ У Вишневому був склад боєприпасів одного з підприємств '
+        '"Укроборонпрому", — Зеленський',
+    ]:
+        r = parse_message(txt, M)
+        assert not r.matched and r.political_quote and r.districts == [], txt
+
+
+def test_political_quote_does_not_suppress_a_real_sighting():
+    # A stated target type elsewhere in the same message is a real sighting
+    # and must NOT be suppressed, even alongside an official's name.
+    r = parse_message(
+        "2х шахед курсом на Вишневе — за словами очевидців, Зеленський уже поінформований", M
+    )
+    assert r.matched and not r.political_quote and r.districts != []
+
+
+def test_political_quote_does_not_override_clear_or_destroyed():
+    # An explicit destroyed keyword elsewhere still wins over the
+    # quote-attribution wording, same carve-out as siren_only/negated.
+    r = parse_message("Збито над Вишневим, — Ігнат", M)
+    assert r.status == "destroyed" and not r.political_quote and r.districts != []
+
+
 def test_day_recap_word_does_not_lower_a_real_sighting():
     # The same "сьогодні" word alongside a stated target type is a real
     # sighting and must keep normal confidence.
     r = parse_message("2х шахед курсом на Дніпровський район сьогодні вночі", M)
     assert not r.day_recap and r.confidence > 0.35
+
+
+def test_lost_signal_detected_with_and_without_a_target_type():
+    # Real feed examples («ППО - Київ» / «Місто Кия»): "дорозвідка" = ППО no
+    # longer has/sees targets of the stated type (or none at all) — a
+    # stand-down signal, handled directly by ingest.py, not a suppression.
+    for txt in ["Все, Дорозвідка", "Дорозвідка", "Дорозвідка по крилатих ракетах.",
+                "По шахедах дорозвідка"]:
+        r = parse_message(txt, M)
+        assert r.lost_signal and r.districts == [], txt
+
+
+def test_lost_signal_does_not_swallow_a_concurrent_real_sighting():
+    # Real feed example: recon lost for cruise missiles, but a drone is still
+    # actively tracked over a named district in the SAME message — must not
+    # be treated as a lost_signal (that would drop the real Позняки sighting).
+    r = parse_message(
+        "Дорозвідка по крилатим ракетам. Залишаються БПЛА. Найближчий в районі Позняки", M
+    )
+    assert not r.lost_signal and r.matched and names(r) == ["Позняки"]

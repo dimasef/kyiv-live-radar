@@ -153,6 +153,75 @@ async def test_destroyed_closes_track(ctx):
     assert t.status == "destroyed" and t.closed_at is not None
 
 
+async def test_destroyed_without_district_inherits_last_known_and_creates_event(ctx):
+    # Real feed example: "Один збили, залишився ще один" closes the track but
+    # names no district of its own — it must still become a real ThreatEvent
+    # (inheriting the track's last known district) so the closing message
+    # shows up in the feed instead of vanishing with only a status broadcast.
+    s, m, src = ctx
+    await ingest_message(s, text="🔴 Шахед над Оболонню", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    out = await ingest_message(s, text="Один збили, залишився ще один", matcher=m,
+                               when=BASE + timedelta(minutes=1), source_id=src[0].id, message_id=2)
+    t = (await s.scalars(select(Threat))).first()
+    await s.refresh(t, ["events"])
+    assert t.status == "destroyed" and t.closed_at is not None
+    assert len(t.events) == 2
+    assert t.events[-1].district_id == t.events[0].district_id  # inherited Оболонь
+    assert t.events[-1].raw_text == "Один збили, залишився ще один"
+    # Must broadcast as 'event' (not 'status') so the frontend feed shows it.
+    assert len(out) == 1 and out[0].type == "event" and out[0].event is not None
+
+
+async def test_lost_signal_type_scoped_closes_only_matching_target_type(ctx):
+    # Real feed example: "Дорозвідка по крилатих ракетах" = ППО no longer has
+    # missile targets — must close ONLY open missile tracks, leaving a shahed
+    # track untouched, and must still create a visible event on the closed one.
+    s, m, src = ctx
+    await ingest_message(s, text="🔴 Шахед над Оболонню", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Ракета над Позняками", matcher=m,
+                         when=BASE + timedelta(minutes=1), source_id=src[0].id, message_id=2)
+    out = await ingest_message(s, text="Дорозвідка по крилатих ракетах.", matcher=m,
+                               when=BASE + timedelta(minutes=2), source_id=src[0].id, message_id=3)
+    shahed_t, missile_t = list(await s.scalars(select(Threat).order_by(Threat.id)))
+    assert shahed_t.target_type == "shahed" and missile_t.target_type == "missile"
+    assert shahed_t.closed_at is None  # a different target type — untouched
+    assert missile_t.closed_at is not None and missile_t.status == "lost"
+    await s.refresh(missile_t, ["events"])
+    assert len(missile_t.events) == 2  # original sighting + the lost-signal event
+    assert len(out) == 1 and out[0].type == "event" and out[0].event is not None
+
+
+async def test_lost_signal_untyped_closes_all_open_tracks(ctx):
+    # "Дорозвідка" with no target type named applies to everything.
+    s, m, src = ctx
+    await ingest_message(s, text="🔴 Шахед над Оболонню", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Ракета над Позняками", matcher=m,
+                         when=BASE + timedelta(minutes=1), source_id=src[0].id, message_id=2)
+    out = await ingest_message(s, text="Все, Дорозвідка", matcher=m,
+                               when=BASE + timedelta(minutes=2), source_id=src[0].id, message_id=3)
+    ts = list(await s.scalars(select(Threat)))
+    assert all(t.closed_at is not None and t.status == "lost" for t in ts)
+    assert len(out) == 2  # one event per closed track, both visible in the feed
+    assert all(b.type == "event" and b.event is not None for b in out)
+
+
+async def test_lost_signal_does_not_close_a_track_with_a_concurrent_real_sighting(ctx):
+    # A "дорозвідка" message that ALSO names a district (a real concurrent
+    # sighting of something else) must not close anything.
+    s, m, src = ctx
+    await ingest_message(s, text="Ракета над Позняками", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(
+        s, text="Дорозвідка по крилатим ракетам. Залишаються БПЛА. Найближчий в районі Позняки",
+        matcher=m, when=BASE + timedelta(minutes=1), source_id=src[0].id, message_id=2,
+    )
+    ts = list(await s.scalars(select(Threat)))
+    assert all(t.closed_at is None for t in ts)
+
+
 async def test_all_clear_closes_everything(ctx):
     s, m, src = ctx
     await ingest_message(s, text="Шахед над Оболонню", matcher=m, when=BASE,
@@ -325,3 +394,18 @@ async def test_conflict_between_sources(ctx):
     t = (await s.scalars(select(Threat))).first()
     await s.refresh(t, ["events"])
     assert t.has_conflict  # shahed vs missile on the same track
+
+
+async def test_no_conflict_when_a_corroborating_source_states_no_type(ctx):
+    # Real feed example (threat #187): "БПЛА курс на Бориспіль" (shahed)
+    # corroborated by "Бориспіль уважно" (no target type stated at all) — the
+    # second source isn't DISAGREEING, it just didn't restate the type, so
+    # this must NOT be flagged as a source conflict.
+    s, m, src = ctx
+    await ingest_message(s, text="БПЛА курс на Бориспіль", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Бориспіль уважно", matcher=m,
+                         when=BASE + timedelta(minutes=1), source_id=src[1].id, message_id=2)
+    t = (await s.scalars(select(Threat))).first()
+    await s.refresh(t, ["events"])
+    assert not t.has_conflict

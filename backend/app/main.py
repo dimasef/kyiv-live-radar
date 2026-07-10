@@ -73,7 +73,12 @@ app.include_router(router)
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "simulator": settings.simulator_enabled}
+    out = {"status": "ok", "simulator": settings.simulator_enabled}
+    if settings.telegram_enabled:
+        from .telegram_listener import get_status
+
+        out["telegram"] = get_status()
+    return out
 
 
 @app.websocket("/ws/threats")

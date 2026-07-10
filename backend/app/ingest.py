@@ -16,7 +16,7 @@ from datetime import datetime
 from sqlalchemy import select
 
 from .config import settings
-from .parser import DistrictMatcher, ParseResult, normalize, parse_message
+from .parser import DistrictHit, DistrictMatcher, ParseResult, normalize, parse_message
 from .models import RawMessage, Threat, ThreatEvent
 from .tracking import (
     apply_fusion,
@@ -66,6 +66,10 @@ def _should_fallback(parsed: ParseResult) -> bool:
     if parsed.siren_only:  # technical "alarm is on here" echo — not a live target
         return False
     if parsed.negated:  # explicit denial ("не йде на...") — not a live target
+        return False
+    if parsed.political_quote:  # official statement repost — not a live target
+        return False
+    if parsed.lost_signal:  # "дорозвідка" stand-down — handled directly by ingest, not a live target
         return False
     if parsed.districts or parsed.status in ("clear", "destroyed"):
         return False
@@ -173,6 +177,33 @@ async def _process_parsed(
         await done()
         return [Broadcast("status", t) for t in closed]
 
+    # 2a-bis. "Дорозвідка" — ППО temporarily has no targets of the stated type
+    # (or, if unstated, none at all): a real stand-down signal, not a
+    # confirmed all-clear. Type-scoped when a type is named, else every open
+    # track. Each closed track gets its own event (inheriting that track's
+    # last known district) so the message is visible in the feed/track-inspect
+    # view instead of vanishing as a bare status broadcast.
+    if parsed.lost_signal:
+        target = parsed.target_type if parsed.target_type != "unknown" else None
+        closed = await close_all_active(session, when, target_type=target)
+        pairs: list[tuple[Threat, ThreatEvent | None]] = []
+        for t in closed:
+            hit = _last_district_hit(t)
+            ev = None
+            if hit is not None:
+                ev = _make_event(t.id, parsed, hit, source_id, message_id,
+                                 forwarded_from_id, when, decision_source,
+                                 reply_to_message_id)
+                session.add(ev)
+            pairs.append((t, ev))
+        if any(ev is not None for _, ev in pairs):
+            await session.commit()
+            for t, ev in pairs:
+                if ev is not None:
+                    await apply_fusion(session, t)
+        await done()
+        return [Broadcast("event" if ev is not None else "status", t, ev) for t, ev in pairs]
+
     # 2b. Nothing localizable/actionable — keep the raw row, emit nothing.
     if not parsed.matched:
         await done()
@@ -189,9 +220,15 @@ async def _process_parsed(
         if track is None:
             await done()
             return []
+        # A closing message often names no district of its own ("Один збили,
+        # залишився ще один") — inherit the track's last known position so the
+        # message still becomes a real event (visible in the feed and in a
+        # track's inspect view), instead of silently vanishing with only a
+        # status-only broadcast the feed never displays.
+        hit = parsed.districts[0] if parsed.districts else _last_district_hit(track)
         ev = None
-        if parsed.districts:
-            ev = _make_event(track.id, parsed, parsed.districts[0], source_id,
+        if hit is not None:
+            ev = _make_event(track.id, parsed, hit, source_id,
                              message_id, forwarded_from_id, when, decision_source,
                              reply_to_message_id)
             session.add(ev)
@@ -200,7 +237,10 @@ async def _process_parsed(
         await session.commit()
         await apply_fusion(session, track)
         await done()
-        return [Broadcast("status", track, ev)]
+        # "event" (not "status") whenever we actually created one, so the
+        # frontend feed (which only appends 'event' broadcasts) shows it —
+        # a status-only broadcast is silently invisible there.
+        return [Broadcast("event" if ev is not None else "status", track, ev)]
 
     # 2d. Sighting / confirmed / unconfirmed -> continue or start a track.
     #     (1) reply to an OPEN chain = authoritative same-target signal (beats
@@ -237,6 +277,15 @@ async def _process_parsed(
 
     await done()
     return broadcasts
+
+
+def _last_district_hit(track: Threat) -> DistrictHit | None:
+    """Synthesize a hit for the track's most recently reported district, for a
+    closing message that names no district of its own."""
+    if not track.events:
+        return None
+    last = max(track.events, key=lambda e: e.event_time)
+    return DistrictHit(district_id=last.district_id, name="", position=0)
 
 
 def _make_event(threat_id, parsed: ParseResult, hit, source_id, message_id,

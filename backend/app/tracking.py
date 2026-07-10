@@ -130,11 +130,17 @@ def _within(a: datetime, b: datetime, gap: timedelta) -> bool:
     return abs((b - a).total_seconds()) <= gap.total_seconds()
 
 
-async def close_all_active(session, when: datetime) -> list[Threat]:
-    """All-clear: close every open track."""
+async def close_all_active(
+    session, when: datetime, target_type: str | None = None
+) -> list[Threat]:
+    """Close every open track — or, with `target_type`, only open tracks of
+    that type. Used both for a full all-clear ("відбій") and for a scoped
+    "дорозвідка" stand-down (ППО lost tracking for one target type)."""
     stmt = select(Threat).where(Threat.closed_at.is_(None)).options(
         selectinload(Threat.events)
     )
+    if target_type is not None:
+        stmt = stmt.where(Threat.target_type == target_type)
     closed = list(await session.scalars(stmt))
     for t in closed:
         t.status = "lost"

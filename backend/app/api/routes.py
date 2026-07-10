@@ -64,7 +64,11 @@ async def recent_events(
             selectinload(ThreatEvent.source),
             selectinload(ThreatEvent.threat),
         )
-        .order_by(ThreatEvent.event_time.desc())
+        # Secondary key so events sharing an event_time (e.g. one "дорозвідка"
+        # message closing several tracks at once) sort deterministically and
+        # stay adjacent — plain event_time ties have undefined order otherwise,
+        # which would scatter a group the frontend expects to find contiguous.
+        .order_by(ThreatEvent.event_time.desc(), ThreatEvent.id.desc())
         .limit(limit)
     )
     events = await session.scalars(stmt)

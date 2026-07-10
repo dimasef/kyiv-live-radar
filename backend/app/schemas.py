@@ -1,9 +1,20 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
+
+
+def _as_utc(v: object) -> object:
+    """SQLite drops tzinfo on round-trip even with DateTime(timezone=True) —
+    every stored datetime is UTC wall-clock, just naive by the time it gets
+    here. Reattach UTC before serialization so API responses carry an
+    explicit offset ('Z'/'+00:00') instead of an ambiguous naive string the
+    frontend would otherwise misinterpret as browser-local time."""
+    if isinstance(v, datetime) and v.tzinfo is None:
+        return v.replace(tzinfo=timezone.utc)
+    return v
 
 
 class DistrictOut(BaseModel):
@@ -40,11 +51,17 @@ class ThreatEventOut(BaseModel):
     # Multi-source attribution.
     source_id: Optional[int] = None
     source_name: Optional[str] = None
+    # Original channel message id — exposed so the frontend can detect several
+    # events that came from ONE message (e.g. a "дорозвідка" closing several
+    # tracks at once) and display them as one grouped feed card.
+    source_message_id: Optional[int] = None
     forwarded_from_id: Optional[int] = None
     event_target_type: Optional[str] = None
     # Denormalized point for convenient map rendering.
     lat: Optional[float] = None
     lon: Optional[float] = None
+
+    _tz_event_time = field_validator("event_time", mode="before")(_as_utc)
 
 
 class ThreatOut(BaseModel):
@@ -61,6 +78,8 @@ class ThreatOut(BaseModel):
     has_conflict: bool = False
     confidence: float = 0.5
     events: list[ThreatEventOut] = []
+
+    _tz_created_at = field_validator("created_at", "closed_at", mode="before")(_as_utc)
 
 
 class FeedEntryOut(BaseModel):

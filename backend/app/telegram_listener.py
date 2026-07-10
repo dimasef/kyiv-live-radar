@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 
@@ -21,6 +22,23 @@ from .models import District, Source
 from .parser import DistrictMatcher
 
 log = logging.getLogger("telegram")
+
+# Reconnect backoff schedule for run_listener()'s retry loop.
+_RECONNECT_INITIAL_SECONDS = 5
+_RECONNECT_MAX_SECONDS = 300
+
+# Mutable listener health, read by GET /health so a dead/zombied connection
+# (weak point #7 — Telethon can disconnect and never retry, leaving FastAPI
+# serving stale data with no visible error) shows up in the API, not just logs.
+_state: dict = {
+    "connected": False,
+    "last_message_at": None,  # datetime of the last live message actually received
+    "last_error": None,
+}
+
+
+def get_status() -> dict:
+    return dict(_state)
 
 
 def make_session():
@@ -127,61 +145,97 @@ async def _backfill(client, entities, id_to_source, matcher) -> None:
     log.info("backfill ingested %d recent messages", len(collected))
 
 
-async def run_listener() -> None:
+async def _run_listener_once(backfill: bool, run_state: dict) -> None:
+    """One connect→backfill→listen cycle. Raises on any failure or disconnect
+    so the caller's retry loop can reconnect; never returns normally except
+    via clean cancellation. Sets run_state["reached_connected"] = True as soon
+    as we're live, even if a later exception propagates — lets the caller
+    reset its backoff after a run that was actually connected for a while
+    (vs. one that failed before connecting at all)."""
     from telethon import TelegramClient, events
 
+    client = TelegramClient(
+        make_session(), settings.telegram_api_id, settings.telegram_api_hash
+    )
+    try:
+        await client.start()
+
+        entities = []
+        for raw in settings.telegram_channel_list:
+            try:
+                entities.append(await _resolve_channel(client, raw))
+            except Exception as ex:
+                log.error("could not resolve channel %r: %s", raw, ex)
+        if not entities:
+            raise RuntimeError("no channels resolved")
+
+        id_to_source = await _ensure_sources(entities)
+        async with SessionLocal() as s:
+            districts = list(await s.scalars(select(District)))
+        matcher = DistrictMatcher(districts)
+
+        if backfill and settings.telegram_backfill:
+            await _backfill(client, entities, id_to_source, matcher)
+
+        @client.on(events.NewMessage(chats=entities))
+        async def handler(event):  # noqa: ANN001
+            text = event.message.message or ""
+            if not text.strip():
+                return
+            source_id = id_to_source.get(event.chat_id)
+            # If the post is a forward, capture the ORIGINAL post id for repost dedup.
+            fwd = None
+            f = getattr(event.message, "fwd_from", None)
+            if f is not None:
+                fwd = getattr(f, "channel_post", None)
+            async with SessionLocal() as s:
+                results = await ingest_message(
+                    s,
+                    text=text,
+                    matcher=matcher,
+                    when=event.message.date,
+                    source_id=source_id,
+                    message_id=event.message.id,
+                    forwarded_from_id=fwd,
+                    reply_to_message_id=_reply_to_id(event.message),
+                )
+                await broadcast_results(s, results)
+            _state["last_message_at"] = datetime.now(timezone.utc)
+
+        titles = [getattr(e, "title", _source_key(e)) for e in entities]
+        log.info("telegram listener connected; monitoring: %s", titles)
+        _state["connected"] = True
+        _state["last_error"] = None
+        run_state["reached_connected"] = True
+        await client.run_until_disconnected()
+    finally:
+        _state["connected"] = False
+        await client.disconnect()
+
+
+async def run_listener() -> None:
     raw_channels = settings.telegram_channel_list
     if not raw_channels or not settings.telegram_api_id:
         log.warning("telegram listener not configured (channels/api_id missing)")
         return
 
-    client = TelegramClient(
-        make_session(), settings.telegram_api_id, settings.telegram_api_hash
-    )
-    await client.start()
-
-    entities = []
-    for raw in raw_channels:
+    backoff = _RECONNECT_INITIAL_SECONDS
+    first_attempt = True
+    while True:
+        run_state: dict = {}
         try:
-            entities.append(await _resolve_channel(client, raw))
+            await _run_listener_once(backfill=first_attempt, run_state=run_state)
+            log.warning("telegram listener disconnected cleanly; reconnecting")
+        except asyncio.CancelledError:
+            raise
         except Exception as ex:
-            log.error("could not resolve channel %r: %s", raw, ex)
-    if not entities:
-        log.error("no channels resolved — listener idle")
-        return
+            log.exception("telegram listener crashed: %s", ex)
+            _state["last_error"] = str(ex)
+        first_attempt = False
 
-    id_to_source = await _ensure_sources(entities)
-    async with SessionLocal() as s:
-        districts = list(await s.scalars(select(District)))
-    matcher = DistrictMatcher(districts)
-
-    if settings.telegram_backfill:
-        await _backfill(client, entities, id_to_source, matcher)
-
-    @client.on(events.NewMessage(chats=entities))
-    async def handler(event):  # noqa: ANN001
-        text = event.message.message or ""
-        if not text.strip():
-            return
-        source_id = id_to_source.get(event.chat_id)
-        # If the post is a forward, capture the ORIGINAL post id for repost dedup.
-        fwd = None
-        f = getattr(event.message, "fwd_from", None)
-        if f is not None:
-            fwd = getattr(f, "channel_post", None)
-        async with SessionLocal() as s:
-            results = await ingest_message(
-                s,
-                text=text,
-                matcher=matcher,
-                when=event.message.date,
-                source_id=source_id,
-                message_id=event.message.id,
-                forwarded_from_id=fwd,
-                reply_to_message_id=_reply_to_id(event.message),
-            )
-            await broadcast_results(s, results)
-
-    titles = [getattr(e, "title", _source_key(e)) for e in entities]
-    log.info("telegram listener connected; monitoring: %s", titles)
-    await client.run_until_disconnected()
+        if run_state.get("reached_connected"):
+            backoff = _RECONNECT_INITIAL_SECONDS  # was actually live — retry fast
+        log.info("reconnecting telegram listener in %ss", backoff)
+        await asyncio.sleep(backoff)
+        if not run_state.get("reached_connected"):
+            backoff = min(backoff * 2, _RECONNECT_MAX_SECONDS)

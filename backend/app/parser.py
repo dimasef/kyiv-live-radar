@@ -80,6 +80,37 @@ _SIREN_WORD = "тривог"
 # district — safer than suppressing on a heuristic this soft. ---
 _DAY_RECAP_WORD = "сьогодн"
 
+# --- Political/official quote naming a place ("У Вишневому був склад
+# боєприпасів... — Зеленський"). A news channel repeating a politician's or
+# official's statement about a place is NOT a live spotter sighting, even
+# though it names a district — distinct from siren_only/day_recap (those are
+# about a real-time siren/recap, this is about WHO is speaking). Marker: the
+# journalistic attribution convention of an em-dash (or plain dash) followed
+# by a named official/institution, e.g. "— Зеленський", "- заявив президент".
+# Swept the full real corpus (871 archived + live DB) for this shape: only 2
+# real hits, both variants of the same Вишневе/Зеленський story — rare but a
+# real, distinct false-positive class, so a small curated name list (same
+# pattern as _NEGATION/_AFTERMATH) is proportionate; a broader "any dash +
+# capitalized surname" regex would be far riskier without more real examples
+# to validate against. ---
+_QUOTE_ATTRIBUTION_RE = re.compile(
+    r"[—-]\s*(президент\w*|зеленськ\w*|сирськ\w*|кличк\w*|ігнат\w*|умєров\w*|"
+    r"буданов\w*|малюк\w*|генштаб\w*)",
+    re.IGNORECASE,
+)
+
+# --- "Дорозвідка" — real air-defense terminology meaning our side no longer
+# HAS/SEES targets of the stated type (or, if no type is named, no targets at
+# all) and is re-scanning; a temporary stand-down, NOT "it was a harmless
+# recon drone" (a dictionary-meaning trap — confirmed with the user). Message-
+# scoped, no target type of its own to report, so a message that ALSO names a
+# district (a genuine concurrent sighting of something else, e.g. "Дорозвідка
+# по ракетах, залишаються БПЛА в районі Позняки") must NOT be swallowed — the
+# compound gate below requires no district at all. Swept all 23 real
+# occurrences in the corpus: 21 match this gate cleanly (no district), 1 has a
+# district (correctly excluded), 1 already resolves via "відбій". ---
+_LOST_WORD = "дорозвід"
+
 # Case endings stripped (longest first) to reduce a Ukrainian word to a rough
 # stem, so one stem regex matches most forms (Троєщина/Троєщині/Троєщину).
 # IMPORTANT: we deliberately keep the adjectival "-ськ/-цьк" root (strip only
@@ -140,6 +171,8 @@ class ParseResult:
     negated: bool = field(default=False)
     siren_only: bool = field(default=False)
     day_recap: bool = field(default=False)
+    political_quote: bool = field(default=False)
+    lost_signal: bool = field(default=False)
 
 
 def _is_street_reference(norm_text: str, start: int, end: int) -> bool:
@@ -294,14 +327,33 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
     if day_recap:
         conf = min(conf, 0.35)
 
+    # Political/official quote naming a place, no stated target type — a news
+    # repost of a statement, not a spotter sighting. Same shape-gate as
+    # siren_only (target type unresolved + a district present); an explicit
+    # target type stated elsewhere in the same message still wins.
+    political_quote = (
+        target_type == "unknown"
+        and status in ("sighting", "confirmed")
+        and bool(districts)
+        and bool(_QUOTE_ATTRIBUTION_RE.search(norm))
+    )
+
+    # "Дорозвідка": ППО no longer has/sees targets of the stated type (or, if
+    # unstated, no targets at all) — a real stand-down signal handled directly
+    # by ingest.py (closes matching open tracks), not a suppression like the
+    # flags above. Gate is deliberately just "no district" — see _LOST_WORD's
+    # comment for why a district-bearing message must never match this.
+    lost_signal = _LOST_WORD in norm and not districts
+
     # No district and no actionable status -> nothing structured to record.
     matched = (
         (bool(districts) or status in ("clear", "destroyed"))
         and not aftermath
         and not negated
         and not siren_only
+        and not political_quote
     )
-    if aftermath or negated or siren_only:
+    if aftermath or negated or siren_only or political_quote:
         districts = []
     # Confidence drops when we can't localize the target.
     if not districts and status not in ("clear",):
@@ -320,4 +372,6 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
         negated=negated,
         siren_only=siren_only,
         day_recap=day_recap,
+        political_quote=political_quote,
+        lost_signal=lost_signal,
     )

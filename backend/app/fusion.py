@@ -46,7 +46,14 @@ def compute_fusion(events: Iterable[ThreatEvent]) -> FusionResult:
     origins = {_origin_key(ev) for ev in events}
     corroboration = max(1, len(origins))
 
-    claimed_types = {ev.event_target_type for ev in events if ev.event_target_type}
+    # "unknown" means the message stated NO target type (e.g. a terse
+    # corroboration like "Бориспіль уважно") — it is not a competing claim,
+    # so it must not count as disagreeing with a source that DID state one
+    # (e.g. "shahed"). A real conflict is only 2+ distinct STATED types.
+    claimed_types = {
+        ev.event_target_type for ev in events
+        if ev.event_target_type and ev.event_target_type != "unknown"
+    }
     has_conflict = len(claimed_types) > 1
 
     if corroboration <= 1:
