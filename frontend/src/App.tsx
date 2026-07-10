@@ -1,3 +1,4 @@
+import { Analytics } from '@vercel/analytics/react'
 import { ChevronUp, TriangleAlert } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { useEffect, useState } from 'react'
@@ -166,6 +167,7 @@ export default function App() {
           </div>
         </section>
       </main>
+      <Analytics />
     </div>
   )
 }
