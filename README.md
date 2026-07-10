@@ -1,9 +1,11 @@
 # Kyiv Live Radar
 
 Auxiliary, **unofficial** situational-awareness layer that visualizes aerial-threat
-reports over Kyiv on a live map. This repo currently contains the **working
-skeleton** (vertical slice) described below — the real Telegram feed and parser
-are stubbed behind a synthetic simulator.
+reports over Kyiv on a live map. Deployed (backend on Railway, frontend on
+Vercel) and reading 3 real Telegram channels through a rule-based parser with
+an LLM fallback; a synthetic simulator and a real-data replay mode are both
+available as feed sources when Telegram credentials aren't configured (see
+"Enable the real Telegram feed" below).
 
 > ⚠️ This is a supplementary service. Data is manual text from volunteer spotters,
 > district-level accuracy, seconds-to-minutes delay. It **never** replaces the
@@ -33,8 +35,15 @@ are stubbed behind a synthetic simulator.
   - `WS /ws/threats` real-time broadcast.
   - **Text simulator** (`app/simulator.py`): emits realistic Ukrainian messages
     through the REAL parser/tracker so the frontend has live data before
-    Telegram credentials exist. Toggle with `SIMULATOR_ENABLED`.
-  - **Tests**: `pytest` — parser (12) + ingest/tracking/fusion (8), all green.
+    Telegram credentials exist. Toggle with `SIMULATOR_ENABLED`. Synthetic
+    routes never reply-thread, so tracks never span 2+ districts — dots, not
+    vectors.
+  - **Real-data replay** (`app/replay.py`, `REPLAY_REAL_DATA=true`): replays
+    871 real messages backfilled from all 3 channels, preserving their
+    original reply chains and timestamps — for demoing real tracks/vectors
+    without live Telegram credentials. Takes priority over the simulator.
+  - **Tests**: `pytest tests/` — 58 tests, all green (parser, ingest/tracking/
+    fusion, replay dataset sanity, LLM-fallback routing).
 - **Frontend** (React + TS + Vite, react-leaflet, Zustand, i18n):
   - Live map: track tail, direction arrow (deterministic bearing), status colors.
   - Multi-source signals surfaced: corroboration count, confidence %, conflict flag.
@@ -96,9 +105,14 @@ Compare rules vs. rules+LLM on real captured messages (spec §9.5):
 .venv/bin/python eval/compare_llm.py --limit 15
 ```
 
-On the current live feed the LLM localizes ~13% of the rule-misses (declensions
-the stemmer misses, districts named in prose) with **zero** out-of-area false
-positives after prompt hardening.
+Measured against real captured messages, the LLM localizes only ~5% of the
+rule-misses — most misses are genuinely unlocalizable (other oblasts, news/
+commentary, or real Kyiv-area places simply missing from the gazetteer, which
+the enum-constrained LLM can't invent either). The real coverage lever is
+gazetteer size, not the LLM — see `eval/ground_truth_sessions.json` for a
+gap-analysis workflow. A rule-layer pre-filter (`ingest._OTHER_OBLAST`) skips
+the LLM call outright for messages that only name another oblast/border
+region, cutting call volume ~20% with no coverage loss.
 
 ## District boundaries
 
@@ -114,30 +128,58 @@ and approach-corridor towns stay as points (no crisp official boundary).
 - We deliberately do **not** draw fake circles around microdistrict centroids —
   that would imply precision the data doesn't have.
 
+## Track-level eval
+
+Per-message field accuracy (above) doesn't measure whether the TRACKING layer
+groups messages into the right real-world targets — the thing that actually
+drives the map. `eval/ground_truth_sessions.json` hand-labels 74 real target
+sessions from 871 real backfilled messages (all 3 channels, close-read for
+reply-chain/content/timing justification). `eval/track_eval.py` compares the
+pipeline's actual track groupings against it: session purity (1 real target →
+1 track?), track purity (1 track → only 1 real target — the mega-track
+check), and vector accuracy (does a real multi-district target's track
+actually span 2+ districts?).
+
+```bash
+DATABASE_URL="sqlite+aiosqlite:///./eval_backfill.db" .venv/bin/python eval/track_eval.py --verbose
+```
+
 ## Not yet built (next phases)
 
 - Nearest-edge distance to the home raion for ETA (currently centroid bearing).
 - Richer fusion (time-windowed correlation, trust-weighting, entity resolution).
 - Notifications — intentionally out of scope for this MVP.
+- Automated reconnect / health-check for the Telethon listener — currently a
+  connection drop kills the background listener task silently; the API keeps
+  serving stale data with no visible error outside the raw log.
 
 ## Enable the real Telegram feed
 
-1. Get `api_id` / `api_hash` from.
+1. Get `api_id` / `api_hash` from https://my.telegram.org.
 2. Create the login session once (interactive — prompts for phone + code):
    ```bash
    cd backend
    TELEGRAM_API_ID=... TELEGRAM_API_HASH=... .venv/bin/python -m app.telegram_login
    ```
-3. Configure `backend/.env` and restart the API:
+   On a host with no persistent local disk (Railway), use `--string` instead
+   — it prints a `TELEGRAM_SESSION_STRING` to paste into an env var rather
+   than writing a session file:
+   ```bash
+   TELEGRAM_API_ID=... TELEGRAM_API_HASH=... .venv/bin/python -m app.telegram_login --string
+   ```
+3. Configure `backend/.env` (or the host's env vars) and restart the API:
    ```
    TELEGRAM_ENABLED=true
    TELEGRAM_API_ID=...
    TELEGRAM_API_HASH=...
    TELEGRAM_CHANNELS=channel_one,channel_two   # usernames without @
    SIMULATOR_ENABLED=false
+   # TELEGRAM_SESSION_STRING=...               # only if using --string above
    ```
    With `TELEGRAM_ENABLED=true` and channels set, the API runs the listener
    instead of the simulator. (Reads only; respect Telegram ToS — spec §12.)
+   Each login (file or string) is an independent Telegram session — running
+   this twice for two different environments doesn't invalidate either.
 
 ## Run locally
 
@@ -159,8 +201,18 @@ npm run dev   # http://localhost:5173
 
 The frontend reads `VITE_API_URL` / `VITE_WS_URL` from `frontend/.env`.
 
-## Deployment (per spec)
+## Deployment
 
-- Frontend → Vercel (static). Backend → Railway (two always-on services: `api`
-  and `worker`, shared Postgres). The Telethon listener needs a persistent
-  MTProto connection — not a serverless task.
+- **Frontend** → Vercel, root directory `frontend` (static Vite build).
+- **Backend** → Railway, root directory `backend`, single always-on service +
+  a Postgres plugin (`DATABASE_URL` auto-injected in libpq scheme, rewritten
+  to `postgresql+asyncpg://` in `config.py`). Start command comes from
+  `railpack.json` (not a Procfile). The Telethon listener runs in-process
+  (`TELEGRAM_ENABLED=true`) — it needs a persistent MTProto connection, not a
+  serverless task, so it can't live on Vercel. `app/worker.py` sketches an
+  alternative two-service split (separate `api`/`worker` processes) for if
+  the in-process model needs to scale later; not currently deployed that way.
+- Railway's filesystem is ephemeral, so the Telegram session can't be a local
+  file there — use `TELEGRAM_SESSION_STRING` (see "Enable the real Telegram
+  feed" below) instead of the file-based session `TELEGRAM_ENABLED` normally
+  expects for local dev.
