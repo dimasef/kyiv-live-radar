@@ -114,7 +114,14 @@ export const useRadar = create<RadarState>((set, get) => ({
 
     if (msg.type === 'event' && msg.event) {
       const entry: FeedEntry = { event: msg.event, threat }
-      set((s) => ({ log: [entry, ...s.log].slice(0, LOG_CAP) }))
+      // Drop any existing entry with the same event id first — event ids can
+      // get reused after a destructive DB rebuild (e.g. scripts/
+      // reprocess_raw.py on SQLite dev, which restarts the id sequence from
+      // 1), which would otherwise leave two React list items with the same
+      // key (a real warning seen live) until the next full page reload.
+      set((s) => ({
+        log: [entry, ...s.log.filter((e) => e.event.id !== entry.event.id)].slice(0, LOG_CAP),
+      }))
     }
 
     if (threat.closed_at) {
