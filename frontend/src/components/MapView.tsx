@@ -1,4 +1,5 @@
 import L from 'leaflet'
+import { X } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { memo, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -53,7 +54,7 @@ const homeIcon = L.divIcon({
     <path d="M12 3 L21 11 L18 11 L18 20 L14 20 L14 14 L10 14 L10 20 L6 20 L6 11 L3 11 Z"
       fill="#38bdf8" stroke="#0b0f14" stroke-width="1"/></svg>`,
   iconSize: [22, 22],
-  iconAnchor: [11, 20],
+  iconAnchor: [11, 11],
 })
 
 /** Handles map clicks (set home) and auto-recenters when geolocation resolves. */
@@ -85,6 +86,36 @@ function HomeController() {
       flown.current = true
     }
   }, [home, map])
+
+  return null
+}
+
+/** Flies the map to fit an inspected track the moment its points arrive —
+ * once per selection, not on every subsequent event update. */
+function InspectController() {
+  const map = useMap()
+  const inspected = useRadar((s) => s.inspectedThreat)
+  const liveThreats = useRadar((s) => s.threats)
+  const fittedId = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (!inspected) return
+    if (fittedId.current === inspected.id) return
+    // Prefer the live copy so an already-open track's points (and thus the
+    // fly-to) are available instantly, instead of waiting on our own fetch.
+    const display = liveThreats[inspected.id] ?? inspected
+    const pts = trackPoints(display)
+    if (pts.length === 0) return
+    fittedId.current = inspected.id
+    if (pts.length === 1) {
+      map.flyTo([pts[0].lat, pts[0].lon], 13)
+    } else {
+      map.flyToBounds(
+        pts.map((p) => [p.lat, p.lon] as [number, number]),
+        { padding: [56, 56], maxZoom: 14 },
+      )
+    }
+  }, [inspected, liveThreats, map])
 
   return null
 }
@@ -153,7 +184,13 @@ function ThreatPopup({ threat }: { threat: Threat }) {
 // on every unrelated update. Icons are additionally useMemo'd so even a
 // re-render of THIS track's own layer reuses the same icon object when color
 // and heading haven't actually changed.
-const ThreatLayer = memo(function ThreatLayer({ threat }: { threat: Threat }) {
+const ThreatLayer = memo(function ThreatLayer({
+  threat,
+  highlighted = false,
+}: {
+  threat: Threat
+  highlighted?: boolean
+}) {
   const pts = trackPoints(threat)
   const color = threatColor(threat)
   const heading = headingOf(threat)
@@ -175,13 +212,15 @@ const ThreatLayer = memo(function ThreatLayer({ threat }: { threat: Threat }) {
       {latlngs.length > 1 && (
         <Polyline
           // className is applied at creation only — remount when activity flips.
-          key={`${threat.id}-${active ? 'live' : 'closed'}`}
+          key={`${threat.id}-${active ? 'live' : 'closed'}-${highlighted ? 'insp' : ''}`}
           positions={latlngs}
           pathOptions={{
             color,
-            weight: 3,
-            opacity: active ? 0.8 : 0.45,
-            className: active ? 'track-flow' : undefined,
+            weight: highlighted ? 5 : 3,
+            opacity: active ? 0.8 : highlighted ? 0.75 : 0.45,
+            className: [active && 'track-flow', highlighted && 'track-inspect']
+              .filter(Boolean)
+              .join(' ') || undefined,
             dashArray: !active && threat.has_conflict ? '6 6' : undefined,
           }}
         />
@@ -190,8 +229,8 @@ const ThreatLayer = memo(function ThreatLayer({ threat }: { threat: Threat }) {
         <CircleMarker
           key={i}
           center={[p.lat, p.lon]}
-          radius={3}
-          pathOptions={{ color, fillColor: color, fillOpacity: 0.6, weight: 1 }}
+          radius={highlighted ? 4 : 3}
+          pathOptions={{ color, fillColor: color, fillOpacity: 0.6, weight: highlighted ? 2 : 1 }}
         />
       ))}
       {/* Pulsing rings on the live head of an active track. */}
@@ -210,8 +249,8 @@ const ThreatLayer = memo(function ThreatLayer({ threat }: { threat: Threat }) {
       ) : (
         <CircleMarker
           center={[head.lat, head.lon]}
-          radius={7}
-          pathOptions={{ color, fillColor: color, fillOpacity: 0.85, weight: 2 }}
+          radius={highlighted ? 9 : 7}
+          pathOptions={{ color, fillColor: color, fillOpacity: 0.85, weight: highlighted ? 3 : 2 }}
         >
           <ThreatPopup threat={threat} />
         </CircleMarker>
@@ -228,13 +267,65 @@ const DISTRICT_STYLE = {
   fillOpacity: 0.1,
 }
 
+/** Floating pill showing which track is being inspected, with a close button
+ * — the explicit way out of inspection (besides re-clicking the same feed
+ * item), since the feed panel and map can be scrolled apart on mobile. */
+function InspectBadge() {
+  const { t } = useTranslation()
+  const inspected = useRadar((s) => s.inspectedThreat)
+  const liveThreats = useRadar((s) => s.threats)
+  const clearInspection = useRadar((s) => s.clearInspection)
+
+  if (!inspected) return null
+  // Prefer the live copy (freshest event count) when the inspected track is
+  // still open, instead of our independently-fetched (possibly-lagging) one.
+  const display = liveThreats[inspected.id] ?? inspected
+  const color = threatColor(display)
+
+  return (
+    <div className="pointer-events-auto absolute left-1/2 top-3 z-[900] -translate-x-1/2">
+      <div className="panel flex items-center gap-2.5 px-3 py-1.5">
+        <span
+          className="h-2.5 w-2.5 flex-none rounded-full"
+          style={{ background: color, boxShadow: `0 0 8px ${color}66` }}
+        />
+        <span className="whitespace-nowrap text-xs text-slate-200">
+          {t('inspect.viewing')}{' '}
+          <span className="font-medium text-slate-100">
+            {t(`target.${display.target_type}`)}
+          </span>
+          {display.events.length > 0 && (
+            <span className="ml-1.5 font-mono text-[10px] text-slate-500">
+              · {display.events.length} {t('inspect.events')}
+            </span>
+          )}
+        </span>
+        <button
+          onClick={clearInspection}
+          aria-label={t('inspect.close')}
+          title={t('inspect.close')}
+          className="ml-1 flex h-5 w-5 flex-none items-center justify-center rounded-full text-slate-400 transition-colors duration-200 hover:bg-white/10 hover:text-slate-100"
+        >
+          <X size={13} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function MapView() {
   const { t } = useTranslation()
   const threats = useRadar((s) => s.threats)
   const boundaries = useRadar((s) => s.boundaries)
   const home = useRadar((s) => s.home)
   const placingHome = useRadar((s) => s.placingHome)
+  const inspectedThreat = useRadar((s) => s.inspectedThreat)
   const initialCenter: [number, number] = home ? [home.lat, home.lon] : KYIV_CENTER
+
+  // A track being inspected might already be live (in `threats`) — in that
+  // case the live copy has fresher data, so just highlight it in place rather
+  // than rendering a second, stale layer on top of it.
+  const inspectedIsLive = inspectedThreat != null && inspectedThreat.id in threats
 
   return (
     <div className="relative h-full w-full">
@@ -258,6 +349,7 @@ export default function MapView() {
         ))}
 
         <HomeController />
+        <InspectController />
 
         {home && (
           <>
@@ -275,9 +367,19 @@ export default function MapView() {
         )}
 
         {Object.values(threats).map((th) => (
-          <ThreatLayer key={th.id} threat={th} />
+          <ThreatLayer
+            key={th.id}
+            threat={th}
+            highlighted={inspectedThreat?.id === th.id}
+          />
         ))}
+        {/* The inspected track isn't currently live (closed/evicted) — render
+            it from its independently-fetched event history. */}
+        {inspectedThreat && !inspectedIsLive && (
+          <ThreatLayer threat={inspectedThreat} highlighted />
+        )}
       </MapContainer>
+      <InspectBadge />
       <MapLegend />
     </div>
   )

@@ -7,15 +7,13 @@ import uk from './locales/uk.json'
 const STORAGE_KEY = 'klr-lang'
 
 function initialLang(): string {
-  const saved = localStorage.getItem(STORAGE_KEY)
-  if (saved) return saved
-  return navigator.language?.toLowerCase().startsWith('uk') ? 'uk' : 'en'
+  return localStorage.getItem(STORAGE_KEY) ?? 'uk'
 }
 
 i18n.use(initReactI18next).init({
   resources: { uk: { translation: uk }, en: { translation: en } },
   lng: initialLang(),
-  fallbackLng: 'en',
+  fallbackLng: 'uk',
   interpolation: { escapeValue: false },
 })
 

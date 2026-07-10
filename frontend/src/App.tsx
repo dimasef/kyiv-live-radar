@@ -21,6 +21,7 @@ export default function App() {
   const { t } = useTranslation()
   const connected = useRadar((s) => s.connected)
   const placingHome = useRadar((s) => s.placingHome)
+  const inspectedThreatId = useRadar((s) => s.inspectedThreat?.id)
   const setDistricts = useRadar((s) => s.setDistricts)
   const setBoundaries = useRadar((s) => s.setBoundaries)
   const setThreats = useRadar((s) => s.setThreats)
@@ -50,6 +51,11 @@ export default function App() {
   useEffect(() => {
     if (placingHome) setSheetOpen(false)
   }, [placingHome])
+
+  // Inspecting a track from the feed needs the map visible too.
+  useEffect(() => {
+    if (inspectedThreatId != null) setSheetOpen(false)
+  }, [inspectedThreatId])
 
   return (
     <div className="h-full flex flex-col">

@@ -31,7 +31,15 @@
     "corroboration": "sources",
     "conflict": "source conflict",
     "confidence": "confidence",
-    "unknownSource": "unknown source"
+    "unknownSource": "unknown source",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "closedMultiple": "Targets closed"
+  },
+  "inspect": {
+    "viewing": "Viewing track:",
+    "events": "events",
+    "close": "Close track inspection"
   },
   "target": {
     "shahed": "Shahed",

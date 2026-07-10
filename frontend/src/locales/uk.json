@@ -31,7 +31,15 @@
     "corroboration": "джерел",
     "conflict": "конфлікт джерел",
     "confidence": "впевненість",
-    "unknownSource": "невідоме джерело"
+    "unknownSource": "невідоме джерело",
+    "today": "Сьогодні",
+    "yesterday": "Вчора",
+    "closedMultiple": "Закрито цілей"
+  },
+  "inspect": {
+    "viewing": "Перегляд треку:",
+    "events": "подій",
+    "close": "Закрити перегляд треку"
   },
   "target": {
     "shahed": "Shahed",

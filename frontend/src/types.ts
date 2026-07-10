@@ -21,6 +21,7 @@ export interface ThreatEvent {
   translated_text: string | null
   source_id: number | null
   source_name: string | null
+  source_message_id: number | null
   forwarded_from_id: number | null
   event_target_type: string | null
   lat: number | null

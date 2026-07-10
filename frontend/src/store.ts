@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 
+import { fetchThreatEvents } from './api'
 import type { District, DistrictBoundary, FeedEntry, Threat, WSMessage } from './types'
 
 export interface Home {
@@ -30,6 +31,10 @@ interface RadarState {
   home: Home | null
   /** When true, the next map click sets home (otherwise clicks just pan). */
   placingHome: boolean
+  /** Track a user picked from the feed to inspect on the map — independent of
+   * `threats` (the live layer), so a closed/destroyed track stays visible for
+   * as long as the user wants, instead of being evicted after a few seconds. */
+  inspectedThreat: Threat | null
 
   setDistricts: (d: District[]) => void
   setBoundaries: (b: DistrictBoundary[]) => void
@@ -39,6 +44,8 @@ interface RadarState {
   setHome: (h: Home | null) => void
   setHomeRadius: (radiusKm: number) => void
   setPlacingHome: (v: boolean) => void
+  inspectThreat: (threat: Threat) => void
+  clearInspection: () => void
   handleWS: (msg: WSMessage) => void
 }
 
@@ -54,6 +61,7 @@ export const useRadar = create<RadarState>((set, get) => ({
   connected: false,
   home: loadHome(),
   placingHome: false,
+  inspectedThreat: null,
 
   setDistricts: (d) => set({ districts: d }),
   setBoundaries: (b) => set({ boundaries: b }),
@@ -75,6 +83,23 @@ export const useRadar = create<RadarState>((set, get) => ({
     localStorage.setItem(HOME_KEY, JSON.stringify(next))
     set({ home: next })
   },
+
+  inspectThreat: (threat) => {
+    // Show what we already have (from the feed entry) immediately, then fill
+    // in the full event history — works even if the track is closed/evicted
+    // from `threats`, since this doesn't read from it at all.
+    set({ inspectedThreat: threat })
+    fetchThreatEvents(threat.id)
+      .then((events) => {
+        // Guard against a stale response landing after the user picked a
+        // different (or no) track in the meantime.
+        if (get().inspectedThreat?.id === threat.id) {
+          set({ inspectedThreat: { ...threat, events } })
+        }
+      })
+      .catch(() => {})
+  },
+  clearInspection: () => set({ inspectedThreat: null }),
 
   handleWS: (msg) => {
     const threat = msg.threat
