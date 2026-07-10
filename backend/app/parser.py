@@ -40,6 +40,16 @@ _MASC_ONE_RE = re.compile(r"(?<![а-яіїєґ])(?:один|одне)(?![а-яі
 
 # --- Status keywords ---
 _CLEAR = ("відбій",)
+# "тривог" (the SIREN itself ended, e.g. "Відбій тривоги") is a strong signal
+# the clear is general/unscoped, even if the same message also happens to
+# name a target type. Used to gate clear_scope below — see that field's
+# comment. Ballistic threats never carry a Kyiv district (see _MISSILE's
+# "баліст" — sub-minute flight time, nobody spots them over a specific
+# raion), so their own "Відбій балістики"-style stand-downs would otherwise
+# be indistinguishable from a full all-clear and wrongly close every OTHER
+# open track too (a real example: "тривога зберігається по цих БПЛА. По
+# балістиці відбій." — БПЛА explicitly still active).
+_UNSCOPED_CLEAR_WORD = "тривог"
 # "мінус" = spotter shorthand for a downed target ("Мінус", "мінус ще один") —
 # the common destroyed-terminal on «Місто Кия | Безпека»; substring-safe in this
 # feed (threat context, not weather/temperature).
@@ -190,6 +200,11 @@ class ParseResult:
     day_recap: bool = field(default=False)
     political_quote: bool = field(default=False)
     lost_signal: bool = field(default=False)
+    # None = a genuine full clear ("Відбій тривоги та всіх загроз") — closes
+    # every open track. A target type = an all-clear scoped to just THAT
+    # type ("Відбій балістичної загрози з Криму") — must not close unrelated
+    # open tracks (e.g. an active shahed). Only set when status == "clear".
+    clear_scope: str | None = field(default=None)
 
 
 def _is_street_reference(norm_text: str, start: int, end: int) -> bool:
@@ -311,6 +326,17 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
     target_count = _target_count(norm)
     districts = matcher.find(norm)
 
+    # A clear/відбій is scoped to just the named type when the message states
+    # a real type (currently only "missile" — ballistic — reaches this shape
+    # in the real feed) and doesn't ALSO say the siren itself ended. See
+    # _UNSCOPED_CLEAR_WORD's comment for the real example this guards.
+    clear_scope = (
+        target_type
+        if status == "clear" and target_type == "missile"
+        and _UNSCOPED_CLEAR_WORD not in norm
+        else None
+    )
+
     # Aftermath/consequence news ("постраждала багатоповерхівка", "врятували
     # дитину") mentions a district but is NOT a live target — suppress it, unless
     # it's an all-clear (which legitimately closes tracks).
@@ -399,4 +425,5 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
         day_recap=day_recap,
         political_quote=political_quote,
         lost_signal=lost_signal,
+        clear_scope=clear_scope,
     )

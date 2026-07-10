@@ -276,6 +276,34 @@ async def test_all_clear_closes_everything(ctx):
     assert len(out) == 2  # both tracks closed and broadcast
 
 
+async def test_scoped_ballistic_clear_does_not_close_unrelated_tracks(ctx):
+    # Real feed example: "Відбій балістичної загрози з Криму" only clears
+    # ballistic — an unrelated active shahed track must stay open. Ballistic
+    # threats never carry a Kyiv district (sub-minute flight time), so their
+    # own clear looks identical in shape to a real відбій unless scoped.
+    s, m, src = ctx
+    await ingest_message(s, text="🔴 Шахед над Оболонню", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Відбій балістичної загрози з Криму.", matcher=m,
+                         when=BASE + timedelta(minutes=1), source_id=src[0].id, message_id=2)
+    shahed_t = (await s.scalars(select(Threat))).first()
+    assert shahed_t.closed_at is None
+
+
+async def test_unscoped_ballistic_clear_still_closes_everything(ctx):
+    # An explicit "Відбій тривоги" (the siren itself ended) is still a real
+    # full clear even if it also happens to mention ballistic.
+    s, m, src = ctx
+    await ingest_message(s, text="🔴 Шахед над Оболонню", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(
+        s, text="Відбій тривоги та загрози від балістики, стаємо 🟢!", matcher=m,
+        when=BASE + timedelta(minutes=1), source_id=src[0].id, message_id=2,
+    )
+    shahed_t = (await s.scalars(select(Threat))).first()
+    assert shahed_t.closed_at is not None
+
+
 async def test_destroyed_closes_track_over_named_district(ctx):
     s, m, src = ctx
     # Track A over Оболонь, then a separate new target B over Позняки.

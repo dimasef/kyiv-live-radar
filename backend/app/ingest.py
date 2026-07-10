@@ -171,9 +171,12 @@ async def _process_parsed(
         raw.processed = True
         await session.commit()
 
-    # 2a. All-clear closes every open track.
+    # 2a. All-clear closes every open track — or, if clear_scope is set (a
+    # ballistic-only stand-down, "Відбій балістичної загрози з Криму"), only
+    # open tracks of that type, so an unrelated active shahed/jet track isn't
+    # incorrectly closed by a clear that never mentioned it.
     if parsed.status == "clear":
-        closed = await close_all_active(session, when)
+        closed = await close_all_active(session, when, target_type=parsed.clear_scope)
         await done()
         return [Broadcast("status", t) for t in closed]
 
