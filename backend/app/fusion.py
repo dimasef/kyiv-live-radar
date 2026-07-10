@@ -14,24 +14,47 @@ class FusionResult:
         self.confidence = confidence
 
 
-def _origin_key(ev: ThreatEvent):
-    """Independent-origin key for an event.
+def _origin_keys(events: list[ThreatEvent]) -> set:
+    """Independent-origin key per event, for the whole track at once.
 
-    Identity is the ORIGINAL message: a repost carries it in `forwarded_from_id`,
-    an original post is identified by its own `source_message_id`. Both collapse
-    to the same key, so N channels echoing one post count as ONE independent
-    confirmation — not N. Falls back to the source channel when no message id is
-    available.
+    Identity is the reporting SOURCE CHANNEL — several messages from the SAME
+    channel narrating one track over time (a sighting, then an update, then
+    "destroyed") must collapse to ONE origin, not one per message. A repost
+    carries the ORIGINAL post's id in `forwarded_from_id`; when that original
+    is also one of this track's own (non-forwarded) events, the repost is
+    attributed to THAT original's channel — so it collapses with it instead
+    of counting as a second corroborating source. If the original isn't
+    present in this track (came from an untracked channel), the repost falls
+    back to its own `("orig", forwarded_from_id)` key.
 
-    Limitation (MVP): keyed on message id alone, not (channel, id). Telegram ids
-    are per-channel, so two unrelated originals sharing a numeric id would merge.
-    Storing the original channel on reposts (Telethon `fwd_from`) removes this.
+    (Naively keying non-reposts on bare `source_message_id` was tried and
+    reverted — every message has a unique id even within one channel, so that
+    made EVERY additional message from the SAME channel look like a new
+    independent source, silently inflating corroboration_count/confidence on
+    any track with 2+ updates from one channel — found via a real track that
+    showed "2 джерел" despite both events being from the same channel. But
+    bare source_id alone breaks repost collapsing, since a repost's
+    `forwarded_from_id` and the original's own `source_message_id` share the
+    same numeric id — the two-pass approach here keeps both correct.)
+
+    Limitation (MVP): the fallback ("orig", forwarded_from_id) is keyed on
+    message id alone, not (channel, id) — two unrelated originals from
+    different channels sharing a numeric id would incorrectly merge. Storing
+    the original channel on reposts (Telethon `fwd_from`) removes this.
     """
-    if ev.forwarded_from_id is not None:
-        return ("orig", ev.forwarded_from_id)
-    if ev.source_message_id is not None:
-        return ("orig", ev.source_message_id)
-    return ("src", ev.source_id)
+    original_channel_by_msgid = {
+        ev.source_message_id: ev.source_id
+        for ev in events
+        if ev.forwarded_from_id is None and ev.source_message_id is not None
+    }
+    keys = set()
+    for ev in events:
+        if ev.forwarded_from_id is not None:
+            src = original_channel_by_msgid.get(ev.forwarded_from_id)
+            keys.add(("src", src) if src is not None else ("orig", ev.forwarded_from_id))
+        else:
+            keys.add(("src", ev.source_id))
+    return keys
 
 
 def compute_fusion(events: Iterable[ThreatEvent]) -> FusionResult:
@@ -43,7 +66,7 @@ def compute_fusion(events: Iterable[ThreatEvent]) -> FusionResult:
     set. The data model already carries everything that richer logic needs.
     """
     events = list(events)
-    origins = {_origin_key(ev) for ev in events}
+    origins = _origin_keys(events)
     corroboration = max(1, len(origins))
 
     # "unknown" means the message stated NO target type (e.g. a terse

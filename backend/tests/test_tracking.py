@@ -130,6 +130,23 @@ async def test_cross_source_corroboration(ctx):
     assert t.confidence >= 0.75
 
 
+async def test_same_source_multiple_messages_does_not_inflate_corroboration(ctx):
+    # Real bug found live: a track narrated over 2 messages from the SAME
+    # channel ("Один на водосховище" then "Мінуснули, Дорозвідка", both
+    # «Віраж Києва») showed corroboration_count=2 — every message has a
+    # unique id even within one channel, so keying origin on bare message id
+    # made each additional update from the SAME source look independent.
+    s, m, src = ctx
+    await ingest_message(s, text="🔴 Шахед над Троєщиною", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Збили ціль над Троєщиною", matcher=m,
+                         when=BASE + timedelta(minutes=1), source_id=src[0].id, message_id=2)
+    t = (await s.scalars(select(Threat))).first()
+    await s.refresh(t, ["events"])
+    assert t.corroboration_count == 1
+    assert t.confidence < 0.75
+
+
 async def test_repost_does_not_inflate(ctx):
     s, m, src = ctx
     await ingest_message(s, text="🔴 Шахед над Троєщиною", matcher=m, when=BASE,
