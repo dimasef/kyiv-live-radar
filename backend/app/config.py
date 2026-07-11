@@ -87,6 +87,13 @@ class Settings(BaseSettings):
     # keep them regardless — this only bounds the live map layer.
     impact_map_ttl_hours: int = 6
 
+    # One-off maintenance: when true, rebuild ALL tracks/incidents from stored
+    # raw_messages at startup (BEFORE the live listener starts — race-free) so a
+    # prod DB picks up parser/gazetteer changes without external DB access. Set
+    # it, let the service redeploy once, then unset it (it re-runs every boot
+    # while set). Rule-only (no LLM) so it costs nothing.
+    reprocess_on_boot: bool = False
+
     # Emit synthetic tracks (as raw Ukrainian text through the REAL parser) so
     # the frontend has live data before Telegram credentials are configured.
     simulator_enabled: bool = True

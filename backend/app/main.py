@@ -25,6 +25,16 @@ async def lifespan(app: FastAPI):
     s = await seed_sources()
     log.info("db ready; seeded %d districts, %d sources", d, s)
 
+    # One-off maintenance reprocess — runs BEFORE any feed source starts, so it
+    # never races a live ingest. Rebuilds all tracks from raw_messages through
+    # the current pipeline. Unset REPROCESS_ON_BOOT after one deploy.
+    if settings.reprocess_on_boot:
+        from .reprocess import run_reprocess
+
+        log.warning("REPROCESS_ON_BOOT set — rebuilding all tracks from raw_messages…")
+        result = await run_reprocess(no_llm=True)
+        log.warning("reprocess complete: %s — now UNSET REPROCESS_ON_BOOT.", result)
+
     # Feed source: real Telegram listener if configured, else a replay of real
     # captured messages if requested, else the synthetic text simulator.
     tasks: list[asyncio.Task] = []
