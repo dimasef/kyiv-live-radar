@@ -181,7 +181,14 @@ async def _resolve(text: str, matcher: DistrictMatcher) -> tuple[ParseResult, st
         from .llm_fallback import llm_extract
 
         llm = await llm_extract(text, matcher)
-        if llm is not None and (llm.districts or llm.status in ("clear", "destroyed")):
+        # Trust the LLM for LOCALIZATION only — use its result only when it
+        # actually recovered a district. Never let it declare an all-clear /
+        # destroyed on its own: rules own those via explicit keywords
+        # ("відбій"/"збито"), and a keyword-detected stand-down never reaches the
+        # LLM anyway (see _should_fallback). Letting the LLM infer a clear from a
+        # reassuring tone ("масованих пусків немає… відпочивайте") produced false
+        # "Відбій" feed entries AND risked closing active tracks via close_all_active.
+        if llm is not None and llm.districts:
             return llm, "llm"
     return parsed, "rule"
 
