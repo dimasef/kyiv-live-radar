@@ -141,3 +141,11 @@ fix/tweak with no new capability (parser/gazetteer fixes, dedup, cosmetics),
 during the MVP). Bump the version accordingly, newest entry first. Write
 `changes` in Ukrainian, operator-facing (what they'll notice), not internal
 mechanics.
+
+### Working agreement — do NOT auto-commit or push
+
+Make and verify changes locally (tests, `npm run build`, run the app), but do
+**not** run `git commit` or `git push` on your own. The maintainer tests each
+change locally first and then gives an explicit go-ahead ("пуш"/"комітимо")
+before anything is committed or pushed. Prepare the diff and stop there; wait for
+that signal.

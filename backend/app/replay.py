@@ -19,7 +19,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime
+import os
+import random
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import select
@@ -32,7 +34,14 @@ from .parser import DistrictMatcher
 
 log = logging.getLogger("replay")
 
-_DATA_FILE = Path(__file__).parent / "data" / "real_sample_messages.jsonl"
+# Which captured-message file to replay. Override with REPLAY_FILE to demo a
+# specific event (e.g. a single night's attack) instead of the full sample.
+_DEFAULT_DATA_FILE = Path(__file__).parent / "data" / "real_sample_messages.jsonl"
+
+
+def _data_file() -> Path:
+    override = os.getenv("REPLAY_FILE")
+    return Path(override) if override else _DEFAULT_DATA_FILE
 
 # channel_key -> display name, matching what telegram_listener would have
 # created for these same channels (so a DB that's seen both replay and a real
@@ -43,7 +52,33 @@ _CHANNELS = {
     "kiev_trevoha": "Віраж Києва",
 }
 
-_PACING_SECONDS = 0.25
+# Delay between broadcasting successive messages — visible pacing only (the
+# `when` timestamps below preserve real tracking windows regardless). Defaults to
+# 0.25s; set REPLAY_PACING_MIN/MAX (seconds) to slow it down, e.g. 3 and 5 to
+# watch a night's attack unfold at ~one event every 3–5s. Equal min/max = fixed.
+_PACING_MIN = float(os.getenv("REPLAY_PACING_MIN", "0.25"))
+_PACING_MAX = float(os.getenv("REPLAY_PACING_MAX", str(_PACING_MIN)))
+
+
+def _pacing_seconds() -> float:
+    lo, hi = _PACING_MIN, max(_PACING_MIN, _PACING_MAX)
+    return random.uniform(lo, hi) if hi > lo else lo
+
+
+# Replaying an OLD night's messages verbatim keeps their original timestamps —
+# fine for tracking windows, but the incident/track staleness sweepers run on
+# wall-clock "now", so every incident instantly looks stale and fragments. Set
+# REPLAY_SHIFT_TO_NOW=true to slide the whole sequence forward so its LAST
+# message lands ~now (relative gaps preserved) — the attack then reads as "just
+# happening" and groups into ONE incident, as it would live. Demo aid only.
+_SHIFT_TO_NOW = os.getenv("REPLAY_SHIFT_TO_NOW", "false").lower() in ("1", "true", "yes")
+
+
+def _time_offset(messages: list[dict]) -> timedelta:
+    if not _SHIFT_TO_NOW or not messages:
+        return timedelta(0)
+    latest = max(datetime.fromisoformat(m["time"]) for m in messages)
+    return datetime.utcnow() - latest
 
 
 async def _ensure_sources() -> dict[str, int]:
@@ -62,13 +97,17 @@ async def _ensure_sources() -> dict[str, int]:
 
 
 def _load_messages() -> list[dict]:
-    return [json.loads(line) for line in _DATA_FILE.read_text("utf-8").splitlines() if line.strip()]
+    return [json.loads(line) for line in _data_file().read_text("utf-8").splitlines() if line.strip()]
 
 
 async def run_replay() -> None:
     messages = _load_messages()
-    log.info("replaying %d real captured messages", len(messages))
+    log.info("replaying %d real captured messages from %s (pacing %.2f-%.2fs)",
+             len(messages), _data_file().name, _PACING_MIN, max(_PACING_MIN, _PACING_MAX))
     key_to_source_id = await _ensure_sources()
+    offset = _time_offset(messages)
+    if offset:
+        log.info("shifting replay timestamps by %s so the sequence ends ~now", offset)
 
     async with SessionLocal() as s:
         districts = list(await s.scalars(select(District)))
@@ -76,7 +115,7 @@ async def run_replay() -> None:
 
     for msg in messages:
         source_id = key_to_source_id[msg["channel_key"]]
-        when = datetime.fromisoformat(msg["time"])
+        when = datetime.fromisoformat(msg["time"]) + offset
         async with SessionLocal() as s:
             try:
                 results = await ingest_message(
@@ -91,6 +130,6 @@ async def run_replay() -> None:
                 results = []
             if results:
                 await broadcast_results(s, results)
-        await asyncio.sleep(_PACING_SECONDS)
+        await asyncio.sleep(_pacing_seconds())
 
     log.info("replay finished — %d messages ingested", len(messages))
