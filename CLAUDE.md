@@ -128,3 +128,16 @@ to `postgresql+asyncpg://` in `config.py`). Frontend → Vercel, root directory
 serverless function; on Railway's ephemeral filesystem use
 `TELEGRAM_SESSION_STRING` (from `telegram_login.py --string`) instead of the
 file-based local dev session.
+
+### Releasing (changelog is mandatory)
+
+**Every prod release MUST add a `CHANGELOG` entry** in
+`frontend/src/changelog.ts` — `APP_VERSION` is derived from the newest entry and
+shown in-app (Settings → version history at `/change-log`). Do not ship a
+user-visible change to prod without one. Each entry requires a `date`
+(`YYYY-MM-DD`, the release day) and a `kind` per `SEMVER_RULES`: `patch` =
+fix/tweak with no new capability (parser/gazetteer fixes, dedup, cosmetics),
+`minor` = new operator-visible capability, `major` = public/breaking (stays 0
+during the MVP). Bump the version accordingly, newest entry first. Write
+`changes` in Ukrainian, operator-facing (what they'll notice), not internal
+mechanics.

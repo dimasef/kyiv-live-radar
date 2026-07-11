@@ -3,6 +3,8 @@ export type BumpKind = 'major' | 'minor' | 'patch'
 export interface Release {
   version: string
   title: string
+  /** Release date, ISO `YYYY-MM-DD`. Every release MUST carry one. */
+  date: string
   /** Which digit this release bumped — see SEMVER_RULES. */
   kind: BumpKind
   changes: string[]
@@ -30,8 +32,20 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
+    version: '0.2.1',
+    title: 'Чистка стрічки й історії',
+    date: '2026-07-11',
+    kind: 'patch',
+    changes: [
+      'Виправлено: новинні пости (напр. про потяг Київ–Варшава) більше не позначаються як «Відбій» у стрічці',
+      'Репроцес більше не дублює й не лишає застарілих записів «Відбій»/підсумків у стрічці',
+      'Історія версій: тепер зі скролом на мобільному та датою кожного релізу',
+    ],
+  },
+  {
     version: '0.2.0',
     title: 'Моделювання балістичної атаки',
+    date: '2026-07-11',
     kind: 'minor',
     changes: [
       'Окремий тип «Балістика» проти «Ракета» — різна поведінка на карті; успадкування типу між сусідніми повідомленнями каналу',
@@ -49,6 +63,7 @@ export const CHANGELOG: Release[] = [
   {
     version: '0.1.0',
     title: 'Базовий радар',
+    date: '2026-07-09',
     kind: 'minor',
     changes: [
       'Парсер повідомлень, треки та вектори, крос-джерельний фьюжн',

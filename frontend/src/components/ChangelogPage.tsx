@@ -10,13 +10,19 @@ const KIND_COLOR: Record<BumpKind, string> = {
   patch: '#54b8f0',
 }
 
+/** `2026-07-11` -> `11.07.2026`. */
+function formatDate(iso: string): string {
+  const [y, m, d] = iso.split('-')
+  return `${d}.${m}.${y}`
+}
+
 /** Standalone route (/change-log): version history + SemVer policy. A real page
  * so the URL can be shared. */
 export default function ChangelogPage() {
   const [rulesOpen, setRulesOpen] = useState(false)
 
   return (
-    <div className="min-h-screen overflow-y-auto">
+    <div className="h-[100dvh] overflow-y-auto overscroll-contain">
       <div className="mx-auto max-w-2xl px-5 py-6 sm:px-8 sm:py-10">
         <a
           href="/"
@@ -81,16 +87,19 @@ export default function ChangelogPage() {
         <ul className="mt-7 space-y-6">
           {CHANGELOG.map((rel) => (
             <li key={rel.version}>
-              <div className="flex items-center gap-2.5">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                 <span className="font-mono text-[15px] font-semibold text-phosphor-soft">
                   v{rel.version}
                 </span>
                 <span className="text-[14px] font-medium text-slate-200">{rel.title}</span>
-                <span
-                  className="ml-auto rounded px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wide"
-                  style={{ color: KIND_COLOR[rel.kind], background: `${KIND_COLOR[rel.kind]}1a` }}
-                >
-                  {rel.kind}
+                <span className="ml-auto flex items-center gap-2.5">
+                  <span className="font-mono text-[11px] text-slate-500">{formatDate(rel.date)}</span>
+                  <span
+                    className="rounded px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wide"
+                    style={{ color: KIND_COLOR[rel.kind], background: `${KIND_COLOR[rel.kind]}1a` }}
+                  >
+                    {rel.kind}
+                  </span>
                 </span>
               </div>
               <ul className="mt-2.5 space-y-1.5">
