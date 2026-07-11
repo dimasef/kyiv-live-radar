@@ -3,6 +3,21 @@
     "title": "Kyiv Live Radar",
     "subtitle": "Auxiliary aerial threat tracker"
   },
+  "citywide": {
+    "title": "City-wide threat"
+  },
+  "incident": {
+    "type": {
+      "ballistic": "Ballistic attack",
+      "missile": "Missile attack",
+      "jet_drone": "UAV attack",
+      "shahed": "Drone attack",
+      "unknown": "Air attack"
+    },
+    "targets": "targets",
+    "impacts": "impacts",
+    "districts": "districts"
+  },
   "disclaimer": {
     "title": "Important",
     "text": "Unofficial auxiliary service. Data comes from manual text reports by volunteer spotters — district-level accuracy, seconds-to-minutes delay. It does NOT replace the official air-raid alert. Always act on the siren and official apps.",
@@ -23,6 +38,7 @@
     "destroyed": "Destroyed / closed",
     "clear": "All-clear",
     "conflict": "Sources disagree",
+    "impact": "Incident",
     "home": "Home"
   },
   "log": {
@@ -34,7 +50,15 @@
     "unknownSource": "unknown source",
     "today": "Today",
     "yesterday": "Yesterday",
-    "closedMultiple": "Targets closed"
+    "closedMultiple": "Targets closed",
+    "impact": "Incident"
+  },
+  "notice": {
+    "clear": "All clear",
+    "summary": "Summary"
+  },
+  "status": {
+    "impact": "incident"
   },
   "inspect": {
     "viewing": "Viewing track:",
@@ -45,6 +69,7 @@
     "shahed": "Shahed",
     "jet_drone": "Jet UAV",
     "missile": "Missile",
+    "ballistic": "Ballistic",
     "unknown": "Unknown"
   },
   "conn": {

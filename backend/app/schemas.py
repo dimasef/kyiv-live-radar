@@ -71,6 +71,8 @@ class ThreatOut(BaseModel):
     created_at: datetime
     target_type: str
     status: str
+    scope: str = "district"
+    incident_id: Optional[int] = None
     target_count: int = 1
     closed_at: Optional[datetime] = None
     # Derived multi-source fusion signals.
@@ -90,9 +92,43 @@ class FeedEntryOut(BaseModel):
     threat: ThreatOut
 
 
+class IncidentOut(BaseModel):
+    """A coordinated attack with counts aggregated from its member threats."""
+
+    id: int
+    started_at: datetime
+    ended_at: Optional[datetime] = None
+    target_type: str
+    status: str  # 'active' | 'ended'
+    # Aggregates over member threats (computed in the route).
+    track_count: int = 0        # inbound tracks (excludes impacts and city alerts)
+    impact_count: int = 0       # distinct confirmed strike locations
+    citywide: bool = False      # a city-wide alert is part of this attack
+    district_count: int = 0     # distinct raions touched (excludes the sentinel)
+
+    _tz_incident = field_validator("started_at", "ended_at", mode="before")(_as_utc)
+
+
+class NoticeOut(BaseModel):
+    """A non-threat feed notice (all-clear / attack summary) for the event log."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    kind: str  # 'clear' | 'summary'
+    text: str
+    target_type: str
+    event_time: datetime
+    source_id: Optional[int] = None
+    source_name: Optional[str] = None
+
+    _tz_notice = field_validator("event_time", mode="before")(_as_utc)
+
+
 class WSMessage(BaseModel):
     """Envelope broadcast over the WebSocket."""
 
-    type: str  # 'event' | 'status' | 'hello'
+    type: str  # 'event' | 'status' | 'notice' | 'hello'
     threat: Optional[ThreatOut] = None
     event: Optional[ThreatEventOut] = None
+    notice: Optional[NoticeOut] = None

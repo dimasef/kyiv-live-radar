@@ -9,6 +9,11 @@ from __future__ import annotations
 # `aliases` lists spelling variants / abbreviations that spotters actually use;
 # the parser matches against these (case-insensitive, later morphology-aware).
 
+# name_en of the city-wide sentinel "district" (see its entry at the end of the
+# list). DistrictMatcher skips this one so a real "київ" never over-matches, and
+# ingest attaches city-wide ThreatEvents to it. Referenced here and in ingest.
+CITYWIDE_NAME_EN = "Kyiv (citywide)"
+
 DISTRICTS: list[dict] = [
     # --- 10 administrative raions ---
     {"name_uk": "Голосіївський", "name_en": "Holosiivskyi", "lat": 50.381, "lon": 30.508,
@@ -29,7 +34,9 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Подільський", "name_en": "Podilskyi", "lat": 50.470, "lon": 30.515,
      "aliases": ["поділ", "подільський район"]},
     {"name_uk": "Солом'янський", "name_en": "Solomianskyi", "lat": 50.430, "lon": 30.450,
-     "aliases": ["солом'янка", "солом'янський район", "соломянський"]},
+     # "солома"/"соломі"/"на Соломі" — the colloquial short name (stem "солом").
+     # Corpus-swept: all 11 "солом…" forms are this raion, no "солома"=straw noise.
+     "aliases": ["солом'янка", "солом'янський район", "соломянський", "солома"]},
     {"name_uk": "Шевченківський", "name_en": "Shevchenkivskyi", "lat": 50.455, "lon": 30.470,
      "aliases": ["шевченківський район"]},
     {"name_uk": "Святошинський", "name_en": "Sviatoshynskyi", "lat": 50.455, "lon": 30.365,
@@ -217,7 +224,10 @@ DISTRICTS: list[dict] = [
      "aliases": []},
     {"name_uk": "Нижні Сади", "name_en": "NyzhniSady", "lat": 50.3682, "lon": 30.6076, "aliases": []},
     {"name_uk": "Лісовий масив", "name_en": "LisovyiMasyv", "lat": 50.4746, "lon": 30.6302,
-     "aliases": []},
+     # The two-word name can't match on its own (its stem loses the space);
+     # "лісовий" is the single-word form spotters actually inflect ("на лісовий
+     # масив"). Corpus-swept: every "лісов…" hit is this neighbourhood.
+     "aliases": ["лісовий"]},
     {"name_uk": "Жуляни", "name_en": "Zhuliany", "lat": 50.3928, "lon": 30.4422, "aliases": []},
     {"name_uk": "Биківня", "name_en": "Bykivnia", "lat": 50.476, "lon": 30.6705, "aliases": []},
     {"name_uk": "Вокзальна площа", "name_en": "VokzalnaSquare", "lat": 50.4406, "lon": 30.4901,
@@ -249,6 +259,16 @@ DISTRICTS: list[dict] = [
     # explicitly ties it to Оболонь, a Kyiv district right next to it).
     {"name_uk": "Київське водосховище", "name_en": "KyivReservoir", "lat": 50.9218, "lon": 30.5047,
      "aliases": ["водосховище"]},
+
+    # Sentinel "district" for CITY-WIDE threats — a strike aimed at the city as
+    # a whole ("ціль на місто", "балістика на Київ") that no spotter localizes
+    # to a raion. It is NOT a real matchable place: DistrictMatcher skips it (its
+    # name would otherwise over-match every "у Києві…" mention), and the LLM
+    # fallback never sees it. It exists only so a city-wide ThreatEvent has a
+    # valid point (city centre) and a display name; the map renders such threats
+    # as a banner, not this point. Detection is the parser's `citywide` flag.
+    {"name_uk": "Київ", "name_en": CITYWIDE_NAME_EN,
+     "lat": 50.4501, "lon": 30.5234, "aliases": []},
 ]
 
 # Rough geographic center of Kyiv, for initial map framing.

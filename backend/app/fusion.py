@@ -57,6 +57,12 @@ def _origin_keys(events: list[ThreatEvent]) -> set:
     return keys
 
 
+def _family(target_type: str) -> str:
+    """Collapse target types to a family for conflict detection: ballistic is a
+    specialization of missile, so the two never count as a source conflict."""
+    return "missile" if target_type in ("missile", "ballistic") else target_type
+
+
 def compute_fusion(events: Iterable[ThreatEvent]) -> FusionResult:
     """Derive corroboration, conflict, and fused confidence for a track.
 
@@ -72,12 +78,16 @@ def compute_fusion(events: Iterable[ThreatEvent]) -> FusionResult:
     # "unknown" means the message stated NO target type (e.g. a terse
     # corroboration like "Бориспіль уважно") — it is not a competing claim,
     # so it must not count as disagreeing with a source that DID state one
-    # (e.g. "shahed"). A real conflict is only 2+ distinct STATED types.
-    claimed_types = {
-        ev.event_target_type for ev in events
+    # (e.g. "shahed"). A real conflict is only 2+ distinct STATED FAMILIES:
+    # "ballistic" is a specific kind of "missile", so one source saying
+    # "8 балістичних ракет С-400" and another "8 ракет" describe the SAME salvo
+    # at different specificity — NOT a disagreement. Collapse them to one family
+    # before counting, else every ballistic salvo flags a false source conflict.
+    claimed = {
+        _family(ev.event_target_type) for ev in events
         if ev.event_target_type and ev.event_target_type != "unknown"
     }
-    has_conflict = len(claimed_types) > 1
+    has_conflict = len(claimed) > 1
 
     if corroboration <= 1:
         base = 0.5

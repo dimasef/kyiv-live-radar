@@ -48,6 +48,8 @@ async def init_db() -> None:
             await _ensure_columns(conn, "raw_messages", {"reply_to_message_id": "INTEGER"})
             await _ensure_columns(conn, "threat_events", {"reply_to_message_id": "INTEGER"})
             await _ensure_columns(conn, "threats", {"target_count": "INTEGER DEFAULT 1"})
+            await _ensure_columns(conn, "threats", {"scope": "VARCHAR(10) DEFAULT 'district'"})
+            await _ensure_columns(conn, "threats", {"incident_id": "INTEGER"})
         # create_all() only defines this constraint for BRAND NEW tables — a
         # pre-existing raw_messages table needs it added as a unique index. Only
         # succeeds if the data is already duplicate-free (see scripts/dedupe_ingest.py);

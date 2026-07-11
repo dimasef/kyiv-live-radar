@@ -20,12 +20,12 @@
 {"text": "Шахед впав у Голосіївському районі", "target_type": "shahed", "status": "destroyed", "is_new_target": false, "districts": ["Holosiivskyi"]}
 {"text": "Відбій тривоги в Києві", "target_type": "unknown", "status": "clear", "is_new_target": false, "districts": []}
 {"text": "Відбій повітряної тривоги", "target_type": "unknown", "status": "clear", "is_new_target": false, "districts": []}
-{"text": "Балістика по Києву! Укриття!", "target_type": "missile", "status": "active", "is_new_target": false, "districts": []}
-{"text": "Загроза застосування балістики", "target_type": "missile", "status": "active", "is_new_target": false, "districts": []}
+{"text": "Балістика по Києву! Укриття!", "target_type": "ballistic", "status": "active", "is_new_target": false, "districts": []}
+{"text": "Загроза застосування балістики", "target_type": "ballistic", "status": "active", "is_new_target": false, "districts": []}
 {"text": "Крилаті ракети курсом на Київ", "target_type": "missile", "status": "active", "is_new_target": false, "districts": []}
 {"text": "🔴 Ракета над Дніпровським районом", "target_type": "missile", "status": "active", "is_new_target": false, "districts": ["Dniprovskyi"]}
-{"text": "Кинджал на столицю", "target_type": "missile", "status": "active", "is_new_target": false, "districts": []}
-{"text": "Балістика! БпЛА теж у небі над Позняками", "target_type": "missile", "status": "active", "is_new_target": false, "districts": ["Pozniaky"]}
+{"text": "Кинджал на столицю", "target_type": "ballistic", "status": "active", "is_new_target": false, "districts": []}
+{"text": "Балістика! БпЛА теж у небі над Позняками", "target_type": "ballistic", "status": "active", "is_new_target": false, "districts": ["Pozniaky"]}
 {"text": "КАБ на Харківський напрямок", "target_type": "missile", "status": "active", "is_new_target": false, "districts": []}
 {"text": "Реактивний БпЛА на високій швидкості, Позняки", "target_type": "jet_drone", "status": "active", "is_new_target": false, "districts": ["Pozniaky"]}
 {"text": "Швидкісна ціль курс на Оболонь", "target_type": "jet_drone", "status": "active", "is_new_target": false, "districts": ["Obolon"]}
@@ -43,13 +43,13 @@
 {"text": "Увага! Шахед змінив курс, тепер на Дарницю", "target_type": "shahed", "status": "active", "is_new_target": false, "districts": ["Darnytskyi"]}
 {"text": "Кілька БпЛА над Оболонню та Виноградарем", "target_type": "shahed", "status": "active", "is_new_target": false, "districts": ["Obolon", "Vynohradar"]}
 {"text": "Ракетна небезпека! Всім в укриття", "target_type": "missile", "status": "active", "is_new_target": false, "districts": []}
-{"text": "Загроза балістики з північного напрямку", "target_type": "missile", "status": "active", "is_new_target": false, "districts": []}
+{"text": "Загроза балістики з північного напрямку", "target_type": "ballistic", "status": "active", "is_new_target": false, "districts": []}
 {"text": "Шахед над центром міста", "target_type": "shahed", "status": "active", "is_new_target": false, "districts": []}
 {"text": "БпЛА курсують над Дніпром у бік Позняків", "target_type": "shahed", "status": "active", "is_new_target": false, "districts": ["Pozniaky"]}
 {"text": "Тривога! Загроза застосування ударних БпЛА", "target_type": "shahed", "status": "active", "is_new_target": false, "districts": []}
 {"text": "Шахед над Теремками", "target_type": "shahed", "status": "active", "is_new_target": false, "districts": ["Teremky"]}
 {"text": "Ціль над ДВРЗ", "target_type": "unknown", "status": "active", "is_new_target": false, "districts": ["DVRZ"]}
 {"text": "Відбій. Дякуємо ППО за роботу", "target_type": "unknown", "status": "clear", "is_new_target": false, "districts": []}
-{"text": "Балістика з півночі, ймовірно на Київ, уточнюється", "target_type": "missile", "status": "unconfirmed", "is_new_target": false, "districts": []}
+{"text": "Балістика з півночі, ймовірно на Київ, уточнюється", "target_type": "ballistic", "status": "unconfirmed", "is_new_target": false, "districts": []}
 {"text": "Шахед над Виноградарем, ще один за ним на Нивки", "target_type": "shahed", "status": "active", "is_new_target": true, "districts": ["Vynohradar", "Nyvky"]}
 {"text": "Група БпЛА зайшла на Деснянський район", "target_type": "shahed", "status": "active", "is_new_target": false, "districts": ["Desnianskyi"]}

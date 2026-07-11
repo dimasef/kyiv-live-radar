@@ -4,8 +4,16 @@ import type { CSSProperties } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { fetchActiveThreats, fetchBoundaries, fetchDistricts, fetchRecentEvents } from './api'
+import {
+  fetchActiveIncidents,
+  fetchActiveThreats,
+  fetchBoundaries,
+  fetchDistricts,
+  fetchRecentEvents,
+  fetchRecentNotices,
+} from './api'
 import DisclaimerModal, { DISCLAIMER_HIDE_KEY } from './components/DisclaimerModal'
+import IncidentBanner from './components/IncidentBanner'
 import { requestGeolocation } from './components/HomeControl'
 import LanguageSwitcher from './components/LanguageSwitcher'
 import MapView from './components/MapView'
@@ -26,7 +34,9 @@ export default function App() {
   const setDistricts = useRadar((s) => s.setDistricts)
   const setBoundaries = useRadar((s) => s.setBoundaries)
   const setThreats = useRadar((s) => s.setThreats)
+  const setIncidents = useRadar((s) => s.setIncidents)
   const setLog = useRadar((s) => s.setLog)
+  const setNotices = useRadar((s) => s.setNotices)
 
   // Safety disclaimer: modal on load unless the user opted out; always
   // reachable again via the header warning button.
@@ -42,11 +52,13 @@ export default function App() {
     fetchDistricts().then(setDistricts).catch(() => {})
     fetchBoundaries().then(setBoundaries).catch(() => {})
     fetchActiveThreats().then(setThreats).catch(() => {})
+    fetchActiveIncidents().then(setIncidents).catch(() => {})
     fetchRecentEvents().then(setLog).catch(() => {})
+    fetchRecentNotices().then(setNotices).catch(() => {})
     connectWS()
     // Ask for the user's real location on first run (no saved home yet).
     if (!useRadar.getState().home) requestGeolocation()
-  }, [setDistricts, setBoundaries, setThreats, setLog])
+  }, [setDistricts, setBoundaries, setThreats, setIncidents, setLog, setNotices])
 
   // Placing home needs the map visible — collapse the sheet.
   useEffect(() => {
@@ -107,6 +119,7 @@ export default function App() {
         {/* Map fills everything; on mobile the sheet floats above it. */}
         <div className="absolute inset-0 lg:static lg:flex-1 lg:min-w-0">
           <MapView />
+          <IncidentBanner />
         </div>
 
         {/* Desktop sidebar */}

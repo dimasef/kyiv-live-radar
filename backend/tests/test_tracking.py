@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.db import Base
 from app.gazetteer import DISTRICTS, SOURCES
 from app.ingest import ingest_message
-from app.models import District, RawMessage, Source, Threat, ThreatEvent
+from app.models import District, Incident, RawMessage, Source, Threat, ThreatEvent
 from app.parser import DistrictMatcher
 
 
@@ -273,7 +273,10 @@ async def test_all_clear_closes_everything(ctx):
         select(func.count()).select_from(Threat).where(Threat.closed_at.is_(None))
     )
     assert open_left == 0
-    assert len(out) == 2  # both tracks closed and broadcast
+    statuses = [b for b in out if b.type == "status"]
+    notices = [b for b in out if b.type == "notice"]
+    assert len(statuses) == 2  # both tracks closed and broadcast
+    assert len(notices) == 1 and notices[0].notice.kind == "clear"  # відбій shown in feed
 
 
 async def test_scoped_ballistic_clear_does_not_close_unrelated_tracks(ctx):
@@ -460,7 +463,7 @@ async def test_conflict_between_sources(ctx):
                          when=BASE + timedelta(minutes=1), source_id=src[1].id, message_id=2)
     t = (await s.scalars(select(Threat))).first()
     await s.refresh(t, ["events"])
-    assert t.has_conflict  # shahed vs missile on the same track
+    assert t.has_conflict  # shahed vs ballistic on the same track
 
 
 async def test_no_conflict_when_a_corroborating_source_states_no_type(ctx):
@@ -476,3 +479,216 @@ async def test_no_conflict_when_a_corroborating_source_states_no_type(ctx):
     t = (await s.scalars(select(Threat))).first()
     await s.refresh(t, ["events"])
     assert not t.has_conflict
+
+
+async def test_impact_creates_a_closed_terminal_marker(ctx):
+    # A localized strike ("влучання ... в Дніпровському районі") becomes its own
+    # impact marker: status=impact, closed-on-creation (a hit is terminal), with
+    # a visible event — not an active inbound track.
+    s, m, src = ctx
+    out = await ingest_message(
+        s, text="В Дніпровському районі влучання по нежитловій будівлі",
+        matcher=m, when=BASE, source_id=src[0].id, message_id=1)
+    t = (await s.scalars(select(Threat))).first()
+    await s.refresh(t, ["events"])
+    assert t.status == "impact" and t.closed_at is not None
+    assert len(t.events) == 1
+    # Broadcast as an 'event' so the feed shows it.
+    assert len(out) == 1 and out[0].type == "event" and out[0].event is not None
+
+
+async def test_impact_does_not_absorb_a_later_sighting_over_same_district(ctx):
+    # The impact is closed, so a later real sighting over the SAME district must
+    # start its own track, not corroborate onto the (terminal) impact marker.
+    s, m, src = ctx
+    await ingest_message(
+        s, text="В Дніпровському районі влучання по нежитловій будівлі",
+        matcher=m, when=BASE, source_id=src[0].id, message_id=1)
+    await ingest_message(
+        s, text="Шахед над Дніпровським районом", matcher=m,
+        when=BASE + timedelta(minutes=1), source_id=src[0].id, message_id=2)
+    threats = list(await s.scalars(select(Threat).order_by(Threat.id)))
+    assert len(threats) == 2
+    impact_t, sighting_t = threats
+    assert impact_t.status == "impact"
+    assert sighting_t.status != "impact" and sighting_t.closed_at is None
+
+
+async def test_citywide_alert_created_and_corroborated_into_one(ctx):
+    # "Ціль на місто!" with no raion raises ONE city-wide alert; a second
+    # city-wide callout shortly after corroborates it, not spawns a new one.
+    s, m, src = ctx
+    await ingest_message(s, text="Балістика!", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Ціль на місто!", matcher=m,
+                         when=BASE + timedelta(minutes=1), source_id=src[0].id, message_id=2)
+    await ingest_message(s, text="Балістика на Київ", matcher=m,
+                         when=BASE + timedelta(minutes=2), source_id=src[1].id, message_id=3)
+    city = list(await s.scalars(select(Threat).where(Threat.scope == "city")))
+    assert len(city) == 1
+    t = city[0]
+    await s.refresh(t, ["events"])
+    assert t.closed_at is None and len(t.events) == 2
+    # Type inherited from "Балістика!" on channel 0 for the bare "Ціль на місто!".
+    assert t.target_type == "ballistic"
+    assert t.corroboration_count == 2  # two distinct sources
+
+
+async def test_citywide_alert_closed_by_all_clear(ctx):
+    s, m, src = ctx
+    await ingest_message(s, text="Ціль на місто!", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Відбій тривоги", matcher=m,
+                         when=BASE + timedelta(minutes=3), source_id=src[0].id, message_id=2)
+    t = (await s.scalars(select(Threat).where(Threat.scope == "city"))).first()
+    assert t.closed_at is not None and t.status == "lost"
+
+
+async def test_citywide_event_uses_the_sentinel_district(ctx):
+    # The city-wide event attaches to the non-matchable sentinel district so it
+    # has a valid point, and no normal sighting ever lands on that district.
+    s, m, src = ctx
+    await ingest_message(s, text="Балістика на Київ", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    t = (await s.scalars(select(Threat).where(Threat.scope == "city"))).first()
+    await s.refresh(t, ["events"])
+    sentinel = (await s.scalars(
+        select(District).where(District.name_en == "Kyiv (citywide)"))).first()
+    assert sentinel is not None
+    assert t.events[0].district_id == sentinel.id
+
+
+async def test_impact_dedup_same_district_one_marker(ctx):
+    # Two sources report ONE strike over the same raion minutes apart — it must
+    # be a single impact marker with corroboration 2, not two stacked pins.
+    s, m, src = ctx
+    await ingest_message(
+        s, text="У Дніпровському районі фіксуємо пошкоджено будівлю", matcher=m,
+        when=BASE, source_id=src[0].id, message_id=1)
+    await ingest_message(
+        s, text="В Дніпровському районі влучання по нежитловій будівлі", matcher=m,
+        when=BASE + timedelta(minutes=2), source_id=src[1].id, message_id=2)
+    impacts = list(await s.scalars(select(Threat).where(Threat.status == "impact")))
+    assert len(impacts) == 1
+    t = impacts[0]
+    await s.refresh(t, ["events"])
+    assert len(t.events) == 2
+    assert t.corroboration_count == 2
+
+
+async def test_impact_dedup_does_not_merge_different_districts(ctx):
+    s, m, src = ctx
+    await ingest_message(
+        s, text="У Дніпровському районі пошкоджено будівлю", matcher=m,
+        when=BASE, source_id=src[0].id, message_id=1)
+    await ingest_message(
+        s, text="У Святошинському районі пошкоджено будівлю", matcher=m,
+        when=BASE + timedelta(minutes=2), source_id=src[0].id, message_id=2)
+    impacts = list(await s.scalars(select(Threat).where(Threat.status == "impact")))
+    assert len(impacts) == 2
+
+
+async def test_threats_of_one_attack_share_one_incident(ctx):
+    # A ballistic salvo: several tracks + an impact within the window all belong
+    # to ONE incident, labelled by the most severe type.
+    s, m, src = ctx
+    await ingest_message(s, text="Балістика!", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Троя", matcher=m, when=BASE + timedelta(minutes=1),
+                         source_id=src[0].id, message_id=2)
+    await ingest_message(s, text="Вишневе", matcher=m, when=BASE + timedelta(minutes=2),
+                         source_id=src[0].id, message_id=3)
+    await ingest_message(s, text="У Дніпровському районі пошкоджено будівлю", matcher=m,
+                         when=BASE + timedelta(minutes=4), source_id=src[0].id, message_id=4)
+    incs = list(await s.scalars(select(Incident)))
+    assert len(incs) == 1
+    assert incs[0].target_type == "ballistic"
+    tracks = list(await s.scalars(select(Threat)))
+    assert all(t.incident_id == incs[0].id for t in tracks)
+
+
+async def test_full_all_clear_ends_the_incident(ctx):
+    s, m, src = ctx
+    await ingest_message(s, text="Шахед над Оболонню", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Відбій тривоги", matcher=m,
+                         when=BASE + timedelta(minutes=5), source_id=src[0].id, message_id=2)
+    inc = (await s.scalars(select(Incident))).first()
+    assert inc.ended_at is not None
+
+
+async def test_attacks_far_apart_are_separate_incidents(ctx):
+    s, m, src = ctx
+    await ingest_message(s, text="Шахед над Оболонню", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    # Two hours later, well past incident_gap — a new attack, new incident.
+    await ingest_message(s, text="Шахед над Троєщиною", matcher=m,
+                         when=BASE + timedelta(hours=2), source_id=src[0].id, message_id=2)
+    incs = list(await s.scalars(select(Incident)))
+    assert len(incs) == 2
+
+
+async def test_ballistic_and_generic_missile_are_not_a_conflict(ctx):
+    # The real 04:05/04:06 pair: "8 балістичних ракет С-400" (ballistic) and
+    # "до 8 ракет" (generic missile) describe ONE salvo — same missile family,
+    # NOT a source conflict. The track should also read as ballistic (specific).
+    s, m, src = ctx
+    await ingest_message(s, text="Балістика на Київ", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="По Києву пустили до 8 ракет", matcher=m,
+                         when=BASE + timedelta(minutes=1), source_id=src[1].id, message_id=2)
+    t = (await s.scalars(select(Threat).where(Threat.scope == "city"))).first()
+    await s.refresh(t, ["events"])
+    assert not t.has_conflict
+    assert t.target_type == "ballistic"  # generic missile upgraded to the specific type
+
+
+async def test_shahed_vs_missile_is_still_a_real_conflict(ctx):
+    # A genuine cross-family disagreement must STILL flag a conflict.
+    s, m, src = ctx
+    await ingest_message(s, text="🔴 Шахед над Осокорками", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Балістика, Осокорки!", matcher=m,
+                         when=BASE + timedelta(minutes=1), source_id=src[1].id, message_id=2)
+    t = (await s.scalars(select(Threat))).first()
+    await s.refresh(t, ["events"])
+    assert t.has_conflict
+
+
+async def test_pulse_corroborates_active_city_alert(ctx):
+    # During an open city-wide alert, a terse "Ще вихід"/"3 ракети" callout joins
+    # it and bumps the stated count — the salvo coming in.
+    s, m, src = ctx
+    await ingest_message(s, text="Балістика на Київ", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Ще вихід", matcher=m, when=BASE + timedelta(minutes=1),
+                         source_id=src[0].id, message_id=2)
+    await ingest_message(s, text="3 ракети", matcher=m, when=BASE + timedelta(minutes=2),
+                         source_id=src[1].id, message_id=3)
+    city = list(await s.scalars(select(Threat).where(Threat.scope == "city")))
+    assert len(city) == 1
+    t = city[0]
+    await s.refresh(t, ["events"])
+    assert len(t.events) == 3          # alert + 2 pulses
+    assert t.target_count == 3         # bumped by "3 ракети"
+    assert t.target_type == "ballistic"
+
+
+async def test_pulse_without_active_city_alert_is_ignored(ctx):
+    # A lone terse pulse with no open city alert stays suppressed (too terse to
+    # localize) — it must NOT create a track.
+    s, m, src = ctx
+    await ingest_message(s, text="Ціль!", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    assert await _count_threats(s) == 0
+
+
+async def test_summary_message_becomes_a_feed_notice(ctx):
+    # A retrospective recap raises no map threat but IS surfaced as a notice.
+    s, m, src = ctx
+    out = await ingest_message(
+        s, text="Загалом по Києву пустили до 8 балістичних ракет С-400", matcher=m,
+        when=BASE, source_id=src[0].id, message_id=1)
+    assert await _count_threats(s) == 0
+    assert len(out) == 1 and out[0].type == "notice"
+    assert out[0].notice.kind == "summary"

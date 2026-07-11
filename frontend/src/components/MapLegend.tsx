@@ -26,6 +26,7 @@ export default function MapLegend() {
   const rows: [string, string][] = [
     [STATUS_COLORS.confirmed, t('legend.confirmed')],
     [STATUS_COLORS.unconfirmed, t('legend.unconfirmed')],
+    [STATUS_COLORS.impact, t('legend.impact')],
     [STATUS_COLORS.conflict, t('legend.conflict')],
     [STATUS_COLORS.destroyed, t('legend.destroyed')],
     ['#38bdf8', t('legend.home')],

@@ -1,7 +1,15 @@
 import { create } from 'zustand'
 
-import { fetchThreatEvents } from './api'
-import type { District, DistrictBoundary, FeedEntry, Threat, WSMessage } from './types'
+import { fetchActiveIncidents, fetchThreatEvents } from './api'
+import type {
+  District,
+  DistrictBoundary,
+  FeedEntry,
+  Incident,
+  Notice,
+  Threat,
+  WSMessage,
+} from './types'
 
 export interface Home {
   lat: number
@@ -26,7 +34,9 @@ interface RadarState {
   districts: District[]
   boundaries: DistrictBoundary[]
   threats: Record<number, Threat>
+  incidents: Incident[]
   log: FeedEntry[]
+  notices: Notice[]
   connected: boolean
   home: Home | null
   /** When true, the next map click sets home (otherwise clicks just pan). */
@@ -39,7 +49,10 @@ interface RadarState {
   setDistricts: (d: District[]) => void
   setBoundaries: (b: DistrictBoundary[]) => void
   setThreats: (t: Threat[]) => void
+  setIncidents: (i: Incident[]) => void
+  refreshIncidents: () => void
   setLog: (log: FeedEntry[]) => void
+  setNotices: (n: Notice[]) => void
   setConnected: (c: boolean) => void
   setHome: (h: Home | null) => void
   setHomeRadius: (radiusKm: number) => void
@@ -53,11 +66,18 @@ const LOG_CAP = 60
 // How long a closed (destroyed/lost) track lingers on the map before it clears.
 const CLOSED_LINGER_MS = 6000
 
+// Incident aggregates are computed server-side; refetch them (coalesced) shortly
+// after live threat activity, rather than recomputing from the flat threats map
+// (which evicts closed members). One debounced call covers a burst of events.
+let _incidentTimer: ReturnType<typeof setTimeout> | null = null
+
 export const useRadar = create<RadarState>((set, get) => ({
   districts: [],
   boundaries: [],
   threats: {},
+  incidents: [],
   log: [],
+  notices: [],
   connected: false,
   home: loadHome(),
   placingHome: false,
@@ -68,7 +88,18 @@ export const useRadar = create<RadarState>((set, get) => ({
   setPlacingHome: (v) => set({ placingHome: v }),
   setThreats: (t) =>
     set({ threats: Object.fromEntries(t.map((x) => [x.id, x])) }),
+  setIncidents: (i) => set({ incidents: i }),
+  refreshIncidents: () => {
+    if (_incidentTimer) clearTimeout(_incidentTimer)
+    _incidentTimer = setTimeout(() => {
+      _incidentTimer = null
+      fetchActiveIncidents()
+        .then((i) => set({ incidents: i }))
+        .catch(() => {})
+    }, 800)
+  },
   setLog: (log) => set({ log }),
+  setNotices: (n) => set({ notices: n }),
   setConnected: (c) => set({ connected: c }),
 
   setHome: (h) => {
@@ -102,8 +133,22 @@ export const useRadar = create<RadarState>((set, get) => ({
   clearInspection: () => set({ inspectedThreat: null }),
 
   handleWS: (msg) => {
+    // Non-threat notices (all-clear / summary) go straight to the feed timeline.
+    if (msg.type === 'notice' && msg.notice) {
+      const notice = msg.notice
+      set((s) => ({
+        notices: [notice, ...s.notices.filter((n) => n.id !== notice.id)].slice(0, LOG_CAP),
+      }))
+      get().refreshIncidents() // an all-clear ends the incident
+      return
+    }
+
     const threat = msg.threat
     if (!threat) return
+
+    // Any live threat activity may open/extend/end an incident — refetch the
+    // server-computed aggregates (debounced so a burst collapses to one call).
+    get().refreshIncidents()
 
     // Never resurrect a track already closed on the map (guards against stale
     // out-of-order events re-adding a threat that was cleared).
@@ -124,9 +169,11 @@ export const useRadar = create<RadarState>((set, get) => ({
       }))
     }
 
-    if (threat.closed_at) {
+    if (threat.closed_at && threat.status !== 'impact') {
       // Let the closed state show briefly, then drop it — but only if it's still
       // the same closed track (don't delete a threat that changed under us).
+      // Impacts are closed-on-creation but are confirmed strike locations that
+      // must PERSIST on the map, so they're exempt from eviction.
       const closedAt = threat.closed_at
       setTimeout(() => {
         const cur = get().threats[threat.id]

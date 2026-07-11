@@ -1,15 +1,27 @@
 from __future__ import annotations
 
+from datetime import timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from ..config import settings
 from ..db import get_session
-from ..models import District, Threat, ThreatEvent
-from ..schemas import DistrictOut, FeedEntryOut, ThreatEventOut, ThreatOut
+from ..gazetteer import CITYWIDE_NAME_EN
+from ..models import District, Incident, Notice, Threat, ThreatEvent, utcnow
+from ..schemas import (
+    DistrictOut,
+    FeedEntryOut,
+    IncidentOut,
+    NoticeOut,
+    ThreatEventOut,
+    ThreatOut,
+)
 from ..serialize import event_out as _event_out
 from ..serialize import feed_entry_out as _feed_entry_out
+from ..serialize import notice_out as _notice_out
 from ..serialize import threat_out as _threat_out
 
 router = APIRouter()
@@ -35,18 +47,36 @@ async def district_boundaries(session: AsyncSession = Depends(get_session)):
 
 @router.get("/threats/active", response_model=list[ThreatOut])
 async def active_threats(session: AsyncSession = Depends(get_session)):
-    """Tracks that are not yet closed (still tracking / unconfirmed)."""
+    """Tracks that are not yet closed (still tracking / unconfirmed), plus
+    RECENT `impact` markers — those are closed-on-creation (a strike is terminal)
+    but persist on the map as confirmed-hit pins. Only impacts within
+    `impact_map_ttl_hours` are returned, so strikes from days-old attacks don't
+    accumulate on the live map (history/feed keep them regardless)."""
     stmt = (
         select(Threat)
-        .where(Threat.closed_at.is_(None))
+        .where(or_(Threat.closed_at.is_(None), Threat.status == "impact"))
         .options(
             selectinload(Threat.events).selectinload(ThreatEvent.district),
             selectinload(Threat.events).selectinload(ThreatEvent.source),
         )
         .order_by(Threat.created_at.desc())
     )
-    threats = await session.scalars(stmt)
-    return [_threat_out(t) for t in threats]
+    ttl = timedelta(hours=settings.impact_map_ttl_hours)
+    now = utcnow()
+    out = []
+    for t in await session.scalars(stmt):
+        # Drop stale impact pins; live inbound tracks (closed_at IS NULL) always pass.
+        if t.status == "impact" and t.closed_at is not None and not _within(t.closed_at, now, ttl):
+            continue
+        out.append(_threat_out(t))
+    return out
+
+
+def _within(a, b, gap: timedelta) -> bool:
+    """tz-tolerant recency check (SQLite returns naive UTC; utcnow() is aware)."""
+    an = a.replace(tzinfo=None) if a.tzinfo is not None else a
+    bn = b.replace(tzinfo=None) if b.tzinfo is not None else b
+    return abs((bn - an).total_seconds()) <= gap.total_seconds()
 
 
 @router.get("/events/recent", response_model=list[FeedEntryOut])
@@ -73,6 +103,69 @@ async def recent_events(
     )
     events = await session.scalars(stmt)
     return [_feed_entry_out(ev) for ev in events]
+
+
+@router.get("/notices/recent", response_model=list[NoticeOut])
+async def recent_notices(
+    limit: int = Query(30, ge=1, le=100),
+    session: AsyncSession = Depends(get_session),
+):
+    """Recent non-threat notices (all-clears / attack summaries), newest first —
+    the frontend interleaves them into the event feed as info entries."""
+    stmt = (
+        select(Notice)
+        .options(selectinload(Notice.source))
+        .order_by(Notice.event_time.desc(), Notice.id.desc())
+        .limit(limit)
+    )
+    return [_notice_out(n) for n in await session.scalars(stmt)]
+
+
+@router.get("/incidents/active", response_model=list[IncidentOut])
+async def active_incidents(session: AsyncSession = Depends(get_session)):
+    """Ongoing attacks (incidents not yet ended), each with counts aggregated
+    over its member threats — the "one attack" rollup for the UI summary strip."""
+    sentinel_id = await session.scalar(
+        select(District.id).where(District.name_en == CITYWIDE_NAME_EN)
+    )
+    stmt = (
+        select(Incident)
+        .where(Incident.ended_at.is_(None))
+        .options(
+            selectinload(Incident.threats).selectinload(Threat.events),
+        )
+        .order_by(Incident.started_at.desc())
+    )
+    incidents = await session.scalars(stmt)
+    out: list[IncidentOut] = []
+    for inc in incidents:
+        track_count = impact_count = 0
+        citywide = False
+        districts: set[int] = set()
+        for th in inc.threats:
+            if th.status == "impact":
+                impact_count += 1
+            elif th.scope == "city":
+                citywide = True
+            else:
+                track_count += 1
+            for ev in th.events:
+                if ev.district_id != sentinel_id:
+                    districts.add(ev.district_id)
+        out.append(
+            IncidentOut(
+                id=inc.id,
+                started_at=inc.started_at,
+                ended_at=inc.ended_at,
+                target_type=inc.target_type,
+                status="active",
+                track_count=track_count,
+                impact_count=impact_count,
+                citywide=citywide,
+                district_count=len(districts),
+            )
+        )
+    return out
 
 
 @router.get("/threats/{threat_id}/events", response_model=list[ThreatEventOut])

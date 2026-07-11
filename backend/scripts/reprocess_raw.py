@@ -40,8 +40,9 @@ from app.config import settings  # noqa: E402
 from app.db import SessionLocal  # noqa: E402
 from app.gazetteer import DISTRICTS  # noqa: E402
 from app.ingest import _process_parsed  # noqa: E402
-from app.models import District, RawMessage, Threat, ThreatEvent  # noqa: E402
+from app.models import District, Incident, RawMessage, Threat, ThreatEvent  # noqa: E402
 from app.parser import DistrictMatcher  # noqa: E402
+from app.seed import seed_districts  # noqa: E402
 
 
 async def _drop_stale_districts() -> None:
@@ -59,6 +60,10 @@ async def _wipe_tracks() -> None:
     async with SessionLocal() as s:
         await s.execute(delete(ThreatEvent))
         await s.execute(delete(Threat))
+        # Incidents are rebuilt from scratch too — without this they'd accumulate
+        # (every reprocess mints new ones while the old rows orphan) and a stale
+        # still-open incident from a prior run could wrongly absorb replayed threats.
+        await s.execute(delete(Incident))
         await s.commit()
 
 
@@ -74,6 +79,11 @@ async def main() -> None:
 
     print("dropping stale gazetteer districts...")
     await _drop_stale_districts()
+
+    print("seeding any new gazetteer districts (idempotent)...")
+    added = await seed_districts()
+    if added:
+        print(f"  added {added} new district(s)")
 
     print("wiping threats + threat_events (raw_messages untouched)...")
     await _wipe_tracks()

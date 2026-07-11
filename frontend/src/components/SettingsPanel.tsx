@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import HomeControl from './HomeControl'
+import VersionInfo from './VersionInfo'
 
 const OPEN_KEY = 'klr-settings-open'
 
@@ -51,6 +52,7 @@ export default function SettingsPanel({ defaultOpen = false }: Props) {
         <div className="overflow-hidden">
           <div className="px-3 pb-3">
             <HomeControl />
+            <VersionInfo />
           </div>
         </div>
       </div>

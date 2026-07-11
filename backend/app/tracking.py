@@ -121,6 +121,56 @@ async def find_open_track(
     return candidates[0]
 
 
+async def find_recent_impact(session, district_id: int, when: datetime) -> Threat | None:
+    """A recent impact marker over the SAME district (within impact_dedup_minutes).
+
+    Two sources reporting one strike ("влучання" + "пошкоджено будівлю") over the
+    same raion minutes apart are the SAME hit — the second should corroborate the
+    first marker, not stack a second pin on the identical point. Impact markers
+    are closed-on-creation, so this deliberately looks past closed_at.
+    """
+    window = timedelta(minutes=settings.impact_dedup_minutes)
+    stmt = (
+        select(Threat)
+        .where(Threat.status == "impact")
+        .options(selectinload(Threat.events))
+        .order_by(Threat.created_at.desc())
+    )
+    for threat in await session.scalars(stmt):
+        if not threat.events:
+            continue
+        latest = max(e.event_time for e in threat.events)
+        if not _within(latest, when, window):
+            continue
+        if any(e.district_id == district_id for e in threat.events):
+            return threat
+    return None
+
+
+async def find_open_citywide(session, when: datetime) -> Threat | None:
+    """The current open city-wide alert (scope='city'), if one is still fresh.
+
+    Repeated "ціль на місто" callouts during one attack should feed ONE
+    city-level alert, not spawn a new one each time — so a citywide message
+    continues an open city-wide threat whose last event is within the track-gap
+    window, else it starts a fresh one. City-wide events live on the sentinel
+    district, which no normal sighting ever matches, so this never collides with
+    per-district tracks.
+    """
+    stmt = (
+        select(Threat)
+        .where(Threat.closed_at.is_(None), Threat.scope == "city")
+        .options(selectinload(Threat.events))
+        .order_by(Threat.created_at.desc())
+    )
+    gap = timedelta(minutes=settings.track_gap_minutes)
+    for threat in await session.scalars(stmt):
+        last = threat.events[-1].event_time if threat.events else threat.created_at
+        if _within(last, when, gap):
+            return threat
+    return None
+
+
 def _within(a: datetime, b: datetime, gap: timedelta) -> bool:
     # Tolerate naive/aware mismatch from SQLite by comparing on replaced tzinfo.
     if a.tzinfo is None and b.tzinfo is not None:

@@ -1,4 +1,12 @@
-import type { District, DistrictBoundary, FeedEntry, Threat, ThreatEvent } from './types'
+import type {
+  District,
+  DistrictBoundary,
+  FeedEntry,
+  Incident,
+  Notice,
+  Threat,
+  ThreatEvent,
+} from './types'
 
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:8137'
 
@@ -11,6 +19,9 @@ async function get<T>(path: string): Promise<T> {
 export const fetchDistricts = () => get<District[]>('/districts')
 export const fetchBoundaries = () => get<DistrictBoundary[]>('/districts/boundaries')
 export const fetchActiveThreats = () => get<Threat[]>('/threats/active')
+export const fetchActiveIncidents = () => get<Incident[]>('/incidents/active')
+export const fetchRecentNotices = (limit = 30) =>
+  get<Notice[]>(`/notices/recent?limit=${limit}`)
 export const fetchRecentEvents = (limit = 60) =>
   get<FeedEntry[]>(`/events/recent?limit=${limit}`)
 // Full event history for one track (oldest -> newest), including closed/

@@ -51,8 +51,9 @@ _SYSTEM = (
 _PROMPT = (
     "Known districts (id: name):\n{listing}\n\n"
     "Target type: shahed (шахед/мопед/герань/generic БпЛА), jet_drone "
-    "(реактивний/швидкісний), missile (ракета/балістика/крилата/КАБ/кинджал), "
-    "or unknown.\n"
+    "(реактивний/швидкісний), ballistic (балістика/іскандер/кинджал/С-400/С-300), "
+    "missile (крилата ракета/калібр/Х-101/КАБ/generic ракета), or unknown. Use "
+    "ballistic ONLY for an explicit ballistic marker; a bare 'ракета' is missile.\n"
     "Status: confirmed (🔴/підтверджено), unconfirmed (уточнюється/попередньо/"
     "можливо), destroyed (збито/знищено/уражено), clear (відбій), or sighting.\n"
     "is_new_target: true if it marks a new/additional target (новий/ще один/"
@@ -66,7 +67,8 @@ def _schema(id_enum: list[int]) -> dict:
         "type": "object",
         "properties": {
             "district_ids": {"type": "array", "items": {"type": "integer", "enum": id_enum}},
-            "target_type": {"type": "string", "enum": ["shahed", "jet_drone", "missile", "unknown"]},
+            "target_type": {"type": "string",
+                            "enum": ["shahed", "jet_drone", "missile", "ballistic", "unknown"]},
             "status": {"type": "string",
                        "enum": ["confirmed", "unconfirmed", "destroyed", "clear", "sighting"]},
             "is_new_target": {"type": "boolean"},
@@ -115,7 +117,7 @@ async def llm_extract(text: str, matcher: DistrictMatcher) -> ParseResult | None
     # Defense-in-depth: validate against the known vocab even though the JSON
     # schema enum should already enforce it — never let a stray value hit the DB.
     target_type = data.get("target_type", "unknown")
-    if target_type not in ("shahed", "jet_drone", "missile", "unknown"):
+    if target_type not in ("shahed", "jet_drone", "missile", "ballistic", "unknown"):
         target_type = "unknown"
     status = data.get("status", "sighting")
     if status not in ("confirmed", "unconfirmed", "destroyed", "clear", "sighting"):

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from .models import Threat, ThreatEvent
-from .schemas import FeedEntryOut, ThreatEventOut, ThreatOut
+from .models import Notice, Threat, ThreatEvent
+from .schemas import FeedEntryOut, NoticeOut, ThreatEventOut, ThreatOut
 
 
 def event_out(ev: ThreatEvent) -> ThreatEventOut:
@@ -32,6 +32,8 @@ def threat_out_shallow(th: Threat) -> ThreatOut:
         created_at=th.created_at,
         target_type=th.target_type,
         status=th.status,
+        scope=th.scope,
+        incident_id=th.incident_id,
         target_count=th.target_count,
         closed_at=th.closed_at,
         corroboration_count=th.corroboration_count,
@@ -43,3 +45,10 @@ def threat_out_shallow(th: Threat) -> ThreatOut:
 
 def feed_entry_out(ev: ThreatEvent) -> FeedEntryOut:
     return FeedEntryOut(event=event_out(ev), threat=threat_out_shallow(ev.threat))
+
+
+def notice_out(n: Notice) -> NoticeOut:
+    out = NoticeOut.model_validate(n)
+    if n.source is not None:
+        out.source_name = n.source.name
+    return out

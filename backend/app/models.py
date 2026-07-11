@@ -40,8 +40,8 @@ class District(Base):
 
 
 # Allowed enum-like values kept as plain strings for MVP simplicity.
-TARGET_TYPES = ("shahed", "jet_drone", "missile", "unknown")
-THREAT_STATUSES = ("unconfirmed", "tracking", "destroyed", "lost")
+TARGET_TYPES = ("shahed", "jet_drone", "missile", "ballistic", "unknown")
+THREAT_STATUSES = ("unconfirmed", "tracking", "destroyed", "lost", "impact")
 # Where the structured event came from — critical for parser eval/debugging.
 DECISION_SOURCES = ("rule", "llm", "sim")
 
@@ -92,6 +92,51 @@ class RawMessage(Base):
     processed: Mapped[bool] = mapped_column(default=False)
 
 
+class Notice(Base):
+    """A non-threat feed notice — an all-clear ("відбій") or a retrospective
+    attack summary ("8 балістичних С-400 по Києву"). These are important for the
+    operator to SEE in the event log but are NOT live targets on the map, so they
+    live outside the threat/track model and surface only in the feed timeline.
+    """
+
+    __tablename__ = "notices"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    kind: Mapped[str] = mapped_column(String(20))  # 'clear' | 'summary'
+    text: Mapped[str] = mapped_column(Text, default="")
+    target_type: Mapped[str] = mapped_column(String(20), default="unknown")
+    source_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("sources.id"), nullable=True
+    )
+    source: Mapped[Optional["Source"]] = relationship()
+
+
+class Incident(Base):
+    """A coordinated attack — the umbrella grouping every track, impact and
+    city-wide alert that belongs to ONE alert window ("one alert = one
+    incident"). Its aggregate counts (targets / impacts / districts) are derived
+    from its member threats at serialization time, not stored here.
+    """
+
+    __tablename__ = "incidents"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # Time of the most recent member activity — a new threat joins this incident
+    # only while this is fresh; the stale sweeper ends the incident once it lapses.
+    last_activity_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # NULL while the attack is ongoing; set on all-clear or by the stale sweeper.
+    ended_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Most severe target type among members (ballistic > missile > jet > shahed).
+    target_type: Mapped[str] = mapped_column(String(20), default="unknown")
+
+    threats: Mapped[list["Threat"]] = relationship(back_populates="incident")
+
+
 class Threat(Base):
     """A single target's track, from first sighting to destroyed/lost.
 
@@ -103,8 +148,17 @@ class Threat(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # The attack this track belongs to (Stage E grouping); NULL for pre-incident
+    # data or a track not yet attached.
+    incident_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("incidents.id"), nullable=True
+    )
     target_type: Mapped[str] = mapped_column(String(20), default="unknown")
     status: Mapped[str] = mapped_column(String(20), default="unconfirmed")
+    # 'district' (a normal localized track) or 'city' (a city-wide threat with
+    # no raion — "ціль на місто"). City-wide threats render as a banner, not a
+    # map point; see the CITYWIDE_NAME_EN sentinel district their events attach to.
+    scope: Mapped[str] = mapped_column(String(10), default="district")
     # Stated size of the group flying together ("2х" -> 2, "їх вже 3х" -> 3);
     # grows within the reply-chain as spotters revise it. 1 when unstated.
     target_count: Mapped[int] = mapped_column(default=1)
@@ -115,6 +169,8 @@ class Threat(Base):
     corroboration_count: Mapped[int] = mapped_column(default=1)  # distinct independent sources
     has_conflict: Mapped[bool] = mapped_column(default=False)    # sources disagree
     confidence: Mapped[float] = mapped_column(Float, default=0.5)  # fused 0..1
+
+    incident: Mapped[Optional["Incident"]] = relationship(back_populates="threats")
 
     events: Mapped[list["ThreatEvent"]] = relationship(
         back_populates="threat",

@@ -58,6 +58,35 @@ class Settings(BaseSettings):
     # ~1-2 min). Below 3 the metric reverses — starts cutting genuine matches.
     corroboration_window_minutes: int = 3
 
+    # Cross-message target-type inheritance (per channel): the rule parser is
+    # per-message and stateless, but spotters routinely state the TYPE in one
+    # post ("Балістика!", "3 ракети") and the LOCATION in the next bare-toponym
+    # post ("Троя", "Вишневе") — so a district event would land as "unknown"
+    # even mid-ballistic-attack. When a district-bearing message has no type of
+    # its own, inherit the most recent stated type from the SAME source within
+    # this window. Rule-only, in-memory — never triggers an LLM call (a message
+    # that already has a district short-circuits the LLM fallback gate anyway).
+    type_inherit_window_minutes: int = 5
+
+    # --- Incident grouping (Stage E) ---
+    # A new track/impact/city-alert joins the current OPEN incident if the
+    # incident saw activity within this window, else it starts a fresh incident.
+    # Wider than track windows — one attack can have multi-minute lulls between
+    # waves yet is still "the same attack".
+    incident_gap_minutes: int = 30
+    # An incident with no member activity for this long is auto-ended by the
+    # sweeper (slightly above the gap so a still-live attack isn't ended early).
+    incident_stale_minutes: int = 40
+    # Two impact reports over the SAME district within this window are treated as
+    # the SAME strike (two sources, one hit) — the later one corroborates the
+    # first marker instead of stacking a second pin on the same point.
+    impact_dedup_minutes: int = 20
+    # How long a confirmed-strike (impact) marker stays on the LIVE map. Impacts
+    # are closed-on-creation but persist as pins; without a cap they'd accumulate
+    # across days and clutter the map with strikes from old attacks. History/feed
+    # keep them regardless — this only bounds the live map layer.
+    impact_map_ttl_hours: int = 6
+
     # Emit synthetic tracks (as raw Ukrainian text through the REAL parser) so
     # the frontend has live data before Telegram credentials are configured.
     simulator_enabled: bool = True

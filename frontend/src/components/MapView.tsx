@@ -36,6 +36,21 @@ function arrowIcon(color: string, deg: number): L.DivIcon {
   })
 }
 
+/** A burst glyph for a confirmed strike location (status='impact') — a
+ * terminal marker, deliberately a different SHAPE from the round sighting dots
+ * so a hit reads at a glance, not just by color. */
+function impactIcon(color: string): L.DivIcon {
+  return L.divIcon({
+    className: 'impact-marker',
+    html: `<svg width="24" height="24" viewBox="0 0 24 24" style="filter:drop-shadow(0 0 5px ${color}aa)">
+      <path d="M12 1 L14 9 L21 5 L15 11 L23 12 L15 13 L21 19 L14 15 L12 23 L10 15 L3 19 L9 13 L1 12 L9 11 L3 5 L10 9 Z"
+        fill="${color}" stroke="#000" stroke-width="0.6"/>
+    </svg>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+  })
+}
+
 /** Two expanding rings pulsing in the threat color — the live head of a track. */
 function pulseIcon(color: string): L.DivIcon {
   return L.divIcon({
@@ -140,14 +155,16 @@ function ThreatPopup({ threat }: { threat: Threat }) {
               flex: 'none',
             }}
           />
-          <b style={{ fontSize: 13 }}>{t(`target.${threat.target_type}`)}</b>
+          {!(threat.status === 'impact' && threat.target_type === 'unknown') && (
+            <b style={{ fontSize: 13 }}>{t(`target.${threat.target_type}`)}</b>
+          )}
           {threat.target_count > 1 && (
             <b style={{ color: '#fbbf24', fontFamily: 'IBM Plex Mono, monospace' }}>
               ×{threat.target_count}
             </b>
           )}
           <span style={{ opacity: 0.6, fontFamily: 'IBM Plex Mono, monospace' }}>
-            {threat.status}
+            {t(`status.${threat.status}`, threat.status)}
           </span>
         </div>
         <div
@@ -194,14 +211,19 @@ const ThreatLayer = memo(function ThreatLayer({
   const pts = trackPoints(threat)
   const color = threatColor(threat)
   const heading = headingOf(threat)
+  const isImpact = threat.status === 'impact'
 
   const pulse = useMemo(() => pulseIcon(color), [color])
+  const burst = useMemo(() => impactIcon(color), [color])
   const arrow = useMemo(
     () => (heading != null ? arrowIcon(color, heading) : null),
     [color, heading],
   )
 
   if (pts.length === 0) return null
+  // City-wide threats have no real location (their event sits on the city-centre
+  // sentinel) — they're shown as a banner, not a map point. Skip rendering here.
+  if (threat.scope === 'city') return null
 
   const latlngs = pts.map((p) => [p.lat, p.lon] as [number, number])
   const head = pts[pts.length - 1]
@@ -242,7 +264,11 @@ const ThreatLayer = memo(function ThreatLayer({
           zIndexOffset={-100}
         />
       )}
-      {arrow ? (
+      {isImpact ? (
+        <Marker position={[head.lat, head.lon]} icon={burst}>
+          <ThreatPopup threat={threat} />
+        </Marker>
+      ) : arrow ? (
         <Marker position={[head.lat, head.lon]} icon={arrow}>
           <ThreatPopup threat={threat} />
         </Marker>

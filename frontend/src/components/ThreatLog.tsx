@@ -1,10 +1,10 @@
-import { CheckCircle2, RadioTower, TriangleAlert } from 'lucide-react'
-import { Fragment } from 'react'
+import { CheckCircle2, Crosshair, Info, RadioTower, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { Fragment, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useRadar } from '../store'
 import { STATUS_COLORS, threatColor } from '../theme'
-import type { FeedEntry } from '../types'
+import type { FeedEntry, Notice } from '../types'
 
 const KYIV_TZ = 'Europe/Kyiv'
 
@@ -82,6 +82,74 @@ function SourceBadge({ name, t }: { name: string | null; t: (k: string) => strin
   )
 }
 
+// One all-clear announced across channels within this window is ONE event —
+// collapse the notices into a single card instead of repeating it per source.
+const CLEAR_GROUP_MS = 12 * 60 * 1000
+
+/** Cluster the notices timeline: adjacent all-clears within the window become
+ * one unit (several sources, one "відбій"); every other notice stays its own. */
+function clusterNotices(notices: Notice[]): Notice[][] {
+  const units: Notice[][] = []
+  for (const n of notices) {
+    const last = units[units.length - 1]
+    const joins =
+      n.kind === 'clear' &&
+      last != null &&
+      last[0].kind === 'clear' &&
+      Math.abs(new Date(last[0].event_time).getTime() - new Date(n.event_time).getTime()) <=
+        CLEAR_GROUP_MS
+    if (joins) last.push(n)
+    else units.push([n])
+  }
+  return units
+}
+
+/** An info entry in the feed timeline: an all-clear or an attack summary —
+ * important to see, but not a live threat. A multi-source all-clear renders as
+ * one card with all its source badges, not one card per channel. */
+function renderNoticeUnit(notices: Notice[], t: (k: string) => string): ReactNode {
+  const head = notices[0]
+  const isClear = head.kind === 'clear'
+  const color = isClear ? STATUS_COLORS.clear : '#38bdf8'
+  const Icon = isClear ? ShieldCheck : Info
+  const sources = Array.from(new Set(notices.map((n) => n.source_name).filter(Boolean)))
+  return (
+    <li
+      className="feed-item rounded-lg border px-2.5 py-2 text-xs backdrop-blur-sm"
+      style={{
+        borderColor: `${color}22`,
+        borderLeft: `2px solid ${color}`,
+        background: `${color}0d`,
+        boxShadow: `inset 2px 0 10px -4px ${color}55`,
+      }}
+    >
+      <div className="flex items-baseline justify-between gap-2">
+        <span
+          className="flex items-center gap-1.5 font-semibold uppercase tracking-wide"
+          style={{ color }}
+        >
+          <Icon size={12} className="flex-none" />
+          {t(`notice.${head.kind}`)}
+          {notices.length > 1 && (
+            <span className="font-mono font-semibold" style={{ color }}>
+              ×{notices.length}
+            </span>
+          )}
+        </span>
+        <EventTime iso={head.event_time} />
+      </div>
+      <div className="mt-0.5 break-words leading-snug text-slate-300">{head.text}</div>
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        {sources.length > 0 ? (
+          sources.map((name) => <SourceBadge key={name} name={name} t={t} />)
+        ) : (
+          <SourceBadge name={head.source_name} t={t} />
+        )}
+      </div>
+    </li>
+  )
+}
+
 export default function ThreatLog() {
   const { t, i18n } = useTranslation()
   const log = useRadar((s) => s.log)
@@ -89,25 +157,36 @@ export default function ThreatLog() {
   const inspectedThreat = useRadar((s) => s.inspectedThreat)
   const inspectThreat = useRadar((s) => s.inspectThreat)
   const clearInspection = useRadar((s) => s.clearInspection)
+  const notices = useRadar((s) => s.notices)
 
-  const groups = groupFeed(log)
+  // Merge sighting groups and info notices into one time-sorted timeline;
+  // multi-source all-clears are clustered into one unit.
+  type Item =
+    | { kind: 'group'; time: string; keyId: string; group: FeedEntry[] }
+    | { kind: 'notice'; time: string; keyId: string; notices: Notice[] }
+  const timeline: Item[] = [
+    ...groupFeed(log).map(
+      (g): Item => ({ kind: 'group', time: g[0].event.event_time, keyId: `g${g[0].event.id}`, group: g }),
+    ),
+    ...clusterNotices(notices).map(
+      (u): Item => ({ kind: 'notice', time: u[0].event_time, keyId: `n${u[0].id}`, notices: u }),
+    ),
+  ].sort((a, b) => (a.time < b.time ? 1 : -1))
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="panel-title mb-2 hidden lg:block">{t('log.title')}</div>
 
-      {log.length === 0 ? (
+      {timeline.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 py-10 text-center">
           <div className="radar radar--rings h-16 w-16 opacity-70" aria-hidden />
           <div className="font-mono text-xs text-slate-500">{t('log.empty')}</div>
         </div>
       ) : (
         <ul className="scroll-slim min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
-          {groups.map((group, i) => {
-            const head = group[0]
-            const dayKey = kyivDayKey(new Date(head.event.event_time))
-            const prevDayKey =
-              i > 0 ? kyivDayKey(new Date(groups[i - 1][0].event.event_time)) : null
+          {timeline.map((item, i) => {
+            const dayKey = kyivDayKey(new Date(item.time))
+            const prevDayKey = i > 0 ? kyivDayKey(new Date(timeline[i - 1].time)) : null
             const showSeparator = dayKey !== prevDayKey
             const separator = showSeparator && (
               <li aria-hidden className="flex items-center gap-2 px-1 pt-1.5 first:pt-0">
@@ -119,6 +198,17 @@ export default function ThreatLog() {
               </li>
             )
 
+            if (item.kind === 'notice') {
+              return (
+                <Fragment key={item.keyId}>
+                  {separator}
+                  {renderNoticeUnit(item.notices, t)}
+                </Fragment>
+              )
+            }
+
+            const group = item.group
+            const head = group[0]
             if (group.length === 1) {
               const { event, threat } = head
               const color = threatColor(threat)
@@ -152,8 +242,21 @@ export default function ThreatLog() {
                     }}
                   >
                     <div className="flex items-baseline justify-between gap-2">
-                      <span className="font-medium text-slate-100">
-                        {t(`target.${threat.target_type}`)}
+                      <span className="flex items-center gap-1.5 font-medium text-slate-100">
+                        {threat.status === 'impact' && (
+                          <span
+                            className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                            style={{
+                              color: STATUS_COLORS.impact,
+                              background: `${STATUS_COLORS.impact}1a`,
+                            }}
+                          >
+                            <Crosshair size={10} className="flex-none" />
+                            {t('log.impact')}
+                          </span>
+                        )}
+                        {!(threat.status === 'impact' && threat.target_type === 'unknown') &&
+                          t(`target.${threat.target_type}`)}
                         {threat.target_count > 1 && (
                           <span className="ml-1 font-mono font-semibold text-amber-300">
                             ×{threat.target_count}

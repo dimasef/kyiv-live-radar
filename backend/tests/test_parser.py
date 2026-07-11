@@ -32,9 +32,20 @@ def test_district_declension_darnytskyi():
     assert BY_EN["Darnytskyi"] in {h.district_id for h in r.districts}
 
 
-def test_missile_wins_over_generic_drone():
+def test_ballistic_wins_over_generic_drone():
     r = parse_message("Балістика по Києву, укриття! БпЛА теж у небі", M)
-    assert r.target_type == "missile"
+    assert r.target_type == "ballistic"
+
+
+def test_ballistic_vs_cruise_missile_are_distinct_types():
+    # Ballistic (sub-minute, city-wide) must be a different type from cruise
+    # (trackable, draws a vector) — they drive different map behavior.
+    assert parse_message("Кинджал на столицю", M).target_type == "ballistic"
+    assert parse_message("Загроза застосування балістики", M).target_type == "ballistic"
+    assert parse_message("Працює С-400 по місту", M).target_type == "ballistic"
+    assert parse_message("Крилаті ракети курсом на Київ", M).target_type == "missile"
+    # A bare "ракета" is ambiguous and defaults to the generic missile type.
+    assert parse_message("Ракета над Позняками", M).target_type == "missile"
 
 
 def test_jet_drone():
@@ -140,12 +151,102 @@ def test_kab_no_false_positive_on_kabel():
     assert parse_message("Пошкоджено кабель, немає світла", M).target_type != "missile"
 
 
+def test_localized_strike_is_an_impact_not_suppressed():
+    # Both real tonight reports: a confirmed hit that names a district — mapped
+    # as an impact marker, NOT dropped as generic aftermath.
+    r = parse_message("В Дніпровському районі влучання по нежитловій будівлі", M)
+    assert r.impact and not r.aftermath and r.matched
+    assert BY_EN["Dniprovskyi"] in {h.district_id for h in r.districts}
+    r = parse_message("У Святошинському районі внаслідок атаки пошкоджено нежитлову будівлю.", M)
+    assert r.impact and not r.aftermath and r.matched
+    assert BY_EN["Sviatoshynskyi"] in {h.district_id for h in r.districts}
+
+
+def test_impact_wins_over_casualty_words():
+    # A strike report that also mentions casualties is still an impact — the
+    # location is the useful signal.
+    r = parse_message("Приліт у Оболонському районі, є постраждалі", M)
+    assert r.impact and not r.aftermath
+
+
+def test_building_damage_in_a_district_is_now_an_impact():
+    # Reclassified by Stage B: "пошкоджено багатоповерхівку в <district>" was
+    # previously suppressed as aftermath; a damaged building IS a strike
+    # location worth mapping, so it now becomes an impact marker.
+    r = parse_message("У Дарницькому районі від атаки пошкоджено багатоповерхівку", M)
+    assert r.impact and not r.aftermath and r.matched
+    assert BY_EN["Darnytskyi"] in {h.district_id for h in r.districts}
+
+
+def test_pure_aftermath_without_strike_verb_stays_suppressed():
+    # Casualty/rescue/fire news with a district but NO strike verb is still
+    # suppressed — it is not a mappable strike location.
+    for txt in ["Постраждала багатоповерхівка в Дарницькому районі",
+                "Рятувальники ДСНС гасять пожежу на Троєщині"]:
+        r = parse_message(txt, M)
+        assert r.aftermath and not r.impact and not r.matched, txt
+
+
+def test_damage_without_district_is_not_an_impact():
+    # "пошкодж"/"зруйнов" only become an impact WITH a district; district-less
+    # damage news (or a downed cable) stays plain aftermath / no impact.
+    r = parse_message("Пошкоджено кабель, немає світла", M)
+    assert not r.impact
+
+
+def test_citywide_threat_detected_without_a_district():
+    # The sub-minute ballistic phase: a strike aimed at the whole city, no raion.
+    for txt in ["Ціль на місто!", "3х цілі на місто!", "Балістика на Київ",
+                "Ракетна небезпека по Києву"]:
+        r = parse_message(txt, M)
+        assert r.citywide and r.matched and r.districts == [], txt
+
+
+def test_directional_callout_is_citywide_on_a_kyiv_channel():
+    # All monitored channels are Kyiv-dedicated, so a bare directional callout
+    # ("На Київ!", "Увага місто!") IS a city-wide threat — no extra keyword.
+    for txt in ["На Київ!", "Увага місто!"]:
+        r = parse_message(txt, M)
+        assert r.citywide and r.matched and r.districts == [], txt
+
+
+def test_retrospective_attack_summary_is_not_a_live_alert():
+    # A recap of the whole attack ("загалом ... 8 ракет", past frame) is info,
+    # NOT a live target — it must not raise a city alert.
+    for txt in [
+        "Загалом по Києву пустили до 8 ракет. Перші цілі не фіксувалися",
+        "Росія випустила близько 8 балістичних ракет С-400 по Києву за останні 15 хвилин",
+    ]:
+        r = parse_message(txt, M)
+        assert r.summary and not r.citywide and not r.matched, txt
+
+
+def test_citywide_needs_threat_context_not_just_a_city_phrase():
+    # A city phrase alone (news/greeting/status) is NOT a city-wide threat.
+    for txt in ["Новини по Києву за добу", "Слава Києву!",
+                "Ситуація по Києву спокійна"]:
+        r = parse_message(txt, M)
+        assert not r.citywide, txt
+
+
+def test_citywide_not_triggered_when_a_district_is_named():
+    # A localized report is a normal sighting, never a city-wide alert.
+    r = parse_message("Балістика на Троєщину", M)
+    assert not r.citywide and r.districts != []
+
+
+def test_city_sentinel_is_not_matchable_as_a_district():
+    # A plain "у Києві" must NOT resolve to the city-wide sentinel district.
+    r = parse_message("У Києві чути вибухи", M)
+    assert r.districts == []
+
+
 def test_aftermath_news_is_not_a_sighting():
-    # Consequence/casualty news mentions a district but is NOT a live target.
+    # Consequence/casualty news (rescue, casualties) with NO strike verb mentions
+    # a district but is NOT a live target and NOT a mappable strike location.
     for txt in [
         "У Деснянському районі надзвичайники врятували дитину",
         "🔴 У Деснянському районі попередньо постраждала багатоповерхівка — КМВА",
-        "У Дарницькому районі від атаки пошкоджено багатоповерхівку",
     ]:
         r = parse_message(txt, M)
         assert not r.matched and r.aftermath and r.districts == [], txt
@@ -303,3 +404,25 @@ def test_lost_signal_does_not_override_destroyed():
     # close EVERY open track as "lost" instead of just the destroyed one.
     r = parse_message("Мінуснули, Дорозвідка", M)
     assert r.status == "destroyed" and not r.lost_signal
+
+
+def test_waiting_for_all_clear_is_not_a_clear():
+    # "Чекаємо/очікуємо відбій" ANTICIPATES the all-clear — must NOT read as a
+    # clear (which would prematurely close every open track).
+    for txt in ["Чекаємо на відбій", "Очікуємо відбій",
+                "Якщо надалі спокійно — очікуватимемо відбій"]:
+        assert parse_message(txt, M).status != "clear", txt
+    # A real all-clear still clears.
+    for txt in ["Дали відбій нарешті", "Відбій тривоги та загрози від балістики"]:
+        assert parse_message(txt, M).status == "clear", txt
+
+
+def test_retrospective_footage_is_not_a_live_impact():
+    # "На відео наслідки останньої атаки… пошкодження в <district>" is footage
+    # of a PAST strike — must NOT create a live impact / attack banner.
+    r = parse_message(
+        "На відео наслідки останньої атаки в Соломʼянському районі, зафіксовані "
+        "пошкодження об'єктів та вибито вікна", M)
+    assert not r.impact and not r.matched
+    # A genuine fresh strike still reads as an impact.
+    assert parse_message("В Дніпровському районі влучання по будівлі", M).impact

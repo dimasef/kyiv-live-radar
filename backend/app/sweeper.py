@@ -13,6 +13,7 @@ import logging
 from .broadcast import broadcast_results
 from .config import settings
 from .db import SessionLocal
+from .incidents import close_stale_incidents
 from .ingest import Broadcast
 from .models import utcnow
 from .tracking import close_stale_tracks
@@ -27,10 +28,14 @@ async def run_sweeper() -> None:
         await asyncio.sleep(_INTERVAL_S)
         try:
             async with SessionLocal() as session:
-                closed = await close_stale_tracks(session, utcnow(), settings.track_stale_minutes)
+                now = utcnow()
+                closed = await close_stale_tracks(session, now, settings.track_stale_minutes)
                 if closed:
                     log.info("auto-closed %d stale track(s)", len(closed))
                     await broadcast_results(session, [Broadcast("status", t) for t in closed])
+                ended = await close_stale_incidents(session, now, settings.incident_stale_minutes)
+                if ended:
+                    log.info("auto-ended %d stale incident(s)", len(ended))
         except asyncio.CancelledError:
             raise
         except Exception:

@@ -11,9 +11,9 @@ from sqlalchemy.orm import selectinload
 
 from .api.ws import manager
 from .ingest import Broadcast
-from .models import Threat, ThreatEvent
+from .models import Notice, Threat, ThreatEvent
 from .schemas import WSMessage
-from .serialize import event_out, threat_out
+from .serialize import event_out, notice_out, threat_out
 
 
 async def _load_full(session, threat_id: int) -> Threat | None:
@@ -30,6 +30,15 @@ async def _load_full(session, threat_id: int) -> Threat | None:
 
 async def broadcast_results(session, results: list[Broadcast]) -> None:
     for b in results:
+        if b.type == "notice" and b.notice is not None:
+            n = await session.scalar(
+                select(Notice).where(Notice.id == b.notice.id).options(selectinload(Notice.source))
+            )
+            if n is not None:
+                await manager.broadcast(WSMessage(type="notice", notice=notice_out(n)))
+            continue
+        if b.threat is None:
+            continue
         threat = await _load_full(session, b.threat.id)
         if threat is None:
             continue
