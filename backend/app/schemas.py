@@ -57,6 +57,9 @@ class ThreatEventOut(BaseModel):
     source_message_id: Optional[int] = None
     forwarded_from_id: Optional[int] = None
     event_target_type: Optional[str] = None
+    # Group size known as of this event (running-max at the time). The feed shows
+    # this instead of the track's final count; NULL for pre-column events.
+    event_target_count: Optional[int] = None
     # Denormalized point for convenient map rendering.
     lat: Optional[float] = None
     lon: Optional[float] = None

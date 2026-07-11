@@ -307,7 +307,7 @@ async def _process_parsed(
             if hit is not None:
                 ev = _make_event(t.id, parsed, hit, source_id, message_id,
                                  forwarded_from_id, when, decision_source,
-                                 reply_to_message_id)
+                                 reply_to_message_id, target_count=t.target_count)
                 session.add(ev)
             pairs.append((t, ev))
         if any(ev is not None for _, ev in pairs):
@@ -335,7 +335,7 @@ async def _process_parsed(
                 event_time=when, confidence=parsed.confidence, decision_source=decision_source,
                 source_id=source_id, source_message_id=message_id,
                 forwarded_from_id=forwarded_from_id, reply_to_message_id=reply_to_message_id,
-                event_target_type=parsed.target_type,
+                event_target_type=parsed.target_type, event_target_count=city.target_count,
             )
             session.add(ev)
             await session.commit()
@@ -378,7 +378,7 @@ async def _process_parsed(
         if hit is not None:
             ev = _make_event(track.id, parsed, hit, source_id,
                              message_id, forwarded_from_id, when, decision_source,
-                             reply_to_message_id)
+                             reply_to_message_id, target_count=track.target_count)
             session.add(ev)
         track.status = "destroyed"
         track.closed_at = when
@@ -418,7 +418,8 @@ async def _process_parsed(
         impacts: list[Broadcast] = []
         for hit in parsed.districts:
             ev = _make_event(track.id, parsed, hit, source_id, message_id,
-                             forwarded_from_id, when, decision_source, reply_to_message_id)
+                             forwarded_from_id, when, decision_source, reply_to_message_id,
+                             target_count=track.target_count)
             session.add(ev)
             await session.commit()
             await apply_fusion(session, track)
@@ -457,7 +458,7 @@ async def _process_parsed(
             event_time=when, confidence=parsed.confidence, decision_source=decision_source,
             source_id=source_id, source_message_id=message_id,
             forwarded_from_id=forwarded_from_id, reply_to_message_id=reply_to_message_id,
-            event_target_type=parsed.target_type,
+            event_target_type=parsed.target_type, event_target_count=track.target_count,
         )
         session.add(ev)
         await session.commit()
@@ -492,7 +493,8 @@ async def _process_parsed(
     # One event per mentioned district, in movement order.
     for hit in parsed.districts:
         ev = _make_event(track.id, parsed, hit, source_id, message_id,
-                         forwarded_from_id, when, decision_source, reply_to_message_id)
+                         forwarded_from_id, when, decision_source, reply_to_message_id,
+                         target_count=track.target_count)
         session.add(ev)
         await session.commit()
         await apply_fusion(session, track)
@@ -523,7 +525,8 @@ def _last_district_hit(track: Threat) -> DistrictHit | None:
 
 def _make_event(threat_id, parsed: ParseResult, hit, source_id, message_id,
                 forwarded_from_id, when: datetime, decision_source: str,
-                reply_to_message_id: int | None = None) -> ThreatEvent:
+                reply_to_message_id: int | None = None,
+                target_count: int = 1) -> ThreatEvent:
     return ThreatEvent(
         threat_id=threat_id,
         district_id=hit.district_id,
@@ -536,4 +539,5 @@ def _make_event(threat_id, parsed: ParseResult, hit, source_id, message_id,
         forwarded_from_id=forwarded_from_id,
         reply_to_message_id=reply_to_message_id,
         event_target_type=parsed.target_type,
+        event_target_count=target_count,
     )

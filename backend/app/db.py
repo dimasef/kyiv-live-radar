@@ -43,7 +43,10 @@ async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await _ensure_columns(conn, "raw_messages", {"reply_to_message_id": "INTEGER"})
-        await _ensure_columns(conn, "threat_events", {"reply_to_message_id": "INTEGER"})
+        await _ensure_columns(conn, "threat_events", {
+            "reply_to_message_id": "INTEGER",
+            "event_target_count": "INTEGER",
+        })
         await _ensure_columns(conn, "threats", {
             "target_count": "INTEGER DEFAULT 1",
             "scope": "VARCHAR(10) DEFAULT 'district'",

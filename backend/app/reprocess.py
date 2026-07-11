@@ -15,7 +15,7 @@ import logging
 from sqlalchemy import delete, select
 
 from .config import settings
-from .db import SessionLocal
+from .db import SessionLocal, init_db
 from .gazetteer import DISTRICTS
 from .ingest import _process_parsed
 from .models import District, Incident, Notice, RawMessage, Threat, ThreatEvent
@@ -57,6 +57,11 @@ async def run_reprocess(no_llm: bool = True, limit: int | None = None) -> dict:
     if no_llm:
         settings.llm_fallback_enabled = False
     try:
+        # Ensure the schema (create_all + _ensure_columns) is current before we
+        # replay — idempotent, and it lets the standalone CLI add any new columns
+        # (e.g. threat_events.event_target_count) that the server's lifespan would
+        # otherwise have added at startup, so a CLI reprocess can't fail on them.
+        await init_db()
         await _drop_stale_districts()
         await seed_districts()
         await _wipe_tracks()

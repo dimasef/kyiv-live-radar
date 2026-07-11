@@ -209,6 +209,12 @@ class ThreatEvent(Base):
     forwarded_from_id: Mapped[Optional[int]] = mapped_column(nullable=True)
     # Per-event claimed target type; disagreement across sources => conflict.
     event_target_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    # Group size KNOWN AS OF this event — the track's running-max target_count at
+    # the moment this event landed. The feed shows this (what was known then), not
+    # the track's final count, so an early "Ціль на місто!" doesn't retroactively
+    # display the ×3 that only a later "3 ракети" established. NULL for pre-column
+    # events (the feed falls back to the track's current count for those).
+    event_target_count: Mapped[Optional[int]] = mapped_column(nullable=True)
 
     threat: Mapped["Threat"] = relationship(back_populates="events")
     district: Mapped["District"] = relationship()

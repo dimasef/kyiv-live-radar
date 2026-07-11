@@ -24,6 +24,9 @@ export interface ThreatEvent {
   source_message_id: number | null
   forwarded_from_id: number | null
   event_target_type: string | null
+  /** Group size known as of this event; the feed shows this, not the track's
+   * final count. null for pre-column events (fall back to threat.target_count). */
+  event_target_count: number | null
   lat: number | null
   lon: number | null
 }

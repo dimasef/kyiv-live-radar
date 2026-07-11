@@ -50,6 +50,22 @@ async def test_same_district_corroborates_into_one_track(ctx):
     assert await _count_threats(s) == 1
 
 
+async def test_event_count_snapshots_running_max_not_final(ctx):
+    """A feed event carries the group size KNOWN AS OF that event: an early city
+    callout stays ×1 even after a later "3 ракети" grows the alert to ×3 — so the
+    feed doesn't retroactively show the final count on the earliest sighting."""
+    s, m, src = ctx
+    await ingest_message(s, text="Ціль на місто!", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="3 ракети", matcher=m,
+                         when=BASE + timedelta(minutes=1), source_id=src[0].id, message_id=2)
+    events = list(await s.scalars(select(ThreatEvent).order_by(ThreatEvent.event_time)))
+    assert [e.event_target_count for e in events] == [1, 3]
+    # ...while the track itself carries the final (max) count.
+    threat = (await s.scalars(select(Threat))).one()
+    assert threat.target_count == 3
+
+
 async def test_non_reply_different_districts_split(ctx):
     """Non-threaded sightings over DIFFERENT districts no longer collapse onto the
     newest open track — without a reply we can't assume it's the same target."""

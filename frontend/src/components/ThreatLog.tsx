@@ -257,11 +257,19 @@ export default function ThreatLog() {
                         )}
                         {!(threat.status === 'impact' && threat.target_type === 'unknown') &&
                           t(`target.${threat.target_type}`)}
-                        {threat.target_count > 1 && (
-                          <span className="ml-1 font-mono font-semibold text-amber-300">
-                            ×{threat.target_count}
-                          </span>
-                        )}
+                        {(() => {
+                          // Count KNOWN AS OF this event (running-max at the time),
+                          // not the track's final count — so an early "Ціль на
+                          // місто!" doesn't retroactively show the ×3 that only a
+                          // later "3 ракети" established. Fall back to the track's
+                          // current count for pre-column events (null).
+                          const count = event.event_target_count ?? threat.target_count
+                          return count > 1 ? (
+                            <span className="ml-1 font-mono font-semibold text-amber-300">
+                              ×{count}
+                            </span>
+                          ) : null
+                        })()}
                       </span>
                       <EventTime iso={event.event_time} />
                     </div>

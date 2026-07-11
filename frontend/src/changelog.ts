@@ -32,6 +32,15 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
+    version: '0.2.2',
+    title: 'Лічильник цілей за часом події',
+    date: '2026-07-11',
+    kind: 'patch',
+    changes: [
+      'У стрічці кожна подія показує кількість цілей, відому НА ТОЙ момент, а не фінальну — ранній «Ціль на місто!» більше не показує ретроактивно ×3, який встановив лише пізніший «3 ракети»',
+    ],
+  },
+  {
     version: '0.2.1',
     title: 'Чистка стрічки й історії',
     date: '2026-07-11',
