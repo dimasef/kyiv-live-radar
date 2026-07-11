@@ -4,11 +4,8 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import ChangelogPage from './components/ChangelogPage'
 import { CHANGELOG_PATH, useRoute } from './router'
-import { startAnimatedFavicon } from './animatedFavicon'
 import './i18n'
 import './index.css'
-
-startAnimatedFavicon()
 
 /** Tiny top-level router: the changelog is its own shareable route; everything
  * else is the radar app (whose data-fetching hooks then only run there). */

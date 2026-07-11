@@ -17,6 +17,20 @@ export function trackPoints(threat: Threat): Pt[] {
   return pts
 }
 
+/** A track "moves" only if its located sightings span ≥2 DISTINCT timestamps.
+ * A single message naming several districts ("по Дарницькому та Соломʼянському")
+ * produces several same-time events — an enumeration, not a trajectory — and
+ * must not draw a connecting vector between those places. */
+export function hasMovement(threat: Threat): boolean {
+  const times = new Set<string>()
+  for (const ev of threat.events as ThreatEvent[]) {
+    if (ev.lat == null || ev.lon == null) continue
+    times.add(ev.event_time)
+    if (times.size >= 2) return true
+  }
+  return false
+}
+
 /** Initial compass bearing (degrees, 0 = north) from point a to b. */
 export function bearing(a: Pt, b: Pt): number {
   const toRad = (d: number) => (d * Math.PI) / 180

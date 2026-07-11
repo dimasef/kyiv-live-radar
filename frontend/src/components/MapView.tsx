@@ -17,11 +17,12 @@ import {
   useMapEvents,
 } from 'react-leaflet'
 
-import { headingOf, trackPoints } from '../geo'
+import { hasMovement, headingOf, trackPoints } from '../geo'
 import { useRadar } from '../store'
 import { threatColor } from '../theme'
 import { DIRECTIONAL, type ThreatState, type ThreatType, threatDivIcon } from '../threatIcons'
 import type { Threat } from '../types'
+import { notableIncident } from './IncidentBanner'
 import MapLegend from './MapLegend'
 
 const KYIV_CENTER: [number, number] = [50.4501, 30.5234]
@@ -185,7 +186,10 @@ const ThreatLayer = memo(function ThreatLayer({
 }) {
   const pts = trackPoints(threat)
   const color = threatColor(threat)
-  const heading = headingOf(threat)
+  // Only a track that actually moved over time gets a heading/vector — a single
+  // multi-district message is an enumeration, not a trajectory (see hasMovement).
+  const moved = hasMovement(threat)
+  const heading = moved ? headingOf(threat) : null
   const type = threat.target_type as ThreatType
 
   // Head-marker state: influences SHAPE. A hit bursts; a shot-down/lost track is
@@ -224,7 +228,7 @@ const ThreatLayer = memo(function ThreatLayer({
 
   return (
     <>
-      {latlngs.length > 1 && (
+      {moved && latlngs.length > 1 && (
         <Polyline
           // className is applied at creation only — remount when activity flips.
           key={`${threat.id}-${active ? 'live' : 'closed'}-${highlighted ? 'insp' : ''}`}
@@ -279,6 +283,7 @@ function InspectBadge() {
   const { t } = useTranslation()
   const inspected = useRadar((s) => s.inspectedThreat)
   const liveThreats = useRadar((s) => s.threats)
+  const incidents = useRadar((s) => s.incidents)
   const clearInspection = useRadar((s) => s.clearInspection)
 
   if (!inspected) return null
@@ -286,9 +291,16 @@ function InspectBadge() {
   // still open, instead of our independently-fetched (possibly-lagging) one.
   const display = liveThreats[inspected.id] ?? inspected
   const color = threatColor(display)
+  // Both this badge and the IncidentBanner sit top-center; drop below the banner
+  // when it's showing so they don't overlap.
+  const bannerShown = notableIncident(incidents) !== null
 
   return (
-    <div className="pointer-events-auto absolute left-1/2 top-3 z-[900] -translate-x-1/2">
+    <div
+      className={`pointer-events-auto absolute left-1/2 z-[900] -translate-x-1/2 ${
+        bannerShown ? 'top-16' : 'top-3'
+      }`}
+    >
       <div className="panel flex items-center gap-2.5 px-3 py-1.5">
         <span
           className="h-2.5 w-2.5 flex-none rounded-full"

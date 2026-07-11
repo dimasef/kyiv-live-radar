@@ -14,14 +14,28 @@ const SEVERITY: Record<string, number> = {
 }
 
 /** Whether an incident is worth a prominent banner — a coordinated attack, not
- * a single lone drone (which is adequately shown by its map dot alone). */
+ * a single lone drone (which is adequately shown by its map dot alone). An
+ * `unknown`-type incident carries no weapon class, so a full-screen "Повітряна
+ * атака" alert (often a lone unclassified impact) says nothing useful — skip it
+ * unless it's city-wide (which is meaningful on its own). */
 function isNotable(i: Incident): boolean {
+  if (i.target_type === 'unknown' && !i.citywide) return false
   return (
     i.target_type === 'ballistic' ||
     i.citywide ||
     i.impact_count > 0 ||
     i.track_count + i.impact_count >= 2
   )
+}
+
+/** The single most-severe notable incident to headline, or null if none — shared
+ * so other top-center overlays (the inspect badge) can dodge the banner. */
+export function notableIncident(incidents: Incident[]): Incident | null {
+  const notable = incidents.filter(isNotable)
+  if (notable.length === 0) return null
+  return [...notable].sort(
+    (a, b) => (SEVERITY[b.target_type] ?? 0) - (SEVERITY[a.target_type] ?? 0),
+  )[0]
 }
 
 /** A summary strip over the map for the current attack ("one alert = one
@@ -31,12 +45,8 @@ export default function IncidentBanner() {
   const { t } = useTranslation()
   const incidents = useRadar((s) => s.incidents)
 
-  const notable = incidents.filter(isNotable)
-  if (notable.length === 0) return null
-  // Show the most severe ongoing attack.
-  const inc = [...notable].sort(
-    (a, b) => (SEVERITY[b.target_type] ?? 0) - (SEVERITY[a.target_type] ?? 0),
-  )[0]
+  const inc = notableIncident(incidents)
+  if (!inc) return null
 
   const color = inc.target_type === 'ballistic' ? '#ef4444' : '#f97316'
 
