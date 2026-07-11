@@ -18,7 +18,7 @@ from .config import settings
 from .db import SessionLocal
 from .gazetteer import DISTRICTS
 from .ingest import _process_parsed
-from .models import District, Incident, RawMessage, Threat, ThreatEvent
+from .models import District, Incident, Notice, RawMessage, Threat, ThreatEvent
 from .parser import DistrictMatcher
 from .seed import seed_districts
 
@@ -36,10 +36,15 @@ async def _drop_stale_districts() -> None:
 
 
 async def _wipe_tracks() -> None:
+    # Notices are re-emitted by the ingest replay below, so they must be wiped
+    # too — otherwise every reprocess DUPLICATES all all-clear/summary notices,
+    # and a wrong notice created by older code (e.g. a news post mis-read as a
+    # "відбій") survives forever since the current parser never recreates it.
     async with SessionLocal() as s:
         await s.execute(delete(ThreatEvent))
         await s.execute(delete(Threat))
         await s.execute(delete(Incident))
+        await s.execute(delete(Notice))
         await s.commit()
 
 
