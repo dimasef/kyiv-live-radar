@@ -2,7 +2,8 @@ import { ChevronDown, Layers } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { STATUS_COLORS } from '../theme'
+import { MUTED_COLOR, TYPE_COLORS } from '../theme'
+import { type ThreatType, threatGlyphSvg } from '../threatIcons'
 
 const OPEN_KEY = 'klr-legend-open'
 
@@ -12,6 +13,20 @@ function initialOpen(): boolean {
   // Default: open on desktop, collapsed on small screens.
   return window.matchMedia('(min-width: 1024px)').matches
 }
+
+/** A 16px inline SVG (glyph or plain swatch) used for a legend row. */
+function Swatch({ html }: { html: string }) {
+  return (
+    <span
+      className="inline-flex h-4 w-4 flex-none items-center justify-center"
+      aria-hidden
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  )
+}
+
+const dotSwatch = (color: string) =>
+  `<svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="6" fill="${color}" stroke="#000" stroke-width="0.7"/></svg>`
 
 /** Collapsible legend floating over the map (bottom-left, above leaflet UI). */
 export default function MapLegend() {
@@ -23,13 +38,23 @@ export default function MapLegend() {
     setOpen(!open)
   }
 
-  const rows: [string, string][] = [
-    [STATUS_COLORS.confirmed, t('legend.confirmed')],
-    [STATUS_COLORS.unconfirmed, t('legend.unconfirmed')],
-    [STATUS_COLORS.impact, t('legend.impact')],
-    [STATUS_COLORS.conflict, t('legend.conflict')],
-    [STATUS_COLORS.destroyed, t('legend.destroyed')],
-    ['#38bdf8', t('legend.home')],
+  // Type rows (colour = type, glyph = shape) + state rows (burst = hit, grey =
+  // shot-down/lost) + home.
+  const types: ThreatType[] = ['shahed', 'jet_drone', 'missile', 'ballistic']
+  const rows: { html: string; label: string }[] = [
+    ...types.map((ty) => ({
+      html: threatGlyphSvg(ty, { size: 16, color: TYPE_COLORS[ty] }),
+      label: t(`target.${ty}`),
+    })),
+    {
+      html: threatGlyphSvg('unknown', { size: 16, state: 'impact', color: '#e2e8f0' }),
+      label: t('legend.impact'),
+    },
+    {
+      html: threatGlyphSvg('unknown', { size: 16, state: 'destroyed', color: MUTED_COLOR }),
+      label: t('legend.destroyed'),
+    },
+    { html: dotSwatch('#38bdf8'), label: t('legend.home') },
   ]
 
   return (
@@ -45,12 +70,9 @@ export default function MapLegend() {
             <ChevronDown size={13} className="text-slate-500" />
           </button>
           <ul className="space-y-1.5">
-            {rows.map(([color, label]) => (
+            {rows.map(({ html, label }) => (
               <li key={label} className="flex items-center gap-2 text-[11px] text-slate-300">
-                <span
-                  className="inline-block h-2.5 w-2.5 flex-none rounded-full"
-                  style={{ background: color, boxShadow: `0 0 8px ${color}66` }}
-                />
+                <Swatch html={html} />
                 <span className="truncate">{label}</span>
               </li>
             ))}

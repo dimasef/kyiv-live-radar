@@ -20,36 +20,11 @@ import {
 import { headingOf, trackPoints } from '../geo'
 import { useRadar } from '../store'
 import { threatColor } from '../theme'
+import { DIRECTIONAL, type ThreatState, type ThreatType, threatDivIcon } from '../threatIcons'
 import type { Threat } from '../types'
 import MapLegend from './MapLegend'
 
 const KYIV_CENTER: [number, number] = [50.4501, 30.5234]
-
-function arrowIcon(color: string, deg: number): L.DivIcon {
-  return L.divIcon({
-    className: 'threat-arrow',
-    html: `<svg width="26" height="26" viewBox="0 0 24 24" style="transform:rotate(${deg}deg);--glow:${color}66">
-      <path d="M12 2 L18 20 L12 15 L6 20 Z" fill="${color}" stroke="#000" stroke-width="1"/>
-    </svg>`,
-    iconSize: [26, 26],
-    iconAnchor: [13, 13],
-  })
-}
-
-/** A burst glyph for a confirmed strike location (status='impact') — a
- * terminal marker, deliberately a different SHAPE from the round sighting dots
- * so a hit reads at a glance, not just by color. */
-function impactIcon(color: string): L.DivIcon {
-  return L.divIcon({
-    className: 'impact-marker',
-    html: `<svg width="24" height="24" viewBox="0 0 24 24" style="filter:drop-shadow(0 0 5px ${color}aa)">
-      <path d="M12 1 L14 9 L21 5 L15 11 L23 12 L15 13 L21 19 L14 15 L12 23 L10 15 L3 19 L9 13 L1 12 L9 11 L3 5 L10 9 Z"
-        fill="${color}" stroke="#000" stroke-width="0.6"/>
-    </svg>`,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
-  })
-}
 
 /** Two expanding rings pulsing in the threat color — the live head of a track. */
 function pulseIcon(color: string): L.DivIcon {
@@ -211,13 +186,31 @@ const ThreatLayer = memo(function ThreatLayer({
   const pts = trackPoints(threat)
   const color = threatColor(threat)
   const heading = headingOf(threat)
-  const isImpact = threat.status === 'impact'
+  const type = threat.target_type as ThreatType
+
+  // Head-marker state: influences SHAPE. A hit bursts; a shot-down/lost track is
+  // struck through; a moving track points along its heading; a single sighting
+  // of a DIRECTIONAL type (heading unknown) is an honest dot — a non-directional
+  // type (ballistic/unknown) shows its glyph even without a heading.
+  const state: ThreatState =
+    threat.status === 'impact'
+      ? 'impact'
+      : threat.status === 'destroyed' || threat.status === 'lost'
+        ? 'destroyed'
+        : heading == null && DIRECTIONAL[type]
+          ? 'fix'
+          : 'active'
 
   const pulse = useMemo(() => pulseIcon(color), [color])
-  const burst = useMemo(() => impactIcon(color), [color])
-  const arrow = useMemo(
-    () => (heading != null ? arrowIcon(color, heading) : null),
-    [color, heading],
+  const headIcon = useMemo(
+    () =>
+      threatDivIcon(type, {
+        state,
+        bearingDeg: heading ?? 0,
+        color,
+        size: highlighted ? 30 : 26,
+      }),
+    [type, state, heading, color, highlighted],
   )
 
   if (pts.length === 0) return null
@@ -264,23 +257,9 @@ const ThreatLayer = memo(function ThreatLayer({
           zIndexOffset={-100}
         />
       )}
-      {isImpact ? (
-        <Marker position={[head.lat, head.lon]} icon={burst}>
-          <ThreatPopup threat={threat} />
-        </Marker>
-      ) : arrow ? (
-        <Marker position={[head.lat, head.lon]} icon={arrow}>
-          <ThreatPopup threat={threat} />
-        </Marker>
-      ) : (
-        <CircleMarker
-          center={[head.lat, head.lon]}
-          radius={highlighted ? 9 : 7}
-          pathOptions={{ color, fillColor: color, fillOpacity: 0.85, weight: highlighted ? 3 : 2 }}
-        >
-          <ThreatPopup threat={threat} />
-        </CircleMarker>
-      )}
+      <Marker position={[head.lat, head.lon]} icon={headIcon}>
+        <ThreatPopup threat={threat} />
+      </Marker>
     </>
   )
 })

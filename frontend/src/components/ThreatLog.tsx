@@ -4,7 +4,32 @@ import { useTranslation } from 'react-i18next'
 
 import { useRadar } from '../store'
 import { STATUS_COLORS, threatColor } from '../theme'
-import type { FeedEntry, Notice } from '../types'
+import { type ThreatState, type ThreatType, threatGlyphSvg } from '../threatIcons'
+import type { FeedEntry, Notice, Threat } from '../types'
+
+/** The target-type glyph for a feed row — same family as the map, small and
+ * non-rotated (an icon, not a heading). Colour = type; grey once destroyed/lost;
+ * a hit bursts. */
+function TypeGlyph({ threat }: { threat: Threat }) {
+  const state: ThreatState =
+    threat.status === 'impact'
+      ? 'impact'
+      : threat.status === 'destroyed' || threat.status === 'lost'
+        ? 'destroyed'
+        : 'active'
+  const svg = threatGlyphSvg(threat.target_type as ThreatType, {
+    size: 15,
+    state,
+    color: threatColor(threat),
+  })
+  return (
+    <span
+      className="inline-flex flex-none items-center"
+      aria-hidden
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
+  )
+}
 
 const KYIV_TZ = 'Europe/Kyiv'
 
@@ -243,6 +268,7 @@ export default function ThreatLog() {
                   >
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="flex items-center gap-1.5 font-medium text-slate-100">
+                        <TypeGlyph threat={threat} />
                         {threat.status === 'impact' && (
                           <span
                             className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
