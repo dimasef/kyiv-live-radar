@@ -32,24 +32,23 @@ async def get_session() -> AsyncIterator[AsyncSession]:
 async def init_db() -> None:
     """Create tables for the local skeleton.
 
-    In production this is replaced by Alembic migrations; for the SQLite MVP
-    we just create_all on startup — plus a tiny idempotent ADD COLUMN pass so a
-    pre-existing DB picks up new nullable columns without a wipe.
+    In production this is replaced by Alembic migrations; for the MVP we just
+    create_all on startup — plus a tiny idempotent ADD COLUMN pass so a
+    pre-existing DB (dev SQLite OR prod Postgres) picks up new nullable columns
+    without a wipe. create_all() only makes missing TABLES, never new COLUMNS on
+    an existing table, so both dialects need this.
     """
     from . import models  # noqa: F401 — ensure models are registered
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        # The ADD COLUMN dance below is a SQLite-only migration path for a
-        # pre-existing dev DB predating these columns (PRAGMA table_info isn't
-        # valid on Postgres). A fresh Postgres DB already gets every current
-        # column straight from create_all(), so there's nothing to migrate.
-        if engine.dialect.name == "sqlite":
-            await _ensure_columns(conn, "raw_messages", {"reply_to_message_id": "INTEGER"})
-            await _ensure_columns(conn, "threat_events", {"reply_to_message_id": "INTEGER"})
-            await _ensure_columns(conn, "threats", {"target_count": "INTEGER DEFAULT 1"})
-            await _ensure_columns(conn, "threats", {"scope": "VARCHAR(10) DEFAULT 'district'"})
-            await _ensure_columns(conn, "threats", {"incident_id": "INTEGER"})
+        await _ensure_columns(conn, "raw_messages", {"reply_to_message_id": "INTEGER"})
+        await _ensure_columns(conn, "threat_events", {"reply_to_message_id": "INTEGER"})
+        await _ensure_columns(conn, "threats", {
+            "target_count": "INTEGER DEFAULT 1",
+            "scope": "VARCHAR(10) DEFAULT 'district'",
+            "incident_id": "INTEGER",
+        })
         # create_all() only defines this constraint for BRAND NEW tables — a
         # pre-existing raw_messages table needs it added as a unique index. Only
         # succeeds if the data is already duplicate-free (see scripts/dedupe_ingest.py);
@@ -67,9 +66,18 @@ async def init_db() -> None:
 
 
 async def _ensure_columns(conn, table: str, columns: dict[str, str]) -> None:
-    """SQLite-only: ADD COLUMN for any of `columns` (name->type) not yet present."""
-    rows = await conn.exec_driver_sql(f"PRAGMA table_info({table})")
-    have = {r[1] for r in rows}
-    for name, coltype in columns.items():
-        if name not in have:
-            await conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {name} {coltype}")
+    """Idempotently ADD COLUMN for any of `columns` (name->type) not yet present.
+
+    SQLite has no `ADD COLUMN IF NOT EXISTS`, so we probe via PRAGMA; Postgres
+    supports it directly (and PRAGMA is invalid there)."""
+    if engine.dialect.name == "sqlite":
+        rows = await conn.exec_driver_sql(f"PRAGMA table_info({table})")
+        have = {r[1] for r in rows}
+        for name, coltype in columns.items():
+            if name not in have:
+                await conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {name} {coltype}")
+    else:
+        for name, coltype in columns.items():
+            await conn.exec_driver_sql(
+                f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {name} {coltype}"
+            )
