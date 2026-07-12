@@ -9,7 +9,7 @@ SQLAlchemy>=2.0
 greenlet>=3.0          # required by SQLAlchemy async
 aiosqlite>=0.19
 asyncpg>=0.29           # Postgres (Railway)
-# alembic>=1.13        # migrations (prod)
+alembic>=1.13           # migrations
 
 # Real Telegram feed + parser
 telethon>=1.34         # MTProto listener (reads public channels)

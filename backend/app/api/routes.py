@@ -10,8 +10,9 @@ from sqlalchemy.orm import selectinload
 from ..config import settings
 from ..db import get_session
 from ..gazetteer import CITYWIDE_NAME_EN
-from ..models import District, Incident, Notice, Threat, ThreatEvent, utcnow
+from ..models import Alert, District, Incident, Notice, Threat, ThreatEvent, utcnow
 from ..schemas import (
+    AlertOut,
     DistrictOut,
     FeedEntryOut,
     IncidentOut,
@@ -19,8 +20,10 @@ from ..schemas import (
     ThreatEventOut,
     ThreatOut,
 )
+from ..serialize import alert_out as _alert_out
 from ..serialize import event_out as _event_out
 from ..serialize import feed_entry_out as _feed_entry_out
+from ..serialize import incident_out as _incident_out
 from ..serialize import notice_out as _notice_out
 from ..serialize import threat_out as _threat_out
 
@@ -121,6 +124,23 @@ async def recent_notices(
     return [_notice_out(n) for n in await session.scalars(stmt)]
 
 
+@router.get("/alerts/active", response_model=list[AlertOut])
+async def active_alerts(session: AsyncSession = Depends(get_session)):
+    """Currently open official alert windows (usually 0 or 1 per scope —
+    city and oblast can be open independently)."""
+    stmt = select(Alert).where(Alert.ended_at.is_(None)).order_by(Alert.started_at.desc())
+    return [_alert_out(a) for a in await session.scalars(stmt)]
+
+
+@router.get("/alerts/recent", response_model=list[AlertOut])
+async def recent_alerts(
+    limit: int = Query(30, ge=1, le=100),
+    session: AsyncSession = Depends(get_session),
+):
+    stmt = select(Alert).order_by(Alert.started_at.desc()).limit(limit)
+    return [_alert_out(a) for a in await session.scalars(stmt)]
+
+
 @router.get("/incidents/active", response_model=list[IncidentOut])
 async def active_incidents(session: AsyncSession = Depends(get_session)):
     """Ongoing attacks (incidents not yet ended), each with counts aggregated
@@ -137,35 +157,7 @@ async def active_incidents(session: AsyncSession = Depends(get_session)):
         .order_by(Incident.started_at.desc())
     )
     incidents = await session.scalars(stmt)
-    out: list[IncidentOut] = []
-    for inc in incidents:
-        track_count = impact_count = 0
-        citywide = False
-        districts: set[int] = set()
-        for th in inc.threats:
-            if th.status == "impact":
-                impact_count += 1
-            elif th.scope == "city":
-                citywide = True
-            else:
-                track_count += 1
-            for ev in th.events:
-                if ev.district_id != sentinel_id:
-                    districts.add(ev.district_id)
-        out.append(
-            IncidentOut(
-                id=inc.id,
-                started_at=inc.started_at,
-                ended_at=inc.ended_at,
-                target_type=inc.target_type,
-                status="active",
-                track_count=track_count,
-                impact_count=impact_count,
-                citywide=citywide,
-                district_count=len(districts),
-            )
-        )
-    return out
+    return [_incident_out(inc, sentinel_id) for inc in incidents]
 
 
 @router.get("/threats/{threat_id}/events", response_model=list[ThreatEventOut])

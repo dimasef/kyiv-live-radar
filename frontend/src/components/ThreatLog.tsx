@@ -107,6 +107,23 @@ function SourceBadge({ name, t }: { name: string | null; t: (k: string) => strin
   )
 }
 
+// Closed-track feed label — driven by closed_reason (the explicit domain
+// reason), not inferred from status/target_type. 'stand_down' (дорозвідка)
+// and 'stale' (silence timeout) both read as "lost" — same collapse the
+// legacy `status='lost'` value used before closed_reason existed.
+const CLOSED_REASON_LABEL: Record<string, string> = {
+  destroyed: 'log.closedReason.destroyed',
+  all_clear: 'log.closedReason.allClear',
+  stand_down: 'log.closedReason.lost',
+  stale: 'log.closedReason.lost',
+}
+const CLOSED_REASON_COLOR: Record<string, string> = {
+  destroyed: STATUS_COLORS.destroyed,
+  all_clear: STATUS_COLORS.clear,
+  stand_down: STATUS_COLORS.destroyed,
+  stale: STATUS_COLORS.destroyed,
+}
+
 // One all-clear announced across channels within this window is ONE event —
 // collapse the notices into a single card instead of repeating it per source.
 const CLEAR_GROUP_MS = 12 * 60 * 1000
@@ -279,6 +296,17 @@ export default function ThreatLog() {
                           >
                             <Crosshair size={10} className="flex-none" />
                             {t('log.impact')}
+                          </span>
+                        )}
+                        {threat.closed_at && threat.status !== 'impact' && threat.closed_reason && (
+                          <span
+                            className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                            style={{
+                              color: CLOSED_REASON_COLOR[threat.closed_reason],
+                              background: `${CLOSED_REASON_COLOR[threat.closed_reason]}1a`,
+                            }}
+                          >
+                            {t(CLOSED_REASON_LABEL[threat.closed_reason])}
                           </span>
                         )}
                         {!(threat.status === 'impact' && threat.target_type === 'unknown') &&

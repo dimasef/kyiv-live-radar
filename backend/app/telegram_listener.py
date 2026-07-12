@@ -10,14 +10,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
 from .broadcast import broadcast_results
 from .config import settings
 from .db import SessionLocal
-from .ingest import ingest_message
+from .ingest import ingest_alert_message, ingest_message
 from .models import District, Source
 from .parser import DistrictMatcher
 
@@ -39,6 +39,31 @@ _state: dict = {
 
 def get_status() -> dict:
     return dict(_state)
+
+
+def _within(a: datetime, b: datetime, gap: timedelta) -> bool:
+    an = a.replace(tzinfo=None) if a.tzinfo is not None else a
+    bn = b.replace(tzinfo=None) if b.tzinfo is not None else b
+    return abs((bn - an).total_seconds()) <= gap.total_seconds()
+
+
+def feed_health(now: datetime, warn_minutes: int) -> bool | None:
+    """Whether the live feed looks healthy — None when there's no real feed
+    to judge (Telegram not configured; simulator/replay modes have nothing
+    to monitor here). False when disconnected, or connected but silent for
+    longer than `warn_minutes`. `last_message_at` is only set by a LIVE
+    message (never by the startup backfill), so a freshly-connected session
+    with no live traffic yet reads as healthy rather than stale — only "was
+    receiving, then stopped" is evidence of a real problem. Shared by
+    GET /health (hydration) and sweeper.py (the periodic push on change).
+    """
+    if not settings.telegram_enabled:
+        return None
+    if not _state["connected"]:
+        return False
+    if _state["last_message_at"] is None:
+        return True
+    return _within(_state["last_message_at"], now, timedelta(minutes=warn_minutes))
 
 
 def make_session():
@@ -82,6 +107,24 @@ def _source_key(entity) -> str:
     return getattr(entity, "username", None) or f"tg{entity.id}"
 
 
+def _fwd_origin(m) -> tuple[int | None, int | None]:
+    """(forwarded_from_id, forwarded_from_channel_id) for a repost, else
+    (None, None). The channel id is the origin's raw Telegram peer id — used
+    by fusion.py to disambiguate two different channels whose reposted
+    messages happen to share a numeric message id (see _origin_keys)."""
+    f = getattr(m, "fwd_from", None)
+    if f is None:
+        return None, None
+    msg_id = getattr(f, "channel_post", None)
+    channel_id = None
+    from_id = getattr(f, "from_id", None)
+    if from_id is not None:
+        from telethon import utils
+
+        channel_id = utils.get_peer_id(from_id)
+    return msg_id, channel_id
+
+
 def _reply_to_id(m) -> int | None:
     """The id of the message `m` replies to (same channel), else None.
 
@@ -94,30 +137,59 @@ def _reply_to_id(m) -> int | None:
     return getattr(m, "reply_to_msg_id", None)
 
 
-async def _ensure_sources(entities) -> dict[int, int]:
-    """Ensure a Source row per channel; return a map from BOTH the raw entity id
-    and the marked peer id (what `event.chat_id` returns) to source_id, so live
-    events and backfill both resolve their source."""
+async def _ensure_sources(entities, entity_roles: dict[int, str]) -> tuple[dict[int, int], dict[int, str]]:
+    """Ensure a Source row per channel; return (id_to_source, source_role).
+
+    id_to_source maps BOTH the raw entity id and the marked peer id (what
+    `event.chat_id` returns) to source_id, so live events and backfill both
+    resolve their source. source_role maps source_id -> Source.role, so the
+    caller can dispatch each message to the spotter or alert ingest path.
+    `entity_roles` (entity.id -> 'spotter'|'alert') is kept in sync onto an
+    already-existing Source row too, in case a channel moved between the
+    TELEGRAM_CHANNELS/ALERT_CHANNELS config lists.
+    """
     from telethon import utils
 
     async with SessionLocal() as s:
         existing = {x.channel_key: x for x in await s.scalars(select(Source))}
         id_map: dict[int, int] = {}
+        role_by_source: dict[int, str] = {}
         for e in entities:
             key = _source_key(e)
+            role = entity_roles.get(e.id, "spotter")
             src = existing.get(key)
             if src is None:
-                src = Source(channel_key=key, name=getattr(e, "title", key))
+                src = Source(channel_key=key, name=getattr(e, "title", key), role=role)
                 s.add(src)
                 await s.flush()
                 existing[key] = src
+            elif src.role != role:
+                src.role = role
             id_map[e.id] = src.id
             id_map[utils.get_peer_id(e)] = src.id  # marked id (== event.chat_id)
+            role_by_source[src.id] = src.role
         await s.commit()
-        return id_map
+        return id_map, role_by_source
 
 
-async def _backfill(client, entities, id_to_source, matcher) -> None:
+async def _ingest_one(s, *, role: str, text: str, when, source_id, message_id,
+                      matcher=None, forwarded_from_id=None, forwarded_from_channel_id=None,
+                      reply_to_message_id=None):
+    """Dispatch one message to the spotter or alert ingest pipeline by role."""
+    if role == "alert":
+        return await ingest_alert_message(
+            s, text=text, when=when, source_id=source_id, message_id=message_id
+        )
+    return await ingest_message(
+        s, text=text, matcher=matcher, when=when,
+        source_id=source_id, message_id=message_id,
+        forwarded_from_id=forwarded_from_id,
+        forwarded_from_channel_id=forwarded_from_channel_id,
+        reply_to_message_id=reply_to_message_id,
+    )
+
+
+async def _backfill(client, entities, id_to_source, source_role, matcher) -> None:
     """Ingest recent history across ALL channels in true chronological order, so
     cross-channel corroboration and track grouping work the same as live."""
     collected = []
@@ -131,11 +203,12 @@ async def _backfill(client, entities, id_to_source, matcher) -> None:
 
     stream = settings.telegram_backfill_broadcast
     for when, src_id, m, text in collected:
-        fwd = getattr(getattr(m, "fwd_from", None), "channel_post", None)
+        role = source_role.get(src_id, "spotter")
+        fwd, fwd_channel = _fwd_origin(m)
         async with SessionLocal() as s:
-            results = await ingest_message(
-                s, text=text, matcher=matcher, when=when,
-                source_id=src_id, message_id=m.id, forwarded_from_id=fwd,
+            results = await _ingest_one(
+                s, role=role, text=text, when=when, source_id=src_id, message_id=m.id,
+                matcher=matcher, forwarded_from_id=fwd, forwarded_from_channel_id=fwd_channel,
                 reply_to_message_id=_reply_to_id(m),
             )
             if stream and results:
@@ -160,22 +233,32 @@ async def _run_listener_once(backfill: bool, run_state: dict) -> None:
     try:
         await client.start()
 
+        # One client watches both spotter and official-alert channels; each
+        # message is routed by its Source.role (see _ingest_one) rather than
+        # needing two separate connections/sessions.
+        channel_specs = (
+            [(c, "spotter") for c in settings.telegram_channel_list]
+            + [(c, "alert") for c in settings.alert_channel_list]
+        )
         entities = []
-        for raw in settings.telegram_channel_list:
+        entity_roles: dict[int, str] = {}
+        for raw, role in channel_specs:
             try:
-                entities.append(await _resolve_channel(client, raw))
+                e = await _resolve_channel(client, raw)
+                entities.append(e)
+                entity_roles[e.id] = role
             except Exception as ex:
                 log.error("could not resolve channel %r: %s", raw, ex)
         if not entities:
             raise RuntimeError("no channels resolved")
 
-        id_to_source = await _ensure_sources(entities)
+        id_to_source, source_role = await _ensure_sources(entities, entity_roles)
         async with SessionLocal() as s:
             districts = list(await s.scalars(select(District)))
         matcher = DistrictMatcher(districts)
 
         if backfill and settings.telegram_backfill:
-            await _backfill(client, entities, id_to_source, matcher)
+            await _backfill(client, entities, id_to_source, source_role, matcher)
 
         @client.on(events.NewMessage(chats=entities))
         async def handler(event):  # noqa: ANN001
@@ -183,20 +266,16 @@ async def _run_listener_once(backfill: bool, run_state: dict) -> None:
             if not text.strip():
                 return
             source_id = id_to_source.get(event.chat_id)
-            # If the post is a forward, capture the ORIGINAL post id for repost dedup.
-            fwd = None
-            f = getattr(event.message, "fwd_from", None)
-            if f is not None:
-                fwd = getattr(f, "channel_post", None)
+            role = source_role.get(source_id, "spotter")
+            # If the post is a forward, capture the ORIGINAL post id (+ origin
+            # channel id) for repost dedup — see fusion.py::_origin_keys.
+            fwd, fwd_channel = _fwd_origin(event.message)
             async with SessionLocal() as s:
-                results = await ingest_message(
-                    s,
-                    text=text,
-                    matcher=matcher,
-                    when=event.message.date,
-                    source_id=source_id,
-                    message_id=event.message.id,
-                    forwarded_from_id=fwd,
+                results = await _ingest_one(
+                    s, role=role, text=text, when=event.message.date,
+                    source_id=source_id, message_id=event.message.id,
+                    matcher=matcher, forwarded_from_id=fwd,
+                    forwarded_from_channel_id=fwd_channel,
                     reply_to_message_id=_reply_to_id(event.message),
                 )
                 await broadcast_results(s, results)
@@ -214,8 +293,8 @@ async def _run_listener_once(backfill: bool, run_state: dict) -> None:
 
 
 async def run_listener() -> None:
-    raw_channels = settings.telegram_channel_list
-    if not raw_channels or not settings.telegram_api_id:
+    has_channels = settings.telegram_channel_list or settings.alert_channel_list
+    if not has_channels or not settings.telegram_api_id:
         log.warning("telegram listener not configured (channels/api_id missing)")
         return
 

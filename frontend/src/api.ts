@@ -1,7 +1,9 @@
 import type {
+  Alert,
   District,
   DistrictBoundary,
   FeedEntry,
+  HealthStatus,
   Incident,
   Notice,
   Threat,
@@ -20,6 +22,8 @@ export const fetchDistricts = () => get<District[]>('/districts')
 export const fetchBoundaries = () => get<DistrictBoundary[]>('/districts/boundaries')
 export const fetchActiveThreats = () => get<Threat[]>('/threats/active')
 export const fetchActiveIncidents = () => get<Incident[]>('/incidents/active')
+export const fetchActiveAlerts = () => get<Alert[]>('/alerts/active')
+export const fetchHealth = () => get<HealthStatus>('/health')
 export const fetchRecentNotices = (limit = 30) =>
   get<Notice[]>(`/notices/recent?limit=${limit}`)
 export const fetchRecentEvents = (limit = 60) =>

@@ -19,7 +19,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sqlalchemy import delete, select  # noqa: E402
 
 from app.config import settings  # noqa: E402
-from app.db import SessionLocal, init_db  # noqa: E402
+from app.db import SessionLocal  # noqa: E402
+from app.migrate import upgrade_to_head  # noqa: E402
 from app.models import District, RawMessage, Threat, ThreatEvent  # noqa: E402
 from app.parser import DistrictMatcher  # noqa: E402
 from app.seed import seed_districts, seed_sources  # noqa: E402
@@ -42,7 +43,7 @@ async def _reset() -> None:
 async def main() -> None:
     from telethon import TelegramClient
 
-    await init_db()
+    await upgrade_to_head()
     await seed_districts()
     await seed_sources()
     await _reset()
@@ -51,10 +52,17 @@ async def main() -> None:
                             settings.telegram_api_hash)
     await client.start()
 
+    channel_specs = (
+        [(c, "spotter") for c in settings.telegram_channel_list]
+        + [(c, "alert") for c in settings.alert_channel_list]
+    )
     entities = []
-    for raw in settings.telegram_channel_list:
+    entity_roles: dict[int, str] = {}
+    for raw, role in channel_specs:
         try:
-            entities.append(await _resolve_channel(client, raw))
+            e = await _resolve_channel(client, raw)
+            entities.append(e)
+            entity_roles[e.id] = role
         except Exception as ex:
             print(f"skip {raw}: {ex}", file=sys.stderr)
     if not entities:
@@ -62,12 +70,12 @@ async def main() -> None:
         await client.disconnect()
         return
 
-    id_to_source = await _ensure_sources(entities)
+    id_to_source, source_role = await _ensure_sources(entities, entity_roles)
     async with SessionLocal() as s:
         districts = list(await s.scalars(select(District)))
     matcher = DistrictMatcher(districts)
 
-    await _backfill(client, entities, id_to_source, matcher)
+    await _backfill(client, entities, id_to_source, source_role, matcher)
     await client.disconnect()
     print(f"backfill done: {settings.telegram_backfill}/channel across "
           f"{len(entities)} channels")

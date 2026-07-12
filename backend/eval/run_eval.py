@@ -56,6 +56,13 @@ def main() -> int:
     ok = {"target_type": 0, "status": 0, "is_new_target": 0}
     tp = fp = fn = 0
     mismatches: list[str] = []
+    # Optional boolean flags (decoy/hypersonic — Phase 3; negated — Phase 4):
+    # only rows that carry the key are scored, so old rows are untouched.
+    # Reported for visibility, not gated by THRESHOLDS — too few examples yet
+    # for a hard pass/fail bar.
+    OPTIONAL_FLAGS = ("decoy", "hypersonic", "negated")
+    opt_ok = {k: 0 for k in OPTIONAL_FLAGS}
+    opt_n = {k: 0 for k in OPTIONAL_FLAGS}
 
     for ex in examples:
         res = parse_message(ex["text"], matcher)
@@ -80,6 +87,16 @@ def main() -> int:
         fn += len(exp_districts - pred_districts)
         if pred_districts != exp_districts:
             row_bad.append(f"districts: got {sorted(filter(None, pred_districts))} exp {sorted(exp_districts)}")
+
+        for flag in OPTIONAL_FLAGS:
+            if flag not in ex:
+                continue
+            opt_n[flag] += 1
+            pred_flag = getattr(res, flag)
+            if pred_flag == ex[flag]:
+                opt_ok[flag] += 1
+            else:
+                row_bad.append(f"{flag}: got {pred_flag!r} exp {ex[flag]!r}")
 
         if row_bad:
             mismatches.append(f"  · {ex['text']!r}\n      " + "\n      ".join(row_bad))
@@ -106,6 +123,10 @@ def main() -> int:
         print(f"  {key:20} {val*100:5.1f}%   (min {thr*100:.0f}%)  [{mark}]")
     print(f"  {'district_f1':20} {f1*100:5.1f}%")
     print(f"\n  districts: TP={tp} FP={fp} FN={fn}")
+    for flag in OPTIONAL_FLAGS:
+        if opt_n[flag]:
+            pct = opt_ok[flag] / opt_n[flag] * 100
+            print(f"  {flag + ' (informational)':28} {pct:5.1f}%  ({opt_ok[flag]}/{opt_n[flag]})")
 
     if mismatches and (verbose or failed):
         print(f"\n--- mismatches ({len(mismatches)}) ---")

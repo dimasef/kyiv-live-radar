@@ -6,14 +6,25 @@
   "citywide": {
     "title": "Загроза місту"
   },
-  "incident": {
-    "type": {
+  "alert": {
+    "scope": {
+      "city": "Повітряна тривога — м. Київ",
+      "oblast": "Повітряна тривога — Київська область"
+    },
+    "clear": "Відбій тривоги"
+  },
+  "attack": {
+    "classification": {
+      "drone": "Атака дронів",
+      "cruise_missile": "Ракетна атака",
       "ballistic": "Балістична атака",
-      "missile": "Ракетна атака",
-      "jet_drone": "Атака БПЛА",
-      "shahed": "Атака дронів",
+      "combined": "Комбінована атака",
       "unknown": "Повітряна атака"
     },
+    "hypersonic": "гіперзвук",
+    "decoySuspected": "Можлива імітація"
+  },
+  "incident": {
     "targets": "цілі",
     "impacts": "влучання",
     "districts": "райони"
@@ -51,7 +62,12 @@
     "today": "Сьогодні",
     "yesterday": "Вчора",
     "closedMultiple": "Закрито цілей",
-    "impact": "Інцидент"
+    "impact": "Інцидент",
+    "closedReason": {
+      "destroyed": "Знищено",
+      "allClear": "Відбій",
+      "lost": "Втрачено"
+    }
   },
   "notice": {
     "clear": "Відбій",
@@ -74,7 +90,8 @@
   },
   "conn": {
     "online": "З'єднання активне",
-    "offline": "Немає з'єднання"
+    "offline": "Немає з'єднання",
+    "feedUnavailable": "Джерело даних недоступне"
   },
   "panel": {
     "feed": "Стрічка",

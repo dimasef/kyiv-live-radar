@@ -53,3 +53,12 @@
 {"text": "Балістика з півночі, ймовірно на Київ, уточнюється", "target_type": "ballistic", "status": "unconfirmed", "is_new_target": false, "districts": []}
 {"text": "Шахед над Виноградарем, ще один за ним на Нивки", "target_type": "shahed", "status": "active", "is_new_target": true, "districts": ["Vynohradar", "Nyvky"]}
 {"text": "Група БпЛА зайшла на Деснянський район", "target_type": "shahed", "status": "active", "is_new_target": false, "districts": ["Desnianskyi"]}
+{"text": "Балістика! Курс на Київ, ймовірно імітація удару", "target_type": "ballistic", "status": "active", "is_new_target": false, "districts": [], "decoy": true}
+{"text": "Кинджал на Київ!", "target_type": "ballistic", "status": "active", "is_new_target": false, "districts": [], "hypersonic": true}
+{"text": "Циркон в напрямку Дарницького району", "target_type": "unknown", "status": "active", "is_new_target": false, "districts": ["Darnytskyi"], "hypersonic": true}
+{"text": "Ще 3 шахеди курс на Троєщину", "target_type": "shahed", "status": "active", "is_new_target": true, "districts": ["Troieshchyna"]}
+{"text": "БпЛА над Троєщиною, ще 20хв лишається до підльоту", "target_type": "shahed", "status": "active", "is_new_target": false, "districts": ["Troieshchyna"]}
+{"text": "Якщо балістична атака відбудеться, очікувати її слід в найближчі 2-3 години.", "target_type": "ballistic", "status": "active", "is_new_target": false, "districts": [], "negated": true}
+{"text": "У разі оголошення тривоги не зволікайте та прямуйте в укриття.", "target_type": "unknown", "status": "active", "is_new_target": false, "districts": [], "negated": true}
+{"text": "По вулиці не бігати в жодному разі.", "target_type": "unknown", "status": "active", "is_new_target": false, "districts": [], "negated": false}
+{"text": "На Чернігівщині ще 2х реактивних, 5/8 хвилин до області, якщо по прямій.", "target_type": "jet_drone", "status": "active", "is_new_target": false, "districts": [], "negated": false}

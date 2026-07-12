@@ -1,4 +1,4 @@
-import { Crosshair, Flame, MapPin, Siren } from 'lucide-react'
+import { Crosshair, Flame, Ghost, MapPin, Siren } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -13,25 +13,12 @@ const SEVERITY: Record<string, number> = {
   unknown: 0,
 }
 
-/** Whether an incident is worth a prominent banner — a coordinated attack, not
- * a single lone drone (which is adequately shown by its map dot alone). An
- * `unknown`-type incident carries no weapon class, so a full-screen "Повітряна
- * атака" alert (often a lone unclassified impact) says nothing useful — skip it
- * unless it's city-wide (which is meaningful on its own). */
-function isNotable(i: Incident): boolean {
-  if (i.target_type === 'unknown' && !i.citywide) return false
-  return (
-    i.target_type === 'ballistic' ||
-    i.citywide ||
-    i.impact_count > 0 ||
-    i.track_count + i.impact_count >= 2
-  )
-}
-
-/** The single most-severe notable incident to headline, or null if none — shared
- * so other top-center overlays (the inspect badge) can dodge the banner. */
+/** The single most-severe notable incident to headline, or null if none —
+ * shared so other top-center overlays (the inspect badge) can dodge the
+ * banner. `notable` itself is computed server-side (see backend
+ * serialize.py::_is_notable) — the single source of truth. */
 export function notableIncident(incidents: Incident[]): Incident | null {
-  const notable = incidents.filter(isNotable)
+  const notable = incidents.filter((i) => i.notable)
   if (notable.length === 0) return null
   return [...notable].sort(
     (a, b) => (SEVERITY[b.target_type] ?? 0) - (SEVERITY[a.target_type] ?? 0),
@@ -51,10 +38,7 @@ export default function IncidentBanner() {
   const color = inc.target_type === 'ballistic' ? '#ef4444' : '#f97316'
 
   return (
-    <div
-      role="alert"
-      className="incident-banner pointer-events-none absolute inset-x-0 top-0 z-[1000] flex justify-center px-3 pt-3"
-    >
+    <div role="alert" className="incident-banner pointer-events-none flex justify-center">
       <div
         className="flex items-center gap-2.5 rounded-full border px-4 py-2 text-[13px] font-semibold backdrop-blur-md"
         style={
@@ -68,8 +52,16 @@ export default function IncidentBanner() {
       >
         <Siren size={16} className="flex-none animate-pulse" />
         <span className="uppercase tracking-wide">
-          {t(`incident.type.${inc.target_type}`)}
+          {t(`attack.classification.${inc.classification}`)}
+          {inc.has_hypersonic && inc.classification === 'ballistic'
+            ? ` (${t('attack.hypersonic')})`
+            : ''}
         </span>
+        {inc.decoy_suspected && (
+          <span className="flex-none opacity-80" title={t('attack.decoySuspected')}>
+            <Ghost size={13} aria-label={t('attack.decoySuspected')} />
+          </span>
+        )}
         <span className="flex items-center gap-2 font-mono text-[12px] font-medium tabular-nums opacity-90">
           {inc.track_count > 0 && (
             <span className="flex items-center gap-1" title={t('incident.targets')}>

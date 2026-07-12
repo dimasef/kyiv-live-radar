@@ -15,11 +15,14 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import select
 
+from .alert_parser import parse_alert_message
+from .alerts import AlertSignal, apply_alert_signal
 from .config import settings
 from .gazetteer import CITYWIDE_NAME_EN
 from .incidents import attach_to_incident, end_active_incidents
+from .lifecycle import close_track, promote_track
 from .parser import DistrictHit, DistrictMatcher, ParseResult, normalize, parse_message
-from .models import District, Notice, RawMessage, Threat, ThreatEvent
+from .models import Alert, District, Incident, Notice, RawMessage, Threat, ThreatEvent
 from .tracking import (
     apply_fusion,
     close_all_active,
@@ -107,10 +110,12 @@ def _within_inherit_window(a: datetime, b: datetime) -> bool:
 
 @dataclass
 class Broadcast:
-    type: str  # 'event' | 'status' | 'notice'
+    type: str  # 'event' | 'status' | 'notice' | 'alert' | 'attack'
     threat: Threat | None = None
     event: ThreatEvent | None = None
     notice: "Notice | None" = None
+    alert: "Alert | None" = None
+    incident: "Incident | None" = None
 
 
 def _upgrade_type(current: str, new: str) -> str:
@@ -208,6 +213,7 @@ async def _ingest_locked(
     source_id: int | None = None,
     message_id: int | None = None,
     forwarded_from_id: int | None = None,
+    forwarded_from_channel_id: int | None = None,
     reply_to_message_id: int | None = None,
 ) -> list[Broadcast]:
     # 0. Idempotency guard: a real Telegram message_id is unique per channel.
@@ -231,6 +237,7 @@ async def _ingest_locked(
         text=text,
         event_time=when,
         forwarded_from_id=forwarded_from_id,
+        forwarded_from_channel_id=forwarded_from_channel_id,
         reply_to_message_id=reply_to_message_id,
     )
     session.add(raw)
@@ -245,6 +252,7 @@ async def _ingest_locked(
         source_id=source_id,
         message_id=message_id,
         forwarded_from_id=forwarded_from_id,
+        forwarded_from_channel_id=forwarded_from_channel_id,
         reply_to_message_id=reply_to_message_id,
     )
 
@@ -259,6 +267,7 @@ async def _process_parsed(
     source_id: int | None,
     message_id: int | None,
     forwarded_from_id: int | None,
+    forwarded_from_channel_id: int | None = None,
     reply_to_message_id: int | None,
 ) -> list[Broadcast]:
     """Parse -> track -> fuse an ALREADY-PERSISTED raw message.
@@ -286,12 +295,12 @@ async def _process_parsed(
     # open tracks of that type, so an unrelated active shahed/jet track isn't
     # incorrectly closed by a clear that never mentioned it.
     if parsed.status == "clear":
-        closed = await close_all_active(session, when, target_type=parsed.clear_scope)
+        closed = await close_all_active(session, when, "all_clear", target_type=parsed.clear_scope)
         # A FULL all-clear ("Відбій тривоги") ends the attack — close its
         # incident too. A type-scoped clear ("Відбій балістики") leaves the
         # incident open: other target types may still be inbound.
         if parsed.clear_scope is None:
-            await end_active_incidents(session, when)
+            await end_active_incidents(session, when, "all_clear")
         # Surface the all-clear itself in the feed (a status-only broadcast is
         # invisible there) as a notice — the operator wants to SEE "відбій".
         notice = await _make_notice(session, "clear", parsed, source_id, when)
@@ -306,7 +315,7 @@ async def _process_parsed(
     # view instead of vanishing as a bare status broadcast.
     if parsed.lost_signal:
         target = parsed.target_type if parsed.target_type != "unknown" else None
-        closed = await close_all_active(session, when, target_type=target)
+        closed = await close_all_active(session, when, "stand_down", target_type=target)
         pairs: list[tuple[Threat, ThreatEvent | None]] = []
         for t in closed:
             hit = _last_district_hit(t)
@@ -314,7 +323,8 @@ async def _process_parsed(
             if hit is not None:
                 ev = _make_event(t.id, parsed, hit, source_id, message_id,
                                  forwarded_from_id, when, decision_source,
-                                 reply_to_message_id, target_count=t.target_count)
+                                 reply_to_message_id, target_count=t.target_count,
+                                 forwarded_from_channel_id=forwarded_from_channel_id)
                 session.add(ev)
             pairs.append((t, ev))
         if any(ev is not None for _, ev in pairs):
@@ -341,15 +351,18 @@ async def _process_parsed(
                 threat_id=city.id, district_id=did, raw_text=parsed.raw_text,
                 event_time=when, confidence=parsed.confidence, decision_source=decision_source,
                 source_id=source_id, source_message_id=message_id,
-                forwarded_from_id=forwarded_from_id, reply_to_message_id=reply_to_message_id,
+                forwarded_from_id=forwarded_from_id,
+                forwarded_from_channel_id=forwarded_from_channel_id,
+                reply_to_message_id=reply_to_message_id,
                 event_target_type=parsed.target_type, event_target_count=city.target_count,
             )
             session.add(ev)
             await session.commit()
             await apply_fusion(session, city)
-            await attach_to_incident(session, city, when)
+            inc = await attach_to_incident(session, city, when, decoy=parsed.decoy,
+                                           hypersonic=parsed.hypersonic)
             await done()
-            return [Broadcast("event", city, ev)]
+            return [Broadcast("event", city, ev), Broadcast("attack", incident=inc)]
 
     # 2a-quater. Retrospective attack summary ("Загалом ... 8 балістичних С-400")
     #     — info, not a live target: no map threat, but surfaced in the feed as a
@@ -371,7 +384,14 @@ async def _process_parsed(
         track = await find_track_by_reply(session, source_id, reply_to_message_id)
         if track is None:
             prefer = {h.district_id for h in parsed.districts} or None
-            track = await find_open_track(session, when, prefer_districts=prefer)
+            # A destroyed message can land later than the normal grouping gap
+            # (track_gap_minutes) but before the track would otherwise go
+            # stale — look as far back as the stale window, not the grouping
+            # window, so a reply-less "знищено" in that gap still finds its
+            # track instead of silently matching nothing.
+            track = await find_open_track(
+                session, when, prefer_districts=prefer, gap_minutes=settings.track_stale_minutes
+            )
         if track is None:
             await done()
             return []
@@ -385,10 +405,10 @@ async def _process_parsed(
         if hit is not None:
             ev = _make_event(track.id, parsed, hit, source_id,
                              message_id, forwarded_from_id, when, decision_source,
-                             reply_to_message_id, target_count=track.target_count)
+                             reply_to_message_id, target_count=track.target_count,
+                             forwarded_from_channel_id=forwarded_from_channel_id)
             session.add(ev)
-        track.status = "destroyed"
-        track.closed_at = when
+        close_track(track, when, "destroyed")
         await session.commit()
         await apply_fusion(session, track)
         await done()
@@ -415,6 +435,7 @@ async def _process_parsed(
             track = Threat(
                 target_type=parsed.target_type,
                 status="impact",
+                kind="impact",
                 target_count=parsed.target_count or 1,
                 closed_at=when,
             )
@@ -426,12 +447,15 @@ async def _process_parsed(
         for hit in parsed.districts:
             ev = _make_event(track.id, parsed, hit, source_id, message_id,
                              forwarded_from_id, when, decision_source, reply_to_message_id,
-                             target_count=track.target_count)
+                             target_count=track.target_count,
+                             forwarded_from_channel_id=forwarded_from_channel_id)
             session.add(ev)
             await session.commit()
             await apply_fusion(session, track)
             impacts.append(Broadcast("event", track, ev))
-        await attach_to_incident(session, track, when)
+        inc = await attach_to_incident(session, track, when, decoy=parsed.decoy,
+                                       hypersonic=parsed.hypersonic)
+        impacts.append(Broadcast("attack", incident=inc))
         await done()
         return impacts
 
@@ -457,22 +481,25 @@ async def _process_parsed(
         else:
             track.target_type = _upgrade_type(track.target_type, parsed.target_type)
             if parsed.status != "unconfirmed":
-                track.status = "tracking"
+                promote_track(track)
             if parsed.target_count and parsed.target_count > track.target_count:
                 track.target_count = parsed.target_count
         ev = ThreatEvent(
             threat_id=track.id, district_id=did, raw_text=parsed.raw_text,
             event_time=when, confidence=parsed.confidence, decision_source=decision_source,
             source_id=source_id, source_message_id=message_id,
-            forwarded_from_id=forwarded_from_id, reply_to_message_id=reply_to_message_id,
+            forwarded_from_id=forwarded_from_id,
+            forwarded_from_channel_id=forwarded_from_channel_id,
+            reply_to_message_id=reply_to_message_id,
             event_target_type=parsed.target_type, event_target_count=track.target_count,
         )
         session.add(ev)
         await session.commit()
         await apply_fusion(session, track)
-        await attach_to_incident(session, track, when)
+        inc = await attach_to_incident(session, track, when, decoy=parsed.decoy,
+                                       hypersonic=parsed.hypersonic)
         await done()
-        return [Broadcast("event", track, ev)]
+        return [Broadcast("event", track, ev), Broadcast("attack", incident=inc)]
 
     # 2d. Sighting / confirmed / unconfirmed -> continue or start a track.
     #     (1) reply to an OPEN chain = authoritative same-target signal (beats
@@ -491,7 +518,7 @@ async def _process_parsed(
     else:
         track.target_type = _upgrade_type(track.target_type, parsed.target_type)
         if parsed.status != "unconfirmed":
-            track.status = "tracking"
+            promote_track(track)
         # Group size only grows within a chain (2х -> "їх вже 3х").
         if parsed.target_count and parsed.target_count > track.target_count:
             track.target_count = parsed.target_count
@@ -501,14 +528,93 @@ async def _process_parsed(
     for hit in parsed.districts:
         ev = _make_event(track.id, parsed, hit, source_id, message_id,
                          forwarded_from_id, when, decision_source, reply_to_message_id,
-                         target_count=track.target_count)
+                         target_count=track.target_count,
+                         forwarded_from_channel_id=forwarded_from_channel_id)
         session.add(ev)
         await session.commit()
         await apply_fusion(session, track)
         broadcasts.append(Broadcast("event", track, ev))
 
-    await attach_to_incident(session, track, when)
+    inc = await attach_to_incident(session, track, when, decoy=parsed.decoy,
+                                   hypersonic=parsed.hypersonic)
+    broadcasts.append(Broadcast("attack", incident=inc))
     await done()
+    return broadcasts
+
+
+async def ingest_alert_message(
+    session,
+    *,
+    text: str,
+    when: datetime,
+    source_id: int | None = None,
+    message_id: int | None = None,
+) -> list[Broadcast]:
+    """Serialized entry point for the OFFICIAL alert channel — separate from
+    `ingest_message` because it needs none of the spotter context (district
+    matcher, reply-threading, forward attribution: this channel never
+    reply-threads or reposts). Shares `_ingest_lock` with the spotter path so
+    the two can never race on the same raw-message dedup guard."""
+    async with _ingest_lock:
+        return await _alert_ingest_locked(session, text=text, when=when,
+                                          source_id=source_id, message_id=message_id)
+
+
+async def _alert_ingest_locked(
+    session, *, text: str, when: datetime, source_id: int | None, message_id: int | None
+) -> list[Broadcast]:
+    if message_id is not None:
+        dup = await session.scalar(
+            select(RawMessage.id).where(
+                RawMessage.source_id == source_id, RawMessage.message_id == message_id
+            )
+        )
+        if dup is not None:
+            return []
+
+    raw = RawMessage(source_id=source_id, message_id=message_id, text=text, event_time=when)
+    session.add(raw)
+    await session.commit()
+
+    return await _process_parsed_alert(session, raw=raw, text=text, when=when, source_id=source_id)
+
+
+async def _process_parsed_alert(
+    session, *, raw: RawMessage, text: str, when: datetime, source_id: int | None
+) -> list[Broadcast]:
+    """Parse -> apply an ALREADY-PERSISTED alert-channel raw message. Split
+    out from `_alert_ingest_locked` so `reprocess.py` can replay stored
+    alert-channel messages the same way it replays spotter ones."""
+    parsed = parse_alert_message(text)
+    raw.processed = True
+    if parsed is None:
+        await session.commit()
+        return []
+
+    signal = AlertSignal(
+        scope=parsed.scope, action=parsed.action, when=when,
+        provider="telegram", raw_id=raw.id,
+    )
+    alert = await apply_alert_signal(session, signal)
+    await session.commit()
+    if alert is None:  # idempotent no-op (already open / nothing to end)
+        return []
+    broadcasts: list[Broadcast] = [Broadcast("alert", alert=alert)]
+
+    # A CITY alert ending is the end of the whole attack: close every open
+    # track (reason='all_clear', same as a spotter відбій) and end every
+    # active incident (ended_reason='alert_end'). This is naturally
+    # idempotent alongside the spotter відбій path above — whichever lands
+    # first does the real work; `alert is None` already returned early for a
+    # repeat, and close_all_active/end_active_incidents are no-ops when
+    # nothing is open — so an official + spotter відбій seconds apart dedupe
+    # instead of double-firing.
+    if parsed.action == "end" and parsed.scope == "city":
+        closed_tracks = await close_all_active(session, when, "all_clear")
+        broadcasts += [Broadcast("status", t) for t in closed_tracks]
+        ended_incidents = await end_active_incidents(session, when, "alert_end")
+        broadcasts += [Broadcast("attack", incident=inc) for inc in ended_incidents]
+
     return broadcasts
 
 
@@ -533,7 +639,8 @@ def _last_district_hit(track: Threat) -> DistrictHit | None:
 def _make_event(threat_id, parsed: ParseResult, hit, source_id, message_id,
                 forwarded_from_id, when: datetime, decision_source: str,
                 reply_to_message_id: int | None = None,
-                target_count: int = 1) -> ThreatEvent:
+                target_count: int = 1,
+                forwarded_from_channel_id: int | None = None) -> ThreatEvent:
     return ThreatEvent(
         threat_id=threat_id,
         district_id=hit.district_id,
@@ -544,6 +651,7 @@ def _make_event(threat_id, parsed: ParseResult, hit, source_id, message_id,
         source_id=source_id,
         source_message_id=message_id,
         forwarded_from_id=forwarded_from_id,
+        forwarded_from_channel_id=forwarded_from_channel_id,
         reply_to_message_id=reply_to_message_id,
         event_target_type=parsed.target_type,
         event_target_count=target_count,

@@ -283,4 +283,9 @@ SOURCES: list[dict] = [
     {"channel_key": "povitryanka", "name": "Повітряна тривога", "trust_weight": 1.0},
     {"channel_key": "shahed_watch", "name": "Shahed Watch", "trust_weight": 0.8},
     {"channel_key": "aggregator", "name": "Агрегатор (репости)", "trust_weight": 0.4},
+    # role='alert' -> routed through alert_parser.py, not the spotter parser
+    # (see telegram_listener.py). Dormant unless ALERT_CHANNELS names it.
+    # trust_weight is unused for an alert-role source (spotter fusion only).
+    {"channel_key": "KyivCityOfficial", "name": "КМДА – офіційний канал",
+     "trust_weight": 1.0, "role": "alert"},
 ]

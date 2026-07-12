@@ -15,10 +15,11 @@ import logging
 from sqlalchemy import delete, select
 
 from .config import settings
-from .db import SessionLocal, init_db
+from .db import SessionLocal
 from .gazetteer import DISTRICTS
-from .ingest import _process_parsed
-from .models import District, Incident, Notice, RawMessage, Threat, ThreatEvent
+from .ingest import _process_parsed, _process_parsed_alert
+from .migrate import upgrade_to_head
+from .models import Alert, District, Incident, Notice, RawMessage, Source, Threat, ThreatEvent
 from .parser import DistrictMatcher
 from .seed import seed_districts
 
@@ -36,15 +37,16 @@ async def _drop_stale_districts() -> None:
 
 
 async def _wipe_tracks() -> None:
-    # Notices are re-emitted by the ingest replay below, so they must be wiped
-    # too — otherwise every reprocess DUPLICATES all all-clear/summary notices,
-    # and a wrong notice created by older code (e.g. a news post mis-read as a
-    # "відбій") survives forever since the current parser never recreates it.
+    # Notices/alerts are re-emitted by the ingest replay below, so they must
+    # be wiped too — otherwise every reprocess DUPLICATES all all-clear/
+    # summary notices and alert windows, and a wrong one created by older
+    # code survives forever since the current parser never recreates it.
     async with SessionLocal() as s:
         await s.execute(delete(ThreatEvent))
         await s.execute(delete(Threat))
         await s.execute(delete(Incident))
         await s.execute(delete(Notice))
+        await s.execute(delete(Alert))
         await s.commit()
 
 
@@ -57,19 +59,21 @@ async def run_reprocess(no_llm: bool = True, limit: int | None = None) -> dict:
     if no_llm:
         settings.llm_fallback_enabled = False
     try:
-        # Ensure the schema (create_all + _ensure_columns) is current before we
-        # replay — idempotent, and it lets the standalone CLI add any new columns
-        # (e.g. threat_events.event_target_count) that the server's lifespan would
-        # otherwise have added at startup, so a CLI reprocess can't fail on them.
-        await init_db()
+        # Ensure the schema is current before we replay — idempotent, and it lets
+        # the standalone CLI pick up any migrations (e.g. a new column) that the
+        # server's lifespan would otherwise have applied at startup, so a CLI
+        # reprocess can't fail on them.
+        await upgrade_to_head()
         await _drop_stale_districts()
         await seed_districts()
         await _wipe_tracks()
 
         async with SessionLocal() as s:
             districts = list(await s.scalars(select(District)))
+            sources = list(await s.scalars(select(Source)))
             raws = list(await s.scalars(select(RawMessage).order_by(RawMessage.event_time)))
         matcher = DistrictMatcher(districts)
+        role_by_source_id = {src.id: src.role for src in sources}
         if limit:
             raws = raws[:limit]
 
@@ -79,14 +83,21 @@ async def run_reprocess(no_llm: bool = True, limit: int | None = None) -> dict:
             text = (raw.text or "").strip()
             if not text:
                 continue
+            role = role_by_source_id.get(raw.source_id, "spotter")
             async with SessionLocal() as s:
                 r = await s.get(RawMessage, raw.id)
-                broadcasts = await _process_parsed(
-                    s, raw=r, text=text, matcher=matcher, when=raw.event_time,
-                    source_id=raw.source_id, message_id=raw.message_id,
-                    forwarded_from_id=raw.forwarded_from_id,
-                    reply_to_message_id=raw.reply_to_message_id,
-                )
+                if role == "alert":
+                    broadcasts = await _process_parsed_alert(
+                        s, raw=r, text=text, when=raw.event_time, source_id=raw.source_id,
+                    )
+                else:
+                    broadcasts = await _process_parsed(
+                        s, raw=r, text=text, matcher=matcher, when=raw.event_time,
+                        source_id=raw.source_id, message_id=raw.message_id,
+                        forwarded_from_id=raw.forwarded_from_id,
+                        forwarded_from_channel_id=raw.forwarded_from_channel_id,
+                        reply_to_message_id=raw.reply_to_message_id,
+                    )
                 if broadcasts:
                     matched += 1
             if i % 100 == 0:

@@ -1,17 +1,20 @@
 import { Analytics } from '@vercel/analytics/react'
-import { ChevronUp, TriangleAlert } from 'lucide-react'
+import { ChevronUp, TriangleAlert, WifiOff } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  fetchActiveAlerts,
   fetchActiveIncidents,
   fetchActiveThreats,
   fetchBoundaries,
   fetchDistricts,
+  fetchHealth,
   fetchRecentEvents,
   fetchRecentNotices,
 } from './api'
+import AlertBanner from './components/AlertBanner'
 import DisclaimerModal, { DISCLAIMER_HIDE_KEY } from './components/DisclaimerModal'
 import IncidentBanner from './components/IncidentBanner'
 import { requestGeolocation } from './components/HomeControl'
@@ -29,14 +32,17 @@ function delay(i: number): CSSProperties {
 export default function App() {
   const { t } = useTranslation()
   const connected = useRadar((s) => s.connected)
+  const feedOk = useRadar((s) => s.feedOk)
   const placingHome = useRadar((s) => s.placingHome)
   const inspectedThreatId = useRadar((s) => s.inspectedThreat?.id)
   const setDistricts = useRadar((s) => s.setDistricts)
   const setBoundaries = useRadar((s) => s.setBoundaries)
   const setThreats = useRadar((s) => s.setThreats)
   const setIncidents = useRadar((s) => s.setIncidents)
+  const setAlerts = useRadar((s) => s.setAlerts)
   const setLog = useRadar((s) => s.setLog)
   const setNotices = useRadar((s) => s.setNotices)
+  const setFeedOk = useRadar((s) => s.setFeedOk)
 
   // Safety disclaimer: modal on load unless the user opted out; always
   // reachable again via the header warning button.
@@ -53,12 +59,17 @@ export default function App() {
     fetchBoundaries().then(setBoundaries).catch(() => {})
     fetchActiveThreats().then(setThreats).catch(() => {})
     fetchActiveIncidents().then(setIncidents).catch(() => {})
+    fetchActiveAlerts().then(setAlerts).catch(() => {})
     fetchRecentEvents().then(setLog).catch(() => {})
     fetchRecentNotices().then(setNotices).catch(() => {})
+    // Hydrate feed health once; live changes arrive via the WS 'health' frame.
+    fetchHealth()
+      .then((h) => setFeedOk(h.telegram?.feed_ok ?? null))
+      .catch(() => {})
     connectWS()
     // Ask for the user's real location on first run (no saved home yet).
     if (!useRadar.getState().home) requestGeolocation()
-  }, [setDistricts, setBoundaries, setThreats, setIncidents, setLog, setNotices])
+  }, [setDistricts, setBoundaries, setThreats, setIncidents, setAlerts, setLog, setNotices, setFeedOk])
 
   // Placing home needs the map visible — collapse the sheet.
   useEffect(() => {
@@ -101,6 +112,15 @@ export default function App() {
               {connected ? t('conn.online') : t('conn.offline')}
             </span>
           </span>
+          {feedOk === false && (
+            <span
+              className="flex items-center gap-2 rounded-full border border-red-400/25 bg-red-400/5 px-2.5 py-1 text-[11px] font-mono text-red-300"
+              title={t('conn.feedUnavailable')}
+            >
+              <WifiOff size={12} className="flex-none" />
+              <span className="hidden md:inline">{t('conn.feedUnavailable')}</span>
+            </span>
+          )}
           <button
             onClick={() => setShowDisclaimer(true)}
             aria-label={t('disclaimer.reopen')}
@@ -119,7 +139,10 @@ export default function App() {
         {/* Map fills everything; on mobile the sheet floats above it. */}
         <div className="absolute inset-0 lg:static lg:flex-1 lg:min-w-0">
           <MapView />
-          <IncidentBanner />
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex flex-col items-center gap-2 px-3 pt-3">
+            <AlertBanner />
+            <IncidentBanner />
+          </div>
         </div>
 
         {/* Desktop sidebar */}

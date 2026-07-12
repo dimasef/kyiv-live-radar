@@ -126,6 +126,15 @@ class Settings(BaseSettings):
     # On startup, ingest this many recent messages per channel (0 = none). Gives
     # the map immediate data and tests the parser on real posts.
     telegram_backfill: int = 15
+    # A connected session with no LIVE message for this long is flagged
+    # unhealthy (see telegram_listener.py::feed_health) — a dead/zombied
+    # Telethon connection now matters more than it used to (Phase 2's
+    # absence-of-відбій alert logic depends on the feed actually being
+    # alive). No real-traffic data to tune this against yet; picked long
+    # enough to tolerate a genuinely quiet night without false-alarming,
+    # short enough to catch a dead session the same night rather than days
+    # later — adjust with real operational experience.
+    feed_silence_warn_minutes: int = 90
     # Analysis mode: stream backfilled events to the UI (feed + map) with a small
     # delay, as if arriving live. Off for normal startup.
     telegram_backfill_broadcast: bool = False
@@ -133,6 +142,29 @@ class Settings(BaseSettings):
     @property
     def telegram_channel_list(self) -> list[str]:
         return [c.strip().lstrip("@") for c in self.telegram_channels.split(",") if c.strip()]
+
+    # --- Official air-raid alert channel (@KyivCityOfficial). Watched on the
+    #     SAME Telethon client as the spotter channels, but routed to
+    #     alert_parser.py via Source.role — see telegram_listener.py. Empty =
+    #     this phase is fully dormant (the rollback path). ---
+    alert_channels: str = ""
+
+    @property
+    def alert_channel_list(self) -> list[str]:
+        return [c.strip().lstrip("@") for c in self.alert_channels.split(",") if c.strip()]
+
+    # An alert open this long with no відбій is treated as a dead Telethon
+    # session that ate the відбій, not a real day-long siren — the sweeper
+    # force-closes it (Alert.closed_reason='failsafe') instead of leaving a
+    # stuck banner forever.
+    alert_failsafe_hours: int = 12
+
+    # Ballistic exception: a ballistic incident often starts BEFORE the
+    # official siren (sub-minute flight time leaves no time for the alert to
+    # fire first). When a city alert starts, adopt the most recent still-open
+    # incident with no alert linked yet, if it began within this many minutes
+    # — see app/alerts.py::_adopt_recent_incident.
+    alert_adopt_lookback_minutes: int = 10
 
     # --- LLM fallback parser (Claude Haiku 4.5). Used ONLY for entity extraction
     #     when the rule-based parser is low-confidence; bearing/ETA stay in code. ---

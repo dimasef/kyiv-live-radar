@@ -6,14 +6,25 @@
   "citywide": {
     "title": "City-wide threat"
   },
-  "incident": {
-    "type": {
+  "alert": {
+    "scope": {
+      "city": "Air raid alert — Kyiv",
+      "oblast": "Air raid alert — Kyiv oblast"
+    },
+    "clear": "All-clear"
+  },
+  "attack": {
+    "classification": {
+      "drone": "Drone attack",
+      "cruise_missile": "Missile attack",
       "ballistic": "Ballistic attack",
-      "missile": "Missile attack",
-      "jet_drone": "UAV attack",
-      "shahed": "Drone attack",
+      "combined": "Combined attack",
       "unknown": "Air attack"
     },
+    "hypersonic": "hypersonic",
+    "decoySuspected": "Possible decoy"
+  },
+  "incident": {
     "targets": "targets",
     "impacts": "impacts",
     "districts": "districts"
@@ -51,7 +62,12 @@
     "today": "Today",
     "yesterday": "Yesterday",
     "closedMultiple": "Targets closed",
-    "impact": "Incident"
+    "impact": "Incident",
+    "closedReason": {
+      "destroyed": "Destroyed",
+      "allClear": "All clear",
+      "lost": "Lost"
+    }
   },
   "notice": {
     "clear": "All clear",
@@ -74,7 +90,8 @@
   },
   "conn": {
     "online": "Connection active",
-    "offline": "Disconnected"
+    "offline": "Disconnected",
+    "feedUnavailable": "Data source unavailable"
   },
   "panel": {
     "feed": "Feed",

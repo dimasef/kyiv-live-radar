@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from .config import settings
-from .models import Incident, Threat
+from .models import Alert, Incident, Threat
 
 # Target-type severity — an incident is labelled by its most dangerous member.
 _SEVERITY = {"unknown": 0, "shahed": 1, "jet_drone": 2, "missile": 3, "ballistic": 4}
@@ -46,17 +46,39 @@ async def find_active_incident(session, when: datetime) -> Incident | None:
     return None
 
 
-async def attach_to_incident(session, threat: Threat, when: datetime) -> Incident:
+async def attach_to_incident(
+    session, threat: Threat, when: datetime, decoy: bool = False, hypersonic: bool = False
+) -> Incident:
     """Attach `threat` to the current open incident (creating one if none is
-    active), refresh the incident's recency, and raise its severity label to the
-    most dangerous member. Idempotent for a threat already on that incident."""
+    active), refresh the incident's recency, and raise its severity label to
+    the most dangerous member. Idempotent for a threat already on that
+    incident.
+
+    `decoy`/`hypersonic` come from the triggering message's ParseResult
+    (parser.py) — accumulated onto the incident as decoy_mentions/
+    has_hypersonic for app/attack.py::classify to derive from later. A brand
+    new incident links the currently open CITY alert, if any (the reverse
+    direction — a ballistic incident that starts BEFORE the siren — is
+    handled by alerts.py's adoption on alert start)."""
     inc = await find_active_incident(session, when)
     if inc is None:
-        inc = Incident(started_at=when, last_activity_at=when, target_type=threat.target_type)
+        alert_id = await session.scalar(
+            select(Alert.id).where(Alert.scope == "city", Alert.ended_at.is_(None))
+        )
+        inc = Incident(
+            started_at=when, last_activity_at=when, target_type=threat.target_type,
+            alert_id=alert_id,
+        )
         session.add(inc)
         await session.commit()
     threat.incident_id = inc.id
     inc.target_type = _more_severe(inc.target_type, threat.target_type)
+    if threat.target_type != "unknown" and threat.target_type not in inc.attack_types:
+        inc.attack_types = [*inc.attack_types, threat.target_type]
+    if decoy:
+        inc.decoy_mentions += 1
+    if hypersonic:
+        inc.has_hypersonic = True
     inc.last_activity_at = _later(inc.last_activity_at, when)
     await session.commit()
     return inc
@@ -68,11 +90,14 @@ def _later(a: datetime, b: datetime) -> datetime:
     return a if an >= bn else b
 
 
-async def end_active_incidents(session, when: datetime) -> list[Incident]:
-    """End every open incident — used on a full all-clear ("Відбій тривоги")."""
+async def end_active_incidents(session, when: datetime, ended_reason: str) -> list[Incident]:
+    """End every open incident — used on a full all-clear (`ended_reason=
+    'all_clear'`, spotter "Відбій тривоги") or the official alert ending
+    (`ended_reason='alert_end'`) — see ingest.py's two callers."""
     incs = list(await session.scalars(select(Incident).where(Incident.ended_at.is_(None))))
     for inc in incs:
         inc.ended_at = when
+        inc.ended_reason = ended_reason
     if incs:
         await session.commit()
     return incs
@@ -87,6 +112,7 @@ async def close_stale_incidents(session, now: datetime, minutes: int) -> list[In
     for inc in incs:
         if not _within(inc.last_activity_at, now, stale_gap):
             inc.ended_at = now
+            inc.ended_reason = "stale"
             ended.append(inc)
     if ended:
         await session.commit()

@@ -1,7 +1,8 @@
 import { create } from 'zustand'
 
-import { fetchActiveIncidents, fetchThreatEvents } from './api'
+import { fetchThreatEvents } from './api'
 import type {
+  Alert,
   District,
   DistrictBoundary,
   FeedEntry,
@@ -35,9 +36,14 @@ interface RadarState {
   boundaries: DistrictBoundary[]
   threats: Record<number, Threat>
   incidents: Incident[]
+  alerts: Alert[]
   log: FeedEntry[]
   notices: Notice[]
   connected: boolean
+  /** Whether the live Telegram feed itself looks healthy — null when not
+   * applicable (Telegram not configured / simulator mode). Distinct from
+   * `connected` (the browser's own WS link to this backend). */
+  feedOk: boolean | null
   home: Home | null
   /** When true, the next map click sets home (otherwise clicks just pan). */
   placingHome: boolean
@@ -50,10 +56,11 @@ interface RadarState {
   setBoundaries: (b: DistrictBoundary[]) => void
   setThreats: (t: Threat[]) => void
   setIncidents: (i: Incident[]) => void
-  refreshIncidents: () => void
+  setAlerts: (a: Alert[]) => void
   setLog: (log: FeedEntry[]) => void
   setNotices: (n: Notice[]) => void
   setConnected: (c: boolean) => void
+  setFeedOk: (v: boolean | null) => void
   setHome: (h: Home | null) => void
   setHomeRadius: (radiusKm: number) => void
   setPlacingHome: (v: boolean) => void
@@ -66,19 +73,16 @@ const LOG_CAP = 60
 // How long a closed (destroyed/lost) track lingers on the map before it clears.
 const CLOSED_LINGER_MS = 6000
 
-// Incident aggregates are computed server-side; refetch them (coalesced) shortly
-// after live threat activity, rather than recomputing from the flat threats map
-// (which evicts closed members). One debounced call covers a burst of events.
-let _incidentTimer: ReturnType<typeof setTimeout> | null = null
-
 export const useRadar = create<RadarState>((set, get) => ({
   districts: [],
   boundaries: [],
   threats: {},
   incidents: [],
+  alerts: [],
   log: [],
   notices: [],
   connected: false,
+  feedOk: null,
   home: loadHome(),
   placingHome: false,
   inspectedThreat: null,
@@ -89,18 +93,11 @@ export const useRadar = create<RadarState>((set, get) => ({
   setThreats: (t) =>
     set({ threats: Object.fromEntries(t.map((x) => [x.id, x])) }),
   setIncidents: (i) => set({ incidents: i }),
-  refreshIncidents: () => {
-    if (_incidentTimer) clearTimeout(_incidentTimer)
-    _incidentTimer = setTimeout(() => {
-      _incidentTimer = null
-      fetchActiveIncidents()
-        .then((i) => set({ incidents: i }))
-        .catch(() => {})
-    }, 800)
-  },
+  setAlerts: (a) => set({ alerts: a }),
   setLog: (log) => set({ log }),
   setNotices: (n) => set({ notices: n }),
   setConnected: (c) => set({ connected: c }),
+  setFeedOk: (v) => set({ feedOk: v }),
 
   setHome: (h) => {
     if (h) localStorage.setItem(HOME_KEY, JSON.stringify(h))
@@ -133,22 +130,45 @@ export const useRadar = create<RadarState>((set, get) => ({
   clearInspection: () => set({ inspectedThreat: null }),
 
   handleWS: (msg) => {
+    // Live feed health (dead Telethon session etc.) — pushed only on change.
+    if (msg.type === 'health') {
+      set({ feedOk: msg.feed_ok ?? null })
+      return
+    }
+
+    // Official alert windows (тривога/відбій) — replace by id since, unlike
+    // notices (append-only), the SAME alert mutates in place (start -> end).
+    if (msg.type === 'alert' && msg.alert) {
+      const alert = msg.alert
+      set((s) => ({ alerts: [alert, ...s.alerts.filter((a) => a.id !== alert.id)] }))
+      return
+    }
+
+    // Attack (incident) state pushed straight from the server on every
+    // change — replaces the old debounced refetch-on-any-threat-event
+    // pattern. Ended incidents drop out of the (implicitly "active") list.
+    if (msg.type === 'attack' && msg.incident) {
+      const incident = msg.incident
+      set((s) => ({
+        incidents:
+          incident.status === 'ended'
+            ? s.incidents.filter((i) => i.id !== incident.id)
+            : [incident, ...s.incidents.filter((i) => i.id !== incident.id)],
+      }))
+      return
+    }
+
     // Non-threat notices (all-clear / summary) go straight to the feed timeline.
     if (msg.type === 'notice' && msg.notice) {
       const notice = msg.notice
       set((s) => ({
         notices: [notice, ...s.notices.filter((n) => n.id !== notice.id)].slice(0, LOG_CAP),
       }))
-      get().refreshIncidents() // an all-clear ends the incident
       return
     }
 
     const threat = msg.threat
     if (!threat) return
-
-    // Any live threat activity may open/extend/end an incident — refetch the
-    // server-computed aggregates (debounced so a burst collapses to one call).
-    get().refreshIncidents()
 
     // Never resurrect a track already closed on the map (guards against stale
     // out-of-order events re-adding a threat that was cleared).

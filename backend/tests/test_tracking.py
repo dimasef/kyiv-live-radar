@@ -453,7 +453,7 @@ async def test_duplicate_message_id_is_ignored(ctx):
     out2 = await ingest_message(s, text="🔴 Шахед над Оболонню", matcher=m,
                                 when=BASE + timedelta(minutes=5),
                                 source_id=src[0].id, message_id=42)
-    assert len(out1) == 1
+    assert len(out1) == 2  # the sighting event + its incident-attach broadcast
     assert out2 == []
     assert await s.scalar(select(func.count()).select_from(RawMessage)) == 1
     assert await s.scalar(select(func.count()).select_from(ThreatEvent)) == 1
@@ -509,8 +509,10 @@ async def test_impact_creates_a_closed_terminal_marker(ctx):
     await s.refresh(t, ["events"])
     assert t.status == "impact" and t.closed_at is not None
     assert len(t.events) == 1
-    # Broadcast as an 'event' so the feed shows it.
-    assert len(out) == 1 and out[0].type == "event" and out[0].event is not None
+    # Broadcast as an 'event' (feed) plus the incident-attach 'attack' broadcast.
+    assert len(out) == 2
+    assert out[0].type == "event" and out[0].event is not None
+    assert out[1].type == "attack"
 
 
 async def test_impact_does_not_absorb_a_later_sighting_over_same_district(ctx):

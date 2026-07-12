@@ -42,8 +42,30 @@ class District(Base):
 # Allowed enum-like values kept as plain strings for MVP simplicity.
 TARGET_TYPES = ("shahed", "jet_drone", "missile", "ballistic", "unknown")
 THREAT_STATUSES = ("unconfirmed", "tracking", "destroyed", "lost", "impact")
+# 'track' = an inbound target being followed; 'impact' = a closed-on-creation
+# confirmed-strike marker. Split out of `status` (which conflates kind with
+# lifecycle) — see app/lifecycle.py.
+THREAT_KINDS = ("track", "impact")
+# Explicit reason a track closed, replacing `status='lost'`'s three overloaded
+# meanings (відбій / дорозвідка stand-down / silence timeout). NULL while open.
+CLOSED_REASONS = ("destroyed", "all_clear", "stand_down", "stale")
 # Where the structured event came from — critical for parser eval/debugging.
 DECISION_SOURCES = ("rule", "llm", "sim")
+# 'spotter' = volunteer sighting channel, parsed by parser.py into
+# threats/tracks. 'alert' = official air-raid alert channel (@KyivCityOfficial
+# today), parsed by alert_parser.py into Alert rows — routed separately so an
+# official "Відбій…" never trips the spotter parser's all-clear and closes
+# tracks prematurely (see telegram_listener.py).
+SOURCE_ROLES = ("spotter", "alert")
+ALERT_SCOPES = ("city", "oblast")
+# 'official' = a real відбій from the alert channel; 'failsafe' = the sweeper
+# force-closed an alert open past alert_failsafe_hours (dead Telethon session
+# ate the відбій, not a real day-long siren) — see app/alerts.py.
+ALERT_CLOSED_REASONS = ("official", "failsafe")
+# Why an Incident (attack) ended: a spotter's "Відбій" ('all_clear'), the
+# official city alert ending ('alert_end'), or the stale sweeper timing it out
+# ('stale'). NULL while active — see app/incidents.py.
+INCIDENT_ENDED_REASONS = ("all_clear", "alert_end", "stale")
 
 
 class Source(Base):
@@ -61,6 +83,38 @@ class Source(Base):
     name: Mapped[str] = mapped_column(String(120))
     trust_weight: Mapped[float] = mapped_column(Float, default=1.0)
     is_active: Mapped[bool] = mapped_column(default=True)
+    # 'spotter' | 'alert' — see SOURCE_ROLES. Determines which parser/ingest
+    # path a channel's messages go through.
+    role: Mapped[str] = mapped_column(String(10), default="spotter")
+
+
+class Alert(Base):
+    """An official air-raid alert window (тривога -> відбій) from an
+    authoritative source (Telegram @KyivCityOfficial today; alerts.in.ua /
+    UkraineAlarm later — see `provider`). Independent of Incident: a "silent"
+    alert with zero attacks is naturally representable (alert open, zero
+    incidents) — linking the two is Phase 3.
+    """
+
+    __tablename__ = "alerts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    scope: Mapped[str] = mapped_column(String(10))  # 'city' | 'oblast'
+    alert_type: Mapped[str] = mapped_column(String(20), default="air_raid")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    ended_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    provider: Mapped[str] = mapped_column(String(20), default="telegram")
+    # Provenance — which raw message started/ended this alert, for reprocess.
+    started_raw_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("raw_messages.id"), nullable=True
+    )
+    ended_raw_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("raw_messages.id"), nullable=True
+    )
+    # 'official' | 'failsafe' (see ALERT_CLOSED_REASONS); NULL while open.
+    closed_reason: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
 
 
 class RawMessage(Base):
@@ -85,6 +139,11 @@ class RawMessage(Base):
     text: Mapped[str] = mapped_column(Text, default="")
     event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     forwarded_from_id: Mapped[Optional[int]] = mapped_column(nullable=True)
+    # The ORIGIN channel's Telegram peer id, when this message is a repost —
+    # `forwarded_from_id` alone is a message id, not globally unique across
+    # channels; this disambiguates two different channels whose reposted
+    # messages happen to share a numeric id. See fusion.py::_origin_keys.
+    forwarded_from_channel_id: Mapped[Optional[int]] = mapped_column(nullable=True)
     # Telegram id of the message this one replies to (same channel). Channels like
     # «Місто Кия | Безпека» reply to the previous post about the SAME target, so the
     # reply chain identifies the track far better than time-proximity does.
@@ -131,8 +190,31 @@ class Incident(Base):
     ended_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Explicit reason the attack ended (see INCIDENT_ENDED_REASONS); NULL while
+    # active, and NULL for historical incidents that ended before this field
+    # existed (not backfilled — the real reason isn't recoverable from stored
+    # data, unlike Threat.closed_reason's status-derived backfill in Phase 1).
+    ended_reason: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     # Most severe target type among members (ballistic > missile > jet > shahed).
     target_type: Mapped[str] = mapped_column(String(20), default="unknown")
+    # Accumulated SET of non-'unknown' member target_types (see
+    # app/attack.py::classify, which derives the family/combined label from
+    # this at serialization time — never stored itself).
+    attack_types: Mapped[list] = mapped_column(JSON, default=list)
+    # The official alert (see models.Alert) this attack belongs to, if any —
+    # linked either forward (a new incident joins an already-open city alert)
+    # or retroactively (a ballistic incident often starts before the siren;
+    # app/alerts.py adopts it once the alert fires). NULL = no alert observed
+    # for this attack (alert channel not configured, or a genuinely silent/
+    # unannounced incident).
+    alert_id: Mapped[Optional[int]] = mapped_column(ForeignKey("alerts.id"), nullable=True)
+    # How many member messages used decoy/EW vocabulary (see parser.py
+    # ParseResult.decoy) — a modifier count, not a replacement classification;
+    # an attack can be combined AND partially imitation.
+    decoy_mentions: Mapped[int] = mapped_column(default=0)
+    # Any member message named a hypersonic system (Кинджал/Циркон/aeroballistic)
+    # — a flag on the attack, not a 6th target_type (see parser.py ParseResult.hypersonic).
+    has_hypersonic: Mapped[bool] = mapped_column(default=False)
 
     threats: Mapped[list["Threat"]] = relationship(back_populates="incident")
 
@@ -155,6 +237,11 @@ class Threat(Base):
     )
     target_type: Mapped[str] = mapped_column(String(20), default="unknown")
     status: Mapped[str] = mapped_column(String(20), default="unconfirmed")
+    # 'track' (still being followed) or 'impact' (closed-on-creation confirmed
+    # strike). Kept alongside `status` rather than replacing it (see
+    # THREAT_KINDS) — status still carries destroyed/lost/tracking/unconfirmed
+    # for backwards-compat with existing serializer/frontend consumers.
+    kind: Mapped[str] = mapped_column(String(10), default="track")
     # 'district' (a normal localized track) or 'city' (a city-wide threat with
     # no raion — "ціль на місто"). City-wide threats render as a banner, not a
     # map point; see the CITYWIDE_NAME_EN sentinel district their events attach to.
@@ -165,6 +252,10 @@ class Threat(Base):
     closed_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Explicit reason the track closed (see CLOSED_REASONS) — NULL while open.
+    # Replaces status='lost' overloading відбій/дорозвідка/silence-timeout
+    # into one meaning; set only via app.lifecycle.close_track().
+    closed_reason: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     # --- Derived multi-source fusion signals ---
     corroboration_count: Mapped[int] = mapped_column(default=1)  # distinct independent sources
     has_conflict: Mapped[bool] = mapped_column(default=False)    # sources disagree
@@ -207,6 +298,9 @@ class ThreatEvent(Base):
     # sharing a forwarded_from_id are the SAME origin — they must not be counted
     # as independent corroboration.
     forwarded_from_id: Mapped[Optional[int]] = mapped_column(nullable=True)
+    # The ORIGIN channel's Telegram peer id for a repost — see the identical
+    # field on RawMessage; carried onto the event so fusion can key on it.
+    forwarded_from_channel_id: Mapped[Optional[int]] = mapped_column(nullable=True)
     # Per-event claimed target type; disagreement across sources => conflict.
     event_target_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     # Group size KNOWN AS OF this event — the track's running-max target_count at

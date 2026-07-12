@@ -30,6 +30,7 @@ async def seed_sources() -> int:
                 channel_key=s["channel_key"],
                 name=s["name"],
                 trust_weight=s.get("trust_weight", 1.0),
+                role=s.get("role", "spotter"),
             )
             for s in SOURCES
         )

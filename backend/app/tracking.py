@@ -22,6 +22,7 @@ from sqlalchemy.orm import selectinload
 
 from .config import settings
 from .fusion import compute_fusion
+from .lifecycle import close_track
 from .models import Threat, ThreatEvent
 
 
@@ -92,13 +93,24 @@ async def find_corroborating_track(
 
 
 async def find_open_track(
-    session, when: datetime, prefer_districts: set[int] | None = None
+    session,
+    when: datetime,
+    prefer_districts: set[int] | None = None,
+    gap_minutes: int | None = None,
 ) -> Threat | None:
     """Open track whose last sighting is within the gap window.
 
     With `prefer_districts`, a track that has recently been seen over one of those
     districts wins over a merely-newer track — so e.g. "збито над X" closes the
     track that was actually over X, not whatever opened most recently.
+
+    `gap_minutes` defaults to `track_gap_minutes` (grouping a new sighting onto
+    the same track); a closing message (destroyed) should instead look as far
+    back as a track can go before it's considered stale (`track_stale_minutes`)
+    — otherwise a reply-less "знищено" landing 16-19 minutes after the last
+    sighting (past the 15-minute grouping gap but within the 20-minute stale
+    window) would find no track to close, even though the sweeper hasn't
+    closed it yet either.
     """
     stmt = (
         select(Threat)
@@ -106,7 +118,7 @@ async def find_open_track(
         .options(selectinload(Threat.events))
         .order_by(Threat.created_at.desc())
     )
-    gap = timedelta(minutes=settings.track_gap_minutes)
+    gap = timedelta(minutes=gap_minutes if gap_minutes is not None else settings.track_gap_minutes)
     candidates = []
     for threat in await session.scalars(stmt):
         last = threat.events[-1].event_time if threat.events else threat.created_at
@@ -181,11 +193,12 @@ def _within(a: datetime, b: datetime, gap: timedelta) -> bool:
 
 
 async def close_all_active(
-    session, when: datetime, target_type: str | None = None
+    session, when: datetime, reason: str, target_type: str | None = None
 ) -> list[Threat]:
     """Close every open track — or, with `target_type`, only open tracks of
-    that type. Used both for a full all-clear ("відбій") and for a scoped
-    "дорозвідка" stand-down (ППО lost tracking for one target type)."""
+    that type. Used both for a full all-clear ("відбій", `reason='all_clear'`)
+    and for a scoped "дорозвідка" stand-down (`reason='stand_down'`, ППО lost
+    tracking for one target type)."""
     stmt = select(Threat).where(Threat.closed_at.is_(None)).options(
         selectinload(Threat.events)
     )
@@ -193,8 +206,7 @@ async def close_all_active(
         stmt = stmt.where(Threat.target_type == target_type)
     closed = list(await session.scalars(stmt))
     for t in closed:
-        t.status = "lost"
-        t.closed_at = when
+        close_track(t, when, reason)
     await session.commit()
     return closed
 
@@ -210,8 +222,7 @@ async def close_stale_tracks(session, now: datetime, minutes: int) -> list[Threa
     for t in await session.scalars(stmt):
         last = t.events[-1].event_time if t.events else t.created_at
         if not _within(last, now, stale_gap):
-            t.status = "lost"
-            t.closed_at = now
+            close_track(t, now, "stale")
             stale.append(t)
     if stale:
         await session.commit()

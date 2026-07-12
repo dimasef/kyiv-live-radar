@@ -37,10 +37,11 @@ def _origin_keys(events: list[ThreatEvent]) -> set:
     `forwarded_from_id` and the original's own `source_message_id` share the
     same numeric id — the two-pass approach here keeps both correct.)
 
-    Limitation (MVP): the fallback ("orig", forwarded_from_id) is keyed on
-    message id alone, not (channel, id) — two unrelated originals from
-    different channels sharing a numeric id would incorrectly merge. Storing
-    the original channel on reposts (Telethon `fwd_from`) removes this.
+    The fallback key includes `forwarded_from_channel_id` (the origin
+    channel's Telegram peer id, captured from `fwd_from` at ingest — see
+    telegram_listener.py) alongside the bare message id, so two unrelated
+    originals from different channels that happen to share a numeric id no
+    longer incorrectly merge into one origin.
     """
     original_channel_by_msgid = {
         ev.source_message_id: ev.source_id
@@ -51,7 +52,10 @@ def _origin_keys(events: list[ThreatEvent]) -> set:
     for ev in events:
         if ev.forwarded_from_id is not None:
             src = original_channel_by_msgid.get(ev.forwarded_from_id)
-            keys.add(("src", src) if src is not None else ("orig", ev.forwarded_from_id))
+            keys.add(
+                ("src", src) if src is not None
+                else ("orig", ev.forwarded_from_channel_id, ev.forwarded_from_id)
+            )
         else:
             keys.add(("src", ev.source_id))
     return keys

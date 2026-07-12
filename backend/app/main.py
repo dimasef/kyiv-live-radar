@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .api.routes import router
 from .api.ws import manager
 from .config import settings
-from .db import init_db
+from .migrate import upgrade_to_head
 from .seed import seed_districts, seed_sources
 from .simulator import run_simulator
 
@@ -20,7 +20,7 @@ log = logging.getLogger("app")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
+    await upgrade_to_head()
     d = await seed_districts()
     s = await seed_sources()
     log.info("db ready; seeded %d districts, %d sources", d, s)
@@ -85,9 +85,12 @@ app.include_router(router)
 async def health():
     out = {"status": "ok", "simulator": settings.simulator_enabled}
     if settings.telegram_enabled:
-        from .telegram_listener import get_status
+        from .models import utcnow
+        from .telegram_listener import feed_health, get_status
 
-        out["telegram"] = get_status()
+        status = get_status()
+        status["feed_ok"] = feed_health(utcnow(), settings.feed_silence_warn_minutes)
+        out["telegram"] = status
     return out
 
 

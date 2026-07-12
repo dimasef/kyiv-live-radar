@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from .db import init_db
+from .migrate import upgrade_to_head
 from .seed import seed_districts, seed_sources
 from .telegram_listener import run_listener
 
@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 async def main() -> None:
-    await init_db()
+    await upgrade_to_head()
     await seed_districts()
     await seed_sources()
     await run_listener()
