@@ -30,6 +30,8 @@ from .vocab import (
     _DAY_RECAP_WORD,
     _DECOY,
     _DESTROYED,
+    _FORECAST_VERB,
+    _HEDGE_MODAL_RE,
     _HYPERSONIC,
     _IMPACT,
     _JET,
@@ -57,6 +59,10 @@ def _has_conditional_hedge(norm: str) -> bool:
     if "у разі" in norm and not any(x in norm for x in _CONDITIONAL_IDIOM_EXCLUDE):
         return True
     if "якщо" in norm and any(w in norm for w in _CONDITIONAL_CONSEQUENCE):
+        return True
+    if _HEDGE_MODAL_RE.search(norm):
+        return True
+    if any(v in norm for v in _FORECAST_VERB) and any(w in norm for w in _THREAT_CONTEXT):
         return True
     return False
 
@@ -216,16 +222,22 @@ def _ad_action(norm: str, status: str, impact: bool) -> bool:
     return any(k in norm for k in _AD_ACTION) and status not in ("clear", "destroyed") and not impact
 
 
-def _negated(norm: str, status: str) -> bool:
+def _negated(norm: str, status: str, impact: bool) -> bool:
     """Explicit denial ("Не йде на Оболонь") mentions a district but says the
     target is NOT there — suppress it, same carve-out as aftermath: an
     explicit clear/destroyed keyword elsewhere in the message still wins (its
     own keyword signal is stronger evidence than a coincidental negation word).
     A conditional/speculative hedge ("якщо піде…", "у разі оголошення
-    тривоги…") gets the same treatment — see _has_conditional_hedge."""
+    тривоги…", "можуть бути вибухи…") gets the same treatment — see
+    _has_conditional_hedge. Same impact carve-out as _aftermath/_ad_action: a
+    confirmed strike report can coincidentally use hedge words for an
+    unrelated clause ("...під завалами можуть бути люди") and must not have
+    its real impact districts wiped by that coincidence."""
     return (
-        any(k in norm for k in _NEGATION) or _has_conditional_hedge(norm)
-    ) and status not in ("clear", "destroyed")
+        (any(k in norm for k in _NEGATION) or _has_conditional_hedge(norm))
+        and status not in ("clear", "destroyed")
+        and not impact
+    )
 
 
 def _siren_only(target_type: str, status: str, districts, norm: str) -> bool:
@@ -362,7 +374,7 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
     impact = _impact(districts, norm, status)
     aftermath = _aftermath(norm, status, impact)
     ad_action = _ad_action(norm, status, impact)
-    negated = _negated(norm, status)
+    negated = _negated(norm, status, impact)
     siren_only = _siren_only(target_type, status, districts, norm)
     day_recap = _day_recap(target_type, status, districts, norm)
     if day_recap:

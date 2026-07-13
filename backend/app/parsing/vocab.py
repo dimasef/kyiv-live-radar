@@ -173,6 +173,40 @@ _CONDITIONAL_PHRASES = ("якщо піде", "може піти")
 _CONDITIONAL_IDIOM_EXCLUDE = ("жодному разі", "жодним разі")
 _CONDITIONAL_CONSEQUENCE = ("очіку", "відбудеться", "відбуватимуться")
 
+# --- Preparatory/forecast advisory ("Росія готує удар балістикою С-400 по
+# Києву в цю та наступну добу", "РФ готується до масштабної атаки") — the
+# enemy is PREPARING/PLANNING a future strike, not one currently in flight or
+# detected. Same treatment as the "якщо"/"у разі" hedges above: a forecast,
+# not a live sighting.
+#
+# Swept the full corpus (871-message jsonl + live DB, 1087 raw messages):
+# - "готу" is a SAFE bare stem (готує/готується/готують/готуватися) gated on
+#   a co-occurring weapon word (_THREAT_CONTEXT, same gate _citywide already
+#   uses for "по києву") — every real hit is a forecast/situational-report
+#   bulletin ("Вечірній звіт...", "Є ймовірність, що на вечір готує
+#   балістичний удар"), no live-sighting collision found. A genuine live
+#   spotter shorthand using "готується" WITHOUT a weapon word ("Заходить
+#   перший в район Жукин, готується знову Троя") correctly falls outside the
+#   gate and keeps its district.
+# - "план" is NOT safe as a bare stem, even gated on a weapon word: "Кияни,
+#   плануйте день з урахуванням тривог! Зараз знову реактивні «Шахеди»...
+#   намагаються прорватися в бік Києва" pairs the reader-facing imperative
+#   "плануйте" (plan YOUR day) with a real live weapon word two clauses
+#   later — bare-stem+weapon-word would wrongly suppress that live shahed
+#   notice. Anchored to 3rd-person "планує"/"планують" instead, which only
+#   ever describes the enemy's plan, never the reader's.
+_FORECAST_VERB = ("готу", "планує", "планують")
+
+# --- "можуть бути"/"може бути" as a bare hedge is UNSAFE alone: a real
+# confirmed-strike report with real casualties across 4 real districts uses
+# the same words for an unrelated rescue-uncertainty clause ("...частково
+# зруйнований житловий будинок, під завалами можуть бути люди...") — a bare
+# phrase match would wipe that correct impact marker. Anchored instead to an
+# explosion/strike noun immediately following, matching the actual forecast
+# register ("Знову можуть бути вибухи до тривоги") without touching "можуть
+# бути люди/постраждалі".
+_HEDGE_MODAL_RE = re.compile(r"(?:можуть бути|може бути)\s+(вибух|обстріл|удар|приліт|пуск)")
+
 # --- Siren-status announcement ("+ Бучанський район тривога", "Тривога у
 # Вишгородському районі"). This is a technical "the siren went off in this
 # district" notice — NOT a target sighting: it names a district but no target
