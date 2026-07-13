@@ -1,5 +1,5 @@
 import { Analytics } from '@vercel/analytics/react'
-import { ChevronUp, TriangleAlert, WifiOff } from 'lucide-react'
+import { ChevronUp, Wifi, WifiOff } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -45,8 +45,7 @@ export default function App() {
   const setNotices = useRadar((s) => s.setNotices)
   const setFeedOk = useRadar((s) => s.setFeedOk)
 
-  // Safety disclaimer: modal on load unless the user opted out; always
-  // reachable again via the header warning button.
+  // Safety disclaimer: modal on load unless the user opted out.
   const [showDisclaimer, setShowDisclaimer] = useState(
     () => safeGet(STORAGE_KEYS.disclaimerHide) !== '1',
   )
@@ -101,18 +100,26 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          <span
-            className={`flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-mono transition-colors duration-300 ${
-              connected
-                ? 'border-emerald-400/20 bg-emerald-400/5 text-emerald-300'
-                : 'border-red-400/25 bg-red-400/5 text-red-300'
-            }`}
-          >
-            <span className={`conn-dot ${connected ? 'conn-dot--on' : 'conn-dot--off'}`} />
-            <span className="hidden md:inline">
+          <div className="group relative">
+            <button
+              type="button"
+              aria-label={connected ? t('conn.online') : t('conn.offline')}
+              className={`flex h-7 w-7 items-center justify-center rounded-full border transition-colors duration-300 ${
+                connected
+                  ? 'border-emerald-400/20 bg-emerald-400/5 text-emerald-300'
+                  : 'border-red-400/25 bg-red-400/5 text-red-300'
+              }`}
+            >
+              <Wifi size={14} />
+            </button>
+            <span
+              className={`pointer-events-none absolute left-1/2 top-full z-50 mt-1.5 -translate-x-1/2 whitespace-nowrap rounded-md border border-white/10 bg-ink-900/95 px-2.5 py-1 text-[11px] font-mono opacity-0 shadow-lg backdrop-blur-xl transition-opacity duration-150 group-hover:opacity-100 ${
+                connected ? 'text-emerald-300' : 'text-red-300'
+              }`}
+            >
               {connected ? t('conn.online') : t('conn.offline')}
             </span>
-          </span>
+          </div>
           {feedOk === false && (
             <span
               className="flex items-center gap-2 rounded-full border border-red-400/25 bg-red-400/5 px-2.5 py-1 text-[11px] font-mono text-red-300"
@@ -122,14 +129,6 @@ export default function App() {
               <span className="hidden md:inline">{t('conn.feedUnavailable')}</span>
             </span>
           )}
-          <button
-            onClick={() => setShowDisclaimer(true)}
-            aria-label={t('disclaimer.reopen')}
-            title={t('disclaimer.reopen')}
-            className="flex h-7 w-7 items-center justify-center rounded-full border border-amber-500/25 bg-amber-500/5 text-amber-400 transition-all duration-200 hover:bg-amber-500/15 hover:shadow-[0_0_12px_-2px_rgba(245,158,11,0.5)]"
-          >
-            <TriangleAlert size={14} />
-          </button>
           <LanguageSwitcher />
         </div>
       </header>

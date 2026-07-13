@@ -624,6 +624,14 @@ async def ingest_alert_message(
 async def _alert_ingest_locked(
     session, *, text: str, when: datetime, source_id: int | None, message_id: int | None
 ) -> list[Broadcast]:
+    # Deliberately NOT "raw storage first" here, unlike the spotter pipeline
+    # (see ingest_message's docstring) — this channel's non-alert traffic is
+    # bulk city news (infra updates, recaps), not spotter data worth growing
+    # an eval set from, so a message that doesn't parse as a start/end is
+    # dropped without ever touching raw_messages.
+    if parse_alert_message(text) is None:
+        return []
+
     if message_id is not None:
         dup = await session.scalar(
             select(RawMessage.id).where(
@@ -645,7 +653,11 @@ async def process_parsed_alert(
 ) -> list[Broadcast]:
     """Parse -> apply an ALREADY-PERSISTED alert-channel raw message. Split
     out from `_alert_ingest_locked` so `reprocess.py` can replay stored
-    alert-channel messages the same way it replays spotter ones."""
+    alert-channel messages the same way it replays spotter ones. The
+    `parsed is None` branch is now unreachable from live ingestion (see
+    `_alert_ingest_locked`, which drops non-alert text before it's ever
+    persisted) but stays live for `reprocess.py` replaying raw_messages rows
+    stored before that filter existed."""
     parsed = parse_alert_message(text)
     raw.processed = True
     if parsed is None:

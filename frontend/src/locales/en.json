@@ -34,8 +34,7 @@
     "text": "Unofficial auxiliary service. Data comes from manual text reports by volunteer spotters — district-level accuracy, seconds-to-minutes delay. It does NOT replace the official air-raid alert. Always act on the siren and official apps.",
     "never": "No target on the map, or a vector 'not heading your way', is NOT a reason to ignore the alert.",
     "dismiss": "Got it",
-    "dontShow": "Don't show again",
-    "reopen": "Show warning"
+    "dontShow": "Don't show again"
   },
   "sources": {
     "official": "Official sources",

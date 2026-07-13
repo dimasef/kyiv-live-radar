@@ -141,13 +141,16 @@ async def test_alert_message_creates_alert_not_threat_or_notice(session):
     assert await _count(session, RawMessage) == 1
 
 
-async def test_ordinary_city_news_stores_raw_but_creates_no_alert(session):
+async def test_ordinary_city_news_is_dropped_without_touching_raw_messages(session):
+    # Unlike the spotter pipeline's "raw storage first" discipline, the alert
+    # channel's non-alert traffic (bulk city news) isn't kept at all — see
+    # _alert_ingest_locked in ingest.py.
     out = await ingest_alert_message(
         session, text="🚠Із 13 липня фунікулер зачинять на ремонт", when=BASE, message_id=2,
     )
     assert out == []
     assert await _count(session, Alert) == 0
-    assert await _count(session, RawMessage) == 1
+    assert await _count(session, RawMessage) == 0
 
 
 async def test_duplicate_message_id_is_ignored(session):

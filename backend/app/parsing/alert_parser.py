@@ -35,6 +35,15 @@ class ParsedAlert:
 # three stems in sequence keeps that clause from being misread as a new start.
 _START_RE = re.compile(r"оголошен\w*\s+повітрян\w*\s+тривог\w*", re.IGNORECASE)
 
+# The channel also duplicates every alert as a fixed-template English post
+# (observed verbatim, no variation so far): "ATTENTION! Air raid sirens in
+# Kyiv" / "Air siren all clear". Requires "in kyiv" right after "air raid
+# siren(s)", not just the bare phrase — the bilingual weekly recap says
+# "the capital had 13 air raid sirens" as a stat (English mirror of the
+# same "13 повітряних тривог" false positive _START_RE avoids), with no
+# "in kyiv" nearby.
+_START_EN_RE = re.compile(r"air raid sirens?\s+in\s+kyiv", re.IGNORECASE)
+
 # "област*" (stem covers область/області/областю/...) or "обл." anywhere in
 # the message -> oblast-scoped; the real city alert never names a scope at
 # all ("У Києві оголошена..."), so city is the default rather than requiring
@@ -45,14 +54,19 @@ _OBLAST_MARKERS = ("област", "обл.")
 def parse_alert_message(text: str) -> ParsedAlert | None:
     """Real тривога/відбій announcement -> a scope+action pair, else None
     (city news, weekly recaps, aftermath reports — the majority of this
-    channel's traffic). відбій is checked BEFORE start — see _START_RE.
+    channel's traffic). відбій/all-clear is checked BEFORE start in each
+    language — see _START_RE.
     """
     low = text.lower()
 
     if "відбій" in low and "тривог" in low:
         return ParsedAlert(scope=_scope(low), action="end")
+    if "siren" in low and "all clear" in low:
+        return ParsedAlert(scope=_scope(low), action="end")
 
     if _START_RE.search(low):
+        return ParsedAlert(scope=_scope(low), action="start")
+    if _START_EN_RE.search(low):
         return ParsedAlert(scope=_scope(low), action="start")
 
     return None

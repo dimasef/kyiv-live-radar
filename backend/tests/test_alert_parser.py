@@ -82,3 +82,13 @@ def test_recap_mentioning_alert_count_is_not_a_signal():
 def test_unrelated_city_news_is_none():
     r = parse_alert_message("Із 15 липня в Києві змінюється вартість проїзду в комунальному транспорті.")
     assert r is None
+
+
+def test_english_start_announcement():
+    r = parse_alert_message("ATTENTION! Air raid sirens in Kyiv")
+    assert r == ParsedAlert(scope="city", action="start")
+
+
+def test_english_end_announcement():
+    r = parse_alert_message("Air siren all clear")
+    assert r == ParsedAlert(scope="city", action="end")
