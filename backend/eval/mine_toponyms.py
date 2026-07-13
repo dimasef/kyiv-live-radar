@@ -22,9 +22,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.config import settings  # noqa: E402
+from app.feeds.telegram import _resolve_channel  # noqa: E402
 from app.gazetteer import DISTRICTS  # noqa: E402
-from app.parser import DistrictMatcher, normalize, parse_message  # noqa: E402
-from app.telegram_listener import _resolve_channel  # noqa: E402
+from app.parsing import DistrictMatcher, normalize, parse_message  # noqa: E402
 
 _PREP = r"(?:на|над|у|в|біля|поблизу|повз|через|під|коло|район[іуа]?|масив[іуа]?|бік)"
 _WORD = r"[А-ЯІЇЄҐ][а-яіїєґ'ʼ’\-]{2,}"

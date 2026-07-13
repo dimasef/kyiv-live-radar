@@ -10,16 +10,17 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from .alerts import close_stale_alerts
-from .api.ws import manager
+from ..api.ws import manager
+from ..config import settings
+from ..db import SessionLocal
+from ..domain.alerts import close_stale_alerts
+from ..domain.incidents import close_stale_incidents
+from ..domain.tracking import close_stale_tracks
+from ..feeds.health import feed_health
+from ..models import utcnow
+from ..schemas import WSMessage
 from .broadcast import broadcast_results
-from .config import settings
-from .db import SessionLocal
-from .incidents import close_stale_incidents
-from .ingest import Broadcast
-from .models import utcnow
-from .schemas import WSMessage
-from .tracking import close_stale_tracks
+from .results import Broadcast
 
 log = logging.getLogger("sweeper")
 
@@ -59,8 +60,6 @@ async def run_sweeper() -> None:
 
             # Feed health — process-state, not DB-backed, so it lives outside
             # the session block above. Log/push only on a transition.
-            from .telegram_listener import feed_health
-
             ok = feed_health(now, settings.feed_silence_warn_minutes)
             if ok is not None and ok != _last_feed_ok:
                 _last_feed_ok = ok

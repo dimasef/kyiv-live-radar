@@ -3,10 +3,10 @@ parser + gazetteer + tracking logic — lets historical data benefit from parser
 gazetteer improvements made after it was first ingested, without re-fetching
 Telegram history.
 
-Thin CLI wrapper over app.reprocess.run_reprocess (the same code the server runs
-at boot when REPROCESS_ON_BOOT is set). Wipes threat_events/threats/incidents
-(raw_messages/sources untouched) and replays every raw message in chronological
-order through ingest._process_parsed.
+Thin CLI wrapper over app.pipeline.reprocess.run_reprocess (the same code the
+server runs at boot when REPROCESS_ON_BOOT is set). Wipes threat_events/
+threats/incidents (raw_messages/sources untouched) and replays every raw
+message in chronological order through pipeline.ingest.process_parsed.
 
 Run with the backend STOPPED — it wipes/rebuilds shared tables and races any
 concurrently-running live ingestion (the asyncio.Lock in ingest only serializes
@@ -23,7 +23,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.reprocess import run_reprocess  # noqa: E402
+from app.pipeline.reprocess import run_reprocess  # noqa: E402
 
 
 async def main() -> None:

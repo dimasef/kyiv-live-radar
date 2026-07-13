@@ -14,14 +14,14 @@ import logging
 
 from sqlalchemy import delete, select
 
-from .config import settings
-from .db import SessionLocal
-from .gazetteer import DISTRICTS
-from .ingest import _process_parsed, _process_parsed_alert
-from .migrate import upgrade_to_head
-from .models import Alert, District, Incident, Notice, RawMessage, Source, Threat, ThreatEvent
-from .parser import DistrictMatcher
-from .seed import seed_districts
+from ..config import settings
+from ..db import SessionLocal
+from ..gazetteer import DISTRICTS
+from ..migrate import upgrade_to_head
+from ..models import Alert, District, Incident, Notice, RawMessage, Source, Threat, ThreatEvent
+from ..parsing import DistrictMatcher
+from ..seed import seed_districts
+from .ingest import process_parsed, process_parsed_alert
 
 log = logging.getLogger("reprocess")
 
@@ -87,11 +87,11 @@ async def run_reprocess(no_llm: bool = True, limit: int | None = None) -> dict:
             async with SessionLocal() as s:
                 r = await s.get(RawMessage, raw.id)
                 if role == "alert":
-                    broadcasts = await _process_parsed_alert(
+                    broadcasts = await process_parsed_alert(
                         s, raw=r, text=text, when=raw.event_time, source_id=raw.source_id,
                     )
                 else:
-                    broadcasts = await _process_parsed(
+                    broadcasts = await process_parsed(
                         s, raw=r, text=text, matcher=matcher, when=raw.event_time,
                         source_id=raw.source_id, message_id=raw.message_id,
                         forwarded_from_id=raw.forwarded_from_id,

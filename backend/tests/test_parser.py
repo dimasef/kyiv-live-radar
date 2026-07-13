@@ -1,7 +1,7 @@
 """Parser unit tests on realistic Kyiv-monitoring phrasing."""
 
 from app.gazetteer import DISTRICTS
-from app.parser import DistrictMatcher, parse_message
+from app.parsing import DistrictMatcher, parse_message
 
 
 def _matcher():

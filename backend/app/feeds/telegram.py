@@ -10,60 +10,23 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 
-from .broadcast import broadcast_results
-from .config import settings
-from .db import SessionLocal
-from .ingest import ingest_alert_message, ingest_message
-from .models import District, Source
-from .parser import DistrictMatcher
+from ..config import settings
+from ..db import SessionLocal
+from ..models import Source
+from ..pipeline.broadcast import broadcast_results
+from ..pipeline.ingest import ingest_alert_message, ingest_message
+from .common import build_matcher
+from .health import _state
 
 log = logging.getLogger("telegram")
 
 # Reconnect backoff schedule for run_listener()'s retry loop.
 _RECONNECT_INITIAL_SECONDS = 5
 _RECONNECT_MAX_SECONDS = 300
-
-# Mutable listener health, read by GET /health so a dead/zombied connection
-# (weak point #7 — Telethon can disconnect and never retry, leaving FastAPI
-# serving stale data with no visible error) shows up in the API, not just logs.
-_state: dict = {
-    "connected": False,
-    "last_message_at": None,  # datetime of the last live message actually received
-    "last_error": None,
-}
-
-
-def get_status() -> dict:
-    return dict(_state)
-
-
-def _within(a: datetime, b: datetime, gap: timedelta) -> bool:
-    an = a.replace(tzinfo=None) if a.tzinfo is not None else a
-    bn = b.replace(tzinfo=None) if b.tzinfo is not None else b
-    return abs((bn - an).total_seconds()) <= gap.total_seconds()
-
-
-def feed_health(now: datetime, warn_minutes: int) -> bool | None:
-    """Whether the live feed looks healthy — None when there's no real feed
-    to judge (Telegram not configured; simulator/replay modes have nothing
-    to monitor here). False when disconnected, or connected but silent for
-    longer than `warn_minutes`. `last_message_at` is only set by a LIVE
-    message (never by the startup backfill), so a freshly-connected session
-    with no live traffic yet reads as healthy rather than stale — only "was
-    receiving, then stopped" is evidence of a real problem. Shared by
-    GET /health (hydration) and sweeper.py (the periodic push on change).
-    """
-    if not settings.telegram_enabled:
-        return None
-    if not _state["connected"]:
-        return False
-    if _state["last_message_at"] is None:
-        return True
-    return _within(_state["last_message_at"], now, timedelta(minutes=warn_minutes))
 
 
 def make_session():
@@ -253,9 +216,7 @@ async def _run_listener_once(backfill: bool, run_state: dict) -> None:
             raise RuntimeError("no channels resolved")
 
         id_to_source, source_role = await _ensure_sources(entities, entity_roles)
-        async with SessionLocal() as s:
-            districts = list(await s.scalars(select(District)))
-        matcher = DistrictMatcher(districts)
+        matcher = await build_matcher()
 
         if backfill and settings.telegram_backfill:
             await _backfill(client, entities, id_to_source, source_role, matcher)

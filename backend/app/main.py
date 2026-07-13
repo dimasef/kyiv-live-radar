@@ -10,9 +10,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from .api.routes import router
 from .api.ws import manager
 from .config import settings
+from .feeds.health import feed_health, get_status
+from .feeds.simulator import run_simulator
 from .migrate import upgrade_to_head
 from .seed import seed_districts, seed_sources
-from .simulator import run_simulator
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("app")
@@ -29,7 +30,7 @@ async def lifespan(app: FastAPI):
     # never races a live ingest. Rebuilds all tracks from raw_messages through
     # the current pipeline. Unset REPROCESS_ON_BOOT after one deploy.
     if settings.reprocess_on_boot:
-        from .reprocess import run_reprocess
+        from .pipeline.reprocess import run_reprocess
 
         log.warning("REPROCESS_ON_BOOT set — rebuilding all tracks from raw_messages…")
         result = await run_reprocess(no_llm=True)
@@ -39,12 +40,12 @@ async def lifespan(app: FastAPI):
     # captured messages if requested, else the synthetic text simulator.
     tasks: list[asyncio.Task] = []
     if settings.telegram_enabled and settings.telegram_api_id and settings.telegram_channel_list:
-        from .telegram_listener import run_listener
+        from .feeds.telegram import run_listener
 
         log.info("starting Telegram listener")
         tasks.append(asyncio.create_task(run_listener()))
     elif settings.replay_real_data:
-        from .replay import run_replay
+        from .feeds.replay import run_replay
 
         log.info("starting replay of real captured messages")
         tasks.append(asyncio.create_task(run_replay()))
@@ -53,7 +54,7 @@ async def lifespan(app: FastAPI):
         tasks.append(asyncio.create_task(run_simulator()))
 
     # Always run the stale-track sweeper.
-    from .sweeper import run_sweeper
+    from .pipeline.sweeper import run_sweeper
 
     tasks.append(asyncio.create_task(run_sweeper()))
 
@@ -86,7 +87,6 @@ async def health():
     out = {"status": "ok", "simulator": settings.simulator_enabled}
     if settings.telegram_enabled:
         from .models import utcnow
-        from .telegram_listener import feed_health, get_status
 
         status = get_status()
         status["feed_ok"] = feed_health(utcnow(), settings.feed_silence_warn_minutes)

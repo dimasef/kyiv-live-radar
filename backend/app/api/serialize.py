@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from .attack import classify
-from .models import Alert, Incident, Notice, Threat, ThreatEvent
-from .schemas import AlertOut, FeedEntryOut, IncidentOut, NoticeOut, ThreatEventOut, ThreatOut
+from ..domain.attack import classify
+from ..models import Alert, Incident, Notice, Threat, ThreatEvent
+from ..schemas import AlertOut, FeedEntryOut, IncidentOut, NoticeOut, ThreatEventOut, ThreatOut
 
 
 def event_out(ev: ThreatEvent) -> ThreatEventOut:

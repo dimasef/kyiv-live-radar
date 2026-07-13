@@ -10,11 +10,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db import Base
+from app.domain.lifecycle import CLOSED_REASON_TO_STATUS, TRACK_TRANSITIONS, close_track, promote_track
 from app.gazetteer import DISTRICTS, SOURCES
-from app.ingest import ingest_message
-from app.lifecycle import CLOSED_REASON_TO_STATUS, TRACK_TRANSITIONS, close_track, promote_track
 from app.models import CLOSED_REASONS, District, Source, Threat, THREAT_STATUSES
-from app.parser import DistrictMatcher
+from app.parsing import DistrictMatcher
+from app.pipeline.ingest import ingest_message
 
 BASE = datetime(2026, 7, 8, 12, 0, tzinfo=timezone.utc)
 

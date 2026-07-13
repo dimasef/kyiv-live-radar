@@ -20,15 +20,15 @@ from sqlalchemy import delete, select  # noqa: E402
 
 from app.config import settings  # noqa: E402
 from app.db import SessionLocal  # noqa: E402
-from app.migrate import upgrade_to_head  # noqa: E402
-from app.models import District, RawMessage, Threat, ThreatEvent  # noqa: E402
-from app.parser import DistrictMatcher  # noqa: E402
-from app.seed import seed_districts, seed_sources  # noqa: E402
-from app.telegram_listener import (  # noqa: E402
+from app.feeds.telegram import (  # noqa: E402
     _backfill,
     _ensure_sources,
     _resolve_channel,
 )
+from app.migrate import upgrade_to_head  # noqa: E402
+from app.models import District, RawMessage, Threat, ThreatEvent  # noqa: E402
+from app.parsing import DistrictMatcher  # noqa: E402
+from app.seed import seed_districts, seed_sources  # noqa: E402
 
 
 async def _reset() -> None:

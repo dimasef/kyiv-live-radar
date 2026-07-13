@@ -12,8 +12,8 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import select
 
-from .config import settings
-from .models import Alert, Incident
+from ..config import settings
+from ..models import Alert, Incident
 
 
 @dataclass

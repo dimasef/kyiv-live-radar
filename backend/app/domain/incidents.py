@@ -15,8 +15,8 @@ from datetime import datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from .config import settings
-from .models import Alert, Incident, Threat
+from ..config import settings
+from ..models import Alert, Incident, Threat
 
 # Target-type severity — an incident is labelled by its most dangerous member.
 _SEVERITY = {"unknown": 0, "shahed": 1, "jet_drone": 2, "missile": 3, "ballistic": 4}

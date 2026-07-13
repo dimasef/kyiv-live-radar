@@ -17,8 +17,9 @@ import logging
 
 from anthropic import AsyncAnthropic
 
-from .config import settings
-from .parser import DistrictHit, DistrictMatcher, ParseResult
+from ..config import settings
+from .matcher import DistrictHit, DistrictMatcher
+from .rules import ParseResult
 
 log = logging.getLogger("llm")
 

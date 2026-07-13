@@ -9,10 +9,10 @@ import pytest_asyncio
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.alerts import AlertSignal, apply_alert_signal, close_stale_alerts
 from app.db import Base
-from app.ingest import ingest_alert_message
+from app.domain.alerts import AlertSignal, apply_alert_signal, close_stale_alerts
 from app.models import Alert, Notice, RawMessage, Threat
+from app.pipeline.ingest import ingest_alert_message
 
 BASE = datetime(2026, 7, 8, 12, 0, tzinfo=timezone.utc)
 

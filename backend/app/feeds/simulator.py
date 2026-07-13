@@ -12,11 +12,12 @@ import random
 
 from sqlalchemy import select
 
-from .broadcast import broadcast_results
-from .db import SessionLocal
-from .ingest import ingest_message
-from .models import District, Source, utcnow
-from .parser import DistrictMatcher
+from ..db import SessionLocal
+from ..models import District, Source, utcnow
+from ..parsing import DistrictMatcher
+from ..pipeline.broadcast import broadcast_results
+from ..pipeline.ingest import ingest_message
+from .common import build_matcher
 
 log = logging.getLogger("simulator")
 
@@ -92,9 +93,7 @@ async def _run_one_wave(matcher: DistrictMatcher) -> None:
 
 async def run_simulator() -> None:
     log.info("text simulator started (real parse/track pipeline)")
-    async with SessionLocal() as session:
-        districts = list(await session.scalars(select(District)))
-    matcher = DistrictMatcher(districts)
+    matcher = await build_matcher()
     while True:
         try:
             await _run_one_wave(matcher)

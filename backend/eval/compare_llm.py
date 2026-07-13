@@ -19,10 +19,10 @@ from sqlalchemy import select  # noqa: E402
 
 from app.config import settings  # noqa: E402
 from app.db import SessionLocal  # noqa: E402
-from app.ingest import _should_fallback  # noqa: E402
-from app.llm_fallback import llm_extract  # noqa: E402
 from app.models import District, RawMessage  # noqa: E402
-from app.parser import DistrictMatcher, parse_message  # noqa: E402
+from app.parsing import DistrictMatcher, parse_message  # noqa: E402
+from app.parsing.llm import llm_extract  # noqa: E402
+from app.pipeline.ingest import should_fallback  # noqa: E402
 
 
 async def main() -> None:
@@ -49,7 +49,7 @@ async def main() -> None:
         parsed = parse_message(t, matcher)
         if parsed.districts:
             localized_by_rules += 1
-        elif _should_fallback(parsed):
+        elif should_fallback(parsed):
             candidates.append(t)
 
     print(f"\nunique messages: {len(seen)} | localized by rules: {localized_by_rules}")

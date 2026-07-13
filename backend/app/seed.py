@@ -6,8 +6,8 @@ from pathlib import Path
 from sqlalchemy import func, select
 
 from .db import SessionLocal
+from .domain.geometry import centroid
 from .gazetteer import DISTRICTS, SOURCES
-from .geometry import centroid
 from .models import District, Source
 
 _BOUNDARIES_FILE = Path(__file__).parent / "data" / "boundaries.json"

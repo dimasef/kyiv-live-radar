@@ -9,12 +9,12 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from .api.ws import manager
-from .gazetteer import CITYWIDE_NAME_EN
-from .ingest import Broadcast
-from .models import District, Incident, Notice, Threat, ThreatEvent
-from .schemas import WSMessage
-from .serialize import alert_out, event_out, incident_out, notice_out, threat_out
+from ..api.serialize import alert_out, event_out, incident_out, notice_out, threat_out
+from ..api.ws import manager
+from ..domain.districts import citywide_district_id
+from ..models import Incident, Notice, Threat, ThreatEvent
+from ..schemas import WSMessage
+from .results import Broadcast
 
 
 async def _load_full(session, threat_id: int) -> Threat | None:
@@ -38,20 +38,6 @@ async def _load_incident_full(session, incident_id: int) -> Incident | None:
     return await session.scalar(stmt)
 
 
-# Cached DB id of the city-wide sentinel district (see gazetteer.CITYWIDE_NAME_EN
-# and ingest.py's identical cache) — resolved once, the row never changes.
-_sentinel_district_id: int | None = None
-
-
-async def _citywide_did(session) -> int | None:
-    global _sentinel_district_id
-    if _sentinel_district_id is None:
-        _sentinel_district_id = await session.scalar(
-            select(District.id).where(District.name_en == CITYWIDE_NAME_EN)
-        )
-    return _sentinel_district_id
-
-
 async def broadcast_results(session, results: list[Broadcast]) -> None:
     for b in results:
         if b.type == "notice" and b.notice is not None:
@@ -67,7 +53,7 @@ async def broadcast_results(session, results: list[Broadcast]) -> None:
         if b.type == "attack" and b.incident is not None:
             inc = await _load_incident_full(session, b.incident.id)
             if inc is not None:
-                sentinel_id = await _citywide_did(session)
+                sentinel_id = await citywide_district_id(session)
                 await manager.broadcast(
                     WSMessage(type="attack", incident=incident_out(inc, sentinel_id))
                 )

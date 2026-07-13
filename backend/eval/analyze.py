@@ -21,7 +21,7 @@ from sqlalchemy.orm import selectinload  # noqa: E402
 
 from app.db import SessionLocal  # noqa: E402
 from app.models import District, RawMessage, Threat, ThreatEvent  # noqa: E402
-from app.parser import DistrictMatcher, parse_message  # noqa: E402
+from app.parsing import DistrictMatcher, parse_message  # noqa: E402
 
 _CARDINALS = ["Пн", "ПнСх", "Сх", "ПдСх", "Пд", "ПдЗх", "Зх", "ПнЗх"]
 

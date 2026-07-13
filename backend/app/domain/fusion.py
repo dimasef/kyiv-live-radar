@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from .models import ThreatEvent
+from ..models import ThreatEvent
 
 
 class FusionResult:

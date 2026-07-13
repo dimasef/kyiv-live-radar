@@ -20,7 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.config import settings  # noqa: E402
-from app.telegram_listener import _resolve_channel  # noqa: E402
+from app.feeds.telegram import _resolve_channel  # noqa: E402
 
 _COUNT = re.compile(r"\d+\s*х\b|їх вже|іще \d|ще \d")
 _TARGET = re.compile(r"шахед|бпла|ракет|баліст|реактивн|мопед|герань|каб", re.IGNORECASE)

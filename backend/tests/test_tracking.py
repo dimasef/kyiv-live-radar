@@ -8,9 +8,9 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db import Base
 from app.gazetteer import DISTRICTS, SOURCES
-from app.ingest import ingest_message
 from app.models import District, Incident, RawMessage, Source, Threat, ThreatEvent
-from app.parser import DistrictMatcher
+from app.parsing import DistrictMatcher
+from app.pipeline.ingest import ingest_message
 
 
 @pytest_asyncio.fixture
@@ -340,7 +340,7 @@ async def test_destroyed_closes_track_over_named_district(ctx):
 
 async def test_stale_track_auto_closed(ctx):
     s, m, src = ctx
-    from app.tracking import close_stale_tracks
+    from app.domain.tracking import close_stale_tracks
     await ingest_message(s, text="🔴 Шахед над Оболонню", matcher=m, when=BASE,
                          source_id=src[0].id, message_id=1)
     # 5 min later — still fresh, not closed.

@@ -21,7 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.gazetteer import DISTRICTS  # noqa: E402
-from app.parser import DistrictMatcher, parse_message  # noqa: E402
+from app.parsing import DistrictMatcher, parse_message  # noqa: E402
 
 EVAL_FILE = Path(__file__).parent / "eval_set.jsonl"
 

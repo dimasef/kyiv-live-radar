@@ -20,10 +20,10 @@ from datetime import datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from .config import settings
+from ..config import settings
+from ..models import Threat, ThreatEvent
 from .fusion import compute_fusion
 from .lifecycle import close_track
-from .models import Threat, ThreatEvent
 
 
 async def find_track_by_reply(

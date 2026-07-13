@@ -3,15 +3,15 @@
 from datetime import datetime, timedelta
 
 from app.gazetteer import DISTRICTS
-from app.ingest import _note_and_inherit_type, _should_fallback
-from app.parser import DistrictMatcher, parse_message
+from app.parsing import DistrictMatcher, parse_message
+from app.pipeline.ingest import _note_and_inherit_type, should_fallback
 
 M = DistrictMatcher([{"id": i + 1, **d} for i, d in enumerate(DISTRICTS)])
 
 
 def test_should_fallback_for_unlocalized_kyiv_relevant_message():
     r = parse_message("Увага, реактивний йде на зниження у районі!", M)
-    assert _should_fallback(r)
+    assert should_fallback(r)
 
 
 def test_should_not_fallback_when_only_another_oblast_is_named():
@@ -24,7 +24,7 @@ def test_should_not_fallback_when_only_another_oblast_is_named():
         "Шахед на Чернігівщині",
     ]:
         r = parse_message(txt, M)
-        assert not _should_fallback(r), txt
+        assert not should_fallback(r), txt
 
 
 def test_citywide_message_does_not_trigger_llm_fallback():
@@ -34,7 +34,7 @@ def test_citywide_message_does_not_trigger_llm_fallback():
     for txt in ["Балістика на Київ", "Ракетна небезпека по Києву", "Ціль на місто!"]:
         r = parse_message(txt, M)
         assert r.citywide
-        assert not _should_fallback(r), txt
+        assert not should_fallback(r), txt
 
 
 def test_other_oblast_mention_does_not_hide_a_real_kyiv_district():
@@ -43,7 +43,7 @@ def test_other_oblast_mention_does_not_hide_a_real_kyiv_district():
     # the same message must not suppress it.
     r = parse_message("З Чернігівщини курсом на Дарницький район.", M)
     assert r.districts != []
-    assert not _should_fallback(r)  # already localized by rules, no LLM needed
+    assert not should_fallback(r)  # already localized by rules, no LLM needed
 
 
 # --- Cross-message target-type inheritance (per channel) ---

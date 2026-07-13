@@ -7,7 +7,7 @@ the patterns can't silently regress a real example.
 import json
 from pathlib import Path
 
-from app.alert_parser import ParsedAlert, parse_alert_message
+from app.parsing.alert_parser import ParsedAlert, parse_alert_message
 
 FIXTURE = Path(__file__).parent / "data" / "alert_channel_sample.jsonl"
 

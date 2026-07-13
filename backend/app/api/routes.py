@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from ..config import settings
 from ..db import get_session
-from ..gazetteer import CITYWIDE_NAME_EN
+from ..domain.districts import citywide_district_id
 from ..models import Alert, District, Incident, Notice, Threat, ThreatEvent, utcnow
 from ..schemas import (
     AlertOut,
@@ -20,12 +20,13 @@ from ..schemas import (
     ThreatEventOut,
     ThreatOut,
 )
-from ..serialize import alert_out as _alert_out
-from ..serialize import event_out as _event_out
-from ..serialize import feed_entry_out as _feed_entry_out
-from ..serialize import incident_out as _incident_out
-from ..serialize import notice_out as _notice_out
-from ..serialize import threat_out as _threat_out
+from ..timeutil import within
+from .serialize import alert_out as _alert_out
+from .serialize import event_out as _event_out
+from .serialize import feed_entry_out as _feed_entry_out
+from .serialize import incident_out as _incident_out
+from .serialize import notice_out as _notice_out
+from .serialize import threat_out as _threat_out
 
 router = APIRouter()
 
@@ -69,17 +70,10 @@ async def active_threats(session: AsyncSession = Depends(get_session)):
     out = []
     for t in await session.scalars(stmt):
         # Drop stale impact pins; live inbound tracks (closed_at IS NULL) always pass.
-        if t.status == "impact" and t.closed_at is not None and not _within(t.closed_at, now, ttl):
+        if t.status == "impact" and t.closed_at is not None and not within(t.closed_at, now, ttl):
             continue
         out.append(_threat_out(t))
     return out
-
-
-def _within(a, b, gap: timedelta) -> bool:
-    """tz-tolerant recency check (SQLite returns naive UTC; utcnow() is aware)."""
-    an = a.replace(tzinfo=None) if a.tzinfo is not None else a
-    bn = b.replace(tzinfo=None) if b.tzinfo is not None else b
-    return abs((bn - an).total_seconds()) <= gap.total_seconds()
 
 
 @router.get("/events/recent", response_model=list[FeedEntryOut])
@@ -145,9 +139,7 @@ async def recent_alerts(
 async def active_incidents(session: AsyncSession = Depends(get_session)):
     """Ongoing attacks (incidents not yet ended), each with counts aggregated
     over its member threats — the "one attack" rollup for the UI summary strip."""
-    sentinel_id = await session.scalar(
-        select(District.id).where(District.name_en == CITYWIDE_NAME_EN)
-    )
+    sentinel_id = await citywide_district_id(session)
     stmt = (
         select(Incident)
         .where(Incident.ended_at.is_(None))

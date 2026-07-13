@@ -9,11 +9,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db import Base
+from app.feeds.replay import _CHANNELS, _load_messages
 from app.gazetteer import DISTRICTS
-from app.ingest import ingest_message
 from app.models import District, Source
-from app.parser import DistrictMatcher
-from app.replay import _CHANNELS, _load_messages
+from app.parsing import DistrictMatcher
+from app.pipeline.ingest import ingest_message
 
 
 @pytest_asyncio.fixture

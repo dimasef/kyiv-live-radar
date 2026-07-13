@@ -254,7 +254,7 @@ class Threat(Base):
     )
     # Explicit reason the track closed (see CLOSED_REASONS) — NULL while open.
     # Replaces status='lost' overloading відбій/дорозвідка/silence-timeout
-    # into one meaning; set only via app.lifecycle.close_track().
+    # into one meaning; set only via app.domain.lifecycle.close_track().
     closed_reason: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     # --- Derived multi-source fusion signals ---
     corroboration_count: Mapped[int] = mapped_column(default=1)  # distinct independent sources

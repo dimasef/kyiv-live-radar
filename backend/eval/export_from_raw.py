@@ -22,7 +22,7 @@ from sqlalchemy import select  # noqa: E402
 from app.db import SessionLocal  # noqa: E402
 from app.gazetteer import DISTRICTS  # noqa: E402
 from app.models import RawMessage  # noqa: E402
-from app.parser import DistrictMatcher, parse_message  # noqa: E402
+from app.parsing import DistrictMatcher, parse_message  # noqa: E402
 
 _ID_TO_EN = {i + 1: d["name_en"] for i, d in enumerate(DISTRICTS)}
 

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from .models import Threat
+from ..models import Threat
 
 # Legal status transitions — documents intent; not enforced at runtime (every
 # caller already only closes/promotes a track it just confirmed is open).

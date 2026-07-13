@@ -26,17 +26,17 @@ from pathlib import Path
 
 from sqlalchemy import select
 
-from .broadcast import broadcast_results
-from .db import SessionLocal
-from .ingest import ingest_message
-from .models import District, Source
-from .parser import DistrictMatcher
+from ..db import SessionLocal
+from ..models import Source
+from ..pipeline.broadcast import broadcast_results
+from ..pipeline.ingest import ingest_message
+from .common import build_matcher
 
 log = logging.getLogger("replay")
 
 # Which captured-message file to replay. Override with REPLAY_FILE to demo a
 # specific event (e.g. a single night's attack) instead of the full sample.
-_DEFAULT_DATA_FILE = Path(__file__).parent / "data" / "real_sample_messages.jsonl"
+_DEFAULT_DATA_FILE = Path(__file__).parent.parent / "data" / "real_sample_messages.jsonl"
 
 
 def _data_file() -> Path:
@@ -109,9 +109,7 @@ async def run_replay() -> None:
     if offset:
         log.info("shifting replay timestamps by %s so the sequence ends ~now", offset)
 
-    async with SessionLocal() as s:
-        districts = list(await s.scalars(select(District)))
-    matcher = DistrictMatcher(districts)
+    matcher = await build_matcher()
 
     for msg in messages:
         source_id = key_to_source_id[msg["channel_key"]]

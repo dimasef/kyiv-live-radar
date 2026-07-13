@@ -21,8 +21,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sqlalchemy import select  # noqa: E402
 
 from app.db import SessionLocal  # noqa: E402
+from app.domain.tracking import apply_fusion  # noqa: E402
 from app.models import RawMessage, Threat, ThreatEvent  # noqa: E402
-from app.tracking import apply_fusion  # noqa: E402
 
 
 async def main() -> None:

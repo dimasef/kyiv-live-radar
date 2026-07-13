@@ -10,12 +10,12 @@ import pytest_asyncio
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.attack import classify
 from app.db import Base
+from app.domain.attack import classify
 from app.gazetteer import DISTRICTS, SOURCES
-from app.ingest import ingest_alert_message, ingest_message
 from app.models import Alert, District, Incident, Source, Threat
-from app.parser import DistrictMatcher
+from app.parsing import DistrictMatcher
+from app.pipeline.ingest import ingest_alert_message, ingest_message
 
 BASE = datetime(2026, 7, 8, 12, 0, tzinfo=timezone.utc)
 

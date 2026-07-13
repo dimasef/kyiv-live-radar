@@ -11,7 +11,7 @@ alert.** Single-user MVP, not a public product.
 
 See `WORKFLOW.md` for a detailed walkthrough (Ukrainian) of the full pipeline
 with a maintained list of known weak points/false-positive classes — read it
-before touching `parser.py` or `tracking.py`.
+before touching `app/parsing/rules.py` or `app/domain/tracking.py`.
 
 ## Commands
 
@@ -61,50 +61,54 @@ npm run build      # tsc -b && vite build — this IS the type-check step, no se
 
 ### Ingestion pipeline (the core of the backend)
 
-One entry point, `app/ingest.py::ingest_message` (serialized behind a single
-`asyncio.Lock` — concurrent messages are processed strictly sequentially to
-avoid SQLite races splitting one track into two), shared by every feed source.
-Pipeline: **store raw → parse (rules) → LLM fallback (maybe) → track →
+One entry point, `app/pipeline/ingest.py::ingest_message` (serialized behind a
+single `asyncio.Lock` — concurrent messages are processed strictly sequentially
+to avoid SQLite races splitting one track into two), shared by every feed
+source. Pipeline: **store raw → parse (rules) → LLM fallback (maybe) → track →
 fuse → broadcast**.
 
 1. **Raw storage first** (`raw_messages` table) — even if parsing fails
    completely, the original text is kept for eval-set growth and reprocessing.
-2. **Rule parser** (`app/parser.py`) — no NLP library, a hand-written
-   regex/keyword parser over normalized text: target type → status → district
-   matching (gazetteer-driven `DistrictMatcher`, stem-based so
-   Троєщина/Троєщині/Троєщину all match one entry) → target count → a chain of
-   message-level suppression filters (aftermath news, siren-only echoes,
-   negation, day-recap softening — each is a curated word list, not NLP;
-   extend these when a new false-positive pattern shows up in real data).
-3. **LLM fallback** (`app/llm_fallback.py`, Claude Haiku 4.5) — only when
+2. **Rule parser** (`app/parsing/rules.py`, vocab in `app/parsing/vocab.py`,
+   district matching in `app/parsing/matcher.py`) — no NLP library, a
+   hand-written regex/keyword parser over normalized text: target type →
+   status → district matching (gazetteer-driven `DistrictMatcher`, stem-based
+   so Троєщина/Троєщині/Троєщину all match one entry) → target count → a
+   chain of message-level suppression filters (aftermath news, siren-only
+   echoes, negation, day-recap softening — each is a curated word list, not
+   NLP; extend these when a new false-positive pattern shows up in real
+   data).
+3. **LLM fallback** (`app/parsing/llm.py`, Claude Haiku 4.5) — only when
    rules found no district on a threat-flavored message AND it isn't
-   obviously about another oblast (`ingest._should_fallback` gates this to
-   avoid paying for calls known to return empty). Structured output
+   obviously about another oblast (`pipeline.ingest.should_fallback` gates
+   this to avoid paying for calls known to return empty). Structured output
    constrains `district_ids` to an **enum of known gazetteer ids** — the
    model cannot invent a location. Bearing/vector math is never delegated to
    the LLM. ~5% hit rate on rule-misses (measured) — the real coverage lever
    is the gazetteer, not the LLM.
-4. **Track grouping** (`app/tracking.py`) — the most failure-prone layer.
-   Priority order: (a) Telegram reply-threading (a reply to an OPEN track's
-   message joins that track — the strongest signal), (b) corroboration (a
-   non-reply sighting joins an open track only if that track's **most
-   recent** event was over the SAME district within `corroboration_window_
-   minutes`), (c) otherwise start a new track. Deliberately NOT "continue the
-   newest open track" — that collapsed independent targets into mega-track
-   zigzags during busy alerts. The corroboration window and match-latest-only
-   behavior were empirically tuned against `eval/track_eval.py`, not guessed.
-5. **Fusion** (`app/fusion.py`) — cross-source corroboration count (reposts
-   of one original don't inflate it — dedup via `_origin_key`), conflict
-   detection when sources disagree on target type, confidence score.
-6. **Broadcast** (`app/broadcast.py`) — fans out over `/ws/threats`; the
-   frontend also polls `GET /threats/active` + `GET /events/recent` on load.
+4. **Track grouping** (`app/domain/tracking.py`) — the most failure-prone
+   layer. Priority order: (a) Telegram reply-threading (a reply to an OPEN
+   track's message joins that track — the strongest signal), (b)
+   corroboration (a non-reply sighting joins an open track only if that
+   track's **most recent** event was over the SAME district within
+   `corroboration_window_minutes`), (c) otherwise start a new track.
+   Deliberately NOT "continue the newest open track" — that collapsed
+   independent targets into mega-track zigzags during busy alerts. The
+   corroboration window and match-latest-only behavior were empirically
+   tuned against `eval/track_eval.py`, not guessed.
+5. **Fusion** (`app/domain/fusion.py`) — cross-source corroboration count
+   (reposts of one original don't inflate it — dedup via `_origin_key`),
+   conflict detection when sources disagree on target type, confidence score.
+6. **Broadcast** (`app/pipeline/broadcast.py`) — fans out over
+   `/ws/threats`; the frontend also polls `GET /threats/active` +
+   `GET /events/recent` on load.
 
 ### Three interchangeable feed sources (`app/main.py` lifespan, priority order)
 
 Selected by env vars, mutually exclusive:
-1. `TELEGRAM_ENABLED=true` — real Telethon MTProto listener (`telegram_listener.py`), reads-only, 3 configured channels (`TELEGRAM_CHANNELS`).
-2. `REPLAY_REAL_DATA=true` — replays 871 real captured messages (`app/data/real_sample_messages.jsonl`) through the real pipeline, preserving original reply chains and timestamps, for demoing real tracks/vectors without Telegram credentials.
-3. `SIMULATOR_ENABLED=true` (default) — synthetic random routes through the real parser/tracker. Never reply-threads, so tracks never span 2+ districts — the map only ever shows dots, not vectors, in this mode.
+1. `TELEGRAM_ENABLED=true` — real Telethon MTProto listener (`app/feeds/telegram.py`), reads-only, 3 configured channels (`TELEGRAM_CHANNELS`).
+2. `REPLAY_REAL_DATA=true` — replays 871 real captured messages (`app/data/real_sample_messages.jsonl`) through the real pipeline (`app/feeds/replay.py`), preserving original reply chains and timestamps, for demoing real tracks/vectors without Telegram credentials.
+3. `SIMULATOR_ENABLED=true` (default) — synthetic random routes through the real parser/tracker (`app/feeds/simulator.py`). Never reply-threads, so tracks never span 2+ districts — the map only ever shows dots, not vectors, in this mode.
 
 ### Gazetteer (`app/gazetteer.py`)
 

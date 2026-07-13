@@ -14,9 +14,9 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from .feeds.telegram import run_listener
 from .migrate import upgrade_to_head
 from .seed import seed_districts, seed_sources
-from .telegram_listener import run_listener
 
 logging.basicConfig(level=logging.INFO)
 
