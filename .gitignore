@@ -4,6 +4,8 @@ __pycache__/
 *.pyc
 backend/*.db
 backend/*.db.bak-*
+backend/*.db.old*
+backend/_db_backups/
 backend/.env
 backend/kyiv_radar.session
 backend/*.session-journal
