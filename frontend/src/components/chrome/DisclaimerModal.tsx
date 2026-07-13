@@ -1,10 +1,10 @@
 import { ExternalLink, TriangleAlert, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { safeSet, STORAGE_KEYS } from '../../lib/storage'
+
 /** Safety disclaimer as a load-time modal (spec §1, §11 — reachable anytime via
  *  the header warning button; "don't show again" only skips the auto-open). */
-
-export const DISCLAIMER_HIDE_KEY = 'klr-disclaimer-hide'
 
 interface Props {
   open: boolean
@@ -16,7 +16,7 @@ export default function DisclaimerModal({ open, onClose }: Props) {
   if (!open) return null
 
   const dontShowAgain = () => {
-    localStorage.setItem(DISCLAIMER_HIDE_KEY, '1')
+    safeSet(STORAGE_KEYS.disclaimerHide, '1')
     onClose()
   }
 

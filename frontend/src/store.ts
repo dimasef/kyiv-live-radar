@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 
 import { fetchThreatEvents } from './api'
+import { safeGet, safeRemove, safeSet, STORAGE_KEYS } from './lib/storage'
 import type {
   Alert,
   District,
@@ -20,12 +21,11 @@ export interface Home {
   origin: 'geo' | 'manual'
 }
 
-const HOME_KEY = 'klr-home'
-
 function loadHome(): Home | null {
+  const raw = safeGet(STORAGE_KEYS.home)
+  if (!raw) return null
   try {
-    const raw = localStorage.getItem(HOME_KEY)
-    return raw ? (JSON.parse(raw) as Home) : null
+    return JSON.parse(raw) as Home
   } catch {
     return null
   }
@@ -100,15 +100,15 @@ export const useRadar = create<RadarState>((set, get) => ({
   setFeedOk: (v) => set({ feedOk: v }),
 
   setHome: (h) => {
-    if (h) localStorage.setItem(HOME_KEY, JSON.stringify(h))
-    else localStorage.removeItem(HOME_KEY)
+    if (h) safeSet(STORAGE_KEYS.home, JSON.stringify(h))
+    else safeRemove(STORAGE_KEYS.home)
     set({ home: h })
   },
   setHomeRadius: (radiusKm) => {
     const cur = get().home
     if (!cur) return
     const next = { ...cur, radiusKm }
-    localStorage.setItem(HOME_KEY, JSON.stringify(next))
+    safeSet(STORAGE_KEYS.home, JSON.stringify(next))
     set({ home: next })
   },
 

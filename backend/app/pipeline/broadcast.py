@@ -6,6 +6,8 @@ to Redis / Postgres LISTEN-NOTIFY; the ingest pipeline stays unchanged.
 
 from __future__ import annotations
 
+import logging
+
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -15,6 +17,8 @@ from ..domain.districts import citywide_district_id
 from ..models import Incident, Notice, Threat, ThreatEvent
 from ..schemas import WSMessage
 from .results import Broadcast
+
+log = logging.getLogger("broadcast")
 
 
 async def _load_full(session, threat_id: int) -> Threat | None:
@@ -40,6 +44,7 @@ async def _load_incident_full(session, incident_id: int) -> Incident | None:
 
 async def broadcast_results(session, results: list[Broadcast]) -> None:
     for b in results:
+        log.debug("broadcasting %s", b.type)
         if b.type == "notice" and b.notice is not None:
             n = await session.scalar(
                 select(Notice).where(Notice.id == b.notice.id).options(selectinload(Notice.source))

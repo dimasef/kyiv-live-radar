@@ -14,6 +14,10 @@ from __future__ import annotations
 # ingest attaches city-wide ThreatEvents to it. Referenced here and in ingest.
 CITYWIDE_NAME_EN = "Kyiv (citywide)"
 
+# Rough geographic center of Kyiv — initial map framing AND the sentinel
+# "district"'s coordinates below (a city-wide threat has to point somewhere).
+KYIV_CENTER = {"lat": 50.4501, "lon": 30.5234}
+
 DISTRICTS: list[dict] = [
     # --- 10 administrative raions ---
     {"name_uk": "Голосіївський", "name_en": "Holosiivskyi", "lat": 50.381, "lon": 30.508,
@@ -268,11 +272,8 @@ DISTRICTS: list[dict] = [
     # valid point (city centre) and a display name; the map renders such threats
     # as a banner, not this point. Detection is the parser's `citywide` flag.
     {"name_uk": "Київ", "name_en": CITYWIDE_NAME_EN,
-     "lat": 50.4501, "lon": 30.5234, "aliases": []},
+     "lat": KYIV_CENTER["lat"], "lon": KYIV_CENTER["lon"], "aliases": []},
 ]
-
-# Rough geographic center of Kyiv, for initial map framing.
-KYIV_CENTER = {"lat": 50.4501, "lon": 30.5234}
 
 
 # Seed set of monitored sources. `channel_key` is the Telegram handle we'd

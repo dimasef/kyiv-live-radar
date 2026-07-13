@@ -2,8 +2,9 @@ import { Crosshair, Flame, Ghost, MapPin, Siren } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useRadar } from '../store'
-import type { Incident } from '../types'
+import { useRadar } from '../../store'
+import { INCIDENT_SEVERITY_COLOR } from '../../theme'
+import type { Incident } from '../../types'
 
 const SEVERITY: Record<string, number> = {
   ballistic: 4,
@@ -35,7 +36,8 @@ export default function IncidentBanner() {
   const inc = notableIncident(incidents)
   if (!inc) return null
 
-  const color = inc.target_type === 'ballistic' ? '#ef4444' : '#f97316'
+  const color =
+    inc.target_type === 'ballistic' ? INCIDENT_SEVERITY_COLOR.ballistic : INCIDENT_SEVERITY_COLOR.other
 
   return (
     <div role="alert" className="incident-banner pointer-events-none flex justify-center">

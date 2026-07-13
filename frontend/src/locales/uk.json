@@ -118,5 +118,12 @@
     "radius": "Радіус",
     "clear": "Скинути",
     "district": "Район"
+  },
+  "changelog": {
+    "back": "На радар",
+    "title": "Історія версій",
+    "semverRules": "Як рахуємо версію · MAJOR.MINOR.PATCH",
+    "version": "Версія",
+    "history": "Історія"
   }
 }

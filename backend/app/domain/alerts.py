@@ -7,6 +7,7 @@ registry/plugin framework (see CLAUDE.md "чого не робити").
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -14,6 +15,8 @@ from sqlalchemy import select
 
 from ..config import settings
 from ..models import Alert, Incident
+
+log = logging.getLogger("alerts")
 
 
 @dataclass
@@ -54,6 +57,7 @@ async def apply_alert_signal(session, signal: AlertSignal) -> Alert | None:
         )
         session.add(alert)
         await session.commit()
+        log.info("alert %s opened (scope=%s)", alert.id, alert.scope)
         if signal.scope == "city":
             await _adopt_recent_incident(session, alert, signal.when)
         return alert
@@ -65,6 +69,7 @@ async def apply_alert_signal(session, signal: AlertSignal) -> Alert | None:
     existing.ended_raw_id = signal.raw_id
     existing.closed_reason = "official"
     await session.commit()
+    log.info("alert %s closed (scope=%s)", existing.id, existing.scope)
     return existing
 
 

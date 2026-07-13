@@ -27,23 +27,12 @@ def threat_out_shallow(th: Threat) -> ThreatOut:
     """Threat fields only, events=[] — for contexts where each event already
     carries its own row (the feed) and loading every track's full event list
     would be wasteful (and would require eager-loading th.events, which isn't
-    for a plain event query)."""
-    return ThreatOut(
-        id=th.id,
-        created_at=th.created_at,
-        target_type=th.target_type,
-        status=th.status,
-        kind=th.kind,
-        closed_reason=th.closed_reason,
-        scope=th.scope,
-        incident_id=th.incident_id,
-        target_count=th.target_count,
-        closed_at=th.closed_at,
-        corroboration_count=th.corroboration_count,
-        has_conflict=th.has_conflict,
-        confidence=th.confidence,
-        events=[],
-    )
+    for a plain event query). Introspects ThreatOut.model_fields (excluding
+    `events`) instead of a hand-written field list, so a new field on the
+    schema is picked up automatically — a mismatched ORM attribute fails
+    loudly (AttributeError) rather than silently serializing as blank."""
+    fields = {name: getattr(th, name) for name in ThreatOut.model_fields if name != "events"}
+    return ThreatOut(**fields, events=[])
 
 
 def feed_entry_out(ev: ThreatEvent) -> FeedEntryOut:

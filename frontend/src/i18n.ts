@@ -1,13 +1,12 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
+import { safeGet, safeSet, STORAGE_KEYS } from './lib/storage'
 import en from './locales/en.json'
 import uk from './locales/uk.json'
 
-const STORAGE_KEY = 'klr-lang'
-
 function initialLang(): string {
-  return localStorage.getItem(STORAGE_KEY) ?? 'uk'
+  return safeGet(STORAGE_KEYS.lang) ?? 'uk'
 }
 
 i18n.use(initReactI18next).init({
@@ -18,7 +17,7 @@ i18n.use(initReactI18next).init({
 })
 
 export function setLanguage(lng: string) {
-  localStorage.setItem(STORAGE_KEY, lng)
+  safeSet(STORAGE_KEYS.lang, lng)
   i18n.changeLanguage(lng)
 }
 

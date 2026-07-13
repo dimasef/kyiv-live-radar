@@ -24,8 +24,6 @@ from .results import Broadcast
 
 log = logging.getLogger("sweeper")
 
-_INTERVAL_S = 60
-
 # Last broadcast feed-health state, so we log/push only on a real transition
 # rather than every tick (feed_health() itself is cheap and stateless — this
 # is purely to avoid spamming an identical value once a minute).
@@ -35,7 +33,7 @@ _last_feed_ok: bool | None = None
 async def run_sweeper() -> None:
     global _last_feed_ok
     while True:
-        await asyncio.sleep(_INTERVAL_S)
+        await asyncio.sleep(settings.sweeper_interval_s)
         try:
             async with SessionLocal() as session:
                 now = utcnow()

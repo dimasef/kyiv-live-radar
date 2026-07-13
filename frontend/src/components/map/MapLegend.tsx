@@ -2,13 +2,13 @@ import { ChevronDown, Layers } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { MUTED_COLOR, TYPE_COLORS } from '../theme'
-import { type ThreatType, threatGlyphSvg } from '../threatIcons'
-
-const OPEN_KEY = 'klr-legend-open'
+import { safeGet, safeSet, STORAGE_KEYS } from '../../lib/storage'
+import { HOME_COLOR, MUTED_COLOR, TYPE_COLORS } from '../../theme'
+import { threatGlyphSvg } from '../../threatIcons'
+import type { TargetType } from '../../types'
 
 function initialOpen(): boolean {
-  const saved = localStorage.getItem(OPEN_KEY)
+  const saved = safeGet(STORAGE_KEYS.legendOpen)
   if (saved !== null) return saved === '1'
   // Default: open on desktop, collapsed on small screens.
   return window.matchMedia('(min-width: 1024px)').matches
@@ -34,13 +34,13 @@ export default function MapLegend() {
   const [open, setOpen] = useState(initialOpen)
 
   const toggle = () => {
-    localStorage.setItem(OPEN_KEY, open ? '0' : '1')
+    safeSet(STORAGE_KEYS.legendOpen, open ? '0' : '1')
     setOpen(!open)
   }
 
   // Type rows (colour = type, glyph = shape) + state rows (burst = hit, grey =
   // shot-down/lost) + home.
-  const types: ThreatType[] = ['shahed', 'jet_drone', 'missile', 'ballistic']
+  const types: TargetType[] = ['shahed', 'jet_drone', 'missile', 'ballistic']
   const rows: { html: string; label: string }[] = [
     ...types.map((ty) => ({
       html: threatGlyphSvg(ty, { size: 16, color: TYPE_COLORS[ty] }),
@@ -54,7 +54,7 @@ export default function MapLegend() {
       html: threatGlyphSvg('unknown', { size: 16, state: 'destroyed', color: MUTED_COLOR }),
       label: t('legend.destroyed'),
     },
-    { html: dotSwatch('#38bdf8'), label: t('legend.home') },
+    { html: dotSwatch(HOME_COLOR), label: t('legend.home') },
   ]
 
   return (

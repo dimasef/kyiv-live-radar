@@ -15,6 +15,7 @@ one giant zigzag during busy alerts.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta
 
 from sqlalchemy import select
@@ -24,6 +25,8 @@ from ..config import settings
 from ..models import Threat, ThreatEvent
 from .fusion import compute_fusion
 from .lifecycle import close_track
+
+log = logging.getLogger("tracking")
 
 
 async def find_track_by_reply(
@@ -238,3 +241,7 @@ async def apply_fusion(session, threat: Threat) -> None:
     threat.confidence = r.confidence
     await session.commit()
     await session.refresh(threat, ["events"])
+    log.debug("track %s fusion: corroboration=%d confidence=%.2f",
+             threat.id, r.corroboration_count, r.confidence)
+    if r.has_conflict:
+        log.warning("track %s fusion conflict: sources disagree on target type", threat.id)

@@ -12,9 +12,12 @@ single-process MVP with one lock serializing all mutations.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 
 from ..models import Threat
+
+log = logging.getLogger("tracking")
 
 # Legal status transitions — documents intent; not enforced at runtime (every
 # caller already only closes/promotes a track it just confirmed is open).
@@ -46,6 +49,7 @@ def close_track(threat: Threat, when: datetime, reason: str) -> Threat:
     threat.status = CLOSED_REASON_TO_STATUS[reason]
     threat.closed_at = when
     threat.closed_reason = reason
+    log.info("track %s closed (reason=%s)", threat.id, reason)
     return threat
 
 
@@ -53,4 +57,5 @@ def promote_track(threat: Threat) -> Threat:
     """Mark a track as actively confirmed-tracking (vs. merely 'unconfirmed'),
     once a source reports it without hedging language."""
     threat.status = "tracking"
+    log.info("track %s promoted to tracking", threat.id)
     return threat

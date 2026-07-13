@@ -168,14 +168,21 @@ async def _backfill(client, entities, id_to_source, source_role, matcher) -> Non
     for when, src_id, m, text in collected:
         role = source_role.get(src_id, "spotter")
         fwd, fwd_channel = _fwd_origin(m)
-        async with SessionLocal() as s:
-            results = await _ingest_one(
-                s, role=role, text=text, when=when, source_id=src_id, message_id=m.id,
-                matcher=matcher, forwarded_from_id=fwd, forwarded_from_channel_id=fwd_channel,
-                reply_to_message_id=_reply_to_id(m),
-            )
-            if stream and results:
-                await broadcast_results(s, results)
+        try:
+            async with SessionLocal() as s:
+                results = await _ingest_one(
+                    s, role=role, text=text, when=when, source_id=src_id, message_id=m.id,
+                    matcher=matcher, forwarded_from_id=fwd, forwarded_from_channel_id=fwd_channel,
+                    reply_to_message_id=_reply_to_id(m),
+                )
+                if stream and results:
+                    await broadcast_results(s, results)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # One bad message must not abort the whole backfill — the rest of
+            # the batch (and every other channel) should still land.
+            log.exception("backfill failed on message_id=%s", m.id)
         if stream:
             await asyncio.sleep(0.1)  # let the UI feed fill visibly
     log.info("backfill ingested %d recent messages", len(collected))
@@ -223,6 +230,10 @@ async def _run_listener_once(backfill: bool, run_state: dict) -> None:
 
         @client.on(events.NewMessage(chats=entities))
         async def handler(event):  # noqa: ANN001
+            # Health = feed LIVENESS, not pipeline success — stamp this before
+            # any parsing/DB work so a message that later fails ingest still
+            # counts as evidence the connection is alive.
+            _state["last_message_at"] = datetime.now(timezone.utc)
             text = event.message.message or ""
             if not text.strip():
                 return
@@ -231,16 +242,22 @@ async def _run_listener_once(backfill: bool, run_state: dict) -> None:
             # If the post is a forward, capture the ORIGINAL post id (+ origin
             # channel id) for repost dedup — see fusion.py::_origin_keys.
             fwd, fwd_channel = _fwd_origin(event.message)
-            async with SessionLocal() as s:
-                results = await _ingest_one(
-                    s, role=role, text=text, when=event.message.date,
-                    source_id=source_id, message_id=event.message.id,
-                    matcher=matcher, forwarded_from_id=fwd,
-                    forwarded_from_channel_id=fwd_channel,
-                    reply_to_message_id=_reply_to_id(event.message),
-                )
-                await broadcast_results(s, results)
-            _state["last_message_at"] = datetime.now(timezone.utc)
+            try:
+                async with SessionLocal() as s:
+                    results = await _ingest_one(
+                        s, role=role, text=text, when=event.message.date,
+                        source_id=source_id, message_id=event.message.id,
+                        matcher=matcher, forwarded_from_id=fwd,
+                        forwarded_from_channel_id=fwd_channel,
+                        reply_to_message_id=_reply_to_id(event.message),
+                    )
+                    await broadcast_results(s, results)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                # A poison message must not kill Telethon's event dispatcher —
+                # that would silently stop the WHOLE feed, not just this message.
+                log.exception("live ingest failed on message_id=%s", event.message.id)
 
         titles = [getattr(e, "title", _source_key(e)) for e in entities]
         log.info("telegram listener connected; monitoring: %s", titles)

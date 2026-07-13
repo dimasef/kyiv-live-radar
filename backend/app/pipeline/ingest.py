@@ -10,6 +10,7 @@ history through an improved parser/gazetteer.
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -33,6 +34,8 @@ from ..models import Notice, RawMessage, Threat, ThreatEvent
 from ..parsing import DistrictHit, DistrictMatcher, ParseResult, normalize, parse_message
 from ..parsing.alert_parser import parse_alert_message
 from .results import Broadcast
+
+log = logging.getLogger("tracking")
 
 # Serialize ingestion: concurrent inbound messages sharing one open track would
 # otherwise race (split tracks, wrong corroboration, SQLite "database is locked").
@@ -414,6 +417,7 @@ async def _handle_impact(ctx: IngestContext) -> list[Broadcast]:
         )
         session.add(track)
         await session.commit()
+        log.info("track %s created (kind=impact, target_type=%s)", track.id, track.target_type)
     else:
         track.target_type = _upgrade_type(track.target_type, parsed.target_type)
     impacts: list[Broadcast] = []
@@ -453,6 +457,7 @@ async def _handle_citywide(ctx: IngestContext) -> list[Broadcast]:
                        target_count=parsed.target_count or 1, scope="city")
         session.add(track)
         await session.commit()
+        log.info("track %s created (scope=city, target_type=%s)", track.id, track.target_type)
     else:
         track.target_type = _upgrade_type(track.target_type, parsed.target_type)
         if parsed.status != "unconfirmed":
@@ -493,6 +498,7 @@ async def _handle_sighting(ctx: IngestContext) -> list[Broadcast]:
                        target_count=parsed.target_count or 1)
         session.add(track)
         await session.commit()
+        log.info("track %s created (target_type=%s)", track.id, track.target_type)
     else:
         track.target_type = _upgrade_type(track.target_type, parsed.target_type)
         if parsed.status != "unconfirmed":

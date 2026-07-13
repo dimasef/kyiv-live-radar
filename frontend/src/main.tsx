@@ -2,7 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 
 import App from './App'
-import ChangelogPage from './components/ChangelogPage'
+import ChangelogPage from './components/changelog/ChangelogPage'
 import { CHANGELOG_PATH, useRoute } from './router'
 import './i18n'
 import './index.css'

@@ -2,10 +2,9 @@ import { ChevronDown, SlidersHorizontal } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { safeGet, safeSet, STORAGE_KEYS } from '../../lib/storage'
 import HomeControl from './HomeControl'
 import VersionInfo from './VersionInfo'
-
-const OPEN_KEY = 'klr-settings-open'
 
 interface Props {
   /** Sheet context: start expanded (the user opened the tab intentionally). */
@@ -16,11 +15,11 @@ interface Props {
 export default function SettingsPanel({ defaultOpen = false }: Props) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(
-    () => localStorage.getItem(OPEN_KEY) === '1' || defaultOpen,
+    () => safeGet(STORAGE_KEYS.settingsOpen) === '1' || defaultOpen,
   )
 
   const toggle = () => {
-    localStorage.setItem(OPEN_KEY, open ? '0' : '1')
+    safeSet(STORAGE_KEYS.settingsOpen, open ? '0' : '1')
     setOpen(!open)
   }
 

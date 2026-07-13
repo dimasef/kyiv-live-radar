@@ -17,13 +17,14 @@ import {
   useMapEvents,
 } from 'react-leaflet'
 
-import { hasMovement, headingOf, trackPoints } from '../geo'
-import { useRadar } from '../store'
-import { threatColor } from '../theme'
-import { DIRECTIONAL, type ThreatState, type ThreatType, threatDivIcon } from '../threatIcons'
-import type { Threat } from '../types'
-import { notableIncident } from './IncidentBanner'
+import { useRadar } from '../../store'
+import { CorroborationLine, CountBadge, threatState, typeLabel } from '../../threatDisplay'
+import { HOME_COLOR, threatColor } from '../../theme'
+import { DIRECTIONAL, threatDivIcon } from '../../threatIcons'
+import type { Threat } from '../../types'
+import { notableIncident } from '../banners/IncidentBanner'
 import MapLegend from './MapLegend'
+import { hasMovement, headingOf, trackPoints } from './track'
 
 const KYIV_CENTER: [number, number] = [50.4501, 30.5234]
 
@@ -43,7 +44,7 @@ const homeIcon = L.divIcon({
   className: 'home-marker',
   html: `<svg width="22" height="22" viewBox="0 0 24 24" style="filter:drop-shadow(0 0 6px rgba(56,189,248,.6))">
     <path d="M12 3 L21 11 L18 11 L18 20 L14 20 L14 14 L10 14 L10 20 L6 20 L6 11 L3 11 Z"
-      fill="#38bdf8" stroke="#0b0f14" stroke-width="1"/></svg>`,
+      fill="${HOME_COLOR}" stroke="#0b0f14" stroke-width="1"/></svg>`,
   iconSize: [22, 22],
   iconAnchor: [11, 11],
 })
@@ -114,6 +115,7 @@ function InspectController() {
 function ThreatPopup({ threat }: { threat: Threat }) {
   const { t } = useTranslation()
   const color = threatColor(threat)
+  const label = typeLabel(threat, t)
   const sources = Array.from(
     new Set(threat.events.map((e) => e.source_name).filter(Boolean)),
   )
@@ -131,29 +133,26 @@ function ThreatPopup({ threat }: { threat: Threat }) {
               flex: 'none',
             }}
           />
-          {!(threat.status === 'impact' && threat.target_type === 'unknown') && (
-            <b style={{ fontSize: 13 }}>{t(`target.${threat.target_type}`)}</b>
-          )}
-          {threat.target_count > 1 && (
-            <b style={{ color: '#fbbf24', fontFamily: 'IBM Plex Mono, monospace' }}>
-              ×{threat.target_count}
-            </b>
-          )}
+          {label && <b style={{ fontSize: 13 }}>{label}</b>}
+          <CountBadge
+            count={threat.target_count}
+            as="b"
+            style={{ color: '#fbbf24', fontFamily: 'IBM Plex Mono, monospace' }}
+          />
           <span style={{ opacity: 0.6, fontFamily: 'IBM Plex Mono, monospace' }}>
             {t(`status.${threat.status}`, threat.status)}
           </span>
         </div>
-        <div
+        <CorroborationLine
+          threat={threat}
+          as="div"
           style={{
             marginTop: 4,
             opacity: 0.75,
             fontFamily: 'IBM Plex Mono, monospace',
             fontSize: 11,
           }}
-        >
-          {threat.corroboration_count} {t('log.corroboration')} ·{' '}
-          {Math.round(threat.confidence * 100)}% {t('log.confidence')}
-        </div>
+        />
         {threat.has_conflict && (
           <div style={{ color: '#fb923c', fontWeight: 600, marginTop: 3 }}>
             ⚠ {t('log.conflict')}
@@ -190,20 +189,13 @@ const ThreatLayer = memo(function ThreatLayer({
   // multi-district message is an enumeration, not a trajectory (see hasMovement).
   const moved = hasMovement(threat)
   const heading = moved ? headingOf(threat) : null
-  const type = threat.target_type as ThreatType
+  const type = threat.target_type
 
   // Head-marker state: influences SHAPE. A hit bursts; a shot-down/lost track is
   // struck through; a moving track points along its heading; a single sighting
   // of a DIRECTIONAL type (heading unknown) is an honest dot — a non-directional
   // type (ballistic/unknown) shows its glyph even without a heading.
-  const state: ThreatState =
-    threat.status === 'impact'
-      ? 'impact'
-      : threat.status === 'destroyed' || threat.status === 'lost'
-        ? 'destroyed'
-        : heading == null && DIRECTIONAL[type]
-          ? 'fix'
-          : 'active'
+  const state = threatState(threat, { heading, directional: DIRECTIONAL[type] })
 
   const pulse = useMemo(() => pulseIcon(color), [color])
   const headIcon = useMemo(
@@ -308,9 +300,7 @@ function InspectBadge() {
         />
         <span className="whitespace-nowrap text-xs text-slate-200">
           {t('inspect.viewing')}{' '}
-          <span className="font-medium text-slate-100">
-            {t(`target.${display.target_type}`)}
-          </span>
+          <span className="font-medium text-slate-100">{typeLabel(display, t)}</span>
           {display.events.length > 0 && (
             <span className="ml-1.5 font-mono text-[10px] text-slate-500">
               · {display.events.length} {t('inspect.events')}
@@ -373,7 +363,7 @@ export default function MapView() {
             <Circle
               center={[home.lat, home.lon]}
               radius={home.radiusKm * 1000}
-              pathOptions={{ color: '#38bdf8', fillColor: '#38bdf8', fillOpacity: 0.06, weight: 1 }}
+              pathOptions={{ color: HOME_COLOR, fillColor: HOME_COLOR, fillOpacity: 0.06, weight: 1 }}
             />
             <Marker position={[home.lat, home.lon]} icon={homeIcon}>
               <Tooltip direction="top" offset={[0, -18]}>

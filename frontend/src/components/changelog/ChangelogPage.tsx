@@ -1,8 +1,9 @@
 import { ArrowLeft, ChevronDown } from 'lucide-react'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import { APP_VERSION, CHANGELOG, SEMVER_RULES, type BumpKind } from '../changelog'
-import { navigate } from '../router'
+import { APP_VERSION, CHANGELOG, SEMVER_RULES, type BumpKind } from '../../changelog'
+import { navigate } from '../../router'
 
 const KIND_COLOR: Record<BumpKind, string> = {
   major: '#f43f5e',
@@ -19,6 +20,7 @@ function formatDate(iso: string): string {
 /** Standalone route (/change-log): version history + SemVer policy. A real page
  * so the URL can be shared. */
 export default function ChangelogPage() {
+  const { t } = useTranslation()
   const [rulesOpen, setRulesOpen] = useState(false)
 
   return (
@@ -33,12 +35,12 @@ export default function ChangelogPage() {
           className="mb-7 inline-flex items-center gap-2 text-[13px] text-slate-400 transition-colors hover:text-slate-100"
         >
           <ArrowLeft size={16} />
-          На радар
+          {t('changelog.back')}
         </a>
 
         <div className="flex items-baseline gap-3">
           <h1 className="font-display text-lg font-bold tracking-wide text-slate-100">
-            Історія версій
+            {t('changelog.title')}
           </h1>
           <span className="font-mono text-sm text-phosphor-soft">v{APP_VERSION}</span>
         </div>
@@ -52,7 +54,7 @@ export default function ChangelogPage() {
             className="flex w-full items-center justify-between gap-2 p-4 text-left"
           >
             <span className="text-[10px] uppercase tracking-wider text-slate-500">
-              Як рахуємо версію · MAJOR.MINOR.PATCH
+              {t('changelog.semverRules')}
             </span>
             <ChevronDown
               size={14}

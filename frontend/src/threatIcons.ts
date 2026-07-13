@@ -8,14 +8,14 @@
 import L from 'leaflet'
 
 import { TYPE_COLORS } from './theme'
+import type { TargetType } from './types'
 
-export type ThreatType = 'shahed' | 'jet_drone' | 'missile' | 'ballistic' | 'unknown'
 // active = рухома голова треку (гліф, повертається за азимутом); fix = одиночна
 // фіксація без напрямку (крапка); impact = влучання (гліф + спалах); destroyed =
 // збита/пропала (гліф + перекреслення, колір сірий).
 export type ThreatState = 'active' | 'fix' | 'impact' | 'destroyed'
 
-export const THREAT_PATHS: Record<ThreatType, string> = {
+export const THREAT_PATHS: Record<TargetType, string> = {
   // Дельта-крило з виступаючим носом і кілями на кінчиках (Shahed-136, вид зверху)
   shahed:
     'M12 1 C13.1 1 13.6 2 13.6 3.2 L13.6 6.4 L21.5 19 L22 22 L20.1 22 L19.6 19.8 L4.4 19.8 L3.9 22 L2 22 L2.5 19 L10.4 6.4 L10.4 3.2 C10.4 2 10.9 1 12 1 Z',
@@ -32,7 +32,7 @@ export const THREAT_PATHS: Record<ThreatType, string> = {
   unknown: 'M12 3 L21 12 L12 21 L3 12 Z M12 7.6 L16.4 12 L12 16.4 L7.6 12 Z',
 }
 
-export const DIRECTIONAL: Record<ThreatType, boolean> = {
+export const DIRECTIONAL: Record<TargetType, boolean> = {
   shahed: true,
   jet_drone: true,
   missile: true,
@@ -48,7 +48,7 @@ interface GlyphOpts {
 }
 
 /** Чистий SVG-рядок гліфа — для стрічки (inline) та для divIcon. */
-export function threatGlyphSvg(type: ThreatType, opts: GlyphOpts = {}): string {
+export function threatGlyphSvg(type: TargetType, opts: GlyphOpts = {}): string {
   const { size = 26, state = 'active', bearingDeg = 0 } = opts
   const color = opts.color ?? TYPE_COLORS[type]
   const rot = DIRECTIONAL[type] ? bearingDeg : 0
@@ -93,7 +93,7 @@ interface IconOpts {
 }
 
 /** Leaflet divIcon для мапи. Колір передається ззовні (тип, або сірий якщо збито). */
-export function threatDivIcon(type: ThreatType, opts: IconOpts = {}): L.DivIcon {
+export function threatDivIcon(type: TargetType, opts: IconOpts = {}): L.DivIcon {
   const { state = 'active', bearingDeg = 0, color, size = 26 } = opts
   const html =
     state === 'fix'

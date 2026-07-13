@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from ..config import settings
 from ..models import ThreatEvent
 
 
@@ -94,12 +95,12 @@ def compute_fusion(events: Iterable[ThreatEvent]) -> FusionResult:
     has_conflict = len(claimed) > 1
 
     if corroboration <= 1:
-        base = 0.5
+        base = settings.fusion_conf_one_source
     elif corroboration == 2:
-        base = 0.75
+        base = settings.fusion_conf_two_sources
     else:
-        base = 0.9
+        base = settings.fusion_conf_three_plus_sources
     if has_conflict:
-        base -= 0.2
+        base -= settings.fusion_conflict_penalty
 
     return FusionResult(corroboration, has_conflict, round(max(0.1, base), 2))

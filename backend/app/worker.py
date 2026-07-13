@@ -12,13 +12,13 @@ run the listener inside the api via TELEGRAM_ENABLED=true instead.
 from __future__ import annotations
 
 import asyncio
-import logging
 
 from .feeds.telegram import run_listener
+from .logging_setup import setup_logging
 from .migrate import upgrade_to_head
 from .seed import seed_districts, seed_sources
 
-logging.basicConfig(level=logging.INFO)
+setup_logging()
 
 
 async def main() -> None:

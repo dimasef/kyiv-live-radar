@@ -2,11 +2,22 @@ import type { TargetType, Threat } from './types'
 
 export const STATUS_COLORS = {
   confirmed: '#ef4444',
-  unconfirmed: '#eab308',
   destroyed: '#6b7280',
   clear: '#22c55e',
   conflict: '#f97316',
   impact: '#d946ef',
+} as const
+
+/** The user's "home" marker/circle color — the map's home icon/circle, the
+ * legend's home swatch, and the feed's non-clear info-notice accent. */
+export const HOME_COLOR = '#38bdf8'
+
+/** IncidentBanner's severity accent: ballistic gets the same red as a
+ * confirmed sighting; every other notable attack type gets the same orange
+ * as a fusion conflict — reusing the shared palette rather than one-off hex. */
+export const INCIDENT_SEVERITY_COLOR = {
+  ballistic: STATUS_COLORS.confirmed,
+  other: STATUS_COLORS.conflict,
 } as const
 
 /** Per-TYPE marker colour — the primary encoding on the map/feed: the colour

@@ -2,24 +2,19 @@ import { CheckCircle2, Crosshair, Info, RadioTower, ShieldCheck, TriangleAlert }
 import { Fragment, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useRadar } from '../store'
-import { STATUS_COLORS, threatColor } from '../theme'
-import { type ThreatState, type ThreatType, threatGlyphSvg } from '../threatIcons'
-import type { FeedEntry, Notice, Threat } from '../types'
+import { useRadar } from '../../store'
+import { CorroborationLine, CountBadge, threatState, typeLabel } from '../../threatDisplay'
+import { HOME_COLOR, STATUS_COLORS, threatColor } from '../../theme'
+import { threatGlyphSvg } from '../../threatIcons'
+import type { FeedEntry, Notice, Threat } from '../../types'
 
 /** The target-type glyph for a feed row — same family as the map, small and
  * non-rotated (an icon, not a heading). Colour = type; grey once destroyed/lost;
  * a hit bursts. */
 function TypeGlyph({ threat }: { threat: Threat }) {
-  const state: ThreatState =
-    threat.status === 'impact'
-      ? 'impact'
-      : threat.status === 'destroyed' || threat.status === 'lost'
-        ? 'destroyed'
-        : 'active'
-  const svg = threatGlyphSvg(threat.target_type as ThreatType, {
+  const svg = threatGlyphSvg(threat.target_type, {
     size: 15,
-    state,
+    state: threatState(threat),
     color: threatColor(threat),
   })
   return (
@@ -152,7 +147,7 @@ function clusterNotices(notices: Notice[]): Notice[][] {
 function renderNoticeUnit(notices: Notice[], t: (k: string) => string): ReactNode {
   const head = notices[0]
   const isClear = head.kind === 'clear'
-  const color = isClear ? STATUS_COLORS.clear : '#38bdf8'
+  const color = isClear ? STATUS_COLORS.clear : HOME_COLOR
   const Icon = isClear ? ShieldCheck : Info
   const sources = Array.from(new Set(notices.map((n) => n.source_name).filter(Boolean)))
   return (
@@ -309,21 +304,16 @@ export default function ThreatLog() {
                             {t(CLOSED_REASON_LABEL[threat.closed_reason])}
                           </span>
                         )}
-                        {!(threat.status === 'impact' && threat.target_type === 'unknown') &&
-                          t(`target.${threat.target_type}`)}
-                        {(() => {
-                          // Count KNOWN AS OF this event (running-max at the time),
-                          // not the track's final count — so an early "Ціль на
-                          // місто!" doesn't retroactively show the ×3 that only a
-                          // later "3 ракети" established. Fall back to the track's
-                          // current count for pre-column events (null).
-                          const count = event.event_target_count ?? threat.target_count
-                          return count > 1 ? (
-                            <span className="ml-1 font-mono font-semibold text-amber-300">
-                              ×{count}
-                            </span>
-                          ) : null
-                        })()}
+                        {typeLabel(threat, t)}
+                        {/* Count KNOWN AS OF this event (running-max at the time), not
+                            the track's final count — so an early "Ціль на місто!"
+                            doesn't retroactively show the ×3 that only a later "3
+                            ракети" established. Fall back to the track's current count
+                            for pre-column events (null). */}
+                        <CountBadge
+                          count={event.event_target_count ?? threat.target_count}
+                          className="ml-1 font-mono font-semibold text-amber-400"
+                        />
                       </span>
                       <EventTime iso={event.event_time} />
                     </div>
@@ -334,10 +324,10 @@ export default function ThreatLog() {
 
                     <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                       <SourceBadge name={event.source_name} t={t} />
-                      <span className="font-mono text-[10px] tabular-nums text-slate-500">
-                        {threat.corroboration_count} {t('log.corroboration')} ·{' '}
-                        {Math.round(threat.confidence * 100)}% {t('log.confidence')}
-                      </span>
+                      <CorroborationLine
+                        threat={threat}
+                        className="font-mono text-[10px] tabular-nums text-slate-500"
+                      />
                       {threat.has_conflict && (
                         <span className="flex items-center gap-1 text-[10px] font-medium text-orange-400">
                           <TriangleAlert size={10} className="flex-none" />

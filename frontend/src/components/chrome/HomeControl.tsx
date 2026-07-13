@@ -3,8 +3,8 @@ import type { CSSProperties } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { districtAt } from '../geo'
-import { useRadar } from '../store'
+import { districtAt } from '../../lib/geo'
+import { useRadar } from '../../store'
 
 /** Request the browser geolocation and set it as home (origin 'geo'). */
 export function requestGeolocation(onDenied?: () => void) {

@@ -118,5 +118,12 @@
     "radius": "Radius",
     "clear": "Reset",
     "district": "District"
+  },
+  "changelog": {
+    "back": "Back to radar",
+    "title": "Version history",
+    "semverRules": "How we count versions · MAJOR.MINOR.PATCH",
+    "version": "Version",
+    "history": "History"
   }
 }

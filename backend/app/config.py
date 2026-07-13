@@ -87,6 +87,18 @@ class Settings(BaseSettings):
     # keep them regardless — this only bounds the live map layer.
     impact_map_ttl_hours: int = 6
 
+    # --- Fusion confidence (app/domain/fusion.py::compute_fusion) — deliberately
+    #     simple skeleton weights, not empirically tuned against real multi-source
+    #     data yet (see that module's docstring). Base confidence by corroboration
+    #     count, then a flat penalty when sources disagree on target-type family. ---
+    fusion_conf_one_source: float = 0.5
+    fusion_conf_two_sources: float = 0.75
+    fusion_conf_three_plus_sources: float = 0.9
+    fusion_conflict_penalty: float = 0.2
+
+    # How often the stale-track/incident/alert sweeper runs (app/pipeline/sweeper.py).
+    sweeper_interval_s: int = 60
+
     # One-off maintenance: when true, rebuild ALL tracks/incidents from stored
     # raw_messages at startup (BEFORE the live listener starts — race-free) so a
     # prod DB picks up parser/gazetteer changes without external DB access. Set

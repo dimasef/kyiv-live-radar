@@ -14,14 +14,15 @@ import {
   fetchRecentEvents,
   fetchRecentNotices,
 } from './api'
-import AlertBanner from './components/AlertBanner'
-import DisclaimerModal, { DISCLAIMER_HIDE_KEY } from './components/DisclaimerModal'
-import IncidentBanner from './components/IncidentBanner'
-import { requestGeolocation } from './components/HomeControl'
-import LanguageSwitcher from './components/LanguageSwitcher'
-import MapView from './components/MapView'
-import SettingsPanel from './components/SettingsPanel'
-import ThreatLog from './components/ThreatLog'
+import AlertBanner from './components/banners/AlertBanner'
+import IncidentBanner from './components/banners/IncidentBanner'
+import DisclaimerModal from './components/chrome/DisclaimerModal'
+import { requestGeolocation } from './components/chrome/HomeControl'
+import LanguageSwitcher from './components/chrome/LanguageSwitcher'
+import SettingsPanel from './components/chrome/SettingsPanel'
+import ThreatLog from './components/feed/ThreatLog'
+import MapView from './components/map/MapView'
+import { safeGet, STORAGE_KEYS } from './lib/storage'
 import { useRadar } from './store'
 import { connectWS } from './ws'
 
@@ -47,7 +48,7 @@ export default function App() {
   // Safety disclaimer: modal on load unless the user opted out; always
   // reachable again via the header warning button.
   const [showDisclaimer, setShowDisclaimer] = useState(
-    () => localStorage.getItem(DISCLAIMER_HIDE_KEY) !== '1',
+    () => safeGet(STORAGE_KEYS.disclaimerHide) !== '1',
   )
 
   // Mobile bottom sheet: expanded + which tab is shown.

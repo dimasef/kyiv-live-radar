@@ -12,10 +12,11 @@ from .api.ws import manager
 from .config import settings
 from .feeds.health import feed_health, get_status
 from .feeds.simulator import run_simulator
+from .logging_setup import setup_logging
 from .migrate import upgrade_to_head
 from .seed import seed_districts, seed_sources
 
-logging.basicConfig(level=logging.INFO)
+setup_logging()
 log = logging.getLogger("app")
 
 
@@ -104,4 +105,5 @@ async def ws_threats(ws: WebSocket):
     except WebSocketDisconnect:
         await manager.disconnect(ws)
     except Exception:
+        log.exception("ws_threats connection dropped unexpectedly")
         await manager.disconnect(ws)

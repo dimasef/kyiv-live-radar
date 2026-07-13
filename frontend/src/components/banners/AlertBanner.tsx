@@ -2,7 +2,7 @@ import { ShieldAlert, ShieldCheck } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useRadar } from '../store'
+import { useRadar } from '../../store'
 
 // How long the green "відбій" state lingers before disappearing — mirrors the
 // store's CLOSED_LINGER_MS pattern for closed tracks (a brief, noticeable

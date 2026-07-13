@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
 from fastapi import WebSocket
 
 from ..schemas import WSMessage
+
+log = logging.getLogger("ws")
 
 
 class ConnectionManager:
@@ -35,7 +38,8 @@ class ConnectionManager:
         for ws in targets:
             try:
                 await ws.send_json(payload)
-            except Exception:
+            except Exception as ex:
+                log.info("dropping dead WS client: %s", ex)
                 dead.append(ws)
         if dead:
             async with self._lock:

@@ -10,6 +10,7 @@ api/routes.py), not stored here.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta
 
 from sqlalchemy import select
@@ -17,6 +18,8 @@ from sqlalchemy.orm import selectinload
 
 from ..config import settings
 from ..models import Alert, Incident, Threat
+
+log = logging.getLogger("incidents")
 
 # Target-type severity — an incident is labelled by its most dangerous member.
 _SEVERITY = {"unknown": 0, "shahed": 1, "jet_drone": 2, "missile": 3, "ballistic": 4}
@@ -71,6 +74,7 @@ async def attach_to_incident(
         )
         session.add(inc)
         await session.commit()
+        log.info("incident %s started (target_type=%s)", inc.id, inc.target_type)
     threat.incident_id = inc.id
     inc.target_type = _more_severe(inc.target_type, threat.target_type)
     if threat.target_type != "unknown" and threat.target_type not in inc.attack_types:
@@ -98,6 +102,7 @@ async def end_active_incidents(session, when: datetime, ended_reason: str) -> li
     for inc in incs:
         inc.ended_at = when
         inc.ended_reason = ended_reason
+        log.info("incident %s ended (reason=%s)", inc.id, ended_reason)
     if incs:
         await session.commit()
     return incs
@@ -113,6 +118,7 @@ async def close_stale_incidents(session, now: datetime, minutes: int) -> list[In
         if not _within(inc.last_activity_at, now, stale_gap):
             inc.ended_at = now
             inc.ended_reason = "stale"
+            log.info("incident %s ended (reason=stale)", inc.id)
             ended.append(inc)
     if ended:
         await session.commit()
