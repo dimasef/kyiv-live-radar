@@ -17,3 +17,6 @@ frontend/.env.local
 .DS_Store
 .idea/
 .vscode/
+
+# Claude Code planning docs (local working notes, not project history)
+.claude/plans/
