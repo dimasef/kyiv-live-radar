@@ -163,6 +163,18 @@ function ThreatPopup({ threat }: { threat: Threat }) {
             {sources.join(', ')}
           </div>
         )}
+        {import.meta.env.DEV && (
+          <div
+            style={{
+              marginTop: 4,
+              fontSize: 10,
+              opacity: 0.45,
+              fontFamily: 'IBM Plex Mono, monospace',
+            }}
+          >
+            T{threat.id}
+          </div>
+        )}
       </div>
     </Popup>
   )

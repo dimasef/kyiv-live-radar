@@ -137,7 +137,7 @@ export default function App() {
 
       <main className="relative flex-1 min-h-0 lg:flex">
         {/* Map fills everything; on mobile the sheet floats above it. */}
-        <div className="absolute inset-0 lg:static lg:flex-1 lg:min-w-0">
+        <div className="absolute inset-0 lg:relative lg:flex-1 lg:min-w-0">
           <MapView />
           <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex flex-col items-center gap-2 px-3 pt-3">
             <AlertBanner />
