@@ -408,13 +408,53 @@ def test_lost_signal_does_not_override_destroyed():
 
 def test_waiting_for_all_clear_is_not_a_clear():
     # "Чекаємо/очікуємо відбій" ANTICIPATES the all-clear — must NOT read as a
-    # clear (which would prematurely close every open track).
+    # clear (which would prematurely close every open track). The скоро/надія/
+    # очікується forms are real-attack examples that slipped through before.
     for txt in ["Чекаємо на відбій", "Очікуємо відбій",
-                "Якщо надалі спокійно — очікуватимемо відбій"]:
+                "Якщо надалі спокійно — очікуватимемо відбій",
+                "Скоріш за все скоро відбій",
+                "Є надія на відбій у Києві, тримаємо",
+                "В області очікується відбій також",
+                "Очікуватимемо на відбій тривоги найближчим часом"]:
         assert parse_message(txt, M).status != "clear", txt
     # A real all-clear still clears.
-    for txt in ["Дали відбій нарешті", "Відбій тривоги та загрози від балістики"]:
+    for txt in ["Дали відбій нарешті", "Відбій тривоги та загрози від балістики",
+                "Все, в області відбій", "По балістиці відбій"]:
         assert parse_message(txt, M).status == "clear", txt
+
+
+def test_past_strike_aggregate_is_a_summary_not_a_live_target():
+    # "6 балістичних ВДАРИЛО по Києву" recaps what already hit (aggregate, past,
+    # no raion) — a summary, not 6 live incoming ballistic targets.
+    for txt in ["⏺ Близько 6 балістичних ракет вдарило по Києву, можуть повторно пустити",
+                "Вночі всі 30 балістичних ракет вдарили по будинках"]:
+        r = parse_message(txt, M)
+        assert r.summary and not r.matched, txt
+    # But a DISTRICT-bearing single strike stays a live impact/sighting — the
+    # has_district gate must keep "вдарила по Троєщині" out of summary.
+    r = parse_message("Ракета вдарила по Троєщині, приліт", M)
+    assert not r.summary and r.matched and names(r) == ["Троєщина"]
+
+
+def test_post_strike_fire_is_aftermath():
+    # Burning-verb aftermath ("горять/вигорілі") — post-strike fire, not a target.
+    for txt in ["В Дарницькому районі горять автомобілі",
+                "⏺На Соломі горять офіси після російського удару",
+                "У Дарницькому районі горить трансформаторна підстанція"]:
+        r = parse_message(txt, M)
+        assert r.aftermath and not r.matched and r.districts == [], txt
+    # "Вишгород" must NOT trip the burning stems (no згорі/горіл collision).
+    assert parse_message("10 БПЛА на Вишгород", M).matched
+
+
+def test_link_bearing_message_is_promo_not_a_sighting():
+    # A URL means promo/donation/ad/meta — never a live spotter sighting.
+    for txt in ["Друзі, створив ракетний канал по Києву https://t.me/kyiv_allerts",
+                "Ймовірно була фальш ціль. https://t.me/Kyiaradar/2772 — пояснення"]:
+        r = parse_message(txt, M)
+        assert r.promo and not r.matched, txt
+    # A real sighting with no link is untouched.
+    assert parse_message("2 шахеди на Троєщину", M).matched
 
 
 def test_retrospective_footage_is_not_a_live_impact():

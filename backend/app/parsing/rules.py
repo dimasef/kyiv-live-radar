@@ -35,6 +35,7 @@ from .vocab import (
     _HYPERSONIC,
     _IMPACT,
     _JET,
+    _LINK_MARKERS,
     _LOST_WORD,
     _MASC_ONE_RE,
     _MISSILE,
@@ -47,6 +48,7 @@ from .vocab import (
     _SHAHED,
     _SIREN_WORD,
     _SUMMARY,
+    _SUMMARY_NO_DISTRICT,
     _THREAT_CONTEXT,
     _UNCONFIRMED,
     _UNSCOPED_CLEAR_WORD,
@@ -78,6 +80,9 @@ class ParseResult:
     raw_text: str = ""
     matched: bool = field(default=False)
     aftermath: bool = field(default=False)
+    # A link-bearing promo/donation/ad/meta message ("створив ракетний канал…
+    # https://t.me/…") — suppressed like aftermath (impact/clear/destroyed win).
+    promo: bool = field(default=False)
     # A localized confirmed strike ("влучання ... в Дніпровському районі") — a
     # terminal marker to place on the map, NOT an active inbound target. Keeps
     # its district (unlike aftermath, which suppresses).
@@ -294,12 +299,33 @@ def _lost_signal(norm: str, districts, status: str) -> bool:
     return _LOST_WORD in norm and not districts and status not in ("clear", "destroyed")
 
 
-def _summary(norm: str, target_type: str) -> bool:
+def _summary(norm: str, target_type: str, has_district: bool) -> bool:
     """Retrospective summary of the whole attack (aggregate/past-frame count) —
     info, not a live target. Blocks the city-alert / track it would otherwise
-    raise. Only meaningful on a threat-flavoured message."""
-    return any(k in norm for k in _SUMMARY) and (
-        target_type != "unknown" or any(w in norm for w in _THREAT_CONTEXT)
+    raise. Only meaningful on a threat-flavoured message.
+
+    `_SUMMARY_NO_DISTRICT` markers (past-strike "вдарил") count only when NO
+    raion is named: "6 балістичних вдарило по Києву" is a citywide recap, but
+    a district-bearing "ракета вдарила по Троєщині" must stay a live impact."""
+    if not (target_type != "unknown" or any(w in norm for w in _THREAT_CONTEXT)):
+        return False
+    if any(k in norm for k in _SUMMARY):
+        return True
+    if not has_district and any(k in norm for k in _SUMMARY_NO_DISTRICT):
+        return True
+    return False
+
+
+def _promo(norm: str, status: str, impact: bool) -> bool:
+    """A message carrying a URL is promo / donation / channel-boost / ad / meta,
+    never a live target callout — a spotter's sighting never links out (validated
+    against the real corpus: zero link-bearing sightings). Suppress it like
+    aftermath: a real clear/destroyed keyword or a confirmed impact in the same
+    message still wins."""
+    return (
+        any(m in norm for m in _LINK_MARKERS)
+        and status not in ("clear", "destroyed")
+        and not impact
     )
 
 
@@ -345,7 +371,7 @@ def _target_pulse(districts, citywide: bool, status: str, norm: str, aftermath: 
 
 
 def _matched(districts, citywide: bool, status: str, aftermath: bool, negated: bool,
-             siren_only: bool, political_quote: bool, ad_action: bool) -> bool:
+             siren_only: bool, political_quote: bool, ad_action: bool, promo: bool) -> bool:
     """No district and no actionable status -> nothing structured to record."""
     return (
         (bool(districts) or citywide or status in ("clear", "destroyed"))
@@ -354,6 +380,7 @@ def _matched(districts, citywide: bool, status: str, aftermath: bool, negated: b
         and not siren_only
         and not political_quote
         and not ad_action
+        and not promo
     )
 
 
@@ -381,15 +408,16 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
         conf = min(conf, 0.35)
     political_quote = _political_quote(target_type, status, districts, norm)
     lost_signal = _lost_signal(norm, districts, status)
-    summary = _summary(norm, target_type)
+    summary = _summary(norm, target_type, bool(districts))
+    promo = _promo(norm, status, impact)
     citywide = _citywide(districts, status, norm, aftermath, negated, siren_only,
                          political_quote, lost_signal, summary, ad_action)
     target_pulse = _target_pulse(districts, citywide, status, norm, aftermath, negated,
                                  siren_only, political_quote, lost_signal, summary, ad_action)
     matched = _matched(districts, citywide, status, aftermath, negated, siren_only,
-                       political_quote, ad_action)
+                       political_quote, ad_action, promo)
 
-    if aftermath or negated or siren_only or political_quote or ad_action:
+    if aftermath or negated or siren_only or political_quote or ad_action or promo:
         districts = []
     # Confidence drops when we can't localize the target.
     if not districts and status not in ("clear",):
@@ -405,6 +433,7 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
         raw_text=text,
         matched=matched,
         aftermath=aftermath,
+        promo=promo,
         impact=impact,
         negated=negated,
         siren_only=siren_only,

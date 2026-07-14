@@ -64,3 +64,8 @@
 {"text": "На Чернігівщині ще 2х реактивних, 5/8 хвилин до області, якщо по прямій.", "target_type": "jet_drone", "status": "active", "is_new_target": false, "districts": [], "negated": false}
 {"text": "❗️Знову можуть бути вибухи до тривоги! Росія готує удар балістикою С-400 по Києву в цю та наступну добу. Вночі моментально реагуємо на тривоги та слідкуємо за нашими повідомленнями! ППО - КИЇВ🇺🇦", "target_type": "ballistic", "status": "active", "is_new_target": false, "districts": [], "negated": true}
 {"text": "🔴 ракета потрапила до дев'ятиповерхового будинку на Подолі: у Києві вже 7 загиблих та 24 поранених. Частково зруйнований житловий будинок у Подільському районі, під завалами можуть бути люди; Приліт БПЛА по ЖК «Варшавський»", "target_type": "missile", "status": "active", "is_new_target": false, "districts": ["Podilskyi"], "negated": false}
+{"text": "⏺ Близько 6 балістичних ракет вдарило по Києву, увага, можуть повторно пустити", "target_type": "ballistic", "status": "active", "is_new_target": false, "districts": []}
+{"text": "В Дарницькому районі горять автомобілі", "target_type": "unknown", "status": "active", "is_new_target": false, "districts": []}
+{"text": "Скоріш за все скоро відбій", "target_type": "unknown", "status": "active", "is_new_target": false, "districts": []}
+{"text": "Друзі, створив ракетний канал по Києву, тут лише про ракети https://t.me/kyiv_allerts", "target_type": "missile", "status": "active", "is_new_target": false, "districts": []}
+{"text": "Ракета вдарила по Троєщині, приліт", "target_type": "missile", "status": "active", "is_new_target": false, "districts": ["Troieshchyna"]}
