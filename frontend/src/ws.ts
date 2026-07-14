@@ -41,6 +41,9 @@ export function connectWS() {
 
   const scheduleReconnect = () => {
     useRadar.getState().setConnected(false)
+    // Headcount is meaningless while we're not connected — clear it so the
+    // header doesn't show a stale number until the next 'online' frame.
+    useRadar.getState().setOnline(null)
     socket = null
     retry = Math.min(retry + 1, 6)
     clearReconnect()

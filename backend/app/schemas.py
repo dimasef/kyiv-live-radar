@@ -163,7 +163,7 @@ class AlertOut(BaseModel):
 class WSMessage(BaseModel):
     """Envelope broadcast over the WebSocket."""
 
-    type: str  # 'event' | 'status' | 'notice' | 'alert' | 'attack' | 'health' | 'hello'
+    type: str  # 'event' | 'status' | 'notice' | 'alert' | 'attack' | 'health' | 'online' | 'hello'
     threat: Optional[ThreatOut] = None
     event: Optional[ThreatEventOut] = None
     notice: Optional[NoticeOut] = None
@@ -172,3 +172,5 @@ class WSMessage(BaseModel):
     # 'health' frame payload: whether the live Telegram feed looks healthy —
     # see telegram_listener.py::feed_health.
     feed_ok: Optional[bool] = None
+    # 'online' frame payload: how many WS clients are currently connected.
+    online: Optional[int] = None

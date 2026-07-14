@@ -1,5 +1,5 @@
 import { Analytics } from '@vercel/analytics/react'
-import { ChevronUp, Wifi, WifiOff } from 'lucide-react'
+import { ChevronUp, Eye, Wifi, WifiOff } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,8 +14,8 @@ import {
   fetchRecentEvents,
   fetchRecentNotices,
 } from './api'
-import AlertBanner from './components/banners/AlertBanner'
-import IncidentBanner from './components/banners/IncidentBanner'
+import StatusBanner from './components/banners/StatusBanner'
+import InspectBadge from './components/map/InspectBadge'
 import DisclaimerModal from './components/chrome/DisclaimerModal'
 import { requestGeolocation } from './components/chrome/HomeControl'
 import LanguageSwitcher from './components/chrome/LanguageSwitcher'
@@ -35,6 +35,7 @@ export default function App() {
   const { t } = useTranslation()
   const connected = useRadar((s) => s.connected)
   const feedOk = useRadar((s) => s.feedOk)
+  const online = useRadar((s) => s.online)
   const placingHome = useRadar((s) => s.placingHome)
   const inspectedThreatId = useRadar((s) => s.inspectedThreat?.id)
   const setDistricts = useRadar((s) => s.setDistricts)
@@ -101,6 +102,15 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
+          {online != null && online > 0 && (
+            <span
+              className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-mono tabular-nums text-slate-300"
+              title={t('presence.watching')}
+            >
+              <Eye size={13} className="flex-none text-phosphor-soft" />
+              {online}
+            </span>
+          )}
           <div className="group relative">
             <button
               type="button"
@@ -142,8 +152,8 @@ export default function App() {
         <div className="absolute inset-0 lg:relative lg:flex-1 lg:min-w-0">
           <MapView />
           <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex flex-col items-center gap-2 px-3 pt-3">
-            <AlertBanner />
-            <IncidentBanner />
+            <StatusBanner />
+            <InspectBadge />
           </div>
         </div>
 

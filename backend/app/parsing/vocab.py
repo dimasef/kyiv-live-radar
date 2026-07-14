@@ -149,6 +149,20 @@ _IMPACT = ("влучанн", "приліт", "пошкодж", "зруйнов")
 _RETROSPECTIVE = ("на відео", "останньої атаки", "минулої атаки", "нічної атаки",
                   "вчорашн", "минулої ночі")
 
+# --- Power-grid / utility-outage vocabulary. A blackout notice ("тимчасово
+# немає світла через аварійне пошкодження, енергетики відновлюють
+# електропостачання") names districts and says "пошкодж" — but that's grid
+# damage, not a missile strike. Without it, `_impact` reads the outage as a
+# confirmed hit (пошкодж + district) and pins a phantom impact marker. Blocks
+# the impact reading UNLESS an unambiguous strike word (влучанн/приліт) is also
+# present, so a real "внаслідок влучання знеструмлено підстанцію" still counts.
+# Stems are grid-specific (not bare "світл") to avoid eating genuine building
+# strikes that merely mention lights. ---
+_POWER_OUTAGE = ("електропостачанн", "електроенерг", "електромереж", "енергетик",
+                 "енергооб", "знеструмл", "підстанці", "обленерго", "дтек",
+                 "аварійне пошкодж", "немає світл", "нема світл", "без світл",
+                 "зникло світл", "відключенн світл")
+
 # --- Explicit denial that a target is at/heading to a place ("Не йде на
 # Оболонь", "без загроз для Борисполя"). Curated phrases (not bare "не" — that
 # would also swallow "не підтверджено" = unconfirmed, a different status

@@ -108,7 +108,7 @@ export interface Alert {
 }
 
 export interface WSMessage {
-  type: 'event' | 'status' | 'notice' | 'alert' | 'attack' | 'health' | 'hello'
+  type: 'event' | 'status' | 'notice' | 'alert' | 'attack' | 'health' | 'online' | 'hello'
   threat?: Threat
   event?: ThreatEvent
   notice?: Notice
@@ -116,6 +116,8 @@ export interface WSMessage {
   incident?: Incident
   /** 'health' frame payload — whether the live Telegram feed looks healthy. */
   feed_ok?: boolean | null
+  /** 'online' frame payload — how many clients are watching right now. */
+  online?: number | null
 }
 
 /** GET /health — process status, not pushed over WS (see WSMessage's

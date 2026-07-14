@@ -69,3 +69,4 @@
 {"text": "Скоріш за все скоро відбій", "target_type": "unknown", "status": "active", "is_new_target": false, "districts": []}
 {"text": "Друзі, створив ракетний канал по Києву, тут лише про ракети https://t.me/kyiv_allerts", "target_type": "missile", "status": "active", "is_new_target": false, "districts": []}
 {"text": "Ракета вдарила по Троєщині, приліт", "target_type": "missile", "status": "active", "is_new_target": false, "districts": ["Troieshchyna"]}
+{"text": "У частині Подільського та Оболонського районів Києва тимчасово немає світла через аварійне пошкодження. Енергетики працюють над відновленням електропостачання", "target_type": "unknown", "status": "active", "is_new_target": false, "districts": []}

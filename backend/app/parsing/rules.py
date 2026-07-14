@@ -42,6 +42,7 @@ from .vocab import (
     _NEGATION,
     _NEW_TARGET,
     _NEW_TARGET_COUNT_RE,
+    _POWER_OUTAGE,
     _PULSE_WORD,
     _QUOTE_ATTRIBUTION_RE,
     _RETROSPECTIVE,
@@ -202,12 +203,19 @@ def _impact(districts, norm: str, status: str) -> bool:
     """Impact / localized strike ("влучання по будівлі в Дніпровському районі"):
     a confirmed hit whose LOCATION we map as a terminal marker. Needs a
     district; a destroyed/clear keyword is a stronger, more specific status
-    and wins over an impact reading."""
+    and wins over an impact reading. A power-outage notice ("аварійне
+    пошкодження ... немає світла") also says "пошкодж" but that's grid damage —
+    blocked unless an unambiguous strike word (влучанн/приліт) is also present,
+    so it falls back to plain aftermath suppression."""
+    grid_only = any(k in norm for k in _POWER_OUTAGE) and not any(
+        k in norm for k in ("влучанн", "приліт")
+    )
     return (
         bool(districts)
         and any(k in norm for k in _IMPACT)
         and status not in ("clear", "destroyed")
         and not any(k in norm for k in _RETROSPECTIVE)
+        and not grid_only
     )
 
 

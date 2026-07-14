@@ -21,14 +21,24 @@ class ConnectionManager:
         self._clients: set[WebSocket] = set()
         self._lock = asyncio.Lock()
 
+    @property
+    def online(self) -> int:
+        return len(self._clients)
+
     async def connect(self, ws: WebSocket) -> None:
         await ws.accept()
         async with self._lock:
             self._clients.add(ws)
+        # New client gets the live headcount immediately; everyone else sees it grow.
+        await self._broadcast_online()
 
     async def disconnect(self, ws: WebSocket) -> None:
         async with self._lock:
             self._clients.discard(ws)
+        await self._broadcast_online()
+
+    async def _broadcast_online(self) -> None:
+        await self.broadcast(WSMessage(type="online", online=self.online))
 
     async def broadcast(self, message: WSMessage) -> None:
         payload = message.model_dump(mode="json")

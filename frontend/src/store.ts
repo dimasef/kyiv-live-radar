@@ -44,6 +44,9 @@ interface RadarState {
    * applicable (Telegram not configured / simulator mode). Distinct from
    * `connected` (the browser's own WS link to this backend). */
   feedOk: boolean | null
+  /** How many clients are watching right now — WS headcount pushed by the
+   * backend on every connect/disconnect. null until the first frame arrives. */
+  online: number | null
   home: Home | null
   /** When true, the next map click sets home (otherwise clicks just pan). */
   placingHome: boolean
@@ -65,6 +68,7 @@ interface RadarState {
   setNotices: (n: Notice[]) => void
   setConnected: (c: boolean) => void
   setFeedOk: (v: boolean | null) => void
+  setOnline: (n: number | null) => void
   setHome: (h: Home | null) => void
   setHomeRadius: (radiusKm: number) => void
   setPlacingHome: (v: boolean) => void
@@ -88,6 +92,7 @@ export const useRadar = create<RadarState>((set, get) => ({
   notices: [],
   connected: false,
   feedOk: null,
+  online: null,
   home: loadHome(),
   placingHome: false,
   inspectedThreat: null,
@@ -105,6 +110,7 @@ export const useRadar = create<RadarState>((set, get) => ({
   setNotices: (n) => set({ notices: n }),
   setConnected: (c) => set({ connected: c }),
   setFeedOk: (v) => set({ feedOk: v }),
+  setOnline: (n) => set({ online: n }),
 
   setHome: (h) => {
     if (h) safeSet(STORAGE_KEYS.home, JSON.stringify(h))
@@ -140,6 +146,12 @@ export const useRadar = create<RadarState>((set, get) => ({
     // Live feed health (dead Telethon session etc.) — pushed only on change.
     if (msg.type === 'health') {
       set({ feedOk: msg.feed_ok ?? null })
+      return
+    }
+
+    // Live viewer headcount — pushed on every connect/disconnect.
+    if (msg.type === 'online') {
+      set({ online: msg.online ?? null })
       return
     }
 

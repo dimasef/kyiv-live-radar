@@ -1,5 +1,4 @@
 import L from 'leaflet'
-import { X } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { memo, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,11 +21,47 @@ import { CorroborationLine, CountBadge, threatState, typeLabel } from '../../thr
 import { HOME_COLOR, threatColor } from '../../theme'
 import { DIRECTIONAL, threatDivIcon } from '../../threatIcons'
 import type { Threat } from '../../types'
-import { notableIncident } from '../banners/IncidentBanner'
 import MapLegend from './MapLegend'
 import { hasMovement, headingOf, trackPoints } from './track'
 
 const KYIV_CENTER: [number, number] = [50.4501, 30.5234]
+
+/** Keeps Leaflet's cached container size in sync with the real DOM box.
+ *
+ * On mobile the map often mounts before its container has settled to full
+ * height (dynamic viewport bar, bottom-sheet layout, PWA safe-area insets), so
+ * Leaflet captures a too-short size and tiles render in a thin strip until the
+ * user navigates away and back (which remounts at the correct size). A
+ * ResizeObserver on the actual container calls invalidateSize() whenever the
+ * box changes — first paint, orientation change, sheet reflow — so it always
+ * self-corrects. */
+function ResizeHandler() {
+  const map = useMap()
+
+  useEffect(() => {
+    const container = map.getContainer()
+    // Fire once after mount in case the container was already resized before the
+    // observer attached (ResizeObserver only reports changes after subscribing,
+    // but implementations deliver an initial callback — belt-and-suspenders).
+    const kick = () => map.invalidateSize({ animate: false })
+    const raf = requestAnimationFrame(kick)
+
+    const ro = new ResizeObserver(kick)
+    ro.observe(container)
+    // Mobile Safari fires these without a corresponding element resize.
+    window.addEventListener('orientationchange', kick)
+    window.addEventListener('pageshow', kick)
+
+    return () => {
+      cancelAnimationFrame(raf)
+      ro.disconnect()
+      window.removeEventListener('orientationchange', kick)
+      window.removeEventListener('pageshow', kick)
+    }
+  }, [map])
+
+  return null
+}
 
 /** Two expanding rings pulsing in the threat color — the live head of a track. */
 function pulseIcon(color: string): L.DivIcon {
@@ -280,58 +315,6 @@ const DISTRICT_STYLE = {
   fillOpacity: 0.1,
 }
 
-/** Floating pill showing which track is being inspected, with a close button
- * — the explicit way out of inspection (besides re-clicking the same feed
- * item), since the feed panel and map can be scrolled apart on mobile. */
-function InspectBadge() {
-  const { t } = useTranslation()
-  const inspected = useRadar((s) => s.inspectedThreat)
-  const liveThreats = useRadar((s) => s.threats)
-  const incidents = useRadar((s) => s.incidents)
-  const clearInspection = useRadar((s) => s.clearInspection)
-
-  if (!inspected) return null
-  // Prefer the live copy (freshest event count) when the inspected track is
-  // still open, instead of our independently-fetched (possibly-lagging) one.
-  const display = liveThreats[inspected.id] ?? inspected
-  const color = threatColor(display)
-  // Both this badge and the IncidentBanner sit top-center; drop below the banner
-  // when it's showing so they don't overlap.
-  const bannerShown = notableIncident(incidents) !== null
-
-  return (
-    <div
-      className={`pointer-events-auto absolute left-1/2 z-[900] -translate-x-1/2 ${
-        bannerShown ? 'top-16' : 'top-3'
-      }`}
-    >
-      <div className="panel flex items-center gap-2.5 px-3 py-1.5">
-        <span
-          className="h-2.5 w-2.5 flex-none rounded-full"
-          style={{ background: color, boxShadow: `0 0 8px ${color}66` }}
-        />
-        <span className="whitespace-nowrap text-xs text-slate-200">
-          {t('inspect.viewing')}{' '}
-          <span className="font-medium text-slate-100">{typeLabel(display, t)}</span>
-          {display.events.length > 0 && (
-            <span className="ml-1.5 font-mono text-[10px] text-slate-500">
-              · {display.events.length} {t('inspect.events')}
-            </span>
-          )}
-        </span>
-        <button
-          onClick={clearInspection}
-          aria-label={t('inspect.close')}
-          title={t('inspect.close')}
-          className="ml-1 flex h-5 w-5 flex-none items-center justify-center rounded-full text-slate-400 transition-colors duration-200 hover:bg-white/10 hover:text-slate-100"
-        >
-          <X size={13} />
-        </button>
-      </div>
-    </div>
-  )
-}
-
 export default function MapView() {
   const { t } = useTranslation()
   const threats = useRadar((s) => s.threats)
@@ -367,6 +350,7 @@ export default function MapView() {
           <GeoJSON key={b.id} data={b.geojson} style={DISTRICT_STYLE} interactive={false} />
         ))}
 
+        <ResizeHandler />
         <HomeController />
         <InspectController />
 
@@ -398,7 +382,6 @@ export default function MapView() {
           <ThreatLayer threat={inspectedThreat} highlighted />
         )}
       </MapContainer>
-      <InspectBadge />
       <MapLegend />
     </div>
   )

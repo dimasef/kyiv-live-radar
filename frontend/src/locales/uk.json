@@ -11,7 +11,12 @@
       "city": "Повітряна тривога — м. Київ",
       "oblast": "Повітряна тривога — Київська область"
     },
-    "clear": "Відбій тривоги"
+    "clear": "Відбій тривоги",
+    "word": "Тривога",
+    "short": {
+      "city": "Київ",
+      "oblast": "Область"
+    }
   },
   "attack": {
     "classification": {
@@ -81,7 +86,7 @@
     "close": "Закрити перегляд треку"
   },
   "target": {
-    "shahed": "Shahed",
+    "shahed": "БПЛА",
     "jet_drone": "Реактивний БПЛА",
     "missile": "Ракета",
     "ballistic": "Балістика",
@@ -136,5 +141,12 @@
     "semverRules": "Як рахуємо версію · MAJOR.MINOR.PATCH",
     "version": "Версія",
     "history": "Історія"
+  },
+  "banner": {
+    "expand": "Розгорнути",
+    "collapse": "Згорнути"
+  },
+  "presence": {
+    "watching": "Стежать за радаром зараз"
   }
 }

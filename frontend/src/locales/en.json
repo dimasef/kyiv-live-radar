@@ -11,7 +11,12 @@
       "city": "Air raid alert — Kyiv",
       "oblast": "Air raid alert — Kyiv oblast"
     },
-    "clear": "All-clear"
+    "clear": "All-clear",
+    "word": "Alert",
+    "short": {
+      "city": "Kyiv",
+      "oblast": "Oblast"
+    }
   },
   "attack": {
     "classification": {
@@ -81,7 +86,7 @@
     "close": "Close track inspection"
   },
   "target": {
-    "shahed": "Shahed",
+    "shahed": "UAV",
     "jet_drone": "Jet UAV",
     "missile": "Missile",
     "ballistic": "Ballistic",
@@ -136,5 +141,12 @@
     "semverRules": "How we count versions · MAJOR.MINOR.PATCH",
     "version": "Version",
     "history": "History"
+  },
+  "banner": {
+    "expand": "Expand",
+    "collapse": "Collapse"
+  },
+  "presence": {
+    "watching": "Watching the radar now"
   }
 }
