@@ -20,6 +20,7 @@ import DisclaimerModal from './components/chrome/DisclaimerModal'
 import { requestGeolocation } from './components/chrome/HomeControl'
 import LanguageSwitcher from './components/chrome/LanguageSwitcher'
 import SettingsPanel from './components/chrome/SettingsPanel'
+import UpdateToast from './components/chrome/UpdateToast'
 import ThreatLog from './components/feed/ThreatLog'
 import MapView from './components/map/MapView'
 import { safeGet, STORAGE_KEYS } from './lib/storage'
@@ -134,6 +135,7 @@ export default function App() {
       </header>
 
       <DisclaimerModal open={showDisclaimer} onClose={() => setShowDisclaimer(false)} />
+      <UpdateToast />
 
       <main className="relative flex-1 min-h-0 lg:flex">
         {/* Map fills everything; on mobile the sheet floats above it. */}

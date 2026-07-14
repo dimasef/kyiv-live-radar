@@ -6,6 +6,7 @@ export const STORAGE_KEYS = {
   settingsOpen: 'klr-settings-open',
   disclaimerHide: 'klr-disclaimer-hide',
   lang: 'klr-lang',
+  installDismiss: 'klr-install-dismiss',
 } as const
 
 /** Reads a localStorage value, swallowing errors (private-browsing/quota/etc.

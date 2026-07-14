@@ -51,6 +51,10 @@ interface RadarState {
    * `threats` (the live layer), so a closed/destroyed track stays visible for
    * as long as the user wants, instead of being evicted after a few seconds. */
   inspectedThreat: Threat | null
+  /** The deferred PWA install prompt (captured from `beforeinstallprompt`) —
+   * lets InstallControl trigger the native install sheet on demand. Not
+   * persisted: the event is non-serializable and only valid for this session. */
+  installPrompt: BeforeInstallPromptEvent | null
 
   setDistricts: (d: District[]) => void
   setBoundaries: (b: DistrictBoundary[]) => void
@@ -64,6 +68,7 @@ interface RadarState {
   setHome: (h: Home | null) => void
   setHomeRadius: (radiusKm: number) => void
   setPlacingHome: (v: boolean) => void
+  setInstallPrompt: (e: BeforeInstallPromptEvent | null) => void
   inspectThreat: (threat: Threat) => void
   clearInspection: () => void
   handleWS: (msg: WSMessage) => void
@@ -86,10 +91,12 @@ export const useRadar = create<RadarState>((set, get) => ({
   home: loadHome(),
   placingHome: false,
   inspectedThreat: null,
+  installPrompt: null,
 
   setDistricts: (d) => set({ districts: d }),
   setBoundaries: (b) => set({ boundaries: b }),
   setPlacingHome: (v) => set({ placingHome: v }),
+  setInstallPrompt: (e) => set({ installPrompt: e }),
   setThreats: (t) =>
     set({ threats: Object.fromEntries(t.map((x) => [x.id, x])) }),
   setIncidents: (i) => set({ incidents: i }),

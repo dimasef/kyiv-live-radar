@@ -101,6 +101,18 @@
   "settings": {
     "title": "Settings"
   },
+  "install": {
+    "title": "App",
+    "action": "Install app",
+    "dismiss": "Hide",
+    "iosHintBefore": "To install: tap",
+    "iosHintAfter": "→ \"Add to Home Screen\""
+  },
+  "update": {
+    "available": "A new version is available",
+    "reload": "Update",
+    "dismiss": "Later"
+  },
   "legendCtl": {
     "show": "Show legend",
     "hide": "Collapse legend"

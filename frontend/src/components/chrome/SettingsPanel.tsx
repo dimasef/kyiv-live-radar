@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { safeGet, safeSet, STORAGE_KEYS } from '../../lib/storage'
 import HomeControl from './HomeControl'
+import InstallControl from './InstallControl'
 import VersionInfo from './VersionInfo'
 
 interface Props {
@@ -51,6 +52,7 @@ export default function SettingsPanel({ defaultOpen = false }: Props) {
         <div className="overflow-hidden">
           <div className="px-3 pb-3">
             <HomeControl />
+            <InstallControl />
             <VersionInfo />
           </div>
         </div>
