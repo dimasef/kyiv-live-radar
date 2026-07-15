@@ -135,6 +135,7 @@ class RawMessage(Base):
     source_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("sources.id"), nullable=True
     )
+    source: Mapped[Optional["Source"]] = relationship()
     message_id: Mapped[Optional[int]] = mapped_column(nullable=True)  # Telegram id
     text: Mapped[str] = mapped_column(Text, default="")
     event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -149,6 +150,30 @@ class RawMessage(Base):
     # reply chain identifies the track far better than time-proximity does.
     reply_to_message_id: Mapped[Optional[int]] = mapped_column(nullable=True)
     processed: Mapped[bool] = mapped_column(default=False)
+    # Whether the LLM fallback (parsing/llm.py) was actually CALLED for this
+    # message — distinct from a ThreatEvent's decision_source=='llm' (which
+    # also requires the call to have recovered a district; a call that found
+    # nothing still spent the API budget). NULL for messages ingested before
+    # this column existed — genuinely unknown, not backfillable (unlike
+    # Notice.source_message_id, re-deriving this from today's parser/rules
+    # would reflect current logic, not what actually ran historically).
+    llm_attempted: Mapped[Optional[bool]] = mapped_column(nullable=True)
+    # Token usage/cost for that call — set together with llm_attempted=True
+    # whenever the API actually responded (see parsing/llm.py::llm_extract).
+    # NULL when llm_attempted is False/NULL, or when the call never completed
+    # (timeout/network/API error — nothing was billed).
+    llm_input_tokens: Mapped[Optional[int]] = mapped_column(nullable=True)
+    llm_output_tokens: Mapped[Optional[int]] = mapped_column(nullable=True)
+    llm_cost_usd: Mapped[Optional[float]] = mapped_column(nullable=True)
+    # The full structured response the LLM fallback returned — district_ids plus
+    # the triage fields (category/surface/summary/target_type/status/...). Stored
+    # verbatim so LLM calls are auditable on /raw and so the Stage-3 context
+    # layer can be tuned against real responses. NULL when the LLM wasn't called
+    # or the call produced no usable JSON. COLLECTED-ONLY: nothing in the live
+    # pipeline routes on the triage fields yet (see parsing/llm.py::llm_extract).
+    llm_response: Mapped[Optional[dict]] = mapped_column(
+        JSON(none_as_null=True), nullable=True
+    )
 
 
 class Notice(Base):
@@ -170,6 +195,10 @@ class Notice(Base):
         ForeignKey("sources.id"), nullable=True
     )
     source: Mapped[Optional["Source"]] = relationship()
+    # Original channel message id that produced this notice — same purpose as
+    # ThreatEvent.source_message_id, so /raw_messages can trace a raw message
+    # to the notice it became (NULL for notices created before this existed).
+    source_message_id: Mapped[Optional[int]] = mapped_column(nullable=True)
 
 
 class Incident(Base):

@@ -2,8 +2,9 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 
 import App from './App'
-import ChangelogPage from './components/changelog/ChangelogPage'
-import { CHANGELOG_PATH, useRoute } from './router'
+import { ChangelogPage } from './components/changelog'
+import { RawMessagesPage } from './components/raw'
+import { CHANGELOG_PATH, RAW_MESSAGES_PATH, useRoute } from './router'
 import { useRadar } from './store'
 import './i18n'
 import './index.css'
@@ -20,11 +21,14 @@ window.addEventListener('appinstalled', () => {
   useRadar.getState().setInstallPrompt(null)
 })
 
-/** Tiny top-level router: the changelog is its own shareable route; everything
- * else is the radar app (whose data-fetching hooks then only run there). */
+/** Tiny top-level router: the changelog and raw-message debug view are their
+ * own routes; everything else is the radar app (whose data-fetching hooks
+ * then only run there — see store/bootstrap.ts). */
 function Root() {
   const route = useRoute()
-  return route === CHANGELOG_PATH ? <ChangelogPage /> : <App />
+  if (route === CHANGELOG_PATH) return <ChangelogPage />
+  if (route === RAW_MESSAGES_PATH) return <RawMessagesPage />
+  return <App />
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

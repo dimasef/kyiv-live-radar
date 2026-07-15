@@ -142,6 +142,24 @@ def test_sviatoshyn_alias():
     assert BY_EN["Sviatoshynskyi"] in {h.district_id for h in r.districts}
 
 
+def test_raion_moria_matches_sea_approach():
+    # "район моря" / "на море" — the Kyiv Reservoir's near-northern approach —
+    # resolves to the KyivSeaApproach point, across море/моря inflections.
+    for txt in ["3х реактивних БПЛА в район моря з Чернігівщини",
+                "На море ракети", "Заходить у район моря"]:
+        r = parse_message(txt, M)
+        assert BY_EN["KyivSeaApproach"] in {h.district_id for h in r.districts}, txt
+
+
+def test_foreign_sea_not_matched_as_kyiv_approach():
+    # "Каспійського/Чорного моря" are bomber launch-zones, not Kyiv's approach —
+    # the foreign-sea guard keeps them out (they'd otherwise match "моря").
+    for txt in ["У районі Каспійського моря вильоти о 02:30",
+                "загроза по Чорному морю"]:
+        r = parse_message(txt, M)
+        assert BY_EN["KyivSeaApproach"] not in {h.district_id for h in r.districts}, txt
+
+
 def test_kab_is_missile():
     assert parse_message("КАБ на Харківський напрямок", M).target_type == "missile"
 
@@ -185,6 +203,28 @@ def test_pure_aftermath_without_strike_verb_stays_suppressed():
                 "Рятувальники ДСНС гасять пожежу на Троєщині"]:
         r = parse_message(txt, M)
         assert r.aftermath and not r.impact and not r.matched, txt
+
+
+def test_transport_notice_is_suppressed_not_a_target():
+    # The T217/M668 FP class: a trolleybus-route / road-closure notice names a
+    # neighbourhood the gazetteer matches (Мінський масив) but is city news, not
+    # a target — must be dropped, districts cleared.
+    for txt in [
+        "🚎 Тимчасово змінять маршрути тролейбусів № 6, 16 та 18: "
+        "від Мінського масиву до станції метро «Лукʼянівська»",
+        "Обмежать рух транспорту завтра у Києві, плануйте маршрут завчасно",
+        "Зміни в роботі громадського транспорту: фунікулер зачинять на ремонт",
+    ]:
+        r = parse_message(txt, M)
+        assert r.civic_notice and not r.matched and r.districts == [], txt
+
+
+def test_real_target_over_a_road_is_not_a_civic_notice():
+    # The guard: a NAMED threat (target_type != unknown) is never silenced by a
+    # coincidental transport/route word — only type-unknown city news is.
+    r = parse_message("Шахед змінив маршрут руху, зайшов на Троєщину", M)
+    assert not r.civic_notice and r.matched
+    assert BY_EN["Troieshchyna"] in {h.district_id for h in r.districts}
 
 
 def test_damage_without_district_is_not_an_impact():
@@ -415,7 +455,9 @@ def test_waiting_for_all_clear_is_not_a_clear():
                 "Скоріш за все скоро відбій",
                 "Є надія на відбій у Києві, тримаємо",
                 "В області очікується відбій також",
-                "Очікуватимемо на відбій тривоги найближчим часом"]:
+                "Очікуватимемо на відбій тривоги найближчим часом",
+                "Будемо очікувати на відбій.",
+                "Чекатимемо відбою найближчим часом."]:
         assert parse_message(txt, M).status != "clear", txt
     # A real all-clear still clears.
     for txt in ["Дали відбій нарешті", "Відбій тривоги та загрози від балістики",

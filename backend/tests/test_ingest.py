@@ -14,17 +14,33 @@ def test_should_fallback_for_unlocalized_kyiv_relevant_message():
     assert should_fallback(r)
 
 
-def test_should_not_fallback_when_only_another_oblast_is_named():
-    # Real feed examples: a target only over/from another oblast, with no
-    # Kyiv-area place named at all — an LLM call can't recover a Kyiv
-    # district that was never mentioned in the text.
+def test_should_not_fallback_when_target_is_in_another_oblast():
+    # A target whose LOCATION is another oblast ("на Чернігівщині", "на Дніпро"),
+    # with no Kyiv-area place named — an LLM call can't recover a Kyiv district
+    # that isn't in the text, so it stays suppressed.
     for txt in [
-        "Тим часом, ворог запустив ще пару реактивних БПЛА з Брянщини.",
         "Знову 2х реактивних БПЛА на Чернігівщині, вектор такий самий.",
         "Шахед на Чернігівщині",
+        "Ціль на Дніпро.",
+        # Origin here, but the TARGET is Dnipropetrovshchyna — still elsewhere.
+        "БПЛА з Чернігівщини курсом на Дніпропетровщину.",
     ]:
         r = parse_message(txt, M)
         assert not should_fallback(r), txt
+
+
+def test_should_fallback_for_inbound_from_another_oblast():
+    # An INBOUND target whose ORIGIN is another oblast ("з Брянщини"/"з
+    # Чернігівщини", heading toward Kyiv) IS Kyiv-relevant — it reaches the
+    # triage LLM so the "до нас з півночі" callout is collected, instead of being
+    # dropped as the old blanket other-oblast suppression did.
+    for txt in [
+        "Тим часом, ворог запустив ще пару реактивних БПЛА з Брянщини.",
+        "4х БПЛА реактивних йшло з Чернігівщини, зараз фіксується лише пара.",
+        "З району Ростова ворог здійснив запуск реактивних БПЛА.",
+    ]:
+        r = parse_message(txt, M)
+        assert should_fallback(r), txt
 
 
 def test_citywide_message_does_not_trigger_llm_fallback():

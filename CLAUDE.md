@@ -123,6 +123,56 @@ false-positive sweep against the real corpus, since it also means "happy").
 Always geocode via `scripts/geocode_localities.py` and sweep the real corpus
 before committing a new entry.
 
+### Frontend code conventions (`frontend/src`)
+
+- **Comments are the exception, not the default.** Prefer readable code —
+  clear names for variables, functions, and files — over narrating what code
+  does. Only write a comment for a genuinely non-obvious *why* (a hidden
+  constraint, a workaround, a subtlety that would bite the next reader) — the
+  existing comments in `store.ts`/`ThreatLog.tsx` are the bar to clear, not a
+  license to add one per function.
+- **Avoid `useEffect` wherever a direct alternative exists.** Prefer explicit,
+  sequential code: event handlers, store actions that fetch-then-set inline
+  (see `inspectThreat` in `store.ts`), values derived during render. Reach for
+  `useEffect` only to synchronize with something genuinely outside React
+  (subscriptions, timers, the DOM, browser APIs) — not to react to state
+  changes that could just be computed inline.
+- **One component, one file**, named after the component it exports
+  (`ThreatLog.tsx` → `ThreatLog`). A small subcomponent that only exists to
+  support one parent can live in that file *until* the parent needs
+  decomposing anyway — then it moves out too. Don't use "it's just a helper"
+  as an excuse to keep growing one file.
+- **120 lines is the signal to decompose a component**, not a target to hit by
+  cramming. Split by pulling out: pure helper functions (formatting,
+  grouping/sorting) into a sibling `.ts` file; independent chunks of JSX into
+  their own component; anything reusable into `lib/` or a hook. When a
+  component outgrows one file, colocate the pieces it split into (a
+  `ComponentName/` folder) rather than dumping helpers into a shared
+  grab-bag `utils.ts`.
+- **Import via an alias, not a `../../` chain.** Introduce a `@/` alias rooted
+  at `src/` (`tsconfig.json` `compilerOptions.paths` + `vite.config.ts`
+  `resolve.alias`) so imports read `@/store`, `@/theme`, `@/components/...`
+  instead of counting `../` segments.
+
+A few more that follow from the same instincts, worth applying as the
+refactor touches each file:
+- Keep async/data-fetching logic in Zustand store actions (as `inspectThreat`
+  already does), not component-level effects — this is usually *why* a
+  `useEffect` felt necessary in the first place.
+- Select narrowly from the store (`useRadar((s) => s.log)`, already the
+  convention) — never destructure the whole store — so an unrelated field
+  changing doesn't re-render a component that doesn't use it.
+- Prefer a discriminated union + exhaustive `if`/`switch` for anything
+  variant-shaped (already how `WSMessage` is handled) — a new variant left
+  unhandled should fail to compile, not fail silently at runtime.
+- Pure logic (grouping, formatting, matching) belongs in a plain function
+  with no JSX and no hooks — easy to unit-test, and it's usually the biggest
+  chunk of a file blowing past 120 lines.
+
+Several existing files (`ThreatLog.tsx`, `store.ts`) predate these rules and
+are the intended first targets of the "точковий рефакторинг" — not a reason
+to treat the rules as aspirational elsewhere.
+
 ### Deployment
 
 Backend → Railway (`railpack.json` sets the uvicorn start command; Postgres

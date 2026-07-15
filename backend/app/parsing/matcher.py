@@ -46,6 +46,25 @@ def _is_street_reference(norm_text: str, start: int, end: int) -> bool:
     )
 
 
+# Adjectives that turn a "море/моря/морі" match into a NON-Kyiv sea — a
+# launch-zone / geopolitics mention ("Каспійського моря", "Чорного моря"), not
+# the Kyiv Reservoir's "район моря" northern approach. Only these seas show up
+# in the real spotter/strategic-report corpus; extend if a new one appears.
+_FOREIGN_SEA_ADJ = ("каспійськ", "чорн", "азовськ", "балтійськ", "середземн", "мармуров")
+
+
+def _is_foreign_sea(norm_text: str, start: int, end: int) -> bool:
+    """True if a море/моря/морі match at [start:end) is really a foreign sea
+    (preceded by a foreign-sea adjective), so it must NOT resolve to the Kyiv
+    "Район моря" approach. Only ever fires on the море-family token — no other
+    district stem starts with 'мор'."""
+    if norm_text[start:end][:3] != "мор":
+        return False
+    before = norm_text[:start].rstrip(" ,.;:()–—-")
+    before_word = before.rsplit(" ", 1)[-1] if before else ""
+    return any(before_word.startswith(a) for a in _FOREIGN_SEA_ADJ)
+
+
 class DistrictMatcher:
     """Compiles per-district stem regexes from names + aliases for fast matching."""
 
@@ -82,6 +101,8 @@ class DistrictMatcher:
         for did, name, pat, stem_len in self._patterns:
             for m in pat.finditer(norm_text):
                 if _is_street_reference(norm_text, m.start(), m.end()):
+                    continue
+                if _is_foreign_sea(norm_text, m.start(), m.end()):
                     continue
                 hits[did] = DistrictHit(did, name, m.start(), stem_len)
                 break

@@ -160,6 +160,91 @@ class AlertOut(BaseModel):
     _tz_alert = field_validator("started_at", "ended_at", mode="before")(_as_utc)
 
 
+class RawEventLinkOut(BaseModel):
+    """One ThreatEvent a raw message produced — the same T{threat_id}/
+    M{event_id} pair shown as a dev badge in the feed. A single raw message
+    can produce SEVERAL (e.g. an untyped "дорозвідка" closing multiple open
+    tracks at once), hence a list on RawMessageOut rather than one pair."""
+
+    threat_id: int
+    event_id: int
+
+
+class RawMessageOut(BaseModel):
+    """One verbatim ingested message plus a debug diagnosis of what the
+    pipeline did with it — see GET /raw_messages. `outcome`/`events`/
+    `notice_id` are authoritative when a real ThreatEvent/Notice matched
+    ('подія'/'нотіс'); a best-effort re-derived label otherwise (see
+    api/raw_diagnosis.py)."""
+
+    id: int
+    source_id: Optional[int] = None
+    source_name: Optional[str] = None
+    message_id: Optional[int] = None
+    text: str
+    event_time: datetime
+    forwarded_from_id: Optional[int] = None
+    reply_to_message_id: Optional[int] = None
+    processed: bool
+    outcome: str
+    events: list[RawEventLinkOut] = []
+    notice_id: Optional[int] = None
+    # Whether the LLM fallback was called for this message — None for rows
+    # ingested before this was tracked (genuinely unknown, not "no").
+    llm_attempted: Optional[bool] = None
+    # Token usage/cost for that call — set together with llm_attempted=True
+    # whenever it actually completed; None otherwise.
+    llm_input_tokens: Optional[int] = None
+    llm_output_tokens: Optional[int] = None
+    llm_cost_usd: Optional[float] = None
+    # The full structured LLM response (district_ids + triage category/surface/
+    # summary) — present only when the LLM produced usable JSON; None otherwise.
+    # Collected for /raw audit; nothing in the product routes on it yet.
+    llm_response: Optional[dict] = None
+
+    _tz_raw = field_validator("event_time", mode="before")(_as_utc)
+
+
+class RawMessagesPage(BaseModel):
+    """Cursor-paginated page of raw messages, newest first."""
+
+    items: list[RawMessageOut]
+    # Pass as `before_id` to fetch the next page; None once there's no more.
+    next_before_id: Optional[int] = None
+
+
+class RawSourceOut(BaseModel):
+    """One monitored channel, for the /raw channel filter dropdown."""
+
+    id: int
+    name: str
+
+
+class RawCountOut(BaseModel):
+    """How many raw messages match the current /raw filter set."""
+
+    count: int
+
+
+class RawExportOut(BaseModel):
+    """All raw messages matching the current filter (up to the export cap),
+    for offline analysis — see GET /raw_messages/export. `truncated` flags a
+    partial export so it's never mistaken for the complete set."""
+
+    messages: list[RawMessageOut]
+    truncated: bool
+
+
+class RawLlmStatsOut(BaseModel):
+    """Aggregate LLM fallback usage across all raw messages — see
+    GET /raw_messages/llm_stats."""
+
+    calls: int
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float
+
+
 class WSMessage(BaseModel):
     """Envelope broadcast over the WebSocket."""
 

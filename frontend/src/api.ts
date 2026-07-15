@@ -6,6 +6,12 @@ import type {
   HealthStatus,
   Incident,
   Notice,
+  RawCount,
+  RawExportResponse,
+  RawLlmStats,
+  RawMessagesPage,
+  RawOutcomeFilter,
+  RawSource,
   Threat,
   ThreatEvent,
 } from './types'
@@ -34,3 +40,43 @@ export const fetchRecentEvents = (limit = 60) =>
 // a few seconds).
 export const fetchThreatEvents = (threatId: number) =>
   get<ThreatEvent[]>(`/threats/${threatId}/events`)
+// Debug view (see /raw route): every ingested message, cursor-paginated
+// newest-first — pass the previous page's next_before_id to page further back.
+// The filter fields are shared with count/export so all three agree.
+export interface RawMessagesFilter {
+  q?: string
+  outcome?: RawOutcomeFilter
+  llm?: 'yes' | 'no'
+  sourceId?: number
+}
+export interface RawMessagesQuery extends RawMessagesFilter {
+  beforeId?: number
+  limit?: number
+}
+
+function rawFilterParams(f: RawMessagesFilter): URLSearchParams {
+  const params = new URLSearchParams()
+  if (f.q) params.set('q', f.q)
+  if (f.outcome) params.set('outcome', f.outcome)
+  if (f.llm) params.set('llm', f.llm)
+  if (f.sourceId != null) params.set('source_id', String(f.sourceId))
+  return params
+}
+
+export const fetchRawMessages = ({ beforeId, limit = 50, ...filter }: RawMessagesQuery = {}) => {
+  const params = rawFilterParams(filter)
+  params.set('limit', String(limit))
+  if (beforeId != null) params.set('before_id', String(beforeId))
+  return get<RawMessagesPage>(`/raw_messages?${params}`)
+}
+// Total matching the filter, for the "показано N з M" counter.
+export const fetchRawCount = (filter: RawMessagesFilter = {}) =>
+  get<RawCount>(`/raw_messages/count?${rawFilterParams(filter)}`)
+// All messages matching the filter (up to the server cap), for offline export.
+export const fetchRawExport = (filter: RawMessagesFilter = {}) =>
+  get<RawExportResponse>(`/raw_messages/export?${rawFilterParams(filter)}`)
+// Aggregate LLM fallback usage across all raw messages (unfiltered) — the
+// analytics strip on /raw.
+export const fetchRawLlmStats = () => get<RawLlmStats>('/raw_messages/llm_stats')
+// Every monitored channel, for the /raw channel filter dropdown.
+export const fetchRawSources = () => get<RawSource[]>('/raw_messages/sources')

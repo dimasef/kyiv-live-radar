@@ -57,7 +57,7 @@ async def main() -> None:
 
     gained = 0
     for t in candidates[:limit]:
-        res = await llm_extract(t, matcher)
+        res, _usage, _response = await llm_extract(t, matcher)
         dz = ", ".join(h.name for h in res.districts) if res and res.districts else "—"
         if res and res.districts:
             gained += 1

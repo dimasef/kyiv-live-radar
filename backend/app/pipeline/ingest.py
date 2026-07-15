@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -31,7 +32,7 @@ from ..domain.tracking import (
 )
 from ..config import settings
 from ..models import Notice, RawMessage, Threat, ThreatEvent
-from ..parsing import DistrictHit, DistrictMatcher, ParseResult, normalize, parse_message
+from ..parsing import DistrictHit, DistrictMatcher, LlmUsage, ParseResult, normalize, parse_message
 from ..parsing.alert_parser import parse_alert_message
 from .results import Broadcast
 
@@ -120,17 +121,46 @@ def _threat_status_for(parsed: ParseResult) -> str:
     return "tracking"
 
 
-# Other oblasts/cities/border regions this feed regularly mentions as a launch
-# origin or transit point ("з Брянщини", "на Чернігівщині") — the exact same
-# set the LLM's own system prompt (parsing.llm._SYSTEM) is told to return
-# empty for. If rules found no Kyiv-area district AND the message only names
-# one of these, an LLM call can't recover anything either — it's paying for a
-# guaranteed-empty response. Only checked once districts is already empty, so
-# this never masks a real Kyiv-area place mentioned alongside one of these.
+# Other oblasts/cities/border regions this feed regularly mentions. When one is
+# the target's LOCATION ("ціль на Дніпро", "загроза у Сумах") the threat is
+# someone else's and an LLM call can't recover a Kyiv district — same set the
+# LLM's own system prompt (parsing.llm._SYSTEM) is told to return empty for.
+# But when one is only the ORIGIN of an INBOUND target ("БпЛА з Чернігівщини",
+# "реактивні від Сум" — heading toward Kyiv), the message IS Kyiv-relevant:
+# suppressing it here (the old blanket behavior) dropped exactly the "до нас з
+# півночі" callouts before the triage LLM ever saw them. So origin mentions no
+# longer suppress; only a target-location mention does (see _target_elsewhere).
 _OTHER_OBLAST = ("чернігівщин", "чернігів", "брянщин", "курщин", "ростов", "воронеж",
                   "дніпропетровщин", "дніпро", "запоріжж", "миколаївщин", "сумщин",
                   "полтавщин", "харківщин", "харков", "білорус", "крим",
                   "житомирщин", "вінницьк", "черкащин", "одещин", "херсонщин")
+
+_OBLAST_ALT = "|".join(sorted(map(re.escape, _OTHER_OBLAST), key=len, reverse=True))
+# Any other-oblast mention.
+_OBLAST_ANY_RE = re.compile(r"(?<![а-яіїєґ])(?:" + _OBLAST_ALT + r")")
+# An other-oblast in ORIGIN position: a "from" preposition (з/зі/із/від), with an
+# optional "боку/напрямку/району/межах/р-ну" bridge ("з боку Сумщини", "з району
+# Ростова"), immediately before the oblast token. Everything else — "на Дніпро",
+# "у Сумах", a bare "Чернігівщина під ударом" — counts as a target location.
+_OBLAST_ORIGIN_RE = re.compile(
+    r"(?<![а-яіїєґ])(?:з|зі|із|від)\s+"
+    r"(?:боку\s+|напрямку\s+|району\s+|р-ну\s+|межах\s+|межа\w*\s+)?"
+    r"(?:" + _OBLAST_ALT + r")"
+)
+
+
+def _target_elsewhere(norm: str) -> bool:
+    """True if the message names another oblast as a target LOCATION (not merely
+    an inbound target's origin) — then rules found no Kyiv district because the
+    threat genuinely isn't ours, and the LLM can't recover one either. An
+    origin-only mention ("з Чернігівщини", heading to us) returns False so the
+    inbound callout still reaches the triage LLM. Conservative when unclear: a
+    non-origin oblast mention suppresses, matching the prior blanket behavior."""
+    total = len(_OBLAST_ANY_RE.findall(norm))
+    if total == 0:
+        return False
+    origins = len(_OBLAST_ORIGIN_RE.findall(norm))
+    return origins < total
 
 
 def should_fallback(parsed: ParseResult) -> bool:
@@ -141,6 +171,8 @@ def should_fallback(parsed: ParseResult) -> bool:
     if parsed.siren_only:  # technical "alarm is on here" echo — not a live target
         return False
     if parsed.negated:  # explicit denial ("не йде на...") — not a live target
+        return False
+    if parsed.civic_notice:  # transport/road city news — not a live target
         return False
     if parsed.political_quote:  # official statement repost — not a live target
         return False
@@ -154,18 +186,28 @@ def should_fallback(parsed: ParseResult) -> bool:
         return False
     if parsed.districts or parsed.status in ("clear", "destroyed"):
         return False
-    if any(w in normalize(parsed.raw_text) for w in _OTHER_OBLAST):
+    if _target_elsewhere(normalize(parsed.raw_text)):
         return False
     return parsed.target_type != "unknown" or parsed.status in ("confirmed", "unconfirmed")
 
 
-async def _resolve(text: str, matcher: DistrictMatcher) -> tuple[ParseResult, str]:
-    """Rule-based first; LLM fallback only when warranted and configured."""
+async def _resolve(
+    text: str, matcher: DistrictMatcher
+) -> tuple[ParseResult, str, bool, LlmUsage | None, dict | None]:
+    """Rule-based first; LLM fallback only when warranted and configured. The
+    3rd return value is whether the LLM was actually CALLED — distinct from
+    decision_source=='llm' (which also requires the call to have recovered a
+    district); a call that returned nothing still spent the API budget and is
+    worth surfacing in /raw_messages. The 4th is its token usage/cost, set
+    whenever the call actually completed. The 5th is the LLM's full structured
+    response (district_ids + triage category/surface/summary), stored on the
+    raw message for /raw audit regardless of whether its districts were used
+    (see llm_extract)."""
     parsed = parse_message(text, matcher)
     if settings.llm_fallback_enabled and settings.anthropic_api_key and should_fallback(parsed):
         from ..parsing.llm import llm_extract
 
-        llm = await llm_extract(text, matcher)
+        llm, usage, response = await llm_extract(text, matcher)
         # Trust the LLM for LOCALIZATION only — use its result only when it
         # actually recovered a district. Never let it declare an all-clear /
         # destroyed on its own: rules own those via explicit keywords
@@ -173,9 +215,12 @@ async def _resolve(text: str, matcher: DistrictMatcher) -> tuple[ParseResult, st
         # LLM anyway (see should_fallback). Letting the LLM infer a clear from a
         # reassuring tone ("масованих пусків немає… відпочивайте") produced false
         # "Відбій" feed entries AND risked closing active tracks via close_all_active.
+        # The triage fields (category/surface/summary) are stored via `response`
+        # but NOT acted on yet — Stage 1 is collect-only.
         if llm is not None and llm.districts:
-            return llm, "llm"
-    return parsed, "rule"
+            return llm, "llm", True, usage, response
+        return parsed, "rule", True, usage, response
+    return parsed, "rule", False, None, None
 
 
 async def ingest_message(session, **kwargs) -> list[Broadcast]:
@@ -273,7 +318,7 @@ async def _handle_clear(ctx: IngestContext) -> list[Broadcast]:
         await end_active_incidents(session, when, "all_clear")
     # Surface the all-clear itself in the feed (a status-only broadcast is
     # invisible there) as a notice — the operator wants to SEE "відбій".
-    notice = await _make_notice(session, "clear", parsed, ctx.source_id, when)
+    notice = await _make_notice(session, "clear", parsed, ctx.source_id, when, ctx.message_id)
     await ctx.done()
     return [Broadcast("status", t) for t in closed] + [Broadcast("notice", notice=notice)]
 
@@ -345,7 +390,8 @@ async def _handle_summary(ctx: IngestContext) -> list[Broadcast]:
     """Retrospective attack summary ("Загалом ... 8 балістичних С-400") — info,
     not a live target: no map threat, but surfaced in the feed as a notice so
     the operator sees the tally of the attack."""
-    notice = await _make_notice(ctx.session, "summary", ctx.parsed, ctx.source_id, ctx.when)
+    notice = await _make_notice(ctx.session, "summary", ctx.parsed, ctx.source_id, ctx.when,
+                                ctx.message_id)
     await ctx.done()
     return [Broadcast("notice", notice=notice)]
 
@@ -546,7 +592,14 @@ async def process_parsed(
     logic (e.g. after growing the gazetteer) without re-inserting them — the
     ingest-level dedup guard would otherwise make that a no-op.
     """
-    parsed, decision_source = await _resolve(text, matcher)
+    parsed, decision_source, llm_attempted, llm_usage, llm_response = await _resolve(text, matcher)
+    raw.llm_attempted = llm_attempted
+    if llm_usage is not None:
+        raw.llm_input_tokens = llm_usage.input_tokens
+        raw.llm_output_tokens = llm_usage.output_tokens
+        raw.llm_cost_usd = llm_usage.cost_usd
+    if llm_response is not None:
+        raw.llm_response = llm_response
 
     # Cross-message type inheritance: record this message's stated type, or
     # inherit a recent one from the same channel onto a bare-toponym sighting
@@ -563,8 +616,18 @@ async def process_parsed(
         reply_to_message_id=reply_to_message_id,
     )
 
-    # 2a. All-clear.
+    # 2a. All-clear. An authoritative FULL "Відбій тривоги" (clear_scope=None,
+    #     closes EVERY track) comes ONLY from the official alert channel
+    #     (process_parsed_alert closes all tracks on its city end) — a spotter's
+    #     full відбій is informal/premature/noisy (the N85 case, plus the whole
+    #     "чекаємо/будемо очікувати відбій" class) and must not close every live
+    #     track, so it is inert here. A TYPE-SCOPED spotter stand-down ("Відбій
+    #     балістичної загрози" -> ballistic only) is KEPT: a narrow tactical
+    #     signal the city/oblast-level official alert structurally can't express.
     if parsed.status == "clear":
+        if parsed.clear_scope is None:
+            await ctx.done()
+            return []
         return await _handle_clear(ctx)
 
     # 2a-bis. "Дорозвідка" stand-down.
@@ -687,14 +750,24 @@ async def process_parsed_alert(
         broadcasts += [Broadcast("status", t) for t in closed_tracks]
         ended_incidents = await end_active_incidents(session, when, "alert_end")
         broadcasts += [Broadcast("attack", incident=inc) for inc in ended_incidents]
+        # Surface the all-clear in the feed too (the banner alone is invisible
+        # in the Стрічка подій). This "Відбій" card used to be raised by the
+        # spotter відбій path, which no longer fires a full clear — the feed
+        # card now comes from the authoritative official channel instead.
+        notice = Notice(kind="clear", text=text, target_type="unknown",
+                        source_id=source_id, event_time=when,
+                        source_message_id=raw.message_id)
+        session.add(notice)
+        await session.commit()
+        broadcasts.append(Broadcast("notice", notice=notice))
 
     return broadcasts
 
 
 async def _make_notice(session, kind: str, parsed: ParseResult, source_id: int | None,
-                        when: datetime) -> Notice:
+                        when: datetime, message_id: int | None = None) -> Notice:
     notice = Notice(kind=kind, text=parsed.raw_text, target_type=parsed.target_type,
-                    source_id=source_id, event_time=when)
+                    source_id=source_id, event_time=when, source_message_id=message_id)
     session.add(notice)
     await session.commit()
     return notice

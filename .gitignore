@@ -2,7 +2,7 @@
 backend/.venv/
 __pycache__/
 *.pyc
-backend/*.db
+*.db
 backend/*.db.bak-*
 backend/*.db.old*
 backend/_db_backups/

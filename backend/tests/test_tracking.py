@@ -10,7 +10,7 @@ from app.db import Base
 from app.gazetteer import DISTRICTS, SOURCES
 from app.models import District, Incident, RawMessage, Source, Threat, ThreatEvent
 from app.parsing import DistrictMatcher
-from app.pipeline.ingest import ingest_message
+from app.pipeline.ingest import ingest_alert_message, ingest_message
 
 
 @pytest_asyncio.fixture
@@ -277,7 +277,11 @@ async def test_lost_signal_does_not_override_destroyed(ctx):
     assert len(open_) == 1
 
 
-async def test_all_clear_closes_everything(ctx):
+async def test_spotter_full_vidbiy_is_inert(ctx):
+    # A FULL spotter "Відбій тривоги" is NO LONGER authoritative — it must not
+    # close tracks nor raise a "Відбій" feed card. The authoritative full
+    # all-clear comes only from the official alert channel (see
+    # test_official_all_clear_closes_everything below).
     s, m, src = ctx
     await ingest_message(s, text="Шахед над Оболонню", matcher=m, when=BASE,
                          source_id=src[0].id, message_id=1)
@@ -288,30 +292,55 @@ async def test_all_clear_closes_everything(ctx):
     open_left = await s.scalar(
         select(func.count()).select_from(Threat).where(Threat.closed_at.is_(None))
     )
+    assert open_left == 2  # both stay open — a spotter full відбій is inert
+    assert [b for b in out if b.type in ("status", "notice")] == []
+
+
+async def test_official_all_clear_closes_everything(ctx):
+    # The authoritative full all-clear: the official alert channel's city end
+    # closes every open track and raises the "Відбій" feed card.
+    s, m, src = ctx
+    await ingest_alert_message(s, text="‼️У Києві оголошена повітряна тривога!",
+                               when=BASE, message_id=100)
+    await ingest_message(s, text="Шахед над Оболонню", matcher=m,
+                         when=BASE + timedelta(seconds=30), source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Новий шахед на Позняках", matcher=m,
+                         when=BASE + timedelta(minutes=1), source_id=src[0].id, message_id=2)
+    out = await ingest_alert_message(s, text="❕Відбій повітряної тривоги!",
+                                     when=BASE + timedelta(minutes=3), message_id=101)
+    open_left = await s.scalar(
+        select(func.count()).select_from(Threat).where(Threat.closed_at.is_(None))
+    )
     assert open_left == 0
-    statuses = [b for b in out if b.type == "status"]
+    assert len([b for b in out if b.type == "status"]) == 2  # both tracks closed
     notices = [b for b in out if b.type == "notice"]
-    assert len(statuses) == 2  # both tracks closed and broadcast
-    assert len(notices) == 1 and notices[0].notice.kind == "clear"  # відбій shown in feed
+    assert len(notices) == 1 and notices[0].notice.kind == "clear"  # відбій in feed
 
 
-async def test_scoped_ballistic_clear_does_not_close_unrelated_tracks(ctx):
-    # Real feed example: "Відбій балістичної загрози з Криму" only clears
-    # ballistic — an unrelated active shahed track must stay open. Ballistic
-    # threats never carry a Kyiv district (sub-minute flight time), so their
-    # own clear looks identical in shape to a real відбій unless scoped.
+async def test_scoped_ballistic_clear_closes_only_ballistic(ctx):
+    # Real feed example: "Відбій балістичної загрози з Криму" is TYPE-SCOPED and
+    # KEPT as a spotter signal — it closes ballistic tracks only, leaving an
+    # unrelated active shahed open. (A full unscoped spotter відбій, by
+    # contrast, is now inert — see test_spotter_full_vidbiy_is_inert.)
     s, m, src = ctx
     await ingest_message(s, text="🔴 Шахед над Оболонню", matcher=m, when=BASE,
                          source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Балістика на Київ!", matcher=m,
+                         when=BASE + timedelta(seconds=30), source_id=src[0].id, message_id=2)
     await ingest_message(s, text="Відбій балістичної загрози з Криму.", matcher=m,
-                         when=BASE + timedelta(minutes=1), source_id=src[0].id, message_id=2)
-    shahed_t = (await s.scalars(select(Threat))).first()
-    assert shahed_t.closed_at is None
+                         when=BASE + timedelta(minutes=1), source_id=src[0].id, message_id=3)
+    ballistic = (await s.scalars(
+        select(Threat).where(Threat.target_type == "ballistic"))).first()
+    shahed = (await s.scalars(
+        select(Threat).where(Threat.target_type == "shahed"))).first()
+    assert ballistic.closed_at is not None and ballistic.closed_reason == "all_clear"
+    assert shahed.closed_at is None
 
 
-async def test_unscoped_ballistic_clear_still_closes_everything(ctx):
-    # An explicit "Відбій тривоги" (the siren itself ended) is still a real
-    # full clear even if it also happens to mention ballistic.
+async def test_unscoped_spotter_vidbiy_no_longer_closes(ctx):
+    # "Відбій тривоги та загрози від балістики" is an UNSCOPED full clear
+    # (clear_scope=None — the siren itself ended). As a spotter message it is
+    # now inert; the shahed stays open until an official alert-end / stale close.
     s, m, src = ctx
     await ingest_message(s, text="🔴 Шахед над Оболонню", matcher=m, when=BASE,
                          source_id=src[0].id, message_id=1)
@@ -320,7 +349,7 @@ async def test_unscoped_ballistic_clear_still_closes_everything(ctx):
         when=BASE + timedelta(minutes=1), source_id=src[0].id, message_id=2,
     )
     shahed_t = (await s.scalars(select(Threat))).first()
-    assert shahed_t.closed_at is not None
+    assert shahed_t.closed_at is None
 
 
 async def test_destroyed_closes_track_over_named_district(ctx):
@@ -554,10 +583,12 @@ async def test_citywide_alert_created_and_corroborated_into_one(ctx):
 
 async def test_citywide_alert_closed_by_all_clear(ctx):
     s, m, src = ctx
-    await ingest_message(s, text="Ціль на місто!", matcher=m, when=BASE,
-                         source_id=src[0].id, message_id=1)
-    await ingest_message(s, text="Відбій тривоги", matcher=m,
-                         when=BASE + timedelta(minutes=3), source_id=src[0].id, message_id=2)
+    await ingest_alert_message(s, text="‼️У Києві оголошена повітряна тривога!",
+                               when=BASE, message_id=100)
+    await ingest_message(s, text="Ціль на місто!", matcher=m,
+                         when=BASE + timedelta(seconds=30), source_id=src[0].id, message_id=1)
+    await ingest_alert_message(s, text="❕Відбій повітряної тривоги!",
+                               when=BASE + timedelta(minutes=3), message_id=101)
     t = (await s.scalars(select(Threat).where(Threat.scope == "city"))).first()
     assert t.closed_at is not None and t.status == "lost"
 
@@ -627,10 +658,12 @@ async def test_threats_of_one_attack_share_one_incident(ctx):
 
 async def test_full_all_clear_ends_the_incident(ctx):
     s, m, src = ctx
-    await ingest_message(s, text="Шахед над Оболонню", matcher=m, when=BASE,
-                         source_id=src[0].id, message_id=1)
-    await ingest_message(s, text="Відбій тривоги", matcher=m,
-                         when=BASE + timedelta(minutes=5), source_id=src[0].id, message_id=2)
+    await ingest_alert_message(s, text="‼️У Києві оголошена повітряна тривога!",
+                               when=BASE, message_id=100)
+    await ingest_message(s, text="Шахед над Оболонню", matcher=m,
+                         when=BASE + timedelta(seconds=30), source_id=src[0].id, message_id=1)
+    await ingest_alert_message(s, text="❕Відбій повітряної тривоги!",
+                               when=BASE + timedelta(minutes=5), message_id=101)
     inc = (await s.scalars(select(Incident))).first()
     assert inc.ended_at is not None
 

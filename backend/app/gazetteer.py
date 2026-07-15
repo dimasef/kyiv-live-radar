@@ -263,6 +263,21 @@ DISTRICTS: list[dict] = [
     # explicitly ties it to Оболонь, a Kyiv district right next to it).
     {"name_uk": "Київське водосховище", "name_en": "KyivReservoir", "lat": 50.9218, "lon": 30.5047,
      "aliases": ["водосховище"]},
+    # The "sea" — how spotters call the Kyiv Reservoir's NEAR-northern approach
+    # (Вишгород dam → Жукин sector), the corridor targets from Чернігівщина ride
+    # into the city ("3х реактивних БПЛА в район моря", "на море ракети,
+    # Вишгород та північ Києва"). A SEPARATE, nearer point than KyivReservoir
+    # above (50.92 is ~40km north — the far water; "район моря" operationally
+    # means the near edge, always paired with готовність Вишгород/Оболонь/Троя).
+    # Aliases carry море AND its genitive/locative моря/морі: the stem matcher
+    # keeps each inflection distinct (a 4-char stem can't strip below 4), and a
+    # bare "мор" stem would collide with морально/мороз. FP sweep of the real
+    # corpus: море/моря/морі cleanly hit the 8 genuine spotter calls; the ONLY
+    # false hit is "Каспійського/Чорного моря" (bomber launch-zones in strategic
+    # reports) — rejected by matcher._is_foreign_sea (a foreign-sea adjective
+    # right before the token), NOT by dropping the alias.
+    {"name_uk": "Район моря", "name_en": "KyivSeaApproach", "lat": 50.66, "lon": 30.52,
+     "aliases": ["море", "моря", "морі"]},
 
     # Sentinel "district" for CITY-WIDE threats — a strike aimed at the city as
     # a whole ("ціль на місто", "балістика на Київ") that no spotter localizes

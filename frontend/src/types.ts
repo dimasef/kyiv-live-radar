@@ -133,6 +133,110 @@ export interface HealthStatus {
   }
 }
 
+/** One ThreatEvent a raw message produced — the same T{threat_id}/M{event_id}
+ * dev badge shown in the feed (see ThreatLog/badges.tsx). A raw message can
+ * produce several (an untyped "дорозвідка" can close multiple open tracks
+ * at once). */
+export interface RawEventLink {
+  threat_id: number
+  event_id: number
+}
+
+/** One verbatim ingested message, INCLUDING ones the parser suppressed or
+ * couldn't localize — see GET /raw_messages (the /raw debug route).
+ * `outcome`/`events`/`notice_id` are authoritative when `events` is
+ * non-empty or `notice_id` is set (a real ThreatEvent/Notice matched);
+ * otherwise `outcome` is a best-effort re-derived label. */
+export interface RawMessage {
+  id: number
+  source_id: number | null
+  source_name: string | null
+  message_id: number | null
+  text: string
+  event_time: string
+  forwarded_from_id: number | null
+  reply_to_message_id: number | null
+  processed: boolean
+  outcome: string
+  events: RawEventLink[]
+  notice_id: number | null
+  /** Whether the LLM fallback was called — null for messages ingested
+   * before this was tracked (genuinely unknown, not "no"). */
+  llm_attempted: boolean | null
+  /** Token usage/cost for that call — set together with llm_attempted when
+   * the API call actually completed; null otherwise. */
+  llm_input_tokens: number | null
+  llm_output_tokens: number | null
+  llm_cost_usd: number | null
+  /** The full structured triage/extraction the LLM returned — present only
+   * when the call produced usable JSON. Collected for /raw audit (Stage 1);
+   * nothing in the product routes on it yet. */
+  llm_response: LlmResponse | null
+}
+
+/** LLM triage category — WHICH kind of message a district-less call saw.
+ * Reported by the model, not acted on yet (Stage 1 collect-only). */
+export type LlmCategory =
+  | 'localized'
+  | 'citywide'
+  | 'directional'
+  | 'forecast'
+  | 'status'
+  | 'noise'
+
+/** Full structured LLM fallback response stored on a raw message — see
+ * RawMessage.llm_response and backend parsing/llm.py::llm_extract. */
+export interface LlmResponse {
+  category: LlmCategory
+  /** Worth showing an operator even without a localized district. */
+  surface: boolean
+  /** Short Ukrainian operator-facing line when surface is true; '' otherwise. */
+  summary: string
+  district_ids: number[]
+  target_type: string
+  status: string
+  is_new_target: boolean
+  confidence: number
+}
+
+/** One monitored channel, for the /raw channel filter dropdown — see
+ * GET /raw_messages/sources. */
+export interface RawSource {
+  id: number
+  name: string
+}
+
+/** Aggregate LLM fallback usage across ALL raw messages — see
+ * GET /raw_messages/llm_stats. */
+export interface RawLlmStats {
+  calls: number
+  input_tokens: number
+  output_tokens: number
+  cost_usd: number
+}
+
+export interface RawMessagesPage {
+  items: RawMessage[]
+  /** Pass as `before_id` to fetch the next page; null once there's no more. */
+  next_before_id: number | null
+}
+
+/** 'event' = became a live sighting; 'suppressed' = everything else. */
+export type RawOutcomeFilter = 'event' | 'suppressed'
+
+/** Total matching the current filter — see GET /raw_messages/count. */
+export interface RawCount {
+  count: number
+}
+
+/** All raw messages matching the filter (up to the server cap) — see
+ * GET /raw_messages/export. `truncated` = the cap was hit, so it's a partial
+ * set. */
+export interface RawExportResponse {
+  messages: RawMessage[]
+  truncated: boolean
+}
+
 export interface DistrictBoundary {
   id: number
   name_uk: string

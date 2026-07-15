@@ -20,3 +20,6 @@ export function useRoute(): string {
 }
 
 export const CHANGELOG_PATH = '/change-log'
+// Hidden debug route (not linked from the UI) — every raw ingested message,
+// including ones the parser suppressed or couldn't localize. See /raw.
+export const RAW_MESSAGES_PATH = '/raw'
