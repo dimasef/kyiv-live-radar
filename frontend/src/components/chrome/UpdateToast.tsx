@@ -1,4 +1,5 @@
 import { X } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 
@@ -12,15 +13,42 @@ export default function UpdateToast() {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
   } = useRegisterSW()
+  const [nextVersion, setNextVersion] = useState<string | null>(null)
+
+  // Ask the waiting SW (the freshly-installed new build) which version it is.
+  useEffect(() => {
+    if (!needRefresh) {
+      setNextVersion(null)
+      return
+    }
+    let cancelled = false
+    navigator.serviceWorker?.getRegistration().then((reg) => {
+      const sw = reg?.waiting ?? reg?.installing
+      if (!sw) return
+      const channel = new MessageChannel()
+      channel.port1.onmessage = (e) => {
+        if (!cancelled && typeof e.data === 'string') setNextVersion(e.data)
+      }
+      sw.postMessage({ type: 'GET_VERSION' }, [channel.port2])
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [needRefresh])
 
   if (!needRefresh) return null
 
   return (
     <div
       role="status"
-      className="panel fixed bottom-4 left-1/2 z-[2000] flex -translate-x-1/2 items-center gap-3 px-4 py-2.5 shadow-xl"
+      className="panel fixed bottom-4 left-1/2 z-[2000] flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 px-4 py-2.5 shadow-xl"
     >
-      <span className="text-xs text-slate-200">{t('update.available')}</span>
+      <span className="whitespace-nowrap text-xs text-slate-200">{t('update.available')}</span>
+      {nextVersion && (
+        <span className="whitespace-nowrap rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[11px] text-phosphor-soft">
+          v{nextVersion}
+        </span>
+      )}
       <button className="btn btn--accent text-xs" onClick={() => updateServiceWorker(true)}>
         {t('update.reload')}
       </button>

@@ -1,5 +1,5 @@
 import { Analytics } from '@vercel/analytics/react'
-import { ChevronUp, Eye, Wifi, WifiOff } from 'lucide-react'
+import { ChevronUp, Eye, Wifi } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -20,6 +20,7 @@ import DisclaimerModal from './components/chrome/DisclaimerModal'
 import { requestGeolocation } from './components/chrome/HomeControl'
 import LanguageSwitcher from './components/chrome/LanguageSwitcher'
 import SettingsPanel from './components/chrome/SettingsPanel'
+import TelegramIcon from './components/chrome/TelegramIcon'
 import UpdateToast from './components/chrome/UpdateToast'
 import ThreatLog from './components/feed/ThreatLog'
 import MapView from './components/map/MapView'
@@ -136,7 +137,7 @@ export default function App() {
               className="flex items-center gap-2 rounded-full border border-red-400/25 bg-red-400/5 px-2.5 py-1 text-[11px] font-mono text-red-300"
               title={t('conn.feedUnavailable')}
             >
-              <WifiOff size={12} className="flex-none" />
+              <TelegramIcon size={12} className="flex-none" />
               <span className="hidden md:inline">{t('conn.feedUnavailable')}</span>
             </span>
           )}

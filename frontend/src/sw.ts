@@ -3,6 +3,8 @@ import { createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching'
 import { NavigationRoute, registerRoute } from 'workbox-routing'
 import { NetworkOnly } from 'workbox-strategies'
 
+import { APP_VERSION } from './changelog'
+
 // Hand-written SW (injectManifest) — see vite.config.ts. Excluded from the app
 // `tsc -b` project (uses webworker globals); vite-plugin-pwa bundles it.
 declare const self: ServiceWorkerGlobalScope & { __WB_MANIFEST: Array<{ url: string; revision: string | null }> }
@@ -35,6 +37,9 @@ if (API_ORIGIN) {
 // when the user accepts, activating the freshly-installed SW.
 self.addEventListener('message', (e) => {
   if (e.data?.type === 'SKIP_WAITING') self.skipWaiting()
+  // The waiting SW is the NEW build, so it knows the incoming version — the
+  // running (old) app asks for it to show "оновити до vX" in the toast.
+  if (e.data?.type === 'GET_VERSION') e.ports[0]?.postMessage(APP_VERSION)
 })
 
 // --- Stage B (Web Push) mounts here — see .claude/plans/pwa.md ---
