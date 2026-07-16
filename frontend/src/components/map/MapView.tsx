@@ -19,8 +19,11 @@ import {
 import { useRadar } from '../../store'
 import { CorroborationLine, CountBadge, threatState, typeLabel } from '../../threatDisplay'
 import { HOME_COLOR, threatColor } from '../../theme'
-import { DIRECTIONAL, threatDivIcon } from '../../threatIcons'
+import { DOT_UNTIL_MOVING, threatDivIcon } from '../../threatIcons'
 import type { Threat } from '../../types'
+import AxisEdgeIndicators from './AxisEdgeIndicators'
+import CitywidePulse from './CitywidePulse'
+import IncidentHighlight from './IncidentHighlight'
 import MapLegend from './MapLegend'
 import { hasMovement, headingOf, trackPoints } from './track'
 
@@ -151,9 +154,17 @@ function ThreatPopup({ threat }: { threat: Threat }) {
   const { t } = useTranslation()
   const color = threatColor(threat)
   const label = typeLabel(threat, t)
-  const sources = Array.from(
-    new Set(threat.events.map((e) => e.source_name).filter(Boolean)),
-  )
+  // The messages that produced this track — one per distinct source message
+  // (an event repeated per district shares a message_id), oldest first so the
+  // popup reads as the target's story.
+  const messages: typeof threat.events = []
+  const seen = new Set<number | string>()
+  for (const ev of threat.events) {
+    const key = ev.source_message_id ?? ev.raw_text
+    if (seen.has(key)) continue
+    seen.add(key)
+    messages.push(ev)
+  }
   return (
     <Popup>
       <div style={{ minWidth: 170, fontSize: 12 } as CSSProperties}>
@@ -193,9 +204,39 @@ function ThreatPopup({ threat }: { threat: Threat }) {
             ⚠ {t('log.conflict')}
           </div>
         )}
-        {sources.length > 0 && (
-          <div style={{ marginTop: 5, fontSize: 11, opacity: 0.6 }}>
-            {sources.join(', ')}
+        {messages.length > 0 && (
+          <div
+            style={{
+              marginTop: 6,
+              paddingTop: 6,
+              borderTop: '1px solid rgba(255,255,255,0.1)',
+              maxHeight: 150,
+              overflowY: 'auto',
+            }}
+          >
+            {messages.map((ev) => (
+              <div key={ev.id} style={{ marginBottom: 6 }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 6,
+                    fontSize: 10,
+                    opacity: 0.55,
+                    fontFamily: 'IBM Plex Mono, monospace',
+                  }}
+                >
+                  <span>
+                    {new Date(ev.event_time).toLocaleTimeString('uk-UA', {
+                      timeZone: 'Europe/Kyiv',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                  {ev.source_name && <span>{ev.source_name}</span>}
+                </div>
+                <div style={{ fontSize: 11, lineHeight: 1.35, opacity: 0.9 }}>{ev.raw_text}</div>
+              </div>
+            ))}
           </div>
         )}
         {import.meta.env.DEV && (
@@ -242,10 +283,11 @@ const ThreatLayer = memo(function ThreatLayer({
   const type = threat.target_type
 
   // Head-marker state: influences SHAPE. A hit bursts; a shot-down/lost track is
-  // struck through; a moving track points along its heading; a single sighting
-  // of a DIRECTIONAL type (heading unknown) is an honest dot — a non-directional
-  // type (ballistic/unknown) shows its glyph even without a heading.
-  const state = threatState(threat, { heading, directional: DIRECTIONAL[type] })
+  // struck through; a moving track points along its heading. A cruise missile
+  // with no heading yet is an honest dot (DOT_UNTIL_MOVING); drones and
+  // ballistic/unknown show their glyph from the first sighting (a drone points
+  // up until it gains a course, then rotates along the vector).
+  const state = threatState(threat, { heading, directional: DOT_UNTIL_MOVING[type] })
 
   const pulse = useMemo(() => pulseIcon(color), [color])
   const headIcon = useMemo(
@@ -267,6 +309,11 @@ const ThreatLayer = memo(function ThreatLayer({
   const latlngs = pts.map((p) => [p.lat, p.lon] as [number, number])
   const head = pts[pts.length - 1]
   const active = !threat.closed_at
+  // Confidence is a VISUAL WEIGHT, not just popup text: a one-source guess reads
+  // fainter than a multi-source confirmation. Floor at 0.5 so a low-confidence
+  // marker is still legible. corroboration >= 2 adds a halo ring — real weight.
+  const dim = 0.5 + 0.5 * Math.max(0, Math.min(1, threat.confidence))
+  const corroborated = threat.corroboration_count >= 2
 
   return (
     <>
@@ -278,7 +325,7 @@ const ThreatLayer = memo(function ThreatLayer({
           pathOptions={{
             color,
             weight: highlighted ? 5 : 3,
-            opacity: active ? 0.8 : highlighted ? 0.75 : 0.45,
+            opacity: (active ? 0.8 : highlighted ? 0.75 : 0.45) * dim,
             className: [active && 'track-flow', highlighted && 'track-inspect']
               .filter(Boolean)
               .join(' ') || undefined,
@@ -291,9 +338,19 @@ const ThreatLayer = memo(function ThreatLayer({
           key={i}
           center={[p.lat, p.lon]}
           radius={highlighted ? 4 : 3}
-          pathOptions={{ color, fillColor: color, fillOpacity: 0.6, weight: highlighted ? 2 : 1 }}
+          pathOptions={{ color, fillColor: color, fillOpacity: 0.6 * dim, weight: highlighted ? 2 : 1 }}
         />
       ))}
+      {/* Corroboration halo — a faint ring behind the head when >= 2 independent
+          sources agree, so a well-attested target reads as heavier at a glance. */}
+      {corroborated && (
+        <CircleMarker
+          center={[head.lat, head.lon]}
+          radius={highlighted ? 16 : 13}
+          interactive={false}
+          pathOptions={{ color, weight: 1.5, opacity: 0.5 * dim, fillColor: color, fillOpacity: 0.06 }}
+        />
+      )}
       {/* Pulsing rings on the live head of an active track. */}
       {active && (
         <Marker
@@ -303,7 +360,7 @@ const ThreatLayer = memo(function ThreatLayer({
           zIndexOffset={-100}
         />
       )}
-      <Marker position={[head.lat, head.lon]} icon={headIcon}>
+      <Marker position={[head.lat, head.lon]} icon={headIcon} opacity={dim}>
         <ThreatPopup threat={threat} />
       </Marker>
     </>
@@ -352,6 +409,10 @@ export default function MapView() {
         {boundaries.map((b) => (
           <GeoJSON key={b.id} data={b.geojson} style={DISTRICT_STYLE} interactive={false} />
         ))}
+        {/* Attack heat (raions under an active incident) + city-wide pulse layer
+            over the inert base boundaries. */}
+        <IncidentHighlight />
+        <CitywidePulse />
 
         <ResizeHandler />
         <HomeController />
@@ -385,6 +446,7 @@ export default function MapView() {
           <ThreatLayer threat={inspectedThreat} highlighted />
         )}
       </MapContainer>
+      <AxisEdgeIndicators />
       <MapLegend />
     </div>
   )

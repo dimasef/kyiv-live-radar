@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     # target that went quiet without an explicit destroyed/clear). Slightly above
     # the gap so a still-live track isn't closed prematurely.
     track_stale_minutes: int = 20
+    # Ballistic is sub-minute in flight: a localized ballistic DOT hangs on the
+    # map far longer than the target is actually airborne, so it clears on a much
+    # shorter silence window than the generic one. Applies only to district-scoped
+    # ballistic tracks (a scope='city' ballistic alert is the "barrage in
+    # progress" banner and keeps the normal window — waves can lull for minutes).
+    ballistic_stale_minutes: int = 5
     # Prefer Telegram reply-threading over time-proximity for track grouping: a
     # message replying to a previous OPEN post joins THAT post's track
     # (transitively). This is the fix for busy-alert "mega-track" zigzags.
@@ -184,6 +190,55 @@ class Settings(BaseSettings):
     llm_fallback_enabled: bool = True
     llm_model: str = "claude-haiku-4-5"
     llm_timeout_s: float = 5.0
+
+    # --- Async LLM triage engine (app/pipeline/triage.py) — the second consumer
+    #     of the LLM. Rules answer instantly (sync); a district-less / suppressed
+    #     but threat-flavoured message is ALSO handed to an async triage pass that
+    #     surfaces directional/forecast/status notices, feeds the axis layer, and
+    #     (behind a flag) rescues a wrongly-suppressed live threat. Never holds the
+    #     ingest lock during the API call. ---
+    # Master switch — off makes the whole context layer dormant (rollback path);
+    # rules/inline-fallback behave exactly as before.
+    triage_enabled: bool = True
+    # Bounded in-process queue; a burst past this drops the oldest-unqueued
+    # message (marked triage_state='skipped') rather than growing unboundedly.
+    triage_queue_max: int = 200
+    # A verdict that lands more than this long after the message is stored for
+    # audit only — no live notice/axis/rescue (the situation has moved on).
+    triage_max_age_minutes: int = 10
+
+    # --- LLM cost guard (both the inline fallback AND the triage engine). When
+    #     the running spend for the current UTC day/month reaches the cap, the LLM
+    #     is skipped and the pipeline degrades gracefully to rules-only. 0 =
+    #     unlimited. Computed from raw_messages.llm_cost_usd — see
+    #     app/pipeline/triage.py::llm_spend_ok. ---
+    llm_daily_budget_usd: float = 2.0
+    llm_monthly_budget_usd: float = 25.0
+
+    # --- Directional threat axes (app/domain/axes.py). An inbound origin/bearing
+    #     callout with no Kyiv raion. ---
+    axis_enabled: bool = True
+    # Repeat callouts of the same (sector, target-family) within this window fold
+    # into ONE axis (the fusion window), bumping its corroboration.
+    axis_fusion_window_minutes: int = 5
+    # Distinct independent sources needed to promote an axis unverified ->
+    # corroborated (a supplementary cue must agree across channels before it reads
+    # as more than one volunteer's guess).
+    axis_min_sources: int = 2
+    # An axis with no new callout for this long is expired off the live layer by
+    # the sweeper (slightly above the fusion window).
+    axis_ttl_minutes: int = 10
+
+    # --- Rescue path (app/pipeline/triage.py::_route_rescue) — the riskiest
+    #     consumer: an LLM verdict re-injecting a suppressed message as a live
+    #     track. Ships DISABLED; dark-launch by watching triage_action=
+    #     'rescue_candidate' on /raw for a few real nights, then enable. ---
+    triage_rescue_enabled: bool = False
+    triage_rescue_min_confidence: float = 0.75
+    # A rescue older than this is notice-only (a track born past the stale window
+    # would be closed by the sweeper on its next tick — pointless). Capped at the
+    # stale window in code.
+    triage_rescue_max_age_minutes: int = 15
 
     @property
     def cors_origin_list(self) -> list[str]:

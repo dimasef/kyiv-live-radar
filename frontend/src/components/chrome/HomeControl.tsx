@@ -1,4 +1,4 @@
-import { LocateFixed, MapPin, X } from 'lucide-react'
+import { Home, LocateFixed, MapPin, X } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -49,7 +49,8 @@ export default function HomeControl() {
   return (
     <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-3">
       <div className="mb-2.5 flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+        <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          <Home size={13} className="flex-none text-phosphor-soft/80" />
           {t('home.title')}
         </span>
         {home && (

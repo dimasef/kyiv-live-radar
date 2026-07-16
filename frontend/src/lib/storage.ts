@@ -7,6 +7,7 @@ export const STORAGE_KEYS = {
   disclaimerHide: 'klr-disclaimer-hide',
   lang: 'klr-lang',
   installDismiss: 'klr-install-dismiss',
+  sheetHeight: 'klr-sheet-height',
 } as const
 
 /** Reads a localStorage value, swallowing errors (private-browsing/quota/etc.

@@ -57,7 +57,7 @@ async def find_track_by_reply(
 
 
 async def find_corroborating_track(
-    session, when: datetime, district_ids: set[int]
+    session, when: datetime, district_ids: set[int], as_of: datetime | None = None
 ) -> Threat | None:
     """Newest open track whose MOST RECENT sighting was over one of `district_ids`.
 
@@ -73,6 +73,12 @@ async def find_corroborating_track(
     real backfill (mega-track-lite: a track absorbing 5-7 genuinely distinct
     missiles/drones that all happened to transit the same chokepoint district
     minutes apart). Never merges on recency alone.
+
+    `as_of` (set only for an async-triage RESCUE at its original timestamp)
+    evaluates each track's "latest" position among events at or before that
+    instant — so a rescue joins the track it actually corroborated at T0, not
+    one that has since moved on to a different district. The live path passes
+    None (full history, behavior byte-identical — proven by track_eval).
     """
     if not district_ids:
         return None
@@ -84,15 +90,25 @@ async def find_corroborating_track(
         .order_by(Threat.created_at.desc())
     )
     for threat in await session.scalars(stmt):  # newest-first
-        if not threat.events:
+        events = threat.events
+        if as_of is not None:
+            events = [e for e in events if not _after(e.event_time, as_of)]
+        if not events:
             continue
-        latest_time = max(e.event_time for e in threat.events)
+        latest_time = max(e.event_time for e in events)
         if not _within(latest_time, when, window):
             continue
-        latest_districts = {e.district_id for e in threat.events if e.event_time == latest_time}
+        latest_districts = {e.district_id for e in events if e.event_time == latest_time}
         if latest_districts & district_ids:
             return threat
     return None
+
+
+def _after(a: datetime, b: datetime) -> bool:
+    """a > b, tolerating naive/aware mismatch (all values are UTC)."""
+    an = a.replace(tzinfo=None) if a.tzinfo is not None else a
+    bn = b.replace(tzinfo=None) if b.tzinfo is not None else b
+    return an > bn
 
 
 async def find_open_track(
@@ -214,17 +230,26 @@ async def close_all_active(
     return closed
 
 
-async def close_stale_tracks(session, now: datetime, minutes: int) -> list[Threat]:
+async def close_stale_tracks(
+    session, now: datetime, minutes: int, ballistic_minutes: int | None = None
+) -> list[Threat]:
     """Close open tracks with no sighting for `minutes` — a target that just went
-    silent (no explicit destroyed/clear) must not linger as 'active' forever."""
+    silent (no explicit destroyed/clear) must not linger as 'active' forever.
+
+    `ballistic_minutes` (when set) is a SHORTER window for a district-scoped
+    ballistic dot: sub-minute flight means such a track hangs on the map long
+    after impact. A scope='city' ballistic alert (the barrage banner) keeps the
+    normal window — its waves can lull for minutes."""
     stmt = select(Threat).where(Threat.closed_at.is_(None)).options(
         selectinload(Threat.events)
     )
-    stale_gap = timedelta(minutes=minutes)
     stale = []
     for t in await session.scalars(stmt):
+        gap_min = minutes
+        if ballistic_minutes is not None and t.target_type == "ballistic" and t.scope != "city":
+            gap_min = ballistic_minutes
         last = t.events[-1].event_time if t.events else t.created_at
-        if not _within(last, now, stale_gap):
+        if not _within(last, now, timedelta(minutes=gap_min)):
             close_track(t, now, "stale")
             stale.append(t)
     if stale:

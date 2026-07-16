@@ -29,18 +29,21 @@ def test_should_not_fallback_when_target_is_in_another_oblast():
         assert not should_fallback(r), txt
 
 
-def test_should_fallback_for_inbound_from_another_oblast():
-    # An INBOUND target whose ORIGIN is another oblast ("з Брянщини"/"з
-    # Чернігівщини", heading toward Kyiv) IS Kyiv-relevant — it reaches the
-    # triage LLM so the "до нас з півночі" callout is collected, instead of being
-    # dropped as the old blanket other-oblast suppression did.
+def test_inbound_from_another_oblast_is_a_directional_axis():
+    # An INBOUND target whose ORIGIN is a curated other-oblast launch zone
+    # ("з Брянщини"/"з Чернігівщини"/"з району Ростова", heading toward Kyiv) is
+    # now detected DETERMINISTICALLY by rules as a directional axis — no wasted
+    # LLM call. (Previously it reached the triage LLM, which couldn't localize a
+    # non-gazetteer origin anyway.)
     for txt in [
         "Тим часом, ворог запустив ще пару реактивних БПЛА з Брянщини.",
         "4х БПЛА реактивних йшло з Чернігівщини, зараз фіксується лише пара.",
         "З району Ростова ворог здійснив запуск реактивних БПЛА.",
     ]:
         r = parse_message(txt, M)
-        assert should_fallback(r), txt
+        assert r.directional, txt
+        assert r.origin_key is not None, txt
+        assert not should_fallback(r), txt  # rules handle it -> no LLM fallback
 
 
 def test_citywide_message_does_not_trigger_llm_fallback():

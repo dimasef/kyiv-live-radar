@@ -11,14 +11,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from sqlalchemy import select
 
 from ..domain.alerts import AlertSignal, apply_alert_signal
+from ..domain.axes import AxisSignal, apply_axis_signal
 from ..domain.districts import citywide_district_id
+from ..domain.origins import target_elsewhere
 from ..domain.incidents import attach_to_incident, end_active_incidents
 from ..domain.lifecycle import close_track, promote_track
 from ..domain.tracking import (
@@ -121,48 +122,6 @@ def _threat_status_for(parsed: ParseResult) -> str:
     return "tracking"
 
 
-# Other oblasts/cities/border regions this feed regularly mentions. When one is
-# the target's LOCATION ("ціль на Дніпро", "загроза у Сумах") the threat is
-# someone else's and an LLM call can't recover a Kyiv district — same set the
-# LLM's own system prompt (parsing.llm._SYSTEM) is told to return empty for.
-# But when one is only the ORIGIN of an INBOUND target ("БпЛА з Чернігівщини",
-# "реактивні від Сум" — heading toward Kyiv), the message IS Kyiv-relevant:
-# suppressing it here (the old blanket behavior) dropped exactly the "до нас з
-# півночі" callouts before the triage LLM ever saw them. So origin mentions no
-# longer suppress; only a target-location mention does (see _target_elsewhere).
-_OTHER_OBLAST = ("чернігівщин", "чернігів", "брянщин", "курщин", "ростов", "воронеж",
-                  "дніпропетровщин", "дніпро", "запоріжж", "миколаївщин", "сумщин",
-                  "полтавщин", "харківщин", "харков", "білорус", "крим",
-                  "житомирщин", "вінницьк", "черкащин", "одещин", "херсонщин")
-
-_OBLAST_ALT = "|".join(sorted(map(re.escape, _OTHER_OBLAST), key=len, reverse=True))
-# Any other-oblast mention.
-_OBLAST_ANY_RE = re.compile(r"(?<![а-яіїєґ])(?:" + _OBLAST_ALT + r")")
-# An other-oblast in ORIGIN position: a "from" preposition (з/зі/із/від), with an
-# optional "боку/напрямку/району/межах/р-ну" bridge ("з боку Сумщини", "з району
-# Ростова"), immediately before the oblast token. Everything else — "на Дніпро",
-# "у Сумах", a bare "Чернігівщина під ударом" — counts as a target location.
-_OBLAST_ORIGIN_RE = re.compile(
-    r"(?<![а-яіїєґ])(?:з|зі|із|від)\s+"
-    r"(?:боку\s+|напрямку\s+|району\s+|р-ну\s+|межах\s+|межа\w*\s+)?"
-    r"(?:" + _OBLAST_ALT + r")"
-)
-
-
-def _target_elsewhere(norm: str) -> bool:
-    """True if the message names another oblast as a target LOCATION (not merely
-    an inbound target's origin) — then rules found no Kyiv district because the
-    threat genuinely isn't ours, and the LLM can't recover one either. An
-    origin-only mention ("з Чернігівщини", heading to us) returns False so the
-    inbound callout still reaches the triage LLM. Conservative when unclear: a
-    non-origin oblast mention suppresses, matching the prior blanket behavior."""
-    total = len(_OBLAST_ANY_RE.findall(norm))
-    if total == 0:
-        return False
-    origins = len(_OBLAST_ORIGIN_RE.findall(norm))
-    return origins < total
-
-
 def should_fallback(parsed: ParseResult) -> bool:
     """Route to the LLM only when rules couldn't localize a threat-flavored
     message — not for junk/news and not when rules already succeeded."""
@@ -182,13 +141,15 @@ def should_fallback(parsed: ParseResult) -> bool:
         return False
     if parsed.citywide:  # city-level alert with no raion — LLM can't localize it further
         return False
+    if parsed.directional:  # rules already raised a directional axis — no district to find
+        return False
     if parsed.summary:  # retrospective recap, not a live target — nothing to localize
         return False
     if parsed.target_pulse:  # terse pulse, no place — nothing for the LLM to localize
         return False
     if parsed.districts or parsed.status in ("clear", "destroyed"):
         return False
-    if _target_elsewhere(normalize(parsed.raw_text)):
+    if target_elsewhere(normalize(parsed.raw_text)):
         return False
     return parsed.target_type != "unknown" or parsed.status in ("confirmed", "unconfirmed")
 
@@ -207,6 +168,12 @@ async def _resolve(
     (see llm_extract)."""
     parsed = parse_message(text, matcher)
     if settings.llm_fallback_enabled and settings.anthropic_api_key and should_fallback(parsed):
+        from .triage import llm_spend_ok
+
+        # Shared cost guard: when the day/month LLM budget is exhausted, the
+        # inline fallback degrades to rules-only too (not just the async engine).
+        if not await llm_spend_ok():
+            return parsed, "rule", False, None, None
         from ..parsing.llm import llm_extract
 
         llm, usage, response = await llm_extract(text, matcher)
@@ -300,10 +267,65 @@ class IngestContext:
     forwarded_from_id: int | None
     forwarded_from_channel_id: int | None
     reply_to_message_id: int | None
+    # Set only for a RESCUED message (async triage re-injecting a suppressed
+    # sighting): corroboration is then evaluated as-of this original time, not
+    # "now", so the rescue joins the track it actually corroborated at T0 rather
+    # than one that has since moved on. None on the live path (behavior unchanged).
+    as_of: datetime | None = None
+    # Operator-facing gist from an LLM verdict (inline-llm or rescued events) —
+    # stamped onto each ThreatEvent this message creates, for the feed headline.
+    # None for rule-only messages.
+    llm_summary: str | None = None
 
     async def done(self) -> None:
         self.raw.processed = True
         await self.session.commit()
+
+
+def _axis_dedup_key(ctx: IngestContext) -> str:
+    """Independent-source identity for axis corroboration (see
+    fusion._origin_keys / triage._source_dedup_key)."""
+    if ctx.forwarded_from_channel_id is not None:
+        return f"orig:{ctx.forwarded_from_channel_id}"
+    return f"src:{ctx.source_id}"
+
+
+async def _raise_axis_from_parsed(ctx: IngestContext) -> Broadcast | None:
+    """Raise/refresh a directional axis for a message that named an inbound
+    origin (ctx.parsed.origin_key/_sector), whether it stood alone (directional)
+    or accompanied a city/district sighting. No-op when no origin was named."""
+    parsed = ctx.parsed
+    if parsed.origin_sector is None:
+        return None
+    axis = await apply_axis_signal(ctx.session, AxisSignal(
+        sector=parsed.origin_sector,
+        target_type=parsed.target_type,
+        when=ctx.when,
+        origin_key=parsed.origin_key,
+        source_dedup_key=_axis_dedup_key(ctx),
+        raw_id=ctx.raw.id,
+    ))
+    return Broadcast("axis", axis=axis) if axis is not None else None
+
+
+async def _handle_directional(ctx: IngestContext) -> list[Broadcast]:
+    """Standalone directional/origin callout ("Загроза балістики з Брянська") —
+    no Kyiv raion to localize. Raise a directional AXIS (a screen-edge wedge)
+    and surface a rule-generated directional notice in the feed; never a track."""
+    parsed, when = ctx.parsed, ctx.when
+    notice = Notice(
+        kind="directional", text=parsed.raw_text, target_type=parsed.target_type,
+        source_id=ctx.source_id, event_time=when, source_message_id=ctx.message_id,
+        origin=parsed.origin_key, generated_by="rule",
+    )
+    ctx.session.add(notice)
+    await ctx.session.commit()
+    axis_bc = await _raise_axis_from_parsed(ctx)
+    await ctx.done()
+    broadcasts: list[Broadcast] = [Broadcast("notice", notice=notice)]
+    if axis_bc is not None:
+        broadcasts.append(axis_bc)
+    return broadcasts
 
 
 async def _handle_clear(ctx: IngestContext) -> list[Broadcast]:
@@ -543,14 +565,19 @@ async def _handle_citywide(ctx: IngestContext) -> list[Broadcast]:
         forwarded_from_channel_id=ctx.forwarded_from_channel_id,
         reply_to_message_id=ctx.reply_to_message_id,
         event_target_type=parsed.target_type, event_target_count=track.target_count,
+        llm_summary=ctx.llm_summary,
     )
     session.add(ev)
     await session.commit()
     await apply_fusion(session, track)
     inc = await attach_to_incident(session, track, when, decoy=parsed.decoy,
                                    hypersonic=parsed.hypersonic)
+    axis_bc = await _raise_axis_from_parsed(ctx)
     await ctx.done()
-    return [Broadcast("event", track, ev), Broadcast("attack", incident=inc)]
+    out = [Broadcast("event", track, ev), Broadcast("attack", incident=inc)]
+    if axis_bc is not None:
+        out.append(axis_bc)
+    return out
 
 
 async def _handle_sighting(ctx: IngestContext) -> list[Broadcast]:
@@ -563,7 +590,7 @@ async def _handle_sighting(ctx: IngestContext) -> list[Broadcast]:
     track = await find_track_by_reply(session, ctx.source_id, ctx.reply_to_message_id)
     if track is None and not parsed.is_new_target:
         district_ids = {h.district_id for h in parsed.districts}
-        track = await find_corroborating_track(session, when, district_ids)
+        track = await find_corroborating_track(session, when, district_ids, as_of=ctx.as_of)
     if track is None:
         track = Threat(target_type=parsed.target_type, status=_threat_status_for(parsed),
                        target_count=parsed.target_count or 1)
@@ -584,7 +611,8 @@ async def _handle_sighting(ctx: IngestContext) -> list[Broadcast]:
         ev = _make_event(track.id, parsed, hit, ctx.source_id, ctx.message_id,
                          ctx.forwarded_from_id, when, ctx.decision_source, ctx.reply_to_message_id,
                          target_count=track.target_count,
-                         forwarded_from_channel_id=ctx.forwarded_from_channel_id)
+                         forwarded_from_channel_id=ctx.forwarded_from_channel_id,
+                         llm_summary=ctx.llm_summary)
         session.add(ev)
         await session.commit()
         await apply_fusion(session, track)
@@ -593,6 +621,9 @@ async def _handle_sighting(ctx: IngestContext) -> list[Broadcast]:
     inc = await attach_to_incident(session, track, when, decoy=parsed.decoy,
                                    hypersonic=parsed.hypersonic)
     broadcasts.append(Broadcast("attack", incident=inc))
+    axis_bc = await _raise_axis_from_parsed(ctx)
+    if axis_bc is not None:
+        broadcasts.append(axis_bc)
     await ctx.done()
     return broadcasts
 
@@ -609,6 +640,7 @@ async def process_parsed(
     forwarded_from_id: int | None,
     forwarded_from_channel_id: int | None = None,
     reply_to_message_id: int | None,
+    triage: str = "live",
 ) -> list[Broadcast]:
     """Parse -> track -> fuse an ALREADY-PERSISTED raw message.
 
@@ -616,6 +648,13 @@ async def process_parsed(
     existing `raw_messages` rows through the current parser/gazetteer/tracking
     logic (e.g. after growing the gazetteer) without re-inserting them — the
     ingest-level dedup guard would otherwise make that a no-op.
+
+    `triage` mode:
+      * 'live'   — enqueue a qualifying message for the async triage engine.
+      * 'replay' — route the STORED llm_response verdict inline (no API call, no
+        queue), so a reprocess deterministically reproduces what triage did, at
+        each message's natural chronological position (see reprocess.py).
+      * 'off'    — no triage at all.
     """
     parsed, decision_source, llm_attempted, llm_usage, llm_response = await _resolve(text, matcher)
     raw.llm_attempted = llm_attempted
@@ -639,8 +678,40 @@ async def process_parsed(
         forwarded_from_id=forwarded_from_id,
         forwarded_from_channel_id=forwarded_from_channel_id,
         reply_to_message_id=reply_to_message_id,
+        llm_summary=(llm_response.get("summary") or None
+                     if llm_response is not None and decision_source == "llm" else None),
     )
 
+    # Async triage: hand a district-less/suppressed-but-threat-flavored message
+    # to the second-pass engine (which surfaces directional/forecast/status
+    # notices, feeds the axis layer, and — behind a flag — rescues a wrongly
+    # suppressed live threat). Reuses the inline verdict if one exists (no second
+    # API call). Marked on the raw row so /raw shows where it went.
+    triage_extra: list[Broadcast] = []
+    if triage == "live":
+        from .triage import TriageJob, enqueue_job, should_triage
+
+        if should_triage(parsed, decision_source, llm_response):
+            job = TriageJob(
+                raw_id=raw.id, text=text, when=when, source_id=source_id,
+                message_id=message_id, reply_to_message_id=reply_to_message_id,
+                forwarded_from_id=forwarded_from_id,
+                forwarded_from_channel_id=forwarded_from_channel_id,
+                verdict=llm_response,
+            )
+            raw.triage_state = "pending" if enqueue_job(job) else "skipped"
+    elif triage == "replay" and raw.llm_response is not None:
+        # Deterministic reprocess: route the STORED verdict inline (no API, no
+        # queue), at this message's natural chronological position.
+        triage_extra = await _replay_triage_verdict(ctx, raw.llm_response, matcher)
+
+    result = await _dispatch(ctx)
+    return result + triage_extra
+
+
+async def _dispatch(ctx: IngestContext) -> list[Broadcast]:
+    """Route a parsed spotter message to its handler, in fixed precedence order."""
+    parsed = ctx.parsed
     # 2a. All-clear. An authoritative FULL "Відбій тривоги" (clear_scope=None,
     #     closes EVERY track) comes ONLY from the official alert channel
     #     (process_parsed_alert closes all tracks on its city end) — a spotter's
@@ -670,6 +741,10 @@ async def process_parsed(
     if parsed.summary:
         return await _handle_summary(ctx)
 
+    # 2a-quinquies. Directional/origin callout with no raion -> a map axis.
+    if parsed.directional:
+        return await _handle_directional(ctx)
+
     # 2b. Nothing localizable/actionable — keep the raw row, emit nothing.
     if not parsed.matched:
         await ctx.done()
@@ -689,6 +764,74 @@ async def process_parsed(
 
     # 2d. Sighting / confirmed / unconfirmed -> continue or start a track.
     return await _handle_sighting(ctx)
+
+
+async def process_rescued(session, *, raw: RawMessage, job, verdict: dict,
+                          matcher: DistrictMatcher | None = None) -> list[Broadcast]:
+    """Re-inject a triage-rescued verdict through the normal sighting/citywide
+    handlers, at the message's ORIGINAL timestamp and with decision_source=
+    'triage'. Reusing the live handlers means tracking/fusion/incident-attach/
+    broadcast all behave identically to a live message. Deliberately does NOT
+    call _note_and_inherit_type (a late rescue must not inject a stale type into
+    the live per-channel context) and evaluates corroboration as-of the original
+    time (ctx.as_of)."""
+    if matcher is None:
+        from ..models import District
+        districts = list(await session.scalars(select(District)))
+        matcher = DistrictMatcher(districts)
+    name_by_id = dict(matcher.districts_index)
+    hits = [DistrictHit(did, name_by_id[did], i)
+            for i, did in enumerate(verdict.get("district_ids", [])) if did in name_by_id]
+    status = verdict.get("status", "sighting")
+    if status not in ("confirmed", "unconfirmed", "sighting"):
+        status = "sighting"
+    citywide = verdict.get("category") == "citywide" and not hits
+    parsed = ParseResult(
+        target_type=verdict.get("target_type", "unknown"),
+        status=status,
+        is_new_target=bool(verdict.get("is_new_target", False)),
+        districts=hits,
+        confidence=float(verdict.get("confidence", 0.5)),
+        raw_text=job.text,
+        matched=bool(hits) or citywide,
+        citywide=citywide,
+    )
+    ctx = IngestContext(
+        session=session, raw=raw, parsed=parsed, decision_source="triage",
+        when=job.when, source_id=job.source_id, message_id=job.message_id,
+        forwarded_from_id=job.forwarded_from_id,
+        forwarded_from_channel_id=job.forwarded_from_channel_id,
+        reply_to_message_id=job.reply_to_message_id,
+        as_of=job.when,
+        llm_summary=(verdict.get("summary") or None),
+    )
+    if citywide:
+        return await _handle_citywide(ctx)
+    if not hits:
+        await ctx.done()
+        return []
+    return await _handle_sighting(ctx)
+
+
+async def _replay_triage_verdict(ctx: IngestContext, verdict: dict,
+                                 matcher: DistrictMatcher) -> list[Broadcast]:
+    """Deterministic reprocess: route a STORED verdict through the same routing
+    table the live async engine uses (triage.route_verdict), but inline — no
+    queue, no API, no age gate (each verdict is re-applied at its own position)."""
+    from .triage import TriageJob, route_verdict
+
+    job = TriageJob(
+        raw_id=ctx.raw.id, text=ctx.parsed.raw_text, when=ctx.when, source_id=ctx.source_id,
+        message_id=ctx.message_id, reply_to_message_id=ctx.reply_to_message_id,
+        forwarded_from_id=ctx.forwarded_from_id,
+        forwarded_from_channel_id=ctx.forwarded_from_channel_id, verdict=verdict,
+    )
+    broadcasts, action, _state = await route_verdict(
+        ctx.session, ctx.raw, job, verdict, enforce_age=False
+    )
+    ctx.raw.triage_action = action
+    ctx.raw.triage_state = "done"
+    return broadcasts
 
 
 async def ingest_alert_message(
@@ -811,7 +954,8 @@ def _make_event(threat_id, parsed: ParseResult, hit, source_id, message_id,
                 forwarded_from_id, when: datetime, decision_source: str,
                 reply_to_message_id: int | None = None,
                 target_count: int = 1,
-                forwarded_from_channel_id: int | None = None) -> ThreatEvent:
+                forwarded_from_channel_id: int | None = None,
+                llm_summary: str | None = None) -> ThreatEvent:
     return ThreatEvent(
         threat_id=threat_id,
         district_id=hit.district_id,
@@ -826,4 +970,5 @@ def _make_event(threat_id, parsed: ParseResult, hit, source_id, message_id,
         reply_to_message_id=reply_to_message_id,
         event_target_type=parsed.target_type,
         event_target_count=target_count,
+        llm_summary=llm_summary,
     )

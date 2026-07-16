@@ -25,8 +25,10 @@ function Swatch({ html }: { html: string }) {
   )
 }
 
-const dotSwatch = (color: string) =>
-  `<svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="6" fill="${color}" stroke="#000" stroke-width="0.7"/></svg>`
+// The same house silhouette as the map's home marker (MapView homeIcon), so the
+// legend swatch matches what the user sees on the map.
+const homeSwatch = (color: string) =>
+  `<svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3 L21 11 L18 11 L18 20 L14 20 L14 14 L10 14 L10 20 L6 20 L6 11 L3 11 Z" fill="${color}" stroke="#000" stroke-width="0.7" stroke-linejoin="round"/></svg>`
 
 /** Collapsible legend floating over the map (bottom-left, above leaflet UI). */
 export default function MapLegend() {
@@ -54,7 +56,7 @@ export default function MapLegend() {
       html: threatGlyphSvg('unknown', { size: 16, state: 'destroyed', color: MUTED_COLOR }),
       label: t('legend.destroyed'),
     },
-    { html: dotSwatch(HOME_COLOR), label: t('legend.home') },
+    { html: homeSwatch(HOME_COLOR), label: t('legend.home') },
   ]
 
   return (

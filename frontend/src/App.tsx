@@ -7,6 +7,7 @@ import {
   Header,
   MobileSheet,
   SettingsPanel,
+  SplashScreen,
   UpdateToast,
 } from "@/components/chrome";
 import { ThreatLog } from "@/components/feed";
@@ -26,6 +27,7 @@ export default function App() {
 
   return (
     <div className="h-full flex flex-col">
+      <SplashScreen />
       <Header />
 
       <DisclaimerModal open={showDisclaimer} onClose={() => setShowDisclaimer(false)} />

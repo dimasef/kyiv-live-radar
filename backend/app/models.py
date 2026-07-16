@@ -50,7 +50,22 @@ THREAT_KINDS = ("track", "impact")
 # meanings (відбій / дорозвідка stand-down / silence timeout). NULL while open.
 CLOSED_REASONS = ("destroyed", "all_clear", "stand_down", "stale")
 # Where the structured event came from — critical for parser eval/debugging.
-DECISION_SOURCES = ("rule", "llm", "sim")
+# 'triage' = an async second-pass LLM verdict RESCUED a message the sync rules
+# path suppressed/couldn't localize (see app/pipeline/triage.py). Distinct from
+# 'llm' (the inline sync fallback that runs while ingest holds the lock).
+DECISION_SOURCES = ("rule", "llm", "sim", "triage")
+# Async-triage bookkeeping on a raw message (app/pipeline/triage.py). state =
+# where the message is in the triage queue's lifecycle; action = what routing
+# ultimately did with the verdict. Both NULL for messages never enqueued.
+TRIAGE_STATES = ("pending", "done", "skipped", "budget", "error")
+TRIAGE_ACTIONS = ("none", "suppress_confirmed", "notice", "axis", "rescue_candidate", "rescued", "late")
+# A directional threat axis' lifecycle (app/domain/axes.py). 'unverified' = one
+# source only; 'corroborated' = >= axis_min_sources independent sources agreed;
+# 'expired' = timed out of the live layer by the sweeper.
+AXIS_STATES = ("unverified", "corroborated", "expired")
+# Who produced a Notice — a deterministic rule handler or an LLM triage verdict
+# (surfaced with an "AI · неперевірено" badge in the feed).
+NOTICE_GENERATORS = ("rule", "llm")
 # 'spotter' = volunteer sighting channel, parsed by parser.py into
 # threats/tracks. 'alert' = official air-raid alert channel (@KyivCityOfficial
 # today), parsed by alert_parser.py into Alert rows — routed separately so an
@@ -174,6 +189,45 @@ class RawMessage(Base):
     llm_response: Mapped[Optional[dict]] = mapped_column(
         JSON(none_as_null=True), nullable=True
     )
+    # Async LLM triage bookkeeping (see TRIAGE_STATES/TRIAGE_ACTIONS and
+    # app/pipeline/triage.py). NULL for messages the triage engine never
+    # enqueued (rules already localized them, or they were pure junk).
+    triage_state: Mapped[Optional[str]] = mapped_column(String(12), nullable=True)
+    triage_action: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+
+
+class ThreatAxis(Base):
+    """A directional threat axis — an inbound bearing/origin ("балістика з
+    Брянщини") a spotter callout named without any Kyiv raion to localize. It is
+    NOT a map point: the frontend draws it as a screen-edge wedge along the
+    origin's compass bearing (app/domain/origins.py). Modelled as its own entity
+    (not a Notice) because it has a lifecycle — a fusion window that absorbs
+    repeat callouts, an unverified->corroborated promotion at
+    axis_min_sources, and a TTL the sweeper expires it on — exactly the
+    Alert/Incident pattern.
+    """
+
+    __tablename__ = "threat_axes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # NULL while active; set when the sweeper expires the axis (TTL lapsed).
+    expires_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    target_type: Mapped[str] = mapped_column(String(20), default="unknown")
+    # Curated origin key (origins.ORIGIN_KEYS) when a toponym was named, else NULL
+    # (a bare directional "курсом з півночі" carries only a sector).
+    origin_key: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    sector: Mapped[str] = mapped_column(String(4), default="N")  # compass octant
+    status: Mapped[str] = mapped_column(String(12), default="unverified")
+    corroboration_count: Mapped[int] = mapped_column(default=1)
+    # Distinct source-origin dedup keys seen (same _origin_key idea as fusion.py)
+    # so a channel reposting its own callout doesn't inflate corroboration.
+    origin_keys_seen: Mapped[list] = mapped_column(JSON, default=list)
+    # Provenance: the raw_message ids that fed this axis, for reprocess/audit.
+    raw_ids: Mapped[list] = mapped_column(JSON, default=list)
 
 
 class Notice(Base):
@@ -188,7 +242,9 @@ class Notice(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    kind: Mapped[str] = mapped_column(String(20))  # 'clear' | 'summary'
+    # 'clear' | 'summary' (rule-emitted) | 'directional' | 'forecast' | 'status'
+    # (LLM-triage-emitted context notices — see app/pipeline/triage.py).
+    kind: Mapped[str] = mapped_column(String(20))
     text: Mapped[str] = mapped_column(Text, default="")
     target_type: Mapped[str] = mapped_column(String(20), default="unknown")
     source_id: Mapped[Optional[int]] = mapped_column(
@@ -199,6 +255,14 @@ class Notice(Base):
     # ThreatEvent.source_message_id, so /raw_messages can trace a raw message
     # to the notice it became (NULL for notices created before this existed).
     source_message_id: Mapped[Optional[int]] = mapped_column(nullable=True)
+    # Curated origin key (origins.ORIGIN_KEYS) for a directional notice — the
+    # feed clusters same-origin callouts and can point to the matching axis. NULL
+    # for non-directional notices.
+    origin: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    # 'rule' | 'llm' (see NOTICE_GENERATORS) — LLM-generated notices are shown as
+    # unverified/AI in the feed. Defaults 'rule' so every historical notice reads
+    # as authoritative, which they were.
+    generated_by: Mapped[str] = mapped_column(String(10), default="rule")
 
 
 class Incident(Base):
@@ -338,6 +402,11 @@ class ThreatEvent(Base):
     # display the ×3 that only a later "3 ракети" established. NULL for pre-column
     # events (the feed falls back to the track's current count for those).
     event_target_count: Mapped[Optional[int]] = mapped_column(nullable=True)
+    # Short operator-facing gist from the LLM triage verdict (<=80 chars), when
+    # the LLM saw this message — the feed shows it as the card headline with the
+    # raw text collapsed beneath. NULL for rule-only events (the vast majority);
+    # the feed falls back to raw_text.
+    llm_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     threat: Mapped["Threat"] = relationship(back_populates="events")
     district: Mapped["District"] = relationship()

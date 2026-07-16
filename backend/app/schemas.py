@@ -60,6 +60,10 @@ class ThreatEventOut(BaseModel):
     # Group size known as of this event (running-max at the time). The feed shows
     # this instead of the track's final count; NULL for pre-column events.
     event_target_count: Optional[int] = None
+    # Operator-facing gist from the LLM triage verdict (<=80 chars) — the feed
+    # uses it as the card headline, raw_text collapsed beneath. NULL for
+    # rule-only events (the feed falls back to raw_text).
+    llm_summary: Optional[str] = None
     # Denormalized point for convenient map rendering.
     lat: Optional[float] = None
     lon: Optional[float] = None
@@ -114,6 +118,9 @@ class IncidentOut(BaseModel):
     impact_count: int = 0       # distinct confirmed strike locations
     citywide: bool = False      # a city-wide alert is part of this attack
     district_count: int = 0     # distinct raions touched (excludes the sentinel)
+    # Distinct raion ids touched by member events (excludes the sentinel) — the
+    # frontend highlights these polygons on the map for an active incident.
+    district_ids: list[int] = []
     # --- Attack classification (derived — see app/attack.py::classify) ---
     classification: str = "unknown"  # 'drone'|'cruise_missile'|'ballistic'|'combined'|'unknown'
     attack_types: list[str] = []
@@ -134,12 +141,16 @@ class NoticeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    kind: str  # 'clear' | 'summary'
+    kind: str  # 'clear' | 'summary' | 'directional' | 'forecast' | 'status'
     text: str
     target_type: str
     event_time: datetime
     source_id: Optional[int] = None
     source_name: Optional[str] = None
+    # Curated origin key for a directional notice (else None) + who produced it
+    # ('rule'|'llm'). LLM notices render with an "AI · неперевірено" badge.
+    origin: Optional[str] = None
+    generated_by: str = "rule"
 
     _tz_notice = field_validator("event_time", mode="before")(_as_utc)
 
@@ -158,6 +169,26 @@ class AlertOut(BaseModel):
     closed_reason: Optional[str] = None  # 'official' | 'failsafe'; None while open
 
     _tz_alert = field_validator("started_at", "ended_at", mode="before")(_as_utc)
+
+
+class AxisOut(BaseModel):
+    """A directional threat axis for the map's screen-edge wedge layer. Bearing
+    and origin display name are derived server-side from the curated origins
+    table (app/domain/origins.py) — the client just draws the wedge."""
+
+    id: int
+    sector: str            # compass octant
+    bearing_deg: int       # 0=N, 90=E — the wedge direction
+    origin_key: Optional[str] = None
+    origin_name: Optional[str] = None  # display label ("Брянщина"); None for bare-sector
+    target_type: str
+    status: str            # 'unverified' | 'corroborated' | 'expired'
+    corroboration_count: int = 1
+    created_at: datetime
+    last_seen_at: datetime
+    expires_at: Optional[datetime] = None
+
+    _tz_axis = field_validator("created_at", "last_seen_at", "expires_at", mode="before")(_as_utc)
 
 
 class RawEventLinkOut(BaseModel):
@@ -201,6 +232,11 @@ class RawMessageOut(BaseModel):
     # summary) — present only when the LLM produced usable JSON; None otherwise.
     # Collected for /raw audit; nothing in the product routes on it yet.
     llm_response: Optional[dict] = None
+    # Async-triage bookkeeping (see TRIAGE_STATES/TRIAGE_ACTIONS) — where the
+    # message went in the triage queue and what routing did with its verdict.
+    # NULL for messages the triage engine never enqueued.
+    triage_state: Optional[str] = None
+    triage_action: Optional[str] = None
 
     _tz_raw = field_validator("event_time", mode="before")(_as_utc)
 
@@ -248,12 +284,14 @@ class RawLlmStatsOut(BaseModel):
 class WSMessage(BaseModel):
     """Envelope broadcast over the WebSocket."""
 
-    type: str  # 'event' | 'status' | 'notice' | 'alert' | 'attack' | 'health' | 'online' | 'hello'
+    # 'event'|'status'|'notice'|'alert'|'attack'|'axis'|'health'|'online'|'hello'
+    type: str
     threat: Optional[ThreatOut] = None
     event: Optional[ThreatEventOut] = None
     notice: Optional[NoticeOut] = None
     alert: Optional[AlertOut] = None
     incident: Optional[IncidentOut] = None
+    axis: Optional[AxisOut] = None
     # 'health' frame payload: whether the live Telegram feed looks healthy —
     # see telegram_listener.py::feed_health.
     feed_ok: Optional[bool] = None

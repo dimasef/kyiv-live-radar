@@ -59,6 +59,14 @@ async def lifespan(app: FastAPI):
 
     tasks.append(asyncio.create_task(run_sweeper()))
 
+    # Async LLM triage engine: one consumer draining the in-process queue that
+    # ingest fills (directional/forecast/status notices, axis fusion, rescue).
+    if settings.triage_enabled:
+        from .pipeline.triage import run_triage_consumer
+
+        log.info("starting async LLM triage consumer")
+        tasks.append(asyncio.create_task(run_triage_consumer()))
+
     yield
 
     for task in tasks:

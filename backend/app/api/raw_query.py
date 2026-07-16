@@ -163,6 +163,8 @@ async def serialize_raw_rows(session, rows: list[RawMessage]) -> list[RawMessage
                 llm_output_tokens=r.llm_output_tokens,
                 llm_cost_usd=r.llm_cost_usd,
                 llm_response=r.llm_response,
+                triage_state=r.triage_state,
+                triage_action=r.triage_action,
             )
         )
     return items

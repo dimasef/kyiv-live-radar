@@ -35,9 +35,25 @@ export const THREAT_PATHS: Record<TargetType, string> = {
   unknown: 'M12 3 L21 12 L12 21 L3 12 Z M12 7.6 L16.4 12 L12 16.4 L7.6 12 Z',
 }
 
+// Whether a glyph ROTATES to its movement heading (only meaningful once the
+// track has a vector). Drones and cruise missiles are oriented along travel;
+// ballistic/unknown are fixed-orientation glyphs.
 export const DIRECTIONAL: Record<TargetType, boolean> = {
   shahed: true,
   jet_drone: true,
+  missile: true,
+  ballistic: false,
+  unknown: false,
+}
+
+// Whether a FIRST sighting with no heading yet renders as a plain fix dot
+// (instead of the type glyph). A cruise-missile arrow is meaningless without a
+// vector, so it stays a dot until it moves. Drones now show their glyph from
+// the first point (pointing up until a course is known, then rotating);
+// ballistic/unknown always show their glyph.
+export const DOT_UNTIL_MOVING: Record<TargetType, boolean> = {
+  shahed: false,
+  jet_drone: false,
   missile: true,
   ballistic: false,
   unknown: false,

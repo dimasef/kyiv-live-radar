@@ -11,7 +11,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from ..api.serialize import alert_out, event_out, incident_out, notice_out, threat_out
+from ..api.serialize import alert_out, axis_out, event_out, incident_out, notice_out, threat_out
 from ..api.ws import manager
 from ..domain.districts import citywide_district_id
 from ..models import Incident, Notice, Threat, ThreatEvent
@@ -54,6 +54,9 @@ async def broadcast_results(session, results: list[Broadcast]) -> None:
             continue
         if b.type == "alert" and b.alert is not None:
             await manager.broadcast(WSMessage(type="alert", alert=alert_out(b.alert)))
+            continue
+        if b.type == "axis" and b.axis is not None:
+            await manager.broadcast(WSMessage(type="axis", axis=axis_out(b.axis)))
             continue
         if b.type == "attack" and b.incident is not None:
             inc = await _load_incident_full(session, b.incident.id)

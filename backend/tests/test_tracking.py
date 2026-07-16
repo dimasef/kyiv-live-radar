@@ -401,6 +401,34 @@ async def test_stale_track_auto_closed(ctx):
     assert len(closed) == 1 and closed[0].status == "lost"
 
 
+async def test_ballistic_dot_closes_on_shorter_window(ctx):
+    s, m, src = ctx
+    from app.domain.tracking import close_stale_tracks
+    # A localized ballistic dot and a shahed track, both quiet after BASE.
+    await ingest_message(s, text="🚀 Балістика над Оболонню", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="🔴 Шахед над Виноградарем", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=2)
+    # 6 min of silence, ballistic window = 5: the ballistic dot closes, shahed stays.
+    closed = await close_stale_tracks(s, BASE + timedelta(minutes=6), 20, ballistic_minutes=5)
+    assert len(closed) == 1
+    assert closed[0].target_type == "ballistic" and closed[0].scope != "city"
+    shahed = (await s.scalars(select(Threat).where(Threat.target_type == "shahed"))).one()
+    assert shahed.closed_at is None
+
+
+async def test_citywide_ballistic_keeps_normal_window(ctx):
+    s, m, src = ctx
+    from app.domain.tracking import close_stale_tracks
+    # A scope='city' ballistic alert (the barrage banner) must NOT use the short
+    # ballistic dot window — its waves can lull for minutes between callouts.
+    await ingest_message(s, text="🚀 Балістика на Київ", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    city = (await s.scalars(select(Threat).where(Threat.scope == "city"))).one()
+    assert city.target_type == "ballistic"
+    assert await close_stale_tracks(s, BASE + timedelta(minutes=6), 20, ballistic_minutes=5) == []
+
+
 async def test_reply_continues_track_across_gap(ctx):
     """A reply joins its parent's track even past track_gap_minutes — the reply
     thread, not time-proximity, defines the target."""

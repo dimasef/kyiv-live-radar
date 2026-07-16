@@ -13,6 +13,7 @@ import type {
   RawOutcomeFilter,
   RawSource,
   Threat,
+  ThreatAxis,
   ThreatEvent,
 } from './types'
 
@@ -28,6 +29,9 @@ export const fetchDistricts = () => get<District[]>('/districts')
 export const fetchBoundaries = () => get<DistrictBoundary[]>('/districts/boundaries')
 export const fetchActiveThreats = () => get<Threat[]>('/threats/active')
 export const fetchActiveIncidents = () => get<Incident[]>('/incidents/active')
+export const fetchRecentIncidents = (limit = 20) =>
+  get<Incident[]>(`/incidents/recent?limit=${limit}`)
+export const fetchActiveAxes = () => get<ThreatAxis[]>('/axes/active')
 export const fetchActiveAlerts = () => get<Alert[]>('/alerts/active')
 export const fetchHealth = () => get<HealthStatus>('/health')
 export const fetchRecentNotices = (limit = 30) =>

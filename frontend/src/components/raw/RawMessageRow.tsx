@@ -59,6 +59,11 @@ export default function RawMessageRow({
                 costUsd={item.llm_cost_usd}
               />
             )}
+            {item.triage_action && item.triage_action !== 'none' && (
+              <span className="whitespace-nowrap rounded bg-fuchsia-400/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-fuchsia-300">
+                {item.triage_action}
+              </span>
+            )}
             <OutcomeBadge outcome={item.outcome} events={item.events} noticeId={item.notice_id} />
             <time className="font-mono text-[10px] tabular-nums text-slate-500">
               {new Date(item.event_time).toLocaleString('uk-UA', { timeZone: 'Europe/Kyiv' })}

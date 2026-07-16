@@ -1,4 +1,4 @@
-import type { FeedEntry, Notice } from '@/types'
+import type { FeedEntry, Incident, Notice } from '@/types'
 
 const KYIV_TZ = 'Europe/Kyiv'
 
@@ -54,20 +54,30 @@ export function groupFeed(log: FeedEntry[]): FeedEntry[][] {
 // One all-clear announced across channels within this window is ONE event —
 // collapse the notices into a single card instead of repeating it per source.
 const CLEAR_GROUP_MS = 12 * 60 * 1000
+// The LLM context notices (directional/forecast/status) that several channels
+// raise about the SAME thing within a few minutes are one cue, not N.
+const CONTEXT_GROUP_MS = 5 * 60 * 1000
 
-/** Cluster the notices timeline: adjacent all-clears within the window become
- * one unit (several sources, one "відбій"); every other notice stays its own. */
+/** Whether two adjacent notices are the same event and should share one card:
+ * all-clears within 12 min, or same-kind context cues (directional/forecast/
+ * status) about the same origin+type within 5 min. Summaries never merge. */
+function noticesJoin(a: Notice, b: Notice): boolean {
+  if (a.kind !== b.kind) return false
+  const dt = Math.abs(new Date(a.event_time).getTime() - new Date(b.event_time).getTime())
+  if (a.kind === 'clear') return dt <= CLEAR_GROUP_MS
+  if (a.kind === 'directional' || a.kind === 'forecast' || a.kind === 'status') {
+    return dt <= CONTEXT_GROUP_MS && a.origin === b.origin && a.target_type === b.target_type
+  }
+  return false
+}
+
+/** Cluster the notices timeline: adjacent same-event notices become one unit
+ * (several sources, one cue); every other notice stays its own card. */
 export function clusterNotices(notices: Notice[]): Notice[][] {
   const units: Notice[][] = []
   for (const n of notices) {
     const last = units[units.length - 1]
-    const joins =
-      n.kind === 'clear' &&
-      last != null &&
-      last[0].kind === 'clear' &&
-      Math.abs(new Date(last[0].event_time).getTime() - new Date(n.event_time).getTime()) <=
-        CLEAR_GROUP_MS
-    if (joins) last.push(n)
+    if (last != null && noticesJoin(last[0], n)) last.push(n)
     else units.push([n])
   }
   return units
@@ -76,10 +86,15 @@ export function clusterNotices(notices: Notice[]): Notice[][] {
 export type TimelineItem =
   | { kind: 'group'; time: string; keyId: string; group: FeedEntry[] }
   | { kind: 'notice'; time: string; keyId: string; notices: Notice[] }
+  | { kind: 'incidentEnd'; time: string; keyId: string; incident: Incident }
 
-/** Merge sighting groups and info notices into one time-sorted timeline;
- * multi-source all-clears are clustered into one unit. */
-export function buildTimeline(log: FeedEntry[], notices: Notice[]): TimelineItem[] {
+/** Merge sighting groups, info notices, and ended-attack summaries into one
+ * time-sorted timeline; multi-source cues are clustered into one unit. */
+export function buildTimeline(
+  log: FeedEntry[],
+  notices: Notice[],
+  recentIncidents: Incident[] = [],
+): TimelineItem[] {
   return [
     ...groupFeed(log).map(
       (group): TimelineItem => ({
@@ -97,5 +112,15 @@ export function buildTimeline(log: FeedEntry[], notices: Notice[]): TimelineItem
         notices: units,
       }),
     ),
+    ...recentIncidents
+      .filter((inc) => inc.ended_at != null)
+      .map(
+        (inc): TimelineItem => ({
+          kind: 'incidentEnd',
+          time: inc.ended_at as string,
+          keyId: `i${inc.id}`,
+          incident: inc,
+        }),
+      ),
   ].sort((a, b) => (a.time < b.time ? 1 : -1))
 }

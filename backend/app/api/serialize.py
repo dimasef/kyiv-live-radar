@@ -3,8 +3,17 @@
 from __future__ import annotations
 
 from ..domain.attack import classify
-from ..models import Alert, Incident, Notice, Threat, ThreatEvent
-from ..schemas import AlertOut, FeedEntryOut, IncidentOut, NoticeOut, ThreatEventOut, ThreatOut
+from ..domain.origins import ORIGIN_BY_KEY, bearing_for
+from ..models import Alert, Incident, Notice, Threat, ThreatAxis, ThreatEvent
+from ..schemas import (
+    AlertOut,
+    AxisOut,
+    FeedEntryOut,
+    IncidentOut,
+    NoticeOut,
+    ThreatEventOut,
+    ThreatOut,
+)
 
 
 def event_out(ev: ThreatEvent) -> ThreatEventOut:
@@ -46,8 +55,34 @@ def notice_out(n: Notice) -> NoticeOut:
     return out
 
 
+def _incident_district_ids(inc: Incident, sentinel_district_id: int | None) -> list[int]:
+    seen: list[int] = []
+    for th in inc.threats:
+        for ev in th.events:
+            if ev.district_id != sentinel_district_id and ev.district_id not in seen:
+                seen.append(ev.district_id)
+    return seen
+
+
 def alert_out(a: Alert) -> AlertOut:
     return AlertOut.model_validate(a)
+
+
+def axis_out(a: ThreatAxis) -> AxisOut:
+    origin = ORIGIN_BY_KEY.get(a.origin_key) if a.origin_key else None
+    return AxisOut(
+        id=a.id,
+        sector=a.sector,
+        bearing_deg=bearing_for(a.origin_key, a.sector),
+        origin_key=a.origin_key,
+        origin_name=origin.name_uk if origin is not None else None,
+        target_type=a.target_type,
+        status=a.status,
+        corroboration_count=a.corroboration_count,
+        created_at=a.created_at,
+        last_seen_at=a.last_seen_at,
+        expires_at=a.expires_at,
+    )
 
 
 def _is_notable(target_type: str, citywide: bool, impact_count: int, track_count: int) -> bool:
@@ -94,6 +129,7 @@ def incident_out(inc: Incident, sentinel_district_id: int | None) -> IncidentOut
         impact_count=impact_count,
         citywide=citywide,
         district_count=len(districts),
+        district_ids=_incident_district_ids(inc, sentinel_district_id),
         classification=cls.label,
         attack_types=inc.attack_types,
         alert_id=inc.alert_id,

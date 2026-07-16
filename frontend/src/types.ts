@@ -27,6 +27,10 @@ export interface ThreatEvent {
   /** Group size known as of this event; the feed shows this, not the track's
    * final count. null for pre-column events (fall back to threat.target_count). */
   event_target_count: number | null
+  /** Operator-facing gist from an LLM verdict (inline-llm or a triage rescue) —
+   * the feed uses it as the card headline, raw text collapsed beneath. null for
+   * rule-only events. */
+  llm_summary: string | null
   lat: number | null
   lon: number | null
 }
@@ -73,6 +77,9 @@ export interface Incident {
   impact_count: number
   citywide: boolean
   district_count: number
+  /** Distinct raion ids touched by this attack (excludes the citywide sentinel)
+   * — the map highlights these polygons for an active incident. */
+  district_ids: number[]
   classification: AttackClassification
   attack_types: TargetType[]
   alert_id: number | null
@@ -85,16 +92,42 @@ export interface Incident {
   notable: boolean
 }
 
-/** A non-threat feed notice — an all-clear or a retrospective attack summary.
- * Shown in the event log timeline, but never a map threat. */
+/** A non-threat feed notice. Rule-emitted: 'clear' (відбій) / 'summary' (recap).
+ * LLM-triage-emitted context notices: 'directional' (an inbound axis),
+ * 'forecast' (an expected strike / threat level), 'status' (PPO/operational).
+ * Shown in the event log timeline, never a map threat. */
+export type NoticeKind = 'clear' | 'summary' | 'directional' | 'forecast' | 'status'
+
 export interface Notice {
   id: number
-  kind: 'clear' | 'summary'
+  kind: NoticeKind
   text: string
   target_type: TargetType
   event_time: string
   source_id: number | null
   source_name: string | null
+  /** Curated origin key for a directional notice (else null). */
+  origin: string | null
+  /** 'rule' (authoritative) | 'llm' (shown with an "AI · неперевірено" badge). */
+  generated_by: 'rule' | 'llm'
+}
+
+/** A directional threat axis — an inbound bearing/origin ("балістика з
+ * Брянщини") with no Kyiv raion. NOT a map point: rendered as a screen-edge
+ * wedge along `bearing_deg`. Supplementary, volunteer-sourced. */
+export interface ThreatAxis {
+  id: number
+  sector: string
+  /** 0=N, 90=E — the wedge direction from Kyiv toward the origin. */
+  bearing_deg: number
+  origin_key: string | null
+  origin_name: string | null
+  target_type: TargetType
+  status: 'unverified' | 'corroborated' | 'expired'
+  corroboration_count: number
+  created_at: string
+  last_seen_at: string
+  expires_at: string | null
 }
 
 /** An official air-raid alert window (тривога -> відбій) from an authoritative
@@ -111,12 +144,13 @@ export interface Alert {
 }
 
 export interface WSMessage {
-  type: 'event' | 'status' | 'notice' | 'alert' | 'attack' | 'health' | 'online' | 'hello'
+  type: 'event' | 'status' | 'notice' | 'alert' | 'attack' | 'axis' | 'health' | 'online' | 'hello'
   threat?: Threat
   event?: ThreatEvent
   notice?: Notice
   alert?: Alert
   incident?: Incident
+  axis?: ThreatAxis
   /** 'health' frame payload — whether the live Telegram feed looks healthy. */
   feed_ok?: boolean | null
   /** 'online' frame payload — how many clients are watching right now. */
@@ -175,6 +209,10 @@ export interface RawMessage {
    * when the call produced usable JSON. Collected for /raw audit (Stage 1);
    * nothing in the product routes on it yet. */
   llm_response: LlmResponse | null
+  /** Async-triage bookkeeping — where the message went in the triage queue and
+   * what routing did with its verdict. null for messages never enqueued. */
+  triage_state: string | null
+  triage_action: string | null
 }
 
 /** LLM triage category — WHICH kind of message a district-less call saw.
@@ -200,6 +238,10 @@ export interface LlmResponse {
   status: string
   is_new_target: boolean
   confidence: number
+  /** Curated origin toponym / compass sector for a directional message (Stage 2
+   * schema). 'none' when the model named neither. */
+  origin_place?: string
+  origin_sector?: string
 }
 
 /** One monitored channel, for the /raw channel filter dropdown — see

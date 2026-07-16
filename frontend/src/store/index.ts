@@ -1,11 +1,13 @@
 import { create } from 'zustand'
 
 import { createAlertsSlice } from './alertsSlice'
+import { createAxesSlice } from './axesSlice'
 import { createConnectionSlice } from './connectionSlice'
 import { createDistrictsSlice } from './districtsSlice'
 import { createHomeSlice } from './homeSlice'
 import { createIncidentsSlice } from './incidentsSlice'
 import { createNoticesSlice } from './noticesSlice'
+import { createPrefsSlice } from './prefsSlice'
 import { createPwaSlice } from './pwaSlice'
 import { createThreatsSlice } from './threatsSlice'
 import type { RadarState } from './types'
@@ -19,9 +21,11 @@ export const useRadar = create<RadarState>()((...a) => ({
   ...createThreatsSlice(...a),
   ...createNoticesSlice(...a),
   ...createIncidentsSlice(...a),
+  ...createAxesSlice(...a),
   ...createAlertsSlice(...a),
   ...createConnectionSlice(...a),
   ...createHomeSlice(...a),
   ...createPwaSlice(...a),
+  ...createPrefsSlice(...a),
   ...createWsSlice(...a),
 }))

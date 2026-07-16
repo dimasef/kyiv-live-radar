@@ -19,11 +19,13 @@ from ..models import (
     RawMessage,
     Source,
     Threat,
+    ThreatAxis,
     ThreatEvent,
     utcnow,
 )
 from ..schemas import (
     AlertOut,
+    AxisOut,
     DistrictOut,
     FeedEntryOut,
     IncidentOut,
@@ -39,6 +41,7 @@ from ..schemas import (
 from ..timeutil import within
 from .raw_query import apply_raw_filters, serialize_raw_rows
 from .serialize import alert_out as _alert_out
+from .serialize import axis_out as _axis_out
 from .serialize import event_out as _event_out
 from .serialize import feed_entry_out as _feed_entry_out
 from .serialize import incident_out as _incident_out
@@ -293,6 +296,37 @@ async def active_incidents(session: AsyncSession = Depends(get_session)):
     )
     incidents = await session.scalars(stmt)
     return [_incident_out(inc, sentinel_id) for inc in incidents]
+
+
+@router.get("/incidents/recent", response_model=list[IncidentOut])
+async def recent_incidents(
+    limit: int = Query(20, ge=1, le=100),
+    session: AsyncSession = Depends(get_session),
+):
+    """Most recent attacks (ended or active), newest first — hydrates the feed's
+    attack-summary cards on load so an incident that ended before the client
+    connected still renders its rollup."""
+    sentinel_id = await citywide_district_id(session)
+    stmt = (
+        select(Incident)
+        .options(selectinload(Incident.threats).selectinload(Threat.events))
+        .order_by(Incident.started_at.desc())
+        .limit(limit)
+    )
+    incidents = await session.scalars(stmt)
+    return [_incident_out(inc, sentinel_id) for inc in incidents]
+
+
+@router.get("/axes/active", response_model=list[AxisOut])
+async def active_axes(session: AsyncSession = Depends(get_session)):
+    """Live directional threat axes (not yet expired), newest first — the map's
+    screen-edge wedge layer. Supplementary, volunteer-sourced; never the alert."""
+    stmt = (
+        select(ThreatAxis)
+        .where(ThreatAxis.expires_at.is_(None))
+        .order_by(ThreatAxis.created_at.desc())
+    )
+    return [_axis_out(a) for a in await session.scalars(stmt)]
 
 
 @router.get("/threats/{threat_id}/events", response_model=list[ThreatEventOut])

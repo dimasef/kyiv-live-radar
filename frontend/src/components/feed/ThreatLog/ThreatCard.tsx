@@ -1,4 +1,5 @@
-import { TriangleAlert } from 'lucide-react'
+import { Sparkles, TriangleAlert } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useRadar } from '@/store'
@@ -16,9 +17,17 @@ export default function ThreatCard({ event, threat }: FeedEntry) {
   const isSelected = useRadar((s) => s.inspectedThreat?.id === threat.id)
   const inspectThreat = useRadar((s) => s.inspectThreat)
   const clearInspection = useRadar((s) => s.clearInspection)
+  const focusIncident = useRadar((s) => s.focusIncident)
+  const focusedIncidentId = useRadar((s) => s.focusedIncidentId)
+  const [rawOpen, setRawOpen] = useState(false)
 
   const color = threatColor(threat)
   const toggleInspect = () => (isSelected ? clearInspection() : inspectThreat(threat))
+  // The LLM gist is the readable headline; the raw Telegram text collapses
+  // beneath it. Rule-only events (no summary) just show the raw text.
+  const headline = event.llm_summary || event.raw_text
+  const hasSummary = !!event.llm_summary
+  const rescued = event.decision_source === 'triage'
 
   return (
     <li
@@ -60,6 +69,12 @@ export default function ThreatCard({ event, threat }: FeedEntry) {
           />
         </span>
         <span className="flex items-center gap-1.5">
+          {rescued && (
+            <span className="flex items-center gap-1 rounded bg-white/[0.06] px-1 py-px text-[9px] font-medium text-slate-400">
+              <Sparkles size={9} className="flex-none" />
+              {t('log.rescued')}
+            </span>
+          )}
           <DevId>
             T{threat.id}/M{event.id}
           </DevId>
@@ -68,10 +83,42 @@ export default function ThreatCard({ event, threat }: FeedEntry) {
         </span>
       </div>
 
-      <div className="mt-0.5 break-words leading-snug text-slate-300">{event.raw_text}</div>
+      <div className="mt-0.5 break-words leading-snug text-slate-300">{headline}</div>
+      {hasSummary && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            setRawOpen((v) => !v)
+          }}
+          className="mt-0.5 font-mono text-[10px] text-slate-500 hover:text-slate-300"
+        >
+          {rawOpen ? '▾' : '▸'} {t('log.showRaw')}
+        </button>
+      )}
+      {hasSummary && rawOpen && (
+        <div className="mt-0.5 break-words border-l border-white/10 pl-2 text-[11px] leading-snug text-slate-500">
+          {event.raw_text}
+        </div>
+      )}
 
       <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
         <SourceBadge name={event.source_name} t={t} />
+        {threat.incident_id != null && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              focusIncident(focusedIncidentId === threat.incident_id ? null : threat.incident_id)
+            }}
+            className="rounded px-1 py-px text-[10px] font-medium transition-colors"
+            style={{
+              color,
+              background: focusedIncidentId === threat.incident_id ? `${color}22` : 'transparent',
+              border: `1px solid ${color}44`,
+            }}
+          >
+            {t('log.attackChip', { n: threat.incident_id })}
+          </button>
+        )}
         <CorroborationLine
           threat={threat}
           className="font-mono text-[10px] tabular-nums text-slate-500"

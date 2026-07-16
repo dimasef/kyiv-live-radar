@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useRadar } from '@/store'
 
+import AttackSummaryCard from './AttackSummaryCard'
 import ClosedGroupCard from './ClosedGroupCard'
 import DaySeparator from './DaySeparator'
 import NoticeCard from './NoticeCard'
@@ -13,7 +14,8 @@ export default function ThreatLog() {
   const { t } = useTranslation()
   const log = useRadar((s) => s.log)
   const notices = useRadar((s) => s.notices)
-  const timeline = buildTimeline(log, notices)
+  const recentIncidents = useRadar((s) => s.recentIncidents)
+  const timeline = buildTimeline(log, notices, recentIncidents)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -36,6 +38,15 @@ export default function ThreatLog() {
                 <Fragment key={item.keyId}>
                   {separator}
                   <NoticeCard notices={item.notices} />
+                </Fragment>
+              )
+            }
+
+            if (item.kind === 'incidentEnd') {
+              return (
+                <Fragment key={item.keyId}>
+                  {separator}
+                  <AttackSummaryCard incident={item.incident} />
                 </Fragment>
               )
             }

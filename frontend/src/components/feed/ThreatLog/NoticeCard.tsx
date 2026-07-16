@@ -1,21 +1,34 @@
-import { Info, ShieldCheck } from 'lucide-react'
+import { CloudLightning, Compass, Info, Radio, ShieldCheck, Sparkles } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { HOME_COLOR, STATUS_COLORS } from '@/theme'
-import type { Notice } from '@/types'
+import { HOME_COLOR, STATUS_COLORS, TYPE_COLORS } from '@/theme'
+import type { Notice, NoticeKind } from '@/types'
 
 import { DevId, EventTime, SourceBadge } from './badges'
 
-/** An info entry in the feed timeline: an all-clear or an attack summary —
- * important to see, but not a live threat. A multi-source all-clear renders as
- * one card with all its source badges, not one card per channel. */
+/** Per-kind icon + accent colour. Rule notices (clear/summary) keep their
+ * established look; the LLM-triage context kinds (directional/forecast/status)
+ * each get a distinct cue. Unknown kinds fall back to a neutral info card so a
+ * backend deployed ahead of the client never renders oddly. */
+const STYLE: Record<NoticeKind, { icon: LucideIcon; color: string }> = {
+  clear: { icon: ShieldCheck, color: STATUS_COLORS.clear },
+  summary: { icon: Info, color: HOME_COLOR },
+  directional: { icon: Compass, color: TYPE_COLORS.jet_drone },
+  forecast: { icon: CloudLightning, color: TYPE_COLORS.shahed },
+  status: { icon: Radio, color: TYPE_COLORS.unknown },
+}
+const FALLBACK = { icon: Info, color: HOME_COLOR }
+
+/** An info entry in the feed timeline: an all-clear, an attack summary, or an
+ * LLM-surfaced context cue (directional / forecast / status). A multi-source
+ * unit renders as one card with all its source badges. */
 export default function NoticeCard({ notices }: { notices: Notice[] }) {
   const { t } = useTranslation()
   const head = notices[0]
-  const isClear = head.kind === 'clear'
-  const color = isClear ? STATUS_COLORS.clear : HOME_COLOR
-  const Icon = isClear ? ShieldCheck : Info
+  const { icon: Icon, color } = STYLE[head.kind as NoticeKind] ?? FALLBACK
   const sources = Array.from(new Set(notices.map((n) => n.source_name).filter(Boolean)))
+  const isAi = head.generated_by === 'llm'
 
   return (
     <li
@@ -33,7 +46,7 @@ export default function NoticeCard({ notices }: { notices: Notice[] }) {
           style={{ color }}
         >
           <Icon size={12} className="flex-none" />
-          {t(`notice.${head.kind}`)}
+          {t(`notice.${head.kind}`, head.kind)}
           {notices.length > 1 && (
             <span className="font-mono font-semibold" style={{ color }}>
               ×{notices.length}
@@ -41,6 +54,12 @@ export default function NoticeCard({ notices }: { notices: Notice[] }) {
           )}
         </span>
         <span className="flex items-center gap-1.5">
+          {isAi && (
+            <span className="flex items-center gap-1 rounded bg-white/[0.06] px-1 py-px text-[9px] font-medium text-slate-400">
+              <Sparkles size={9} className="flex-none" />
+              {t('notice.ai')}
+            </span>
+          )}
           <DevId>N{head.id}</DevId>
           <EventTime iso={head.event_time} />
         </span>

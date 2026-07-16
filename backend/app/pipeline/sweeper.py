@@ -14,6 +14,7 @@ from ..api.ws import manager
 from ..config import settings
 from ..db import SessionLocal
 from ..domain.alerts import close_stale_alerts
+from ..domain.axes import close_stale_axes
 from ..domain.incidents import close_stale_incidents
 from ..domain.tracking import close_stale_tracks
 from ..feeds.health import feed_health
@@ -37,7 +38,10 @@ async def run_sweeper() -> None:
         try:
             async with SessionLocal() as session:
                 now = utcnow()
-                closed = await close_stale_tracks(session, now, settings.track_stale_minutes)
+                closed = await close_stale_tracks(
+                    session, now, settings.track_stale_minutes,
+                    ballistic_minutes=settings.ballistic_stale_minutes,
+                )
                 if closed:
                     log.info("auto-closed %d stale track(s)", len(closed))
                     await broadcast_results(session, [Broadcast("status", t) for t in closed])
@@ -46,6 +50,12 @@ async def run_sweeper() -> None:
                     log.info("auto-ended %d stale incident(s)", len(ended))
                     await broadcast_results(
                         session, [Broadcast("attack", incident=inc) for inc in ended]
+                    )
+                expired_axes = await close_stale_axes(session, now)
+                if expired_axes:
+                    log.info("expired %d stale threat axis(es)", len(expired_axes))
+                    await broadcast_results(
+                        session, [Broadcast("axis", axis=a) for a in expired_axes]
                     )
                 failsafe = await close_stale_alerts(session, now, settings.alert_failsafe_hours)
                 if failsafe:

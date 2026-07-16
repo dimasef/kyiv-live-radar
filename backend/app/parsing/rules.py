@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from ..domain.origins import Origin, match_origin, target_elsewhere
 from .matcher import DistrictHit, DistrictMatcher, normalize
 
 
@@ -136,6 +137,13 @@ class ParseResult:
     # A hypersonic system named (Кинджал/Циркон/aeroballistic) — a flag on
     # the incident, not a 6th target_type.
     hypersonic: bool = field(default=False)
+    # A directional/origin threat callout ("Балістика з Брянщини") with no Kyiv
+    # raion — ingest raises a directional AXIS (a screen-edge wedge), not a track.
+    # `origin_key` is a curated origin (origins.ORIGIN_KEYS); `origin_sector` its
+    # compass octant. Only set when directional is True.
+    directional: bool = field(default=False)
+    origin_key: str | None = field(default=None)
+    origin_sector: str | None = field(default=None)
 
 
 # Some keywords are short abbreviations that collide with common words (e.g.
@@ -438,6 +446,27 @@ def _target_pulse(districts, citywide: bool, status: str, norm: str, aftermath: 
     )
 
 
+def _origin_present(origin: Origin | None, status: str, target_type: str, norm: str,
+                    aftermath: bool, negated: bool, siren_only: bool,
+                    political_quote: bool, lost_signal: bool, summary: bool,
+                    ad_action: bool, civic_notice: bool, eppo_marks: bool,
+                    promo: bool) -> bool:
+    """A curated inbound origin named in FROM-position ("з Брянщини", "з боку
+    Чорного моря") on a threat-flavoured, non-suppressed message. Set whether or
+    not the message ALSO localizes to a raion/city — so "Балістика на Київ з
+    Брянщини" raises the city alert AND a NE wedge. The directional AXIS is
+    raised from this; the `directional` flag below marks the standalone case."""
+    return (
+        origin is not None
+        and status not in ("clear", "destroyed")
+        and (target_type != "unknown" or any(w in norm for w in _THREAT_CONTEXT))
+        and not target_elsewhere(norm)  # "з Чернігівщини курсом на Дніпро" -> not ours
+        and not (aftermath or negated or siren_only or political_quote
+                 or lost_signal or summary or ad_action or civic_notice
+                 or eppo_marks or promo)
+    )
+
+
 def _matched(districts, citywide: bool, status: str, aftermath: bool, negated: bool,
              siren_only: bool, political_quote: bool, ad_action: bool, promo: bool,
              civic_notice: bool, eppo_marks: bool) -> bool:
@@ -489,6 +518,14 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
     target_pulse = _target_pulse(districts, citywide, status, norm, aftermath, negated,
                                  siren_only, political_quote, lost_signal, summary,
                                  ad_action, civic_notice, eppo_marks)
+    origin = match_origin(norm)
+    origin_present = _origin_present(origin, status, target_type, norm, aftermath, negated,
+                                     siren_only, political_quote, lost_signal, summary,
+                                     ad_action, civic_notice, eppo_marks, promo)
+    # Standalone directional: an origin with nothing else to localize on — the
+    # primary "загроза з Брянська" class. When a raion/citywide IS also present,
+    # origin still feeds a secondary axis but that branch handles the track/alert.
+    directional = origin_present and not districts and not citywide
     matched = _matched(districts, citywide, status, aftermath, negated, siren_only,
                        political_quote, ad_action, promo, civic_notice, eppo_marks)
 
@@ -524,4 +561,7 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
         target_pulse=target_pulse,
         decoy=decoy,
         hypersonic=hypersonic,
+        directional=directional,
+        origin_key=origin.key if origin_present and origin is not None else None,
+        origin_sector=origin.sector if origin_present and origin is not None else None,
     )

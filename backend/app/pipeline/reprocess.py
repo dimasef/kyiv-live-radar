@@ -18,7 +18,17 @@ from ..config import settings
 from ..db import SessionLocal
 from ..gazetteer import DISTRICTS
 from ..migrate import upgrade_to_head
-from ..models import Alert, District, Incident, Notice, RawMessage, Source, Threat, ThreatEvent
+from ..models import (
+    Alert,
+    District,
+    Incident,
+    Notice,
+    RawMessage,
+    Source,
+    Threat,
+    ThreatAxis,
+    ThreatEvent,
+)
 from ..parsing import DistrictMatcher
 from ..seed import seed_districts
 from .ingest import process_parsed, process_parsed_alert
@@ -47,6 +57,7 @@ async def _wipe_tracks() -> None:
         await s.execute(delete(Incident))
         await s.execute(delete(Notice))
         await s.execute(delete(Alert))
+        await s.execute(delete(ThreatAxis))
         await s.commit()
 
 
@@ -97,6 +108,10 @@ async def run_reprocess(no_llm: bool = True, limit: int | None = None) -> dict:
                         forwarded_from_id=raw.forwarded_from_id,
                         forwarded_from_channel_id=raw.forwarded_from_channel_id,
                         reply_to_message_id=raw.reply_to_message_id,
+                        # Replay stored LLM triage verdicts deterministically (no
+                        # API, no queue) so a reprocess rebuilds axes/notices/
+                        # rescues exactly, at each message's own position.
+                        triage="replay",
                     )
                 if broadcasts:
                     matched += 1

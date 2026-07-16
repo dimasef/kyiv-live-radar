@@ -71,11 +71,20 @@
       "destroyed": "Destroyed",
       "allClear": "All clear",
       "lost": "Lost"
-    }
+    },
+    "attackChip": "Attack #{{n}}",
+    "attackEnded": "Attack ended",
+    "rescued": "recovered",
+    "duration": "duration",
+    "showRaw": "raw"
   },
   "notice": {
     "clear": "All clear",
-    "summary": "Summary"
+    "summary": "Summary",
+    "directional": "Threat axis",
+    "forecast": "Forecast",
+    "status": "Status",
+    "ai": "AI · unverified"
   },
   "status": {
     "impact": "incident"
@@ -104,7 +113,13 @@
     "close": "Collapse panel"
   },
   "settings": {
-    "title": "Settings"
+    "title": "Settings",
+    "sheetHeight": "Feed height (mobile)",
+    "sheet": {
+      "low": "Low",
+      "mid": "Mid",
+      "high": "High"
+    }
   },
   "install": {
     "title": "App",
@@ -148,5 +163,19 @@
   },
   "presence": {
     "watching": "Watching the radar now"
+  },
+  "axis": {
+    "unverified": "unverified",
+    "title": "Threat axis"
+  },
+  "axisSector": {
+    "N": "N",
+    "NE": "NE",
+    "E": "E",
+    "SE": "SE",
+    "S": "S",
+    "SW": "SW",
+    "W": "W",
+    "NW": "NW"
   }
 }

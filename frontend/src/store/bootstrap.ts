@@ -1,11 +1,13 @@
 import {
   fetchActiveAlerts,
+  fetchActiveAxes,
   fetchActiveIncidents,
   fetchActiveThreats,
   fetchBoundaries,
   fetchDistricts,
   fetchHealth,
   fetchRecentEvents,
+  fetchRecentIncidents,
   fetchRecentNotices,
 } from '@/api'
 import { requestGeolocation } from '@/components/chrome'
@@ -22,6 +24,8 @@ export function bootstrapApp() {
   fetchBoundaries().then(store.setBoundaries).catch(() => {})
   fetchActiveThreats().then(store.setThreats).catch(() => {})
   fetchActiveIncidents().then(store.setIncidents).catch(() => {})
+  fetchRecentIncidents().then(store.setRecentIncidents).catch(() => {})
+  fetchActiveAxes().then(store.setAxes).catch(() => {})
   fetchActiveAlerts().then(store.setAlerts).catch(() => {})
   fetchRecentEvents().then(store.setLog).catch(() => {})
   fetchRecentNotices().then(store.setNotices).catch(() => {})
