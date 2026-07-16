@@ -154,6 +154,17 @@ _CIVIC_NOTICE = ("тролейбус", "трамвай", "маршрутк", "ф
                  "організації руху", "обмежать рух", "обмежуватимуть рух",
                  "перекрито рух", "перекрито середню")
 
+# єППО — the crowd/sensor air-alert app. Spotters RELAY its marks but routinely
+# DISMISS them as unverified ("локаційно не видно, відмітки єППО Вишневе, Макарів,
+# ...") — app marks, not confirmed targets. Suppress only when the message pairs
+# an єППО mention with a "we don't see it / dorozvidka / false" cue (see
+# rules._eppo_marks), so a genuine "єППО показує ціль на Троєщині, підтверджую"
+# is never silenced. _EPPO_WORD covers the Cyrillic-є spelling and the common
+# Cyrillic-е typo.
+_EPPO_WORD = ("єппо", "еппо")
+_EPPO_DISMISS = ("не видно", "не бачим", "не фіксу", "не спостеріга", "дорозвідк",
+                 "хибн", "локаційно чист")
+
 # --- Impact / strike-location vocabulary. A LOCALIZED hit ("влучання по будівлі
 # в Дніпровському районі", "пошкоджено будівлю у Святошинському") is a confirmed
 # strike whose LOCATION is worth putting on the map — distinct from generic

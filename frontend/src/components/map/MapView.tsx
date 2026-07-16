@@ -234,7 +234,10 @@ const ThreatLayer = memo(function ThreatLayer({
   const color = threatColor(threat)
   // Only a track that actually moved over time gets a heading/vector — a single
   // multi-district message is an enumeration, not a trajectory (see hasMovement).
-  const moved = hasMovement(threat)
+  // An impact is a POINT strike, never a trajectory: it must NEVER draw a
+  // connecting vector even when re-reports give it several timestamps (a
+  // ballistic can't "move" between districts) — so kind='impact' is excluded.
+  const moved = threat.kind !== 'impact' && hasMovement(threat)
   const heading = moved ? headingOf(threat) : null
   const type = threat.target_type
 

@@ -135,20 +135,33 @@ async def llm_extract(
     id_enum = [i for i, _ in index]
     listing = "\n".join(f"{i}: {n}" for i, n in index)
 
-    try:
-        resp = await asyncio.wait_for(
-            _get_client().messages.create(
-                model=settings.llm_model,
-                max_tokens=400,
-                system=_SYSTEM,
-                messages=[{"role": "user", "content": _PROMPT.format(listing=listing, text=text)}],
-                output_config={"format": {"type": "json_schema", "schema": _schema(id_enum)}},
-            ),
-            timeout=settings.llm_timeout_s,
-        )
-    except Exception as ex:  # timeout, network, API error — stay on rule-based
-        log.warning("llm fallback skipped: %s", ex)
-        return None, None, None
+    content = _PROMPT.format(listing=listing, text=text)
+    schema = _schema(id_enum)
+    # One immediate retry: a transient timeout/5xx during a mass attack (many
+    # concurrent inbound callouts) dropped GENUINE threats to "без району" — a
+    # real inbound "3 реактивних з Чернігівщини" is worth a second attempt. The
+    # LLM is never on the safety-critical path, so a failed retry still falls
+    # back to the rule result cleanly. No backoff: ingest holds a lock, so a
+    # sleep would stall the whole pipeline mid-barrage.
+    resp = None
+    for attempt in range(2):
+        try:
+            resp = await asyncio.wait_for(
+                _get_client().messages.create(
+                    model=settings.llm_model,
+                    max_tokens=400,
+                    system=_SYSTEM,
+                    messages=[{"role": "user", "content": content}],
+                    output_config={"format": {"type": "json_schema", "schema": schema}},
+                ),
+                timeout=settings.llm_timeout_s,
+            )
+            break
+        except Exception as ex:  # timeout, network, API error
+            if attempt == 1:  # retry exhausted — stay on rule-based
+                log.warning("llm fallback skipped after 2 attempts: %s", ex)
+                return None, None, None
+            log.info("llm fallback retrying after: %s", ex)
 
     usage = _usage_from(resp)
 

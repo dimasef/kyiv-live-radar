@@ -188,6 +188,9 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Глеваха", "name_en": "Hlevakha", "lat": 50.2597, "lon": 30.3059, "aliases": []},
     {"name_uk": "Крюківщина", "name_en": "Kriukivshchyna", "lat": 50.3719, "lon": 30.3716, "aliases": []},
     {"name_uk": "Гатне", "name_en": "Hatne", "lat": 50.3585, "lon": 30.3963, "aliases": []},
+    # SW-approach village (Києво-Святошинський) — a recurring reactive-shahed
+    # callout ("Білогородка увага по БпЛА", "на Білогородку/Васильків звернув").
+    {"name_uk": "Білогородка", "name_en": "Bilohorodka", "lat": 50.3772, "lon": 30.2837, "aliases": []},
     # (Українка deliberately omitted: name collides with "Ukrainka" — a Russian
     #  strategic bomber airbase in Amur Oblast, ~7000km away — that gets named in
     #  Ukrainian-language strategic aviation reports far more often than the Kyiv

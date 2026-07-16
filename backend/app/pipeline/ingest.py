@@ -174,6 +174,8 @@ def should_fallback(parsed: ParseResult) -> bool:
         return False
     if parsed.civic_notice:  # transport/road city news — not a live target
         return False
+    if parsed.eppo_marks:  # dismissed єППО app marks — not a live target
+        return False
     if parsed.political_quote:  # official statement repost — not a live target
         return False
     if parsed.lost_signal:  # "дорозвідка" stand-down — handled directly by ingest, not a live target
@@ -415,6 +417,17 @@ async def _handle_destroyed(ctx: IngestContext) -> list[Broadcast]:
     if track is None:
         await ctx.done()
         return []
+    # A partial interception ("По ракетам мінус", "збито") must NOT close a
+    # CITY-WIDE alert: scope='city' represents an ongoing city-level barrage
+    # (10 S-400 over 20 min), not one trackable target. Closing it on the first
+    # "мінус" split one barrage into two citywide tracks — the next "на місто"
+    # callout couldn't rejoin the just-closed alert and spawned a second one
+    # (live 2026-07-15: tracks 238+239). Only a real відбій (all_clear) or the
+    # stale sweeper ends a city-wide alert; a мінус here is an informational
+    # echo we drop rather than act on.
+    if track.scope == "city":
+        await ctx.done()
+        return []
     # A closing message often names no district of its own ("Один збили,
     # залишився ще один") — inherit the track's last known position so the
     # message still becomes a real event (visible in the feed and in a
@@ -449,25 +462,32 @@ async def _handle_impact(ctx: IngestContext) -> list[Broadcast]:
     filter closed_at IS NULL). Target type is whatever this message stated or
     inherited (often ballistic mid-attack)."""
     session, parsed, when = ctx.session, ctx.parsed, ctx.when
-    # Dedup: a recent impact over the SAME district is the SAME strike (two
-    # sources, one hit) — corroborate that marker instead of stacking a
-    # second pin on the identical point. Else a fresh impact marker.
-    track = await find_recent_impact(session, parsed.districts[0].district_id, when)
-    if track is None:
-        track = Threat(
-            target_type=parsed.target_type,
-            status="impact",
-            kind="impact",
-            target_count=parsed.target_count or 1,
-            closed_at=when,
-        )
-        session.add(track)
-        await session.commit()
-        log.info("track %s created (kind=impact, target_type=%s)", track.id, track.target_type)
-    else:
-        track.target_type = _upgrade_type(track.target_type, parsed.target_type)
+    # ONE impact marker PER DISTRICT — never merge districts into a single
+    # threat. An impact is a POINT strike, not a trajectory: a ballistic can't
+    # "move" Дарницький->Святошинський, yet a shared multi-district threat drew
+    # exactly that bogus vector once later re-reports gave it several timestamps
+    # (live 2026-07-15: T244 zigzagged two districts). Per district: a recent
+    # impact over the SAME district is the SAME strike (two sources, one hit) ->
+    # corroborate its marker; a different district gets its own marker.
     impacts: list[Broadcast] = []
+    tracks_seen: list[Threat] = []
     for hit in parsed.districts:
+        track = await find_recent_impact(session, hit.district_id, when)
+        if track is None:
+            track = Threat(
+                target_type=parsed.target_type,
+                status="impact",
+                kind="impact",
+                target_count=parsed.target_count or 1,
+                closed_at=when,
+            )
+            session.add(track)
+            await session.commit()
+            log.info("track %s created (kind=impact, target_type=%s)", track.id, track.target_type)
+        else:
+            track.target_type = _upgrade_type(track.target_type, parsed.target_type)
+        if track not in tracks_seen:
+            tracks_seen.append(track)
         ev = _make_event(track.id, parsed, hit, ctx.source_id, ctx.message_id,
                          ctx.forwarded_from_id, when, ctx.decision_source, ctx.reply_to_message_id,
                          target_count=track.target_count,
@@ -476,9 +496,14 @@ async def _handle_impact(ctx: IngestContext) -> list[Broadcast]:
         await session.commit()
         await apply_fusion(session, track)
         impacts.append(Broadcast("event", track, ev))
-    inc = await attach_to_incident(session, track, when, decoy=parsed.decoy,
-                                   hypersonic=parsed.hypersonic)
-    impacts.append(Broadcast("attack", incident=inc))
+    # Every distinct impact marker joins the same attack (one barrage, many
+    # hits); broadcast the incident once after the last attach.
+    inc = None
+    for track in tracks_seen:
+        inc = await attach_to_incident(session, track, when, decoy=parsed.decoy,
+                                       hypersonic=parsed.hypersonic)
+    if inc is not None:
+        impacts.append(Broadcast("attack", incident=inc))
     await ctx.done()
     return impacts
 

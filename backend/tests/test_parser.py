@@ -160,6 +160,30 @@ def test_foreign_sea_not_matched_as_kyiv_approach():
         assert BY_EN["KyivSeaApproach"] not in {h.district_id for h in r.districts}, txt
 
 
+def test_eppo_marks_dismissed_are_suppressed():
+    # Real FP: the spotter lists єППО app marks while saying they see nothing —
+    # the named districts must NOT become tracked events.
+    r = parse_message(
+        "У нас справді локаційно не видно, відмітки єППО Вишневе, Макарів, "
+        "Шевченківський. В області локаційно дорозвідка.", M)
+    assert r.eppo_marks
+    assert r.districts == []
+    assert not r.matched
+
+
+def test_eppo_confirmed_target_not_suppressed():
+    # A genuine єППО-confirmed sighting (no "not seen" cue) keeps its district.
+    r = parse_message("єППО показує ціль на Оболоні, підтверджую своїми джерелами", M)
+    assert not r.eppo_marks
+    assert BY_EN["Obolon"] in {h.district_id for h in r.districts}
+
+
+def test_bilohorodka_matches():
+    for txt in ["Білогородка увага по БпЛА", "Один шахед на Білогородку звернув"]:
+        r = parse_message(txt, M)
+        assert BY_EN["Bilohorodka"] in {h.district_id for h in r.districts}, txt
+
+
 def test_kab_is_missile():
     assert parse_message("КАБ на Харківський напрямок", M).target_type == "missile"
 

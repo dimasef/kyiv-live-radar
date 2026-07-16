@@ -12,9 +12,20 @@ from sqlalchemy import exists, or_, select
 
 from ..feeds.common import build_matcher
 from ..models import Notice, RawMessage, ThreatEvent
+from ..parsing.alert_parser import parse_alert_message
 from ..schemas import RawEventLinkOut, RawMessageOut
 from .raw_codes import parse_codes
 from .raw_diagnosis import diagnose
+
+
+def _alert_label(text: str) -> str:
+    """Outcome label for an alert-role channel message (КМДА). The spotter
+    `diagnose()` mislabels these (a shelter-map URL reads as реклама/донат) — an
+    official channel goes through the ALERT parser instead, so re-derive with it."""
+    parsed = parse_alert_message(text)
+    if parsed is None:
+        return "не про загрозу"
+    return "офіційна тривога" if parsed.action == "start" else "офіційний відбій"
 
 
 def apply_raw_filters(
@@ -129,6 +140,8 @@ async def serialize_raw_rows(session, rows: list[RawMessage]) -> list[RawMessage
             row_outcome = "подія"
         elif notice_id is not None:
             row_outcome = "нотіс"
+        elif r.source is not None and r.source.role == "alert":
+            row_outcome = _alert_label(r.text)
         else:
             row_outcome = diagnose(r.text, matcher)
         items.append(

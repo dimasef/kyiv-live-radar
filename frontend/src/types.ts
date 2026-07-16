@@ -36,6 +36,9 @@ export interface Threat {
   created_at: string
   target_type: TargetType
   status: ThreatStatus
+  /** 'track' = an inbound target being followed; 'impact' = a closed-on-creation
+   * strike marker (a point hit, never a trajectory — see MapView). */
+  kind: 'track' | 'impact'
   scope: 'district' | 'city'
   incident_id: number | null
   target_count: number

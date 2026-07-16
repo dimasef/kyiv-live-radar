@@ -42,6 +42,8 @@ from .vocab import (
     _DAY_RECAP_WORD,
     _DECOY,
     _DESTROYED,
+    _EPPO_DISMISS,
+    _EPPO_WORD,
     _FORECAST_VERB,
     _HEDGE_MODAL_RE,
     _HYPERSONIC,
@@ -106,6 +108,10 @@ class ParseResult:
     # транспорту") — names a place a gazetteer entry can match but is city news,
     # not a target. Suppressed like aftermath; the T217/M668 FP class.
     civic_notice: bool = field(default=False)
+    # єППО-app marks the spotter is relaying but dismissing ("локаційно не видно,
+    # відмітки єППО X, Y") — the named districts are unverified app marks, not
+    # live targets. Suppressed like civic_notice (see rules._eppo_marks).
+    eppo_marks: bool = field(default=False)
     day_recap: bool = field(default=False)
     political_quote: bool = field(default=False)
     lost_signal: bool = field(default=False)
@@ -267,6 +273,23 @@ def _civic_notice(target_type: str, status: str, norm: str, impact: bool) -> boo
     )
 
 
+def _eppo_marks(target_type: str, status: str, norm: str, impact: bool) -> bool:
+    """єППО (crowd/sensor app) marks the spotter RELAYS but DISMISSES as not seen
+    on their own tracking ("локаційно не видно, відмітки єППО Вишневе, Макарів…")
+    — unverified app marks, not live targets, so the coincidentally-named
+    districts must not become tracks. Requires BOTH an єППО mention AND a
+    "not seen / dorozvidka / false" cue, so a genuine "єППО показує ціль на
+    Троєщині, підтверджую" is untouched. Guarded like civic_notice: type-unknown
+    only, with the clear/destroyed/impact carve-out."""
+    return (
+        target_type == "unknown"
+        and status not in ("clear", "destroyed")
+        and not impact
+        and any(w in norm for w in _EPPO_WORD)
+        and any(w in norm for w in _EPPO_DISMISS)
+    )
+
+
 def _negated(norm: str, status: str, impact: bool) -> bool:
     """Explicit denial ("Не йде на Оболонь") mentions a district but says the
     target is NOT there — suppress it, same carve-out as aftermath: an
@@ -371,7 +394,8 @@ def _promo(norm: str, status: str, impact: bool) -> bool:
 
 def _citywide(districts, status: str, norm: str, aftermath: bool, negated: bool,
               siren_only: bool, political_quote: bool, lost_signal: bool,
-              summary: bool, ad_action: bool, civic_notice: bool) -> bool:
+              summary: bool, ad_action: bool, civic_notice: bool,
+              eppo_marks: bool) -> bool:
     """City-wide threat: a city-level phrase with NO raion of its own — a strong
     directional phrase on its own, or a weak one plus a threat-context word.
     Only when nothing else localizes or supersedes it: a real district, an
@@ -382,7 +406,8 @@ def _citywide(districts, status: str, norm: str, aftermath: bool, negated: bool,
         not districts
         and status not in ("clear", "destroyed")
         and not (aftermath or negated or siren_only or political_quote
-                 or lost_signal or summary or ad_action or civic_notice)
+                 or lost_signal or summary or ad_action or civic_notice
+                 or eppo_marks)
         and (
             any(p in norm for p in _CITYWIDE_STRONG)
             or (any(p in norm for p in _CITYWIDE_WEAK)
@@ -394,7 +419,7 @@ def _citywide(districts, status: str, norm: str, aftermath: bool, negated: bool,
 def _target_pulse(districts, citywide: bool, status: str, norm: str, aftermath: bool,
                    negated: bool, siren_only: bool, political_quote: bool,
                    lost_signal: bool, summary: bool, ad_action: bool,
-                   civic_notice: bool) -> bool:
+                   civic_notice: bool, eppo_marks: bool) -> bool:
     """Terse target/launch pulse: a very short callout ("Ціль!", "Ще вихід",
     "Групова ціль", "3 ракети") naming a target/launch but no place. The
     length cap keeps out longer sentences (which are usually status prose,
@@ -406,7 +431,8 @@ def _target_pulse(districts, citywide: bool, status: str, norm: str, aftermath: 
         and not citywide
         and status not in ("clear", "destroyed")
         and not (aftermath or negated or siren_only or political_quote
-                 or lost_signal or summary or ad_action or civic_notice)
+                 or lost_signal or summary or ad_action or civic_notice
+                 or eppo_marks)
         and len(norm.split()) <= 3
         and any(any(p in w for p in _PULSE_WORD) for w in norm.split())
     )
@@ -414,7 +440,7 @@ def _target_pulse(districts, citywide: bool, status: str, norm: str, aftermath: 
 
 def _matched(districts, citywide: bool, status: str, aftermath: bool, negated: bool,
              siren_only: bool, political_quote: bool, ad_action: bool, promo: bool,
-             civic_notice: bool) -> bool:
+             civic_notice: bool, eppo_marks: bool) -> bool:
     """No district and no actionable status -> nothing structured to record."""
     return (
         (bool(districts) or citywide or status in ("clear", "destroyed"))
@@ -424,6 +450,7 @@ def _matched(districts, citywide: bool, status: str, aftermath: bool, negated: b
         and not political_quote
         and not ad_action
         and not promo
+        and not eppo_marks
         and not civic_notice
     )
 
@@ -448,6 +475,7 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
     negated = _negated(norm, status, impact)
     siren_only = _siren_only(target_type, status, districts, norm)
     civic_notice = _civic_notice(target_type, status, norm, impact)
+    eppo_marks = _eppo_marks(target_type, status, norm, impact)
     day_recap = _day_recap(target_type, status, districts, norm)
     if day_recap:
         conf = min(conf, 0.35)
@@ -456,15 +484,16 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
     summary = _summary(norm, target_type, bool(districts))
     promo = _promo(norm, status, impact)
     citywide = _citywide(districts, status, norm, aftermath, negated, siren_only,
-                         political_quote, lost_signal, summary, ad_action, civic_notice)
+                         political_quote, lost_signal, summary, ad_action, civic_notice,
+                         eppo_marks)
     target_pulse = _target_pulse(districts, citywide, status, norm, aftermath, negated,
                                  siren_only, political_quote, lost_signal, summary,
-                                 ad_action, civic_notice)
+                                 ad_action, civic_notice, eppo_marks)
     matched = _matched(districts, citywide, status, aftermath, negated, siren_only,
-                       political_quote, ad_action, promo, civic_notice)
+                       political_quote, ad_action, promo, civic_notice, eppo_marks)
 
     if (aftermath or negated or siren_only or political_quote or ad_action or promo
-            or civic_notice):
+            or civic_notice or eppo_marks):
         districts = []
     # Confidence drops when we can't localize the target.
     if not districts and status not in ("clear",):
@@ -485,6 +514,7 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
         negated=negated,
         siren_only=siren_only,
         civic_notice=civic_notice,
+        eppo_marks=eppo_marks,
         day_recap=day_recap,
         political_quote=political_quote,
         lost_signal=lost_signal,

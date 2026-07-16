@@ -32,12 +32,24 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = '0.6.3'
+const LATEST = '0.6.4'
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: 'Точніша карта під час атаки',
+    date: '2026-07-16',
+    kind: 'patch',
+    changes: [
+      'Влучання в різних районах більше не з’єднуються хибною лінією-«треком» між собою — кожне показується окремою точкою удару (балістика не «перелітає» з району в район)',
+      'Масований залп балістики по місту більше не розривається на дві окремі «міські» цілі, коли між пусками надходить «По ракетам мінус» (збиття однієї ракети) — залп лишається однією ціллю до відбою',
+      'Перелік «відміток єППО», які спостерігач сам відкидає («локаційно не видно, відмітки єППО …»), більше не створює хибних цілей на карті — раніше згадані в такому списку райони помилково ставали позначками',
+      'Додано Білогородку на південно-західному підступі — виклики по ній («Білогородка, увага по БпЛА») тепер лягають на карту',
+    ],
+  },
+  {
+    version: '0.6.3',
     title: 'Менше хибних цілей і хибних «відбоїв»',
     date: '2026-07-15',
     kind: 'patch',

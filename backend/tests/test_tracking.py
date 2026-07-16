@@ -66,6 +66,28 @@ async def test_event_count_snapshots_running_max_not_final(ctx):
     assert threat.target_count == 3
 
 
+async def test_minus_does_not_close_citywide_alert(ctx):
+    """A partial interception ("По ракетам мінус") must NOT close a city-wide
+    ballistic alert. Else the next "на місто" callout can't rejoin the just-closed
+    alert and spawns a SECOND city-wide track — the live 238/239 split. One
+    barrage -> exactly one open city-wide track."""
+    s, m, src = ctx
+    sid = src[0].id
+    await ingest_message(s, text="🚀 Балістика на Київ", matcher=m, when=BASE,
+                         source_id=sid, message_id=1)
+    await ingest_message(s, text="По ракетам мінус.", matcher=m,
+                         when=BASE + timedelta(minutes=1), source_id=sid, message_id=2)
+    await ingest_message(s, text="Наближення на місто!", matcher=m,
+                         when=BASE + timedelta(minutes=2), source_id=sid, message_id=3)
+    city = list(await s.scalars(select(Threat).where(Threat.scope == "city")))
+    assert len(city) == 1          # no split into 238+239
+    assert city[0].closed_at is None  # the мінус did not close it
+    n_events = await s.scalar(
+        select(func.count()).select_from(ThreatEvent).where(ThreatEvent.threat_id == city[0].id)
+    )
+    assert n_events == 2           # the two "на місто" callouts, not the мінус
+
+
 async def test_non_reply_different_districts_split(ctx):
     """Non-threaded sightings over DIFFERENT districts no longer collapse onto the
     newest open track — without a reply we can't assume it's the same target."""
@@ -542,6 +564,31 @@ async def test_impact_creates_a_closed_terminal_marker(ctx):
     assert len(out) == 2
     assert out[0].type == "event" and out[0].event is not None
     assert out[1].type == "attack"
+
+
+async def test_multi_district_impact_splits_into_separate_markers(ctx):
+    """A strike naming several districts ("влучання у Дарницькому та
+    Святошинському") must become ONE impact marker PER district — a point hit
+    each, never a single multi-district threat (which drew a bogus ballistic
+    "track" zigzagging between raions, live T244). Each marker keeps one point."""
+    s, m, src = ctx
+    await ingest_message(
+        s, text="Балістичне влучання у Дарницькому районі та у Святошинському районі",
+        matcher=m, when=BASE, source_id=src[0].id, message_id=1)
+    # A re-report of the SAME Дарницький strike from another source corroborates
+    # THAT marker (one strike), not spawn a new one — and never crosses to
+    # Святошинський's marker.
+    await ingest_message(
+        s, text="Ще одне влучання у Дарницькому районі",
+        matcher=m, when=BASE + timedelta(minutes=1), source_id=src[1].id, message_id=2)
+    impacts = list(await s.scalars(select(Threat).where(Threat.kind == "impact")))
+    assert len(impacts) == 2  # Дарницький + Святошинський, not one merged threat
+    for t in impacts:
+        n_dist = await s.scalar(
+            select(func.count(func.distinct(ThreatEvent.district_id)))
+            .where(ThreatEvent.threat_id == t.id)
+        )
+        assert n_dist == 1  # each marker is a single point, no cross-district line
 
 
 async def test_impact_does_not_absorb_a_later_sighting_over_same_district(ctx):
