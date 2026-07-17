@@ -11,6 +11,7 @@ import {
   fetchRecentNotices,
 } from '@/api'
 import { requestGeolocation } from '@/components/chrome'
+import { safeGet, safeSet, STORAGE_KEYS } from '@/lib/storage'
 import { registerLifecycleListeners } from '@/lifecycle'
 import { connectWS } from '@/ws'
 
@@ -53,6 +54,13 @@ export function bootstrapApp() {
   connectWS()
   registerLifecycleListeners()
 
-  // Ask for the user's real location on first run (no saved home yet).
-  if (!store.home) requestGeolocation()
+  // Ask for the user's real location once, on the very first run — NOT every
+  // time home is missing. Otherwise clearing home and reloading would silently
+  // re-set it from an already-granted geolocation permission. The marker is
+  // stamped on the first boot regardless of whether a home already exists, so a
+  // later clear never re-triggers the prompt; the manual "use my location"
+  // button stays available afterwards.
+  const firstRun = !safeGet(STORAGE_KEYS.geoAsked)
+  if (firstRun) safeSet(STORAGE_KEYS.geoAsked, '1')
+  if (firstRun && !store.home) requestGeolocation()
 }

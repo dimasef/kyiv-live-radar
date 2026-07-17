@@ -76,7 +76,9 @@
     "attackEnded": "Атаку завершено",
     "rescued": "відновлено",
     "duration": "тривалість",
-    "showRaw": "оригінал"
+    "showRaw": "оригінал",
+    "showMore": "більше",
+    "showLess": "менше"
   },
   "notice": {
     "clear": "Відбій",

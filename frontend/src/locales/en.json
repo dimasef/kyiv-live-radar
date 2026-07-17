@@ -76,7 +76,9 @@
     "attackEnded": "Attack ended",
     "rescued": "recovered",
     "duration": "duration",
-    "showRaw": "raw"
+    "showRaw": "raw",
+    "showMore": "more",
+    "showLess": "less"
   },
   "notice": {
     "clear": "All clear",

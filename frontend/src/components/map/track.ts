@@ -33,3 +33,15 @@ export function headingOf(threat: Threat): number | null {
   if (pts.length < 2) return null
   return bearing(pts[pts.length - 2], pts[pts.length - 1])
 }
+
+/** Presumed heading for a drone sighted as a single point (no real vector yet):
+ * it still flies INTO the city, so point the glyph toward `target` (Kyiv
+ * centre) rather than a meaningless due-north. `seed` (the threat id) drives a
+ * deterministic ±`spread`° north/south jitter — a fresh cluster shouldn't look
+ * regimented all aiming at one pixel, and a deterministic value stays stable
+ * across re-renders (no icon churn, unlike Math.random). */
+export function inboundHeading(from: Pt, target: Pt, seed: number, spread = 20): number {
+  const hash = Math.sin(seed * 12.9898) * 43758.5453
+  const jitter = ((hash - Math.floor(hash)) * 2 - 1) * spread
+  return (bearing(from, target) + jitter + 360) % 360
+}

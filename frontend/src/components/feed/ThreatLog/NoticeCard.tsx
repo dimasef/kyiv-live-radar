@@ -6,6 +6,7 @@ import { HOME_COLOR, STATUS_COLORS, TYPE_COLORS } from '@/theme'
 import type { Notice, NoticeKind } from '@/types'
 
 import { DevId, EventTime, SourceBadge } from './badges'
+import ClampText from './ClampText'
 
 /** Per-kind icon + accent colour. Rule notices (clear/summary) keep their
  * established look; the LLM-triage context kinds (directional/forecast/status)
@@ -64,7 +65,10 @@ export default function NoticeCard({ notices }: { notices: Notice[] }) {
           <EventTime iso={head.event_time} />
         </span>
       </div>
-      <div className="mt-0.5 break-words leading-snug text-slate-300">{head.text}</div>
+      <ClampText
+        text={head.text}
+        className="mt-0.5 break-words leading-snug text-slate-300"
+      />
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         {sources.length > 0 ? (
           sources.map((name) => <SourceBadge key={name} name={name} t={t} />)
