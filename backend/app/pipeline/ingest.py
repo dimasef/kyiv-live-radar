@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import select
 
 from ..domain.alerts import AlertSignal, apply_alert_signal
-from ..domain.axes import AxisSignal, apply_axis_signal
+from ..domain.axes import AxisSignal, apply_axis_signal, refresh_open_axis
 from ..domain.districts import citywide_district_id
 from ..domain.origins import target_elsewhere
 from ..domain.incidents import attach_to_incident, end_active_incidents
@@ -377,18 +377,42 @@ async def _handle_lost_signal(ctx: IngestContext) -> list[Broadcast]:
     return [Broadcast("event" if ev is not None else "status", t, ev) for t, ev in pairs]
 
 
+async def _pulse_corroborates_axis(ctx: IngestContext) -> list[Broadcast] | None:
+    """Fallback for a terse pulse when NO city-wide alert is open: if a
+    directional axis is still open ("Загроза балістики з Брянська" → wedge),
+    "Є вихід" is the spotter calling in the launch that axis warned about.
+    Freshen the axis (keep the wedge alive) and surface the pulse as a
+    directional notice inheriting the axis's origin/type, so it folds into that
+    direction's feed card instead of being dropped as "не про загрозу". Returns
+    None (still unhandled) when no axis matches — caller falls through."""
+    session, parsed, when = ctx.session, ctx.parsed, ctx.when
+    axis = await refresh_open_axis(session, when, parsed.target_type, raw_id=ctx.raw.id)
+    if axis is None:
+        return None
+    notice = Notice(
+        kind="directional", text=parsed.raw_text, target_type=axis.target_type,
+        source_id=ctx.source_id, event_time=when, source_message_id=ctx.message_id,
+        origin=axis.origin_key, generated_by="rule",
+    )
+    session.add(notice)
+    await session.commit()
+    await ctx.done()
+    return [Broadcast("notice", notice=notice), Broadcast("axis", axis=axis)]
+
+
 async def _handle_target_pulse(ctx: IngestContext) -> list[Broadcast] | None:
     """Terse target/launch pulse ("Ціль!", "Ще вихід", "3 ракети") — acted on
-    ONLY while a city-wide alert is already open: a spotter calling the salvo
-    in as it arrives. It corroborates that alert (an event on the sentinel
-    district) and bumps the stated count. Returns None (not handled) when
-    there's no open city-wide alert to corroborate — the caller falls through
-    to the next check (too terse to localize on its own)."""
+    while a city-wide alert is already open: a spotter calling the salvo in as
+    it arrives. It corroborates that alert (an event on the sentinel district)
+    and bumps the stated count. With no open city-wide alert it falls back to
+    corroborating an open directional axis (_pulse_corroborates_axis); only if
+    neither is open does it return None (too terse to localize on its own) and
+    the caller falls through to the next check."""
     session, parsed, when = ctx.session, ctx.parsed, ctx.when
     city = await find_open_citywide(session, when)
     did = await citywide_district_id(session) if city is not None else None
     if city is None or did is None:
-        return None
+        return await _pulse_corroborates_axis(ctx)
     city.target_type = _upgrade_type(city.target_type, parsed.target_type)
     if parsed.target_count and parsed.target_count > city.target_count:
         city.target_count = parsed.target_count

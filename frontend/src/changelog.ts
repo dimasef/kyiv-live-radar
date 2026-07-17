@@ -32,12 +32,21 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = '0.7.1'
+const LATEST = '0.7.2'
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: 'Пуск підхоплює відкритий напрямок загрози',
+    date: '2026-07-17',
+    kind: 'patch',
+    changes: [
+      'Короткий виклик про пуск («Є вихід», «Ціль!») одразу після напрямкової загрози (напр. «Балістика з Брянська») більше не зникає як «не про загрозу»: він освіжає вже відкриту стрілку-напрямок (щоб вона не згасла посеред атаки) і зʼявляється у стрічці як напрямкове повідомлення. Такий пуск підтримує напрямок «живим», але сам, без назви напрямку, не робить стрілку «підтвердженою» — для цього все ще потрібні ≥2 канали',
+    ],
+  },
+  {
+    version: '0.7.1',
     title: 'Надійне відновлення після втрати зв’язку',
     date: '2026-07-17',
     kind: 'patch',

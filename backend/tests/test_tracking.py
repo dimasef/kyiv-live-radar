@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db import Base
 from app.gazetteer import DISTRICTS, SOURCES
-from app.models import District, Incident, RawMessage, Source, Threat, ThreatEvent
+from app.models import District, Incident, Notice, RawMessage, Source, Threat, ThreatAxis, ThreatEvent
 from app.parsing import DistrictMatcher
 from app.pipeline.ingest import ingest_alert_message, ingest_message
 
@@ -807,6 +807,40 @@ async def test_pulse_without_active_city_alert_is_ignored(ctx):
     await ingest_message(s, text="Ціль!", matcher=m, when=BASE,
                          source_id=src[0].id, message_id=1)
     assert await _count_threats(s) == 0
+
+
+async def test_pulse_corroborates_open_directional_axis(ctx):
+    # "Загроза балістики з Брянська" raises a directional axis but NO city alert.
+    # A following terse "Є вихід" is the launch that axis warned about — it must
+    # freshen the axis and surface as a directional notice, not fall to
+    # "не про загрозу" (the N102/N107 real-data case).
+    s, m, src = ctx
+    await ingest_message(s, text="Загроза балістики з Брянська", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    axis = (await s.scalars(select(ThreatAxis))).one()
+    seen_before = axis.last_seen_at
+
+    out = await ingest_message(s, text="Є вихід", matcher=m, when=BASE + timedelta(minutes=1),
+                               source_id=src[0].id, message_id=2)
+
+    assert await _count_threats(s) == 0                 # no track/city threat
+    await s.refresh(axis)
+    assert axis.last_seen_at > seen_before              # axis TTL reset
+    assert (await s.scalar(select(func.count()).select_from(ThreatAxis))) == 1
+    assert axis.status == "unverified"                  # same-source pulse never promotes
+    notices = list(await s.scalars(select(Notice)))
+    assert any(n.kind == "directional" and n.text == "Є вихід" for n in notices)
+    assert {b.type for b in out} >= {"notice", "axis"}
+
+
+async def test_pulse_without_axis_or_city_alert_stays_ignored(ctx):
+    # With neither a city alert nor an open axis, a lone pulse is still dropped.
+    s, m, src = ctx
+    out = await ingest_message(s, text="Є вихід", matcher=m, when=BASE,
+                               source_id=src[0].id, message_id=1)
+    assert await _count_threats(s) == 0
+    assert (await s.scalar(select(func.count()).select_from(ThreatAxis))) == 0
+    assert out == []
 
 
 async def test_summary_message_becomes_a_feed_notice(ctx):

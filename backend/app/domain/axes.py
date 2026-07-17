@@ -123,6 +123,37 @@ async def apply_axis_signal(session, signal: AxisSignal) -> ThreatAxis | None:
     return axis
 
 
+async def refresh_open_axis(session, when: datetime, target_type: str,
+                            raw_id: int | None = None) -> ThreatAxis | None:
+    """A directionless launch/target pulse ("Є вихід", "Ціль!") arriving while a
+    directional axis is open — a spotter calling in the launch the axis warned
+    about. Freshen the newest family-compatible open axis (reset its TTL so the
+    wedge doesn't expire mid-attack) and record the raw id, but do NOT touch
+    corroboration: a bare pulse confirms activity, not the direction, so it must
+    never promote unverified->corroborated. Returns the refreshed axis, or None
+    when no open axis matches (caller treats the pulse as too terse to act on)."""
+    if not settings.axis_enabled:
+        return None
+    window = timedelta(minutes=settings.axis_fusion_window_minutes)
+    fam = _family(target_type)
+    stmt = (
+        select(ThreatAxis)
+        .where(ThreatAxis.expires_at.is_(None))
+        .order_by(ThreatAxis.created_at.desc())
+    )
+    for axis in await session.scalars(stmt):
+        if _family(axis.target_type) != fam and fam != "unknown" and _family(axis.target_type) != "unknown":
+            continue
+        if not _within(axis.last_seen_at, when, window):
+            continue
+        axis.last_seen_at = when
+        if raw_id is not None and raw_id not in axis.raw_ids:
+            axis.raw_ids = [*axis.raw_ids, raw_id]
+        await session.commit()
+        return axis
+    return None
+
+
 async def close_stale_axes(session, now: datetime) -> list[ThreatAxis]:
     """Expire axes with no new callout for `axis_ttl_minutes` — a direction is a
     fleeting cue, not a standing state."""
