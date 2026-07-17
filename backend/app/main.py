@@ -14,6 +14,7 @@ from .feeds.health import feed_health, get_status
 from .feeds.simulator import run_simulator
 from .logging_setup import setup_logging
 from .migrate import upgrade_to_head
+from .observability import setup_observability
 from .seed import seed_districts, seed_sources
 
 setup_logging()
@@ -95,6 +96,8 @@ app.add_middleware(
 )
 
 app.include_router(router)
+
+setup_observability(app)
 
 
 @app.get("/health")

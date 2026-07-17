@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -249,6 +249,29 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    # --- Observability (app/observability.py). All opt-in: with the token/DSN
+    #     empty the SDKs stay fully dormant — no network calls, no behavior
+    #     change — so local dev and the test suite run exactly as before. Set on
+    #     Railway to light up traces/errors/metrics. ---
+    # Pydantic Logfire — primary telemetry (traces + logs + metrics + LLM spans).
+    # Empty token => configured in local-only mode (send_to_logfire='if-token-present').
+    logfire_token: str = ""
+    # Sentry — error aggregation + alerting. Empty => sentry_sdk.init is skipped.
+    sentry_dsn: str = ""
+    # Environment tag applied to both Logfire and Sentry. Prefer an explicit
+    # ENVIRONMENT, else fall back to Railway's auto-injected RAILWAY_ENVIRONMENT
+    # (defaults to "production" there) so a deploy is tagged correctly with no
+    # manual var; locally, with neither set, it stays "development".
+    environment: str = Field(
+        "development",
+        validation_alias=AliasChoices("ENVIRONMENT", "RAILWAY_ENVIRONMENT"),
+    )
+    # Emit stdout as one JSON object per line instead of the default text format,
+    # so Railway's log viewer can parse/filter structured fields. Off locally.
+    log_json: bool = False
+    # Trace sampling for Logfire (1.0 = every request; lower on a busy prod).
+    trace_sample_rate: float = 1.0
 
 
 settings = Settings()

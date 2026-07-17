@@ -16,9 +16,12 @@ import asyncio
 from .feeds.telegram import run_listener
 from .logging_setup import setup_logging
 from .migrate import upgrade_to_head
+from .observability import setup_logfire, setup_sentry
 from .seed import seed_districts, seed_sources
 
 setup_logging()
+setup_sentry()
+setup_logfire(app=None)
 
 
 async def main() -> None:
