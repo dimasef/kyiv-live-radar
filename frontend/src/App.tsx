@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 
 import { StatusBanner } from "@/components/banners";
 import {
+  ConnectionToast,
   DisclaimerModal,
   Header,
   MobileSheet,
@@ -32,6 +33,7 @@ export default function App() {
 
       <DisclaimerModal open={showDisclaimer} onClose={() => setShowDisclaimer(false)} />
       <UpdateToast />
+      <ConnectionToast />
 
       <main className="relative flex-1 min-h-0 lg:flex">
         {/* Map fills everything; on mobile the sheet floats above it. */}

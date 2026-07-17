@@ -105,6 +105,12 @@ class Settings(BaseSettings):
     # How often the stale-track/incident/alert sweeper runs (app/pipeline/sweeper.py).
     sweeper_interval_s: int = 60
 
+    # WS keepalive: broadcast a 'ping' frame this often so a healthy socket
+    # never goes silent for long — the frontend's stale-connection watchdog
+    # (60s threshold) then never false-triggers during an otherwise-quiet
+    # night. See app/pipeline/keepalive.py.
+    ws_keepalive_s: int = 25
+
     # One-off maintenance: when true, rebuild ALL tracks/incidents from stored
     # raw_messages at startup (BEFORE the live listener starts — race-free) so a
     # prod DB picks up parser/gazetteer changes without external DB access. Set

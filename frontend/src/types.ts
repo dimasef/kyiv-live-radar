@@ -144,7 +144,17 @@ export interface Alert {
 }
 
 export interface WSMessage {
-  type: 'event' | 'status' | 'notice' | 'alert' | 'attack' | 'axis' | 'health' | 'online' | 'hello'
+  type:
+    | 'event'
+    | 'status'
+    | 'notice'
+    | 'alert'
+    | 'attack'
+    | 'axis'
+    | 'health'
+    | 'online'
+    | 'hello'
+    | 'ping'
   threat?: Threat
   event?: ThreatEvent
   notice?: Notice

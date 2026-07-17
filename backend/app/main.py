@@ -59,6 +59,12 @@ async def lifespan(app: FastAPI):
 
     tasks.append(asyncio.create_task(run_sweeper()))
 
+    # Always run the WS keepalive — clients rely on it to tell a silent-but-
+    # healthy night apart from a dead/zombie socket.
+    from .pipeline.keepalive import run_keepalive
+
+    tasks.append(asyncio.create_task(run_keepalive()))
+
     # Async LLM triage engine: one consumer draining the in-process queue that
     # ingest fills (directional/forecast/status notices, axis fusion, rescue).
     if settings.triage_enabled:

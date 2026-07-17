@@ -284,7 +284,8 @@ class RawLlmStatsOut(BaseModel):
 class WSMessage(BaseModel):
     """Envelope broadcast over the WebSocket."""
 
-    # 'event'|'status'|'notice'|'alert'|'attack'|'axis'|'health'|'online'|'hello'
+    # 'event'|'status'|'notice'|'alert'|'attack'|'axis'|'health'|'online'|'hello'|'ping'
+    # 'ping' carries no payload — a bare heartbeat frame (see pipeline/keepalive.py).
     type: str
     threat: Optional[ThreatOut] = None
     event: Optional[ThreatEventOut] = None

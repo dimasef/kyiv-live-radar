@@ -32,12 +32,23 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = '0.7.0'
+const LATEST = '0.7.1'
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: 'Надійне відновлення після втрати зв’язку',
+    date: '2026-07-17',
+    kind: 'patch',
+    changes: [
+      'Застосунок більше не показує мовчки застарілі дані після довгої перерви (напр. відкрили зранку) — при поверненні на вкладку/у мережу він примусово перепідключається і оновлює всі дані',
+      'Виявлення «мертвого» з’єднання: якщо канал живий, але дані не приходять понад хвилину, застосунок сам це помічає й перепідключається, навіть якщо індикатор досі показував «онлайн»',
+      'При розриві або оновленні зʼявляється короткий непомітний напис («Оновлюю дані…» / «Зʼєднання втрачено, відновлюю…»), який зникає сам, щойно все відновлено',
+    ],
+  },
+  {
+    version: '0.7.0',
     title: 'Напрямок загрози та розумніша стрічка',
     date: '2026-07-16',
     kind: 'minor',

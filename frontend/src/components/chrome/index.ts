@@ -1,3 +1,4 @@
+export { default as ConnectionToast } from './ConnectionToast'
 export { default as DisclaimerModal } from './DisclaimerModal'
 export { default as Header } from './Header'
 export { default as HomeControl, requestGeolocation } from './HomeControl'

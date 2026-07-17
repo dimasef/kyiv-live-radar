@@ -13,6 +13,7 @@ export interface WsSlice {
 // there, not here.
 export const createWsSlice: StateCreator<RadarState, [], [], WsSlice> = (_set, get) => ({
   handleWS: (msg) => {
+    if (msg.type === 'ping') return
     if (msg.type === 'health') {
       get().setFeedOk(msg.feed_ok ?? null)
       return

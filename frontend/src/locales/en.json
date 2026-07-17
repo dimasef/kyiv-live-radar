@@ -133,6 +133,10 @@
     "reload": "Update",
     "dismiss": "Later"
   },
+  "conn": {
+    "resyncing": "Refreshing data…",
+    "lost": "Connection lost, reconnecting…"
+  },
   "legendCtl": {
     "show": "Show legend",
     "hide": "Collapse legend"

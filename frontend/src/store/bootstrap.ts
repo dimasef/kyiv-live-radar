@@ -11,30 +11,47 @@ import {
   fetchRecentNotices,
 } from '@/api'
 import { requestGeolocation } from '@/components/chrome'
+import { registerLifecycleListeners } from '@/lifecycle'
 import { connectWS } from '@/ws'
 
 import { useRadar } from './index'
 
-/** One-shot data hydration + live WS connection for the radar app — never
- * called for the changelog route, which needs none of this (see main.tsx). */
+/** Re-fetches every active/recent data set (everything EXCEPT the
+ * once-per-session static ones — districts/boundaries). Re-runnable: this is
+ * the safety net for a stale slice missed while the WS was dead — each
+ * `setX` REPLACES its slice from the server's current active set, so
+ * anything closed/cleared while we were disconnected drops out on its own.
+ * Called both by bootstrap and by `ws.ts`'s resync-on-reconnect. */
+export async function hydrate(): Promise<void> {
+  const store = useRadar.getState()
+
+  await Promise.all([
+    fetchActiveThreats().then(store.setThreats).catch(() => {}),
+    fetchActiveIncidents().then(store.setIncidents).catch(() => {}),
+    fetchRecentIncidents().then(store.setRecentIncidents).catch(() => {}),
+    fetchActiveAxes().then(store.setAxes).catch(() => {}),
+    fetchActiveAlerts().then(store.setAlerts).catch(() => {}),
+    fetchRecentEvents().then(store.setLog).catch(() => {}),
+    fetchRecentNotices().then(store.setNotices).catch(() => {}),
+    // Hydrate feed health once; live changes arrive via the WS 'health' frame.
+    fetchHealth()
+      .then((h) => store.setFeedOk(h.telegram?.feed_ok ?? null))
+      .catch(() => {}),
+  ])
+}
+
+/** One-shot static data + first hydration + live WS connection for the radar
+ * app — never called for the changelog route, which needs none of this (see
+ * main.tsx). */
 export function bootstrapApp() {
   const store = useRadar.getState()
 
   fetchDistricts().then(store.setDistricts).catch(() => {})
   fetchBoundaries().then(store.setBoundaries).catch(() => {})
-  fetchActiveThreats().then(store.setThreats).catch(() => {})
-  fetchActiveIncidents().then(store.setIncidents).catch(() => {})
-  fetchRecentIncidents().then(store.setRecentIncidents).catch(() => {})
-  fetchActiveAxes().then(store.setAxes).catch(() => {})
-  fetchActiveAlerts().then(store.setAlerts).catch(() => {})
-  fetchRecentEvents().then(store.setLog).catch(() => {})
-  fetchRecentNotices().then(store.setNotices).catch(() => {})
-  // Hydrate feed health once; live changes arrive via the WS 'health' frame.
-  fetchHealth()
-    .then((h) => store.setFeedOk(h.telegram?.feed_ok ?? null))
-    .catch(() => {})
 
+  hydrate()
   connectWS()
+  registerLifecycleListeners()
 
   // Ask for the user's real location on first run (no saved home yet).
   if (!store.home) requestGeolocation()
