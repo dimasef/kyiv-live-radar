@@ -35,27 +35,34 @@ class Origin:
     sector: str       # one of SECTORS — the compass octant toward Kyiv
     bearing_deg: int  # finer bearing from Kyiv (0=N, 90=E), for the edge wedge
     stems: tuple[str, ...]  # normalized word-start stems that name this origin
+    # Representative centroid (lat, lon) of the origin region/place. COARSE on
+    # purpose — most origins are whole oblasts/seas, not points; the frontend
+    # draws a soft zone here (not a precise pin) only when the operator zooms out
+    # far enough that this location enters the viewport, morphing the edge wedge
+    # into an on-map source marker. Never used for bearing/trajectory math.
+    lat: float
+    lon: float
 
 
 # Bearings are from Kyiv (~50.45N, 30.52E) toward each origin, rounded — coarse
 # on purpose (an edge wedge, not a firing solution). Grow this table the same way
 # the gazetteer grows: when a real callout names an origin we don't cover.
 ORIGINS: tuple[Origin, ...] = (
-    Origin("bryansk", "Брянщина", "NE", 40, ("брянськ", "брянщин", "брянс")),
-    Origin("kursk", "Курщина", "NE", 60, ("курськ", "курщин", "курс")),
-    Origin("oryol", "Орловщина", "NE", 50, ("орел", "орл", "орловщин")),
-    Origin("shatalovo", "Шаталове", "N", 12, ("шаталов",)),
-    Origin("voronezh", "Воронежчина", "E", 72, ("воронеж", "воронезьк")),
-    Origin("millerovo", "Міллерово", "SE", 105, ("міллеров", "мілеров")),
-    Origin("rostov", "Ростовщина", "SE", 115, ("ростов", "ростовщин")),
-    Origin("engels", "Енгельс", "E", 85, ("енгельс",)),
-    Origin("caspian", "Каспій", "E", 95, ("каспійськ", "каспій")),
-    Origin("black_sea", "Чорне море", "S", 185, ("чорного мор", "чорне мор", "чорному мор")),
-    Origin("azov", "Приморсько-Ахтарськ", "SE", 135, ("ахтарськ", "приморсько")),
-    Origin("crimea", "Крим", "S", 170, ("крим",)),
-    Origin("belarus", "Білорусь", "N", 340, ("білорус", "мозир", "брагін")),
-    Origin("chernihiv", "Чернігівщина", "N", 20, ("чернігівщин", "чернігів")),
-    Origin("sumy", "Сумщина", "E", 75, ("сумщин", "сум")),
+    Origin("bryansk", "Брянщина", "NE", 40, ("брянськ", "брянщин", "брянс"), 53.24, 34.36),
+    Origin("kursk", "Курщина", "NE", 60, ("курськ", "курщин", "курс"), 51.73, 36.19),
+    Origin("oryol", "Орловщина", "NE", 50, ("орел", "орл", "орловщин"), 52.97, 36.07),
+    Origin("shatalovo", "Шаталове", "N", 12, ("шаталов",), 54.35, 32.53),
+    Origin("voronezh", "Воронежчина", "E", 72, ("воронеж", "воронезьк"), 51.66, 39.20),
+    Origin("millerovo", "Міллерово", "SE", 105, ("міллеров", "мілеров"), 48.92, 40.40),
+    Origin("rostov", "Ростовщина", "SE", 115, ("ростов", "ростовщин"), 47.24, 39.71),
+    Origin("engels", "Енгельс", "E", 85, ("енгельс",), 51.48, 46.12),
+    Origin("caspian", "Каспій", "E", 95, ("каспійськ", "каспій"), 42.00, 50.00),
+    Origin("black_sea", "Чорне море", "S", 185, ("чорного мор", "чорне мор", "чорному мор"), 44.00, 32.00),
+    Origin("azov", "Приморсько-Ахтарськ", "SE", 135, ("ахтарськ", "приморсько"), 46.05, 38.17),
+    Origin("crimea", "Крим", "S", 170, ("крим",), 45.30, 34.40),
+    Origin("belarus", "Білорусь", "N", 340, ("білорус", "мозир", "брагін"), 52.05, 29.25),
+    Origin("chernihiv", "Чернігівщина", "N", 20, ("чернігівщин", "чернігів"), 51.49, 31.29),
+    Origin("sumy", "Сумщина", "E", 75, ("сумщин", "сум"), 50.91, 34.80),
 )
 
 ORIGIN_BY_KEY = {o.key: o for o in ORIGINS}

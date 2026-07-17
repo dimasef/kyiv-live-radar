@@ -1,4 +1,4 @@
-import { Eye, Wifi } from 'lucide-react'
+import { Eye } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { riseDelay } from '@/lib/motion'
@@ -9,7 +9,6 @@ import TelegramIcon from './TelegramIcon'
 
 export default function Header() {
   const { t } = useTranslation()
-  const connected = useRadar((s) => s.connected)
   const feedOk = useRadar((s) => s.feedOk)
   const online = useRadar((s) => s.online)
 
@@ -40,26 +39,6 @@ export default function Header() {
             {online}
           </span>
         )}
-        <div className="group relative">
-          <button
-            type="button"
-            aria-label={connected ? t('conn.online') : t('conn.offline')}
-            className={`flex h-7 w-7 items-center justify-center rounded-full border transition-colors duration-300 ${
-              connected
-                ? 'border-emerald-400/20 bg-emerald-400/5 text-emerald-300'
-                : 'border-red-400/25 bg-red-400/5 text-red-300'
-            }`}
-          >
-            <Wifi size={14} />
-          </button>
-          <span
-            className={`pointer-events-none absolute left-1/2 top-full z-50 mt-1.5 -translate-x-1/2 whitespace-nowrap rounded-md border border-white/10 bg-ink-900/95 px-2.5 py-1 text-[11px] font-mono opacity-0 shadow-lg backdrop-blur-xl transition-opacity duration-150 group-hover:opacity-100 ${
-              connected ? 'text-emerald-300' : 'text-red-300'
-            }`}
-          >
-            {connected ? t('conn.online') : t('conn.offline')}
-          </span>
-        </div>
         {feedOk === false && (
           <span
             className="flex items-center gap-2 rounded-full border border-red-400/25 bg-red-400/5 px-2.5 py-1 text-[11px] font-mono text-red-300"

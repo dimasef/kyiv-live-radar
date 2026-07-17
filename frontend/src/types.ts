@@ -122,6 +122,11 @@ export interface ThreatAxis {
   bearing_deg: number
   origin_key: string | null
   origin_name: string | null
+  /** Representative centroid of the origin region — the axis morphs from an edge
+   * wedge into an on-map source marker here when zoomed out. Null for bare-sector
+   * axes (a direction with no named place). */
+  origin_lat: number | null
+  origin_lon: number | null
   target_type: TargetType
   status: 'unverified' | 'corroborated' | 'expired'
   corroboration_count: number

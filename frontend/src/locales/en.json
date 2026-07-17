@@ -104,7 +104,10 @@
   "conn": {
     "online": "Connection active",
     "offline": "Disconnected",
-    "feedUnavailable": "Data source unavailable"
+    "feedUnavailable": "Data source unavailable",
+    "lost": "Connection lost",
+    "lostHint": "Reconnecting automatically…",
+    "resyncing": "Refreshing data"
   },
   "panel": {
     "feed": "Feed",
@@ -132,10 +135,6 @@
     "available": "A new version is available",
     "reload": "Update",
     "dismiss": "Later"
-  },
-  "conn": {
-    "resyncing": "Refreshing data…",
-    "lost": "Connection lost, reconnecting…"
   },
   "legendCtl": {
     "show": "Show legend",

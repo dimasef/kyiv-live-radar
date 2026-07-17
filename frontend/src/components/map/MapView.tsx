@@ -1,6 +1,6 @@
 import L from 'leaflet'
 import type { CSSProperties } from 'react'
-import { memo, useEffect, useMemo, useRef } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Circle,
@@ -21,7 +21,7 @@ import { CorroborationLine, CountBadge, threatState, typeLabel } from '../../thr
 import { HOME_COLOR, threatColor } from '../../theme'
 import { DOT_UNTIL_MOVING, threatDivIcon } from '../../threatIcons'
 import type { Threat } from '../../types'
-import AxisEdgeIndicators from './AxisEdgeIndicators'
+import AxisLayer from './AxisLayer'
 import CitywidePulse from './CitywidePulse'
 import IncidentHighlight from './IncidentHighlight'
 import MapLegend from './MapLegend'
@@ -382,6 +382,7 @@ export default function MapView() {
   const home = useRadar((s) => s.home)
   const placingHome = useRadar((s) => s.placingHome)
   const inspectedThreat = useRadar((s) => s.inspectedThreat)
+  const [map, setMap] = useState<L.Map | null>(null)
   const initialCenter: [number, number] = home ? [home.lat, home.lon] : KYIV_CENTER
 
   // A track being inspected might already be live (in `threats`) — in that
@@ -392,6 +393,7 @@ export default function MapView() {
   return (
     <div className="relative h-full w-full">
       <MapContainer
+        ref={setMap}
         center={initialCenter}
         zoom={home ? 12 : 11}
         className={placingHome ? 'placing-home' : undefined}
@@ -446,7 +448,7 @@ export default function MapView() {
           <ThreatLayer threat={inspectedThreat} highlighted />
         )}
       </MapContainer>
-      <AxisEdgeIndicators />
+      <AxisLayer map={map} />
       <MapLegend />
     </div>
   )

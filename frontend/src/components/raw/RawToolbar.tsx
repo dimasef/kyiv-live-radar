@@ -1,8 +1,15 @@
+import { ExternalLink } from 'lucide-react'
+
 const BTN =
   'rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed'
+// The open-in-tab twin of an export button — same accent, icon-only, tucked
+// against the export it mirrors (rounded only on the outer edge).
+const VIEW_BTN =
+  'rounded-l-lg border border-r-0 border-phosphor/30 bg-phosphor/10 px-2 py-1.5 text-phosphor-soft transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed'
 
 /** Counter ("показано N з M") plus the export + manual-selection controls that
- * sit above the raw-message list. */
+ * sit above the raw-message list. Each export comes as a pair: a file download
+ * and an open-in-tab (↗) twin that shows the same JSON without saving. */
 export default function RawToolbar({
   loaded,
   total,
@@ -11,6 +18,8 @@ export default function RawToolbar({
   exporting,
   onExportFiltered,
   onExportSelected,
+  onViewFiltered,
+  onViewSelected,
   onToggleSelectAll,
   onClearSelection,
 }: {
@@ -21,6 +30,8 @@ export default function RawToolbar({
   exporting: boolean
   onExportFiltered: () => void
   onExportSelected: () => void
+  onViewFiltered: () => void
+  onViewSelected: () => void
   onToggleSelectAll: () => void
   onClearSelection: () => void
 }) {
@@ -55,20 +66,42 @@ export default function RawToolbar({
             Очистити
           </button>
         )}
-        <button
-          onClick={onExportSelected}
-          disabled={selectedCount === 0}
-          className={`${BTN} border-phosphor/30 bg-phosphor/10 text-phosphor-soft`}
-        >
-          Експорт вибраних ({selectedCount})
-        </button>
-        <button
-          onClick={onExportFiltered}
-          disabled={exporting || total === 0}
-          className={`${BTN} border-phosphor/30 bg-phosphor/10 text-phosphor-soft`}
-        >
-          {exporting ? 'Експорт…' : 'Експорт (фільтр)'}
-        </button>
+        <div className="flex">
+          <button
+            onClick={onViewSelected}
+            disabled={selectedCount === 0}
+            title="Відкрити вибрані у вкладці"
+            aria-label="Відкрити вибрані у вкладці"
+            className={VIEW_BTN}
+          >
+            <ExternalLink size={14} />
+          </button>
+          <button
+            onClick={onExportSelected}
+            disabled={selectedCount === 0}
+            className={`${BTN} rounded-l-none border-phosphor/30 bg-phosphor/10 text-phosphor-soft`}
+          >
+            Експорт вибраних ({selectedCount})
+          </button>
+        </div>
+        <div className="flex">
+          <button
+            onClick={onViewFiltered}
+            disabled={exporting || total === 0}
+            title="Відкрити фільтр у вкладці"
+            aria-label="Відкрити фільтр у вкладці"
+            className={VIEW_BTN}
+          >
+            <ExternalLink size={14} />
+          </button>
+          <button
+            onClick={onExportFiltered}
+            disabled={exporting || total === 0}
+            className={`${BTN} rounded-l-none border-phosphor/30 bg-phosphor/10 text-phosphor-soft`}
+          >
+            {exporting ? 'Експорт…' : 'Експорт (фільтр)'}
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -181,6 +181,11 @@ class AxisOut(BaseModel):
     bearing_deg: int       # 0=N, 90=E — the wedge direction
     origin_key: Optional[str] = None
     origin_name: Optional[str] = None  # display label ("Брянщина"); None for bare-sector
+    # Representative centroid of the origin region — the client morphs the edge
+    # wedge into an on-map source marker here when it's zoomed out enough to see
+    # this spot. None for bare-sector axes (a direction with no named place).
+    origin_lat: Optional[float] = None
+    origin_lon: Optional[float] = None
     target_type: str
     status: str            # 'unverified' | 'corroborated' | 'expired'
     corroboration_count: int = 1

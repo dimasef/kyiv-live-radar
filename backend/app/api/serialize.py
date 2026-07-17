@@ -76,6 +76,8 @@ def axis_out(a: ThreatAxis) -> AxisOut:
         bearing_deg=bearing_for(a.origin_key, a.sector),
         origin_key=a.origin_key,
         origin_name=origin.name_uk if origin is not None else None,
+        origin_lat=origin.lat if origin is not None else None,
+        origin_lon=origin.lon if origin is not None else None,
         target_type=a.target_type,
         status=a.status,
         corroboration_count=a.corroboration_count,

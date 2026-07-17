@@ -90,3 +90,28 @@ async def test_disabled_axis_layer_is_noop(session, monkeypatch):
     monkeypatch.setattr(settings, "axis_enabled", False)
     assert await apply_axis_signal(session, _sig(BASE)) is None
     assert await _count(session) == 0
+
+
+def test_axis_out_carries_source_coords_for_named_origin():
+    # A named origin exposes its representative centroid so the client can morph
+    # the edge wedge into an on-map source marker when zoomed out.
+    from app.api.serialize import axis_out
+
+    a = ThreatAxis(id=1, sector="NE", origin_key="bryansk", target_type="ballistic",
+                   status="unverified", corroboration_count=1,
+                   created_at=BASE, last_seen_at=BASE)
+    out = axis_out(a)
+    assert out.origin_name == "Брянщина"
+    assert 53 < out.origin_lat < 54 and 34 < out.origin_lon < 35
+
+
+def test_axis_out_has_no_coords_for_bare_sector():
+    # A bare-sector axis (a direction with no named place) stays edge-only.
+    from app.api.serialize import axis_out
+
+    a = ThreatAxis(id=2, sector="N", origin_key=None, target_type="shahed",
+                   status="unverified", corroboration_count=1,
+                   created_at=BASE, last_seen_at=BASE)
+    out = axis_out(a)
+    assert out.origin_name is None
+    assert out.origin_lat is None and out.origin_lon is None

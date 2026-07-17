@@ -3,6 +3,11 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 
+// How often a long-open tab re-checks prod for a new build. A threat radar is
+// typically left open for hours during an alert, so without this poll it would
+// only notice a deploy on a manual reload.
+const UPDATE_POLL_MS = 15 * 60 * 1000
+
 /** Bottom-center banner shown when a new build is waiting. `useRegisterSW` also
  * REGISTERS the service worker on mount (the app's single registration point).
  * registerType is 'prompt' (see vite.config.ts) so a safety-adjacent app never
@@ -12,7 +17,21 @@ export default function UpdateToast() {
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
-  } = useRegisterSW()
+  } = useRegisterSW({
+    // Surface a fresh deploy on an already-open tab without a manual reload:
+    // poll every 15 min and re-check the moment the tab is brought back to the
+    // foreground. update() finding a new SW flips needRefresh -> the toast shows.
+    onRegisteredSW(_swUrl, reg) {
+      if (!reg) return
+      const check = () => {
+        if (navigator.onLine) reg.update().catch(() => {})
+      }
+      setInterval(check, UPDATE_POLL_MS)
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') check()
+      })
+    },
+  })
   const [nextVersion, setNextVersion] = useState<string | null>(null)
 
   // Ask the waiting SW (the freshly-installed new build) which version it is.

@@ -80,6 +80,8 @@ export default function RawMessagesPage() {
           exporting={selection.exporting}
           onExportFiltered={selection.exportFiltered}
           onExportSelected={selection.exportSelected}
+          onViewFiltered={selection.viewFiltered}
+          onViewSelected={selection.viewSelected}
           onToggleSelectAll={selection.toggleSelectAll}
           onClearSelection={selection.clearSelection}
         />
