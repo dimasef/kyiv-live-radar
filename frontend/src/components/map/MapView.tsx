@@ -21,14 +21,24 @@ import IncidentHighlight from "./IncidentHighlight";
 import MapLegend from "./MapLegend";
 import ThreatLayer from "./ThreatLayer";
 
-const homeIcon = L.divIcon({
-  className: "home-marker",
-  html: `<svg width="22" height="22" viewBox="0 0 24 24" style="filter:drop-shadow(0 0 6px rgba(56,189,248,.6))">
-    <path d="M12 3 L21 11 L18 11 L18 20 L14 20 L14 14 L10 14 L10 20 L6 20 L6 11 L3 11 Z"
-      fill="${HOME_COLOR}" stroke="#0b0f14" stroke-width="1"/></svg>`,
-  iconSize: [22, 22],
-  iconAnchor: [11, 11],
-});
+// One icon per danger color (the house follows the circle: cyan -> orange ->
+// red); cached so a re-render doesn't rebuild an identical divIcon.
+const homeIconCache = new Map<string, L.DivIcon>();
+function homeIcon(color: string): L.DivIcon {
+  let icon = homeIconCache.get(color);
+  if (!icon) {
+    icon = L.divIcon({
+      className: "home-marker",
+      html: `<svg width="22" height="22" viewBox="0 0 24 24" style="filter:drop-shadow(0 0 6px ${color})">
+        <path d="M12 3 L21 11 L18 11 L18 20 L14 20 L14 14 L10 14 L10 20 L6 20 L6 11 L3 11 Z"
+          fill="${color}" stroke="#0b0f14" stroke-width="1"/></svg>`,
+      iconSize: [22, 22],
+      iconAnchor: [11, 11],
+    });
+    homeIconCache.set(color, icon);
+  }
+  return icon;
+}
 
 export default function MapView() {
   const { t } = useTranslation();
@@ -94,7 +104,7 @@ export default function MapView() {
                 className: danger === "danger" ? "home-danger-pulse" : undefined,
               }}
             />
-            <Marker position={[home.lat, home.lon]} icon={homeIcon}>
+            <Marker position={[home.lat, home.lon]} icon={homeIcon(homeCircleColor)}>
               <Tooltip direction="top" offset={[0, -18]}>
                 {t("legend.home")} · {home.lat.toFixed(4)}, {home.lon.toFixed(4)}
               </Tooltip>

@@ -127,7 +127,9 @@ async def test_warning_then_danger_pushes_once_each(ctx, sent):
 
     # tag is stable per track, so escalation REPLACES the warning notification
     assert {p["tag"] for p in sent} == {f"klr-home-{t.id}"}
-    assert all(p["title"].startswith("Допоміжно:") for p in sent)
+    # level is encoded in the title: marker + «Увага:» phrasing per level
+    assert sent[0]["title"].startswith("⚠️ Увага:")
+    assert sent[1]["title"].startswith("‼️ Увага:")
 
 
 async def test_oscillation_within_cooldown_does_not_repush(ctx, sent):
@@ -212,6 +214,10 @@ async def test_ballistic_on_home_raion_goes_straight_to_danger(ctx, sent):
     await _add_event(s, t, raion, 0)
     await evaluate_home_danger(s, await _load_threat(s, t.id))
     assert [p["level"] for p in sent] == ["danger"]
+    # Ballistic body says «близько» with no km figure — a centroid distance
+    # next to «ціль поруч» reads as contradiction.
+    assert "близько" in sent[0]["body"]
+    assert "км" not in sent[0]["body"]
 
 
 async def test_closed_track_prunes_state(ctx, sent):

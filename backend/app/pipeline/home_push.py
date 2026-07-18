@@ -42,8 +42,8 @@ _TYPE_LABEL = {
 }
 
 _TITLES = {
-    DangerLevel.WARNING: "Допоміжно: курс у бік вашої зони",
-    DangerLevel.DANGER: "Допоміжно: ціль поруч із вашою зоною",
+    DangerLevel.WARNING: "⚠️ Увага: курс у бік вашої зони",
+    DangerLevel.DANGER: "‼️ Увага: ціль поруч із вашою зоною",
 }
 
 
@@ -120,7 +120,11 @@ def build_payload(level: DangerLevel, threat: Threat, home: HomeZone) -> dict:
     head = _head_event(threat)
     label = _TYPE_LABEL.get(threat.target_type, _TYPE_LABEL["unknown"])
     where = f" ({head.district.name_uk})" if head is not None else ""
-    if head is not None:
+    if threat.target_type == "ballistic":
+        # No km figure for ballistic: the trigger is usually the raion callout,
+        # and a centroid distance next to «ціль поруч» reads as contradiction.
+        approx = " близько"
+    elif head is not None:
         km = round(haversine_km(head.district.lat, head.district.lon, home.lat, home.lon))
         approx = f" ~{km} км від дому" if km > 0 else " у вашій зоні"
     else:
