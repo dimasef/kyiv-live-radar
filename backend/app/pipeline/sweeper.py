@@ -79,12 +79,16 @@ async def run_sweeper() -> None:
                 )
                 metrics.observe_open(open_tracks or 0, open_axes or 0)
 
-            # Listener freshness — seconds since the last LIVE message, only when
-            # a real Telegram feed exists and has delivered at least one message
-            # (last_message_at is set by live traffic only, never the backfill).
-            last_message_at = get_status()["last_message_at"]
-            if settings.telegram_enabled and last_message_at is not None:
-                metrics.observe_listener_lag((now - last_message_at).total_seconds())
+            # Listener health — connection state (1/0) every cycle, plus seconds
+            # since the last LIVE message once one has arrived (last_message_at is
+            # set by live traffic only, never the backfill). connected=1 with a
+            # climbing lag is the zombie-stream signature the watchdog breaks.
+            if settings.telegram_enabled:
+                status = get_status()
+                metrics.observe_listener_connected(bool(status["connected"]))
+                last_message_at = status["last_message_at"]
+                if last_message_at is not None:
+                    metrics.observe_listener_lag((now - last_message_at).total_seconds())
 
             # Feed health — process-state, not DB-backed, so it lives outside
             # the session block above. Log/push only on a transition.

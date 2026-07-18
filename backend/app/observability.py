@@ -89,6 +89,16 @@ class _DomainMetrics:
             unit="s",
             description="Seconds since the last LIVE Telegram message (listener freshness).",
         )
+        self._listener_connected = logfire.metric_gauge(
+            "radar.listener.connected",
+            unit="{bool}",
+            description="Listener connection state (1 connected, 0 down).",
+        )
+        self._listener_reconnects = logfire.metric_counter(
+            "radar.listener.reconnects",
+            unit="{reconnect}",
+            description="Watchdog-forced reconnects — a spike means the stream keeps zombie-ing.",
+        )
         self._on = True
 
     def record_ingest(self, outcome: str, decision_source: str) -> None:
@@ -112,6 +122,16 @@ class _DomainMetrics:
         if not self._on:
             return
         self._listener_lag.set(seconds)
+
+    def observe_listener_connected(self, connected: bool) -> None:
+        if not self._on:
+            return
+        self._listener_connected.set(1 if connected else 0)
+
+    def record_listener_reconnect(self) -> None:
+        if not self._on:
+            return
+        self._listener_reconnects.add(1)
 
 
 # Single shared instance — imported by the pipeline (record_*) and sweeper (observe_*).

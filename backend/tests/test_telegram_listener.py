@@ -5,6 +5,7 @@ we can drive `run_listener()`'s retry/backoff behavior deterministically.
 """
 
 import asyncio
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -59,8 +60,9 @@ async def test_run_listener_reconnects_with_backoff_after_crashes():
             with pytest.raises(asyncio.CancelledError):
                 await tl.run_listener()
 
-        # backfill only requested on the very first connect attempt
-        assert calls == [True, False, False]
+        # backfill requested on EVERY connect attempt, so a reconnect recovers
+        # the gap it was blind for (e.g. a missed відбій)
+        assert calls == [True, True, True]
         # backoff doubles each consecutive failure (no successful connect yet)
         assert sleeps == [5, 10]
         assert tl._state["last_error"] == "boom 2"
@@ -101,3 +103,61 @@ async def test_run_listener_resets_backoff_after_a_real_connection():
         assert sleeps == [5, 5]
     finally:
         settings.telegram_channels, settings.telegram_api_id = old_channels, old_api_id
+
+
+async def test_watchdog_reconnects_when_stream_goes_stale():
+    """Was receiving, then the stream zombied: last_message_at is after this
+    connection started but now older than the silence window -> force reconnect."""
+    now = datetime.now(timezone.utc)
+    connected_at = now - timedelta(hours=2)
+    tl._state["last_message_at"] = now - timedelta(
+        minutes=settings.listener_watchdog_silence_minutes + 15
+    )
+    client = AsyncMock()
+
+    async def fake_sleep(_seconds):
+        pass
+
+    with patch("app.feeds.telegram.asyncio.sleep", new=fake_sleep):
+        await tl._watchdog(client, connected_at)
+    client.disconnect.assert_awaited_once()
+
+
+async def test_watchdog_ignores_a_connection_quiet_since_it_opened():
+    """No live message since connect (last_message_at is None) is NOT evidence of
+    a zombie — the watchdog must not fire (would churn on a genuinely quiet feed)."""
+    connected_at = datetime.now(timezone.utc)
+    tl._state["last_message_at"] = None
+    client = AsyncMock()
+    ticks = {"n": 0}
+
+    async def fake_sleep(_seconds):
+        ticks["n"] += 1
+        if ticks["n"] >= 3:
+            raise asyncio.CancelledError()
+
+    with patch("app.feeds.telegram.asyncio.sleep", new=fake_sleep):
+        with pytest.raises(asyncio.CancelledError):
+            await tl._watchdog(client, connected_at)
+    client.disconnect.assert_not_called()
+
+
+async def test_watchdog_not_armed_when_last_message_predates_this_connection():
+    """Anti-churn: right after a watchdog-forced reconnect that's still dead, the
+    stale last_message_at predates the new connection -> stays unarmed, no
+    reconnect-every-interval loop."""
+    now = datetime.now(timezone.utc)
+    connected_at = now
+    tl._state["last_message_at"] = now - timedelta(hours=1)  # from a previous cycle
+    client = AsyncMock()
+    ticks = {"n": 0}
+
+    async def fake_sleep(_seconds):
+        ticks["n"] += 1
+        if ticks["n"] >= 3:
+            raise asyncio.CancelledError()
+
+    with patch("app.feeds.telegram.asyncio.sleep", new=fake_sleep):
+        with pytest.raises(asyncio.CancelledError):
+            await tl._watchdog(client, connected_at)
+    client.disconnect.assert_not_called()

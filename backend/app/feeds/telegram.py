@@ -10,15 +10,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
 from ..config import settings
 from ..db import SessionLocal
 from ..models import Source
+from ..observability import metrics
 from ..pipeline.broadcast import broadcast_results
 from ..pipeline.ingest import ingest_alert_message, ingest_message
+from ..timeutil import within
 from .common import build_matcher
 from .health import _state
 
@@ -188,6 +190,39 @@ async def _backfill(client, entities, id_to_source, source_role, matcher) -> Non
     log.info("backfill ingested %d recent messages", len(collected))
 
 
+async def _watchdog(client, connected_at: datetime) -> None:
+    """Force a reconnect when the LIVE update stream goes silent while Telethon
+    still reports connected — the zombie half-open socket (weak point #7) where
+    `run_until_disconnected()` never returns on its own, so `run_listener`'s retry
+    loop never fires. Disconnecting here makes it return, so the loop reconnects
+    (and re-backfills the gap, recovering e.g. a missed відбій).
+
+    Armed only once THIS connection has delivered a live message (last_message_at
+    is set AND newer than connected_at): a stretch that's been quiet since connect
+    isn't evidence of a dead stream (same rationale as feed_health), and gating on
+    connected_at stops a still-dead reconnect from churning every interval (its
+    stale last_message_at predates the new connection)."""
+    gap = timedelta(minutes=settings.listener_watchdog_silence_minutes)
+    connected_naive = connected_at.replace(tzinfo=None) if connected_at.tzinfo else connected_at
+    while True:
+        await asyncio.sleep(settings.listener_watchdog_interval_s)
+        last = _state["last_message_at"]
+        if last is None:
+            continue
+        last_naive = last.replace(tzinfo=None) if last.tzinfo else last
+        if last_naive <= connected_naive:  # not armed: no live message since this connect
+            continue
+        if not within(last, datetime.now(timezone.utc), gap):
+            log.warning(
+                "listener watchdog: no live message for >%d min while connected — "
+                "forcing reconnect (suspected zombie stream)",
+                settings.listener_watchdog_silence_minutes,
+            )
+            metrics.record_listener_reconnect()
+            await client.disconnect()
+            return
+
+
 async def _run_listener_once(backfill: bool, run_state: dict) -> None:
     """One connect→backfill→listen cycle. Raises on any failure or disconnect
     so the caller's retry loop can reconnect; never returns normally except
@@ -261,10 +296,22 @@ async def _run_listener_once(backfill: bool, run_state: dict) -> None:
 
         titles = [getattr(e, "title", _source_key(e)) for e in entities]
         log.info("telegram listener connected; monitoring: %s", titles)
+        connected_at = datetime.now(timezone.utc)
         _state["connected"] = True
         _state["last_error"] = None
         run_state["reached_connected"] = True
-        await client.run_until_disconnected()
+        # Watchdog runs alongside the update stream: if the stream zombies out
+        # (connected but silent), it force-disconnects to break run_until_
+        # disconnected and let the retry loop reconnect + re-backfill.
+        watchdog = asyncio.create_task(_watchdog(client, connected_at))
+        try:
+            await client.run_until_disconnected()
+        finally:
+            watchdog.cancel()
+            try:
+                await watchdog
+            except asyncio.CancelledError:
+                pass
     finally:
         _state["connected"] = False
         await client.disconnect()
@@ -277,18 +324,21 @@ async def run_listener() -> None:
         return
 
     backoff = _RECONNECT_INITIAL_SECONDS
-    first_attempt = True
     while True:
         run_state: dict = {}
         try:
-            await _run_listener_once(backfill=first_attempt, run_state=run_state)
+            # Backfill on EVERY connect, not just the first: a reconnect (crash,
+            # clean drop, or watchdog-forced on a zombie) must recover the gap it
+            # was blind for — most importantly a missed відбій, which otherwise
+            # leaves a stuck alert banner until the 12h failsafe. The ingest dedup
+            # guard (message_id) makes re-fetching already-seen messages a no-op.
+            await _run_listener_once(backfill=True, run_state=run_state)
             log.warning("telegram listener disconnected cleanly; reconnecting")
         except asyncio.CancelledError:
             raise
         except Exception as ex:
             log.exception("telegram listener crashed: %s", ex)
             _state["last_error"] = str(ex)
-        first_attempt = False
 
         if run_state.get("reached_connected"):
             backoff = _RECONNECT_INITIAL_SECONDS  # was actually live — retry fast

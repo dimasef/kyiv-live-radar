@@ -147,9 +147,13 @@ class Settings(BaseSettings):
     telegram_session_string: str = ""
     # Comma-separated channel usernames/handles to read (without @).
     telegram_channels: str = ""
-    # On startup, ingest this many recent messages per channel (0 = none). Gives
-    # the map immediate data and tests the parser on real posts.
-    telegram_backfill: int = 15
+    # Ingest this many recent messages per channel on EVERY (re)connect (0 =
+    # none). On first start it gives the map immediate data; on a reconnect it
+    # recovers the gap the listener was blind for — most importantly a missed
+    # відбій, which otherwise leaves a stuck alert banner. Sized to comfortably
+    # cover the watchdog silence window below; the ingest dedup guard makes
+    # re-fetching already-seen messages a cheap no-op.
+    telegram_backfill: int = 30
     # A connected session with no LIVE message for this long is flagged
     # unhealthy (see telegram_listener.py::feed_health) — a dead/zombied
     # Telethon connection now matters more than it used to (Phase 2's
@@ -159,6 +163,17 @@ class Settings(BaseSettings):
     # short enough to catch a dead session the same night rather than days
     # later — adjust with real operational experience.
     feed_silence_warn_minutes: int = 90
+    # Watchdog: force a reconnect when the LIVE update stream has been silent for
+    # this long while Telethon still reports connected — the zombie half-open
+    # socket (weak point #7) where run_until_disconnected() never returns on its
+    # own, so the reconnect loop never fires (the 2026-07-18 incident: feed dead
+    # 01:34->09:51, missed the відбій, banner stuck). Only armed AFTER this
+    # connection has delivered at least one live message — a stretch that's been
+    # quiet since connect isn't evidence of a zombie, and this also stops a
+    # still-dead reconnect from churning. On a truly quiet-then-reconnected feed
+    # it's a harmless no-op; on a zombie it caps the blind spot at this window.
+    listener_watchdog_silence_minutes: int = 30
+    listener_watchdog_interval_s: int = 60
     # Analysis mode: stream backfilled events to the UI (feed + map) with a small
     # delay, as if arriving live. Off for normal startup.
     telegram_backfill_broadcast: bool = False
