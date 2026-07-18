@@ -45,6 +45,7 @@ from .vocab import (
     _DESTROYED,
     _EPPO_DISMISS,
     _EPPO_WORD,
+    _FORECAST_TIMEFRAME,
     _FORECAST_VERB,
     _HEDGE_MODAL_RE,
     _HYPERSONIC,
@@ -81,6 +82,8 @@ def _has_conditional_hedge(norm: str) -> bool:
     if _HEDGE_MODAL_RE.search(norm):
         return True
     if any(v in norm for v in _FORECAST_VERB) and any(w in norm for w in _THREAT_CONTEXT):
+        return True
+    if any(p in norm for p in _FORECAST_TIMEFRAME) and any(w in norm for w in _THREAT_CONTEXT):
         return True
     return False
 

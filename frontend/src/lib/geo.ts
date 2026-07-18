@@ -35,6 +35,16 @@ export function angdiff(a: number, b: number): number {
   return d > 180 ? d - 360 : d
 }
 
+/** Point displaced by km along the north/east axes (equirectangular — fine at
+ * city scale). Same formula as backend geometry.offset_km. */
+export function offsetKm(p: Pt, northKm: number, eastKm: number): Pt {
+  const kmPerDegLat = (Math.PI / 180) * 6371
+  return {
+    lat: p.lat + northKm / kmPerDegLat,
+    lon: p.lon + eastKm / (kmPerDegLat * Math.cos((p.lat * Math.PI) / 180)),
+  }
+}
+
 /** Ray-casting point-in-ring test. `ring` is GeoJSON [lon, lat] pairs. */
 function inRing(lat: number, lon: number, ring: number[][]): boolean {
   let inside = false

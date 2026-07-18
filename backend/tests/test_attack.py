@@ -189,3 +189,51 @@ async def test_official_and_spotter_vidbiy_seconds_apart_dedupe(ctx):
     await s.refresh(inc)
     assert inc.ended_reason == "alert_end"
     assert [b for b in out2 if b.type == "status"] == []
+
+
+async def test_scoped_clear_ends_incident_when_nothing_left_flying(ctx):
+    """«Відбій балістичної загрози» closes the ballistic tracks; with no other
+    open track the ATTACK must end too — a still-active incident (banner +
+    raion highlight) after an explicit stand-down read as a bug (2026-07-18)."""
+    s, m, src = ctx
+    sid = src[0].id
+    await ingest_message(s, text="Балістика на Оболонь!", matcher=m, when=BASE,
+                         source_id=sid, message_id=1)
+    inc = (await s.scalars(select(Incident))).one()
+    assert inc.ended_at is None
+
+    results = await ingest_message(s, text="Відбій балістичної загрози.", matcher=m,
+                                   when=BASE + timedelta(minutes=2), source_id=sid, message_id=2)
+    await s.refresh(inc)
+    assert inc.ended_at is not None and inc.ended_reason == "all_clear"
+    # the ended incident is broadcast so the frontend banner/highlight clears
+    assert any(b.type == "attack" for b in results)
+
+
+async def test_scoped_clear_keeps_incident_with_other_open_track(ctx):
+    """A ballistic stand-down must NOT end a combined attack while a shahed
+    track is still open."""
+    s, m, src = ctx
+    sid = src[0].id
+    await ingest_message(s, text="Балістика на Оболонь!", matcher=m, when=BASE,
+                         source_id=sid, message_id=1)
+    await ingest_message(s, text="Шахед над Троєщиною", matcher=m,
+                         when=BASE + timedelta(minutes=1), source_id=sid, message_id=2)
+    await ingest_message(s, text="Відбій балістичної загрози.", matcher=m,
+                         when=BASE + timedelta(minutes=3), source_id=sid, message_id=3)
+    inc = (await s.scalars(select(Incident))).one()
+    assert inc.ended_at is None
+
+
+async def test_stand_down_ends_incident(ctx):
+    """A full «дорозвідка» stand-down that closes every open track ends the
+    attack as well."""
+    s, m, src = ctx
+    sid = src[0].id
+    await ingest_message(s, text="Шахед над Троєщиною", matcher=m, when=BASE,
+                         source_id=sid, message_id=1)
+    results = await ingest_message(s, text="Дорозвідка. Чисто.", matcher=m,
+                                   when=BASE + timedelta(minutes=2), source_id=sid, message_id=2)
+    inc = (await s.scalars(select(Incident))).one()
+    assert inc.ended_at is not None and inc.ended_reason == "all_clear"
+    assert any(b.type == "attack" for b in results)

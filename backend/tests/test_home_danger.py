@@ -20,7 +20,7 @@ from app.domain.home_danger import (
     HomeZone,
     assess,
     has_movement,
-    raion_id_for_point,
+    raion_ids_for_zone,
 )
 from app.models import District, Threat, ThreatEvent
 
@@ -155,19 +155,27 @@ def test_mixed_naive_and_aware_event_times():
 # --- DANGER: ballistic on the home raion ---
 
 def test_ballistic_on_home_raion_is_danger_even_far():
-    home = HomeZone(lat=HOME.lat, lon=HOME.lon, radius_km=3.0, raion_district_id=7)
+    home = HomeZone(lat=HOME.lat, lon=HOME.lon, radius_km=3.0, raion_district_ids=(7, 8))
     t = track(ev(12, 0, 0, district_id=7), target_type="ballistic")
     assert assess(t, home) == DangerLevel.DANGER
 
 
+def test_ballistic_on_second_overlapped_raion_is_danger():
+    """A zone straddling a boundary guards ALL its raions, not just the one
+    containing the home point."""
+    home = HomeZone(lat=HOME.lat, lon=HOME.lon, radius_km=3.0, raion_district_ids=(7, 8))
+    t = track(ev(12, 0, 0, district_id=8), target_type="ballistic")
+    assert assess(t, home) == DangerLevel.DANGER
+
+
 def test_ballistic_on_other_raion_is_not_danger():
-    home = HomeZone(lat=HOME.lat, lon=HOME.lon, radius_km=3.0, raion_district_id=7)
+    home = HomeZone(lat=HOME.lat, lon=HOME.lon, radius_km=3.0, raion_district_ids=(7,))
     t = track(ev(12, 0, 0, district_id=8), target_type="ballistic")
     assert assess(t, home) == DangerLevel.NONE
 
 
 def test_non_ballistic_on_home_raion_is_not_danger():
-    home = HomeZone(lat=HOME.lat, lon=HOME.lon, radius_km=3.0, raion_district_id=7)
+    home = HomeZone(lat=HOME.lat, lon=HOME.lon, radius_km=3.0, raion_district_ids=(7,))
     t = track(ev(12, 0, 0, district_id=7), target_type="shahed")
     assert assess(t, home) == DangerLevel.NONE
 
@@ -179,11 +187,16 @@ def test_citywide_ballistic_is_none():
     assert assess(t, HOME) == DangerLevel.NONE
 
 
-# --- raion resolution (DB) ---
+# --- zone -> raion resolution (DB) ---
 
-SQUARE = {
+# Two adjacent squares sharing the meridian 30.5: West [30.3..30.5], East [30.5..30.7].
+WEST_SQUARE = {
     "type": "Polygon",
-    "coordinates": [[[30.4, 50.4], [30.6, 50.4], [30.6, 50.6], [30.4, 50.6], [30.4, 50.4]]],
+    "coordinates": [[[30.3, 50.3], [30.5, 50.3], [30.5, 50.7], [30.3, 50.7], [30.3, 50.3]]],
+}
+EAST_SQUARE = {
+    "type": "Polygon",
+    "coordinates": [[[30.5, 50.3], [30.7, 50.3], [30.7, 50.7], [30.5, 50.7], [30.5, 50.3]]],
 }
 
 
@@ -194,20 +207,39 @@ async def session(tmp_path):
         await conn.run_sync(Base.metadata.create_all)
     Session = async_sessionmaker(engine, expire_on_commit=False)
     async with Session() as s:
-        s.add(District(name_uk="Квадратний", name_en="Square", lat=50.5, lon=30.5,
-                       aliases=[], boundary=SQUARE))
+        s.add(District(name_uk="Захід", name_en="West", lat=50.5, lon=30.4,
+                       aliases=[], boundary=WEST_SQUARE))
+        s.add(District(name_uk="Схід", name_en="East", lat=50.5, lon=30.6,
+                       aliases=[], boundary=EAST_SQUARE))
         s.add(District(name_uk="Безмежний", name_en="Pointonly", lat=51.0, lon=31.0,
                        aliases=[]))
         await s.commit()
-        yield s
+        west = (await s.scalars(select(District.id).where(District.name_en == "West"))).one()
+        east = (await s.scalars(select(District.id).where(District.name_en == "East"))).one()
+        yield s, west, east
     await engine.dispose()
 
 
-async def test_raion_id_for_point_inside(session):
-    square_id = (await session.scalars(
-        select(District.id).where(District.name_en == "Square"))).one()
-    assert await raion_id_for_point(session, 50.5, 30.5) == square_id
+async def test_zone_deep_inside_one_raion(session):
+    s, west, east = session
+    # 30.4 is ~7 km from the 30.5 border — a 3 km zone stays fully in West
+    assert await raion_ids_for_zone(s, 50.5, 30.4, 3.0) == [west]
 
 
-async def test_raion_id_for_point_outside(session):
-    assert await raion_id_for_point(session, 49.0, 29.0) is None
+async def test_zone_straddling_boundary_includes_both(session):
+    s, west, east = session
+    # centered on the shared meridian — roughly half the disc in each square
+    assert await raion_ids_for_zone(s, 50.5, 30.5, 3.0) == sorted([west, east])
+
+
+async def test_zone_barely_clipping_neighbour_ignores_it(session):
+    s, west, east = session
+    # center ~2.8 km west of the border with a 3 km radius: a single outer-ring
+    # sample crosses it (4% of the disc) — under the 10% overlap threshold
+    lon = 30.5 - 2.8 / (111.19 * math.cos(math.radians(50.5)))
+    assert await raion_ids_for_zone(s, 50.5, lon, 3.0) == [west]
+
+
+async def test_zone_outside_all_raions(session):
+    s, *_ = session
+    assert await raion_ids_for_zone(s, 49.0, 29.0, 3.0) == []

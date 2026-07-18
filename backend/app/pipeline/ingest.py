@@ -20,7 +20,11 @@ from ..domain.alerts import AlertSignal, apply_alert_signal
 from ..domain.axes import AxisSignal, apply_axis_signal, refresh_open_axis
 from ..domain.districts import citywide_district_id
 from ..domain.origins import target_elsewhere
-from ..domain.incidents import attach_to_incident, end_active_incidents
+from ..domain.incidents import (
+    attach_to_incident,
+    end_active_incidents,
+    end_incidents_without_open_tracks,
+)
 from ..domain.lifecycle import close_track, promote_track
 from ..domain.tracking import (
     apply_fusion,
@@ -337,15 +341,23 @@ async def _handle_clear(ctx: IngestContext) -> list[Broadcast]:
     session, parsed, when = ctx.session, ctx.parsed, ctx.when
     closed = await close_all_active(session, when, "all_clear", target_type=parsed.clear_scope)
     # A FULL all-clear ("Відбій тривоги") ends the attack — close its
-    # incident too. A type-scoped clear ("Відбій балістики") leaves the
-    # incident open: other target types may still be inbound.
+    # incident too. A type-scoped clear ("Відбій балістики") ends an incident
+    # only when it leaves NO open tracks: with the scoped type stood down and
+    # nothing else flying, a still-"active" attack (banner + raion highlight)
+    # reads as a bug; an open track of another type keeps it active.
     if parsed.clear_scope is None:
-        await end_active_incidents(session, when, "all_clear")
+        ended = await end_active_incidents(session, when, "all_clear")
+    else:
+        ended = await end_incidents_without_open_tracks(session, when, "all_clear")
     # Surface the all-clear itself in the feed (a status-only broadcast is
     # invisible there) as a notice — the operator wants to SEE "відбій".
     notice = await _make_notice(session, "clear", parsed, ctx.source_id, when, ctx.message_id)
     await ctx.done()
-    return [Broadcast("status", t) for t in closed] + [Broadcast("notice", notice=notice)]
+    return (
+        [Broadcast("status", t) for t in closed]
+        + [Broadcast("attack", incident=inc) for inc in ended]
+        + [Broadcast("notice", notice=notice)]
+    )
 
 
 async def _handle_lost_signal(ctx: IngestContext) -> list[Broadcast]:
@@ -374,8 +386,13 @@ async def _handle_lost_signal(ctx: IngestContext) -> list[Broadcast]:
         for t, ev in pairs:
             if ev is not None:
                 await apply_fusion(session, t)
+    # A stand-down that leaves no open tracks ends the attack too — same
+    # rationale as the type-scoped clear in _handle_clear above.
+    ended = await end_incidents_without_open_tracks(session, when, "all_clear")
     await ctx.done()
-    return [Broadcast("event" if ev is not None else "status", t, ev) for t, ev in pairs]
+    return [Broadcast("event" if ev is not None else "status", t, ev) for t, ev in pairs] + [
+        Broadcast("attack", incident=inc) for inc in ended
+    ]
 
 
 async def _pulse_corroborates_axis(ctx: IngestContext) -> list[Broadcast] | None:

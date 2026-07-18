@@ -32,12 +32,24 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = '0.9.1'
+const LATEST = '0.9.2'
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: 'Точніша зона дому та чесніший статус атаки',
+    date: '2026-07-18',
+    kind: 'patch',
+    changes: [
+      'Зона дому на межі районів тепер захищена повністю: якщо коло накриває 2-3 райони (наприклад Подільський + Шевченківський), балістика по будь-якому з них дає тривогу по дому; райони, яких зона торкається зовсім трошки, не рахуються',
+      '«Відбій балістичної загрози» або «дорозвідка», після яких у повітрі нічого не лишилось, тепер завершують атаку — плашка зверху і фіолетова підсвітка районів зникають одразу, а не висять до таймауту',
+      'Мапа більше не «летить» до дому з висоти всієї Європи при кожному відкритті — одразу показує огляд Києва; політ камери лишився тільки коли ти щойно натиснув «Моя локація»',
+      'Нічні прогнози («На сьогоднішню ніч по Києву — загроза по балістиці актуальна») більше не створюють живу загрозу на мапі — це попередження на майбутнє, а не ціль у польоті',
+    ],
+  },
+  {
+    version: '0.9.1',
     title: 'Чіткіші сповіщення про небезпеку',
     date: '2026-07-18',
     kind: 'patch',

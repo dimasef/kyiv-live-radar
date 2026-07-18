@@ -47,6 +47,10 @@ export function HomeController() {
   const home = useRadar((s) => s.home);
   const setHome = useRadar((s) => s.setHome);
   const flown = useRef(false);
+  // A home that already existed at mount (persisted, origin 'geo') must NOT
+  // trigger the fly-to: that replayed a world->home zoom arc on every app
+  // open. Only a geolocation fix that lands DURING the session recenters.
+  const initialHome = useRef(useRadar.getState().home);
 
   useMapEvents({
     click(e) {
@@ -65,7 +69,7 @@ export function HomeController() {
   });
 
   useEffect(() => {
-    if (home?.origin === "geo" && !flown.current) {
+    if (home?.origin === "geo" && !flown.current && home !== initialHome.current) {
       map.flyTo([home.lat, home.lon], 12);
       flown.current = true;
     }

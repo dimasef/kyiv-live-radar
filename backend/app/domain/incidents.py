@@ -108,6 +108,32 @@ async def end_active_incidents(session, when: datetime, ended_reason: str) -> li
     return incs
 
 
+async def end_incidents_without_open_tracks(
+    session, when: datetime, ended_reason: str
+) -> list[Incident]:
+    """End active incidents whose member tracks are ALL closed — used after a
+    type-scoped clear ("Відбій балістичної загрози") or a "дорозвідка"
+    stand-down: an explicit spotter stand-down signal PLUS nothing left flying
+    means the attack is over. Distinct from end_active_incidents (which a
+    spotter can't trigger — a full відбій is alert-channel-only): an incident
+    that still has an open track of another type stays active."""
+    incs = list(await session.scalars(
+        select(Incident)
+        .where(Incident.ended_at.is_(None))
+        .options(selectinload(Incident.threats))
+    ))
+    ended = []
+    for inc in incs:
+        if inc.threats and all(t.closed_at is not None for t in inc.threats):
+            inc.ended_at = when
+            inc.ended_reason = ended_reason
+            log.info("incident %s ended (reason=%s, no open tracks left)", inc.id, ended_reason)
+            ended.append(inc)
+    if ended:
+        await session.commit()
+    return ended
+
+
 async def close_stale_incidents(session, now: datetime, minutes: int) -> list[Incident]:
     """End incidents whose last member activity is older than `minutes` — an
     attack that quietly petered out without an explicit all-clear."""

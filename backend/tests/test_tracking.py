@@ -259,8 +259,11 @@ async def test_lost_signal_untyped_closes_all_open_tracks(ctx):
                                when=BASE + timedelta(minutes=2), source_id=src[0].id, message_id=3)
     ts = list(await s.scalars(select(Threat)))
     assert all(t.closed_at is not None and t.status == "lost" for t in ts)
-    assert len(out) == 2  # one event per closed track, both visible in the feed
-    assert all(b.type == "event" and b.event is not None for b in out)
+    events = [b for b in out if b.type == "event"]
+    assert len(events) == 2  # one event per closed track, both visible in the feed
+    assert all(b.event is not None for b in events)
+    # nothing left flying -> the stand-down also ends (and broadcasts) the attack
+    assert any(b.type == "attack" for b in out)
 
 
 async def test_lost_signal_does_not_close_a_track_with_a_concurrent_real_sighting(ctx):
@@ -852,3 +855,21 @@ async def test_summary_message_becomes_a_feed_notice(ctx):
     assert await _count_threats(s) == 0
     assert len(out) == 1 and out[0].type == "notice"
     assert out[0].notice.kind == "summary"
+
+
+async def test_night_forecast_does_not_open_citywide_track(ctx):
+    """«На сьогоднішню ніч по Києву — загроза по балістиці актуальна» is a
+    night FORECAST, not a target in flight — it must not raise a live citywide
+    ballistic alert (raw 1771, 2026-07-18). The real thing later that night
+    still must."""
+    s, m, src = ctx
+    await ingest_message(
+        s,
+        text="❗️На сьогоднішню ніч по Києву/області — загроза по балістичному озброєнню актуальна!",
+        matcher=m, when=BASE, source_id=src[0].id, message_id=1,
+    )
+    assert await _count_threats(s) == 0
+
+    await ingest_message(s, text="🚀 Балістика на Київ!", matcher=m,
+                         when=BASE + timedelta(hours=2), source_id=src[0].id, message_id=2)
+    assert await _count_threats(s) == 1

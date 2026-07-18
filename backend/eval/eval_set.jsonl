@@ -70,3 +70,7 @@
 {"text": "Друзі, створив ракетний канал по Києву, тут лише про ракети https://t.me/kyiv_allerts", "target_type": "missile", "status": "active", "is_new_target": false, "districts": []}
 {"text": "Ракета вдарила по Троєщині, приліт", "target_type": "missile", "status": "active", "is_new_target": false, "districts": ["Troieshchyna"]}
 {"text": "У частині Подільського та Оболонського районів Києва тимчасово немає світла через аварійне пошкодження. Енергетики працюють над відновленням електропостачання", "target_type": "unknown", "status": "active", "is_new_target": false, "districts": []}
+{"text": "❗️На сьогоднішню ніч по Києву/області — загроза по балістичному озброєнню актуальна!", "target_type": "ballistic", "status": "active", "is_new_target": false, "districts": [], "negated": true}
+{"text": "Загроза по балістиці на цю ніч теж актуальна, реагуйте на тривоги", "target_type": "ballistic", "status": "active", "is_new_target": false, "districts": [], "negated": true}
+{"text": "На ніч знову червоний рівень по балістиці", "target_type": "ballistic", "status": "active", "is_new_target": false, "districts": [], "negated": true}
+{"text": "❗️Висока загроза балістичного обстрілу цієї ночі, реагуйте на тривоги", "target_type": "ballistic", "status": "active", "is_new_target": false, "districts": [], "negated": true}

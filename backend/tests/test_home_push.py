@@ -208,7 +208,7 @@ async def test_mixed_tz_event_times_still_push(ctx, sent):
 async def test_ballistic_on_home_raion_goes_straight_to_danger(ctx, sent):
     s, sub = ctx
     raion = await _mk_district(s, 12)
-    sub.home_district_id = raion.id
+    sub.home_district_ids = [raion.id]
     await s.commit()
     t = await _mk_threat(s, target_type="ballistic")
     await _add_event(s, t, raion, 0)

@@ -57,7 +57,7 @@ async def test_subscribe_creates_row_and_resolves_raion(ctx):
     sub = (await s.scalars(select(PushSubscription))).one()
     square_id = (await s.scalars(select(District.id))).one()
     assert (sub.home_lat, sub.home_lon, sub.home_radius_km) == (50.5, 30.5, 4.0)
-    assert sub.home_district_id == square_id
+    assert sub.home_district_ids == [square_id]
 
 
 async def test_repost_updates_home_and_resets_danger_state(ctx):
@@ -76,7 +76,7 @@ async def test_repost_updates_home_and_resets_danger_state(ctx):
     assert r.status_code == 200
     await s.refresh(sub)
     assert (sub.home_lat, sub.home_lon, sub.home_radius_km) == (49.0, 29.0, 5.0)
-    assert sub.home_district_id is None
+    assert sub.home_district_ids == []
     assert sub.danger_state == {}
     # still exactly one row — upsert by endpoint, not insert
     assert len(list(await s.scalars(select(PushSubscription)))) == 1

@@ -293,6 +293,10 @@ class Settings(BaseSettings):
     # after its level oscillated (warning -> none -> warning). Escalation to a
     # HIGHER never-pushed level always pushes regardless.
     home_push_cooldown_minutes: int = 10
+    # A home zone on a raion boundary sits in 2-3 raions at once — the
+    # ballistic trigger matches ALL of them. A raion covering less than this
+    # share of the zone's sampled area ("зовсім трошки") is ignored.
+    home_danger_raion_overlap_min: float = 0.1
 
     @property
     def push_configured(self) -> bool:

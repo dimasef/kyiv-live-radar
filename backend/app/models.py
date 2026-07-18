@@ -382,11 +382,10 @@ class PushSubscription(Base):
     home_lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     home_lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     home_radius_km: Mapped[float] = mapped_column(Float, default=3.0)
-    # Raion containing the home point, resolved at subscribe time
-    # (home_danger.raion_id_for_point) — the ballistic trigger compares ids.
-    home_district_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("districts.id"), nullable=True
-    )
+    # Every raion the home CIRCLE meaningfully overlaps (a zone on a boundary
+    # sits in 2-3 raions), resolved at subscribe time
+    # (home_danger.raion_ids_for_zone) — the ballistic trigger matches any.
+    home_district_ids: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow

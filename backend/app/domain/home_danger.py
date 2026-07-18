@@ -30,7 +30,7 @@ from sqlalchemy import select
 from ..config import settings
 from ..models import District, Threat, ThreatEvent
 from ..timeutil import naive
-from .geometry import angdiff_deg, bearing_deg, haversine_km, point_in_geom
+from .geometry import angdiff_deg, bearing_deg, haversine_km, offset_km, point_in_geom
 
 
 class DangerLevel(IntEnum):
@@ -44,9 +44,10 @@ class HomeZone:
     lat: float
     lon: float
     radius_km: float
-    # Raion containing the home point, resolved once at subscribe time
-    # (raion_id_for_point) — makes the ballistic check an int comparison.
-    raion_district_id: int | None = None
+    # Every raion the home CIRCLE meaningfully overlaps (a zone on a boundary
+    # sits in 2-3 raions at once), resolved at subscribe time
+    # (raion_ids_for_zone) — the ballistic check is a membership test.
+    raion_district_ids: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -131,24 +132,49 @@ def assess(threat: Threat, home: HomeZone) -> DangerLevel:
         d = ev.district
         if haversine_km(d.lat, d.lon, home.lat, home.lon) <= danger_radius:
             return DangerLevel.DANGER
-    # Ballistic on the home raion: ANY event counts — sub-minute flight means a
+    # Ballistic on a home raion: ANY event counts — sub-minute flight means a
     # raion callout is the strike itself, not a passing position.
-    if threat.target_type == "ballistic" and home.raion_district_id is not None:
+    if threat.target_type == "ballistic" and home.raion_district_ids:
         for ev in events:
-            if ev.district_id == home.raion_district_id:
+            if ev.district_id in home.raion_district_ids:
                 return DangerLevel.DANGER
     if has_movement(events) and vector_threatens(track_points(events), home):
         return DangerLevel.WARNING
     return DangerLevel.NONE
 
 
-async def raion_id_for_point(session, lat: float, lon: float) -> int | None:
-    """Id of the raion whose OSM boundary contains the point (10 rows with a
-    boundary — the admin raions), or None outside all of them."""
-    rows = await session.scalars(
+# Disc sample for zone->raion resolution: center + inner ring + edge ring.
+# Each point is (radius_fraction, bearing_deg); the share of points landing in
+# a raion approximates the share of the zone's area there. MUST stay identical
+# to the frontend mirror (lib/homeDanger.ts ZONE_SAMPLE).
+ZONE_SAMPLE: list[tuple[float, float]] = (
+    [(0.0, 0.0)]
+    + [(0.5, i * 45.0) for i in range(8)]
+    + [(1.0, i * 22.5) for i in range(16)]
+)
+
+
+async def raion_ids_for_zone(
+    session, lat: float, lon: float, radius_km: float
+) -> list[int]:
+    """Ids of every raion the home circle meaningfully overlaps: sample the
+    disc, count hits per raion (10 boundary rows — the admin raions), keep
+    raions with at least home_danger_raion_overlap_min of the samples. A zone
+    that barely clips a neighbouring raion stays out."""
+    rows = list(await session.scalars(
         select(District).where(District.boundary.is_not(None))
-    )
-    for d in rows:
-        if point_in_geom(lat, lon, d.boundary):
-            return d.id
-    return None
+    ))
+    hits: dict[int, int] = {}
+    for frac, brg in ZONE_SAMPLE:
+        km = frac * radius_km
+        p_lat, p_lon = offset_km(
+            lat, lon,
+            north_km=km * math.cos(math.radians(brg)),
+            east_km=km * math.sin(math.radians(brg)),
+        )
+        for d in rows:
+            if point_in_geom(p_lat, p_lon, d.boundary):
+                hits[d.id] = hits.get(d.id, 0) + 1
+                break
+    min_hits = settings.home_danger_raion_overlap_min * len(ZONE_SAMPLE)
+    return sorted(did for did, n in hits.items() if n >= min_hits)

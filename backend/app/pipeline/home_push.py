@@ -64,7 +64,7 @@ async def evaluate_home_danger(session, threat: Threat) -> None:
             lat=sub.home_lat,
             lon=sub.home_lon,
             radius_km=sub.home_radius_km,
-            raion_district_id=sub.home_district_id,
+            raion_district_ids=tuple(sub.home_district_ids or ()),
         )
         level = assess(threat, home)
         key = str(threat.id)

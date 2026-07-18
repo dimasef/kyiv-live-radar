@@ -58,6 +58,16 @@ def bearing_deg(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return (math.degrees(math.atan2(y, x)) + 360) % 360
 
 
+def offset_km(lat: float, lon: float, north_km: float, east_km: float) -> tuple[float, float]:
+    """Point displaced from (lat, lon) by km along the north/east axes.
+    Equirectangular approximation — fine at city scale."""
+    km_per_deg_lat = math.pi / 180 * EARTH_RADIUS_KM
+    return (
+        lat + north_km / km_per_deg_lat,
+        lon + east_km / (km_per_deg_lat * math.cos(math.radians(lat))),
+    )
+
+
 def angdiff_deg(a: float, b: float) -> float:
     """Signed smallest difference a-b between two bearings, in (-180, 180]."""
     d = (a - b) % 360

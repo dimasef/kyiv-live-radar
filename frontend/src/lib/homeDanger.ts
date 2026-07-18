@@ -1,5 +1,5 @@
 import { hasMovement, trackPoints } from '@/components/map/track'
-import { angdiff, bearing, haversineKm, raionIdAt, type Pt } from '@/lib/geo'
+import { angdiff, bearing, haversineKm, offsetKm, raionIdAt, type Pt } from '@/lib/geo'
 import type { Home } from '@/store/homeSlice'
 import type { DistrictBoundary, Threat } from '@/types'
 
@@ -12,7 +12,31 @@ export const HOME_DANGER = {
   passSlackKm: 3,
   projectionKm: 20,
   angleTolDeg: 20,
+  raionOverlapMin: 0.1,
 } as const
+
+/** Disc sample for zone->raion resolution — MUST stay identical to the backend
+ * ZONE_SAMPLE (center + inner ring + edge ring, [radiusFraction, bearingDeg]). */
+const ZONE_SAMPLE: Array<[number, number]> = [
+  [0, 0],
+  ...Array.from({ length: 8 }, (_, i) => [0.5, i * 45] as [number, number]),
+  ...Array.from({ length: 16 }, (_, i) => [1, i * 22.5] as [number, number]),
+]
+
+/** Ids of every raion the home circle meaningfully overlaps (a zone on a
+ * boundary sits in 2-3 raions) — mirror of backend raion_ids_for_zone. */
+export function raionIdsForZone(home: Home, boundaries: DistrictBoundary[]): number[] {
+  const hits = new Map<number, number>()
+  for (const [frac, brg] of ZONE_SAMPLE) {
+    const km = frac * home.radiusKm
+    const rad = (brg * Math.PI) / 180
+    const p = offsetKm(home, km * Math.cos(rad), km * Math.sin(rad))
+    const id = raionIdAt(p.lat, p.lon, boundaries)
+    if (id != null) hits.set(id, (hits.get(id) ?? 0) + 1)
+  }
+  const minHits = HOME_DANGER.raionOverlapMin * ZONE_SAMPLE.length
+  return [...hits.entries()].filter(([, n]) => n >= minHits).map(([id]) => id)
+}
 
 export type HomeDangerLevel = 'none' | 'warning' | 'danger'
 
@@ -39,7 +63,7 @@ function vectorThreatens(pts: Pt[], home: Home): boolean {
 export function threatDanger(
   threat: Threat,
   home: Home,
-  homeRaionId: number | null,
+  homeRaionIds: number[],
 ): HomeDangerLevel {
   if (threat.scope === 'city') return 'none'
   const located = threat.events.filter((ev) => ev.lat != null && ev.lon != null)
@@ -53,10 +77,10 @@ export function threatDanger(
     if (ev.event_time !== latest) continue
     if (haversineKm({ lat: ev.lat!, lon: ev.lon! }, home) <= dangerRadius) return 'danger'
   }
-  // Ballistic on the home raion: ANY event counts — sub-minute flight means a
+  // Ballistic on a home raion: ANY event counts — sub-minute flight means a
   // raion callout is the strike itself, not a passing position.
-  if (threat.target_type === 'ballistic' && homeRaionId != null) {
-    if (located.some((ev) => ev.district_id === homeRaionId)) return 'danger'
+  if (threat.target_type === 'ballistic' && homeRaionIds.length > 0) {
+    if (located.some((ev) => homeRaionIds.includes(ev.district_id))) return 'danger'
   }
   if (hasMovement(threat) && vectorThreatens(trackPoints(threat), home)) return 'warning'
   return 'none'
@@ -69,11 +93,11 @@ export function homeDanger(
   home: Home,
   boundaries: DistrictBoundary[],
 ): HomeDangerLevel {
-  const homeRaionId = raionIdAt(home.lat, home.lon, boundaries)
+  const homeRaionIds = raionIdsForZone(home, boundaries)
   let worst: HomeDangerLevel = 'none'
   for (const threat of Object.values(threats)) {
     if (threat.closed_at != null || threat.kind === 'impact') continue
-    const level = threatDanger(threat, home, homeRaionId)
+    const level = threatDanger(threat, home, homeRaionIds)
     if (LEVEL_RANK[level] > LEVEL_RANK[worst]) worst = level
     if (worst === 'danger') break
   }

@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 from ..config import settings
 from ..db import get_session
 from ..domain.districts import citywide_district_id
-from ..domain.home_danger import raion_id_for_point
+from ..domain.home_danger import raion_ids_for_zone
 from ..models import (
     Alert,
     District,
@@ -368,7 +368,9 @@ async def push_subscribe(body: PushSubscribeIn, session: AsyncSession = Depends(
         sub.home_lat = body.home.lat
         sub.home_lon = body.home.lon
         sub.home_radius_km = body.home.radius_km
-        sub.home_district_id = await raion_id_for_point(session, body.home.lat, body.home.lon)
+        sub.home_district_ids = await raion_ids_for_zone(
+            session, body.home.lat, body.home.lon, body.home.radius_km
+        )
         if home_moved:
             sub.danger_state = {}
     await session.commit()
