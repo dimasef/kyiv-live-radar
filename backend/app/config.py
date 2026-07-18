@@ -265,6 +265,39 @@ class Settings(BaseSettings):
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
+    # --- Web Push + danger-near-home (app/domain/home_danger.py +
+    #     app/pipeline/home_push.py). Fully dormant until VAPID keys are set.
+    #     Push is SUPPLEMENTARY by policy: wording must never read as the
+    #     official air-raid alert — «Допоміжно:» prefix, never «Повітряна
+    #     тривога» (see .claude/plans/home-danger.md). ---
+    push_enabled: bool = True
+    vapid_public_key: str = ""   # base64url uncompressed point (applicationServerKey)
+    vapid_private_key: str = ""  # base64url raw EC key or a path to a PEM file
+    vapid_subject: str = "mailto:dfimov95@gmail.com"
+    # Master switch for the danger evaluation itself (map indication on the
+    # client is independent — this only gates the server-side push path).
+    home_danger_enabled: bool = True
+    # All geometry runs on district CENTROIDS (km-scale coarse), hence the
+    # generous slacks below. DANGER = event within home radius + buffer.
+    home_danger_buffer_km: float = 2.0
+    # WARNING vector test: cross-track distance of home from the track's
+    # forward ray must fall within home radius + this slack...
+    home_danger_pass_slack_km: float = 3.0
+    # ...OR the ray's bearing be within this tolerance of the bearing to home
+    # (centroid-derived headings easily lie by 15-20 deg at range)...
+    home_danger_angle_tol_deg: float = 20.0
+    # ...and the track head must be within this distance of home at all (a
+    # correct course 30+ km out isn't yet a warning — it will re-fire closer).
+    home_danger_projection_km: float = 20.0
+    # Minimum gap before re-pushing the same track to the same subscription
+    # after its level oscillated (warning -> none -> warning). Escalation to a
+    # HIGHER never-pushed level always pushes regardless.
+    home_push_cooldown_minutes: int = 10
+
+    @property
+    def push_configured(self) -> bool:
+        return bool(self.push_enabled and self.vapid_public_key and self.vapid_private_key)
+
     # --- Observability (app/observability.py). All opt-in: with the token/DSN
     #     empty the SDKs stay fully dormant — no network calls, no behavior
     #     change — so local dev and the test suite run exactly as before. Set on

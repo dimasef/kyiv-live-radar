@@ -25,6 +25,16 @@ async function get<T>(path: string): Promise<T> {
   return res.json() as Promise<T>
 }
 
+async function send<T>(path: string, method: 'POST' | 'DELETE', body: unknown): Promise<T> {
+  const res = await fetch(`${API}${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(`${method} ${path} -> ${res.status}`)
+  return res.json() as Promise<T>
+}
+
 export const fetchDistricts = () => get<District[]>('/districts')
 export const fetchBoundaries = () => get<DistrictBoundary[]>('/districts/boundaries')
 export const fetchActiveThreats = () => get<Threat[]>('/threats/active')
@@ -84,3 +94,20 @@ export const fetchRawExport = (filter: RawMessagesFilter = {}) =>
 export const fetchRawLlmStats = () => get<RawLlmStats>('/raw_messages/llm_stats')
 // Every monitored channel, for the /raw channel filter dropdown.
 export const fetchRawSources = () => get<RawSource[]>('/raw_messages/sources')
+
+// --- Web Push (danger near home) — see lib/push.ts for the browser side. ---
+export interface PushConfig {
+  enabled: boolean
+  /** VAPID public key for pushManager.subscribe; fetched at runtime so a key
+   * rotation never needs a frontend rebuild. */
+  public_key: string | null
+}
+export interface PushSubscribeBody {
+  subscription: { endpoint: string; keys: { p256dh: string; auth: string } }
+  home: { lat: number; lon: number; radius_km: number } | null
+}
+export const fetchPushConfig = () => get<PushConfig>('/push/config')
+export const postPushSubscribe = (body: PushSubscribeBody) =>
+  send<{ ok: boolean }>('/push/subscribe', 'POST', body)
+export const deletePushSubscribe = (endpoint: string) =>
+  send<{ ok: boolean }>('/push/subscribe', 'DELETE', { endpoint })

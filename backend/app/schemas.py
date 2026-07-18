@@ -286,6 +286,50 @@ class RawLlmStatsOut(BaseModel):
     cost_usd: float
 
 
+class PushKeysIn(BaseModel):
+    """The browser PushSubscription's encryption keys."""
+
+    p256dh: str
+    auth: str
+
+
+class BrowserSubscriptionIn(BaseModel):
+    """PushSubscription.toJSON() from the browser."""
+
+    endpoint: str
+    keys: PushKeysIn
+
+
+class HomeZoneIn(BaseModel):
+    """The home zone this subscription wants guarded (mirrors the client's
+    localStorage home — see frontend store/homeSlice.ts)."""
+
+    lat: float
+    lon: float
+    radius_km: float = 3.0
+
+
+class PushSubscribeIn(BaseModel):
+    """POST /push/subscribe body. Upsert by endpoint; re-POSTed on every home
+    change so the server copy of the home zone never goes stale."""
+
+    subscription: BrowserSubscriptionIn
+    home: Optional[HomeZoneIn] = None
+
+
+class PushUnsubscribeIn(BaseModel):
+    endpoint: str
+
+
+class PushConfigOut(BaseModel):
+    """GET /push/config — whether push is configured server-side, and the VAPID
+    public key the browser needs for pushManager.subscribe. Fetched at runtime
+    so key rotation never requires a frontend rebuild."""
+
+    enabled: bool
+    public_key: Optional[str] = None
+
+
 class WSMessage(BaseModel):
     """Envelope broadcast over the WebSocket."""
 

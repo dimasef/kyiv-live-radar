@@ -52,13 +52,13 @@ async def test_upgrade_empty_db_creates_schema_and_reaches_head(tmp_db):
     tables = await _tables(tmp_db)
     assert {"districts", "sources", "raw_messages", "notices", "incidents",
             "threats", "threat_events", "threat_axes", "alembic_version"} <= tables
-    assert await _version(tmp_db) == "0009"
+    assert await _version(tmp_db) == "0010"
 
 
 async def test_upgrade_twice_is_a_noop(tmp_db):
     await migrate.upgrade_to_head()
     await migrate.upgrade_to_head()  # must not raise / re-apply anything
-    assert await _version(tmp_db) == "0009"
+    assert await _version(tmp_db) == "0010"
 
 
 async def test_preexisting_pre_alembic_db_is_stamped_and_backfilled(tmp_db):
@@ -84,7 +84,7 @@ async def test_preexisting_pre_alembic_db_is_stamped_and_backfilled(tmp_db):
 
     await migrate.upgrade_to_head()
 
-    assert await _version(tmp_db) == "0009"
+    assert await _version(tmp_db) == "0010"
     async with tmp_db.connect() as conn:
         rows = (
             await conn.exec_driver_sql(

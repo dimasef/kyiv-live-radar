@@ -32,12 +32,24 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = '0.8.1'
+const LATEST = '0.9.0'
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: 'Небезпека біля дому та push-сповіщення',
+    date: '2026-07-18',
+    kind: 'minor',
+    changes: [
+      'Зона «Мій дім» тепер реагує на загрози: коло стає помаранчевим, коли курс цілі веде у ваш бік, і червоним із пульсацією — коли ціль зовсім поруч або балістика заявлена по вашому району',
+      'Push-сповіщення про це навіть із закритим застосунком: «курс у бік вашої зони» та «ціль поруч із вашою зоною» — увімкнути в Налаштуваннях → «Сповіщення про небезпеку» (спершу встановіть «Мій дім»)',
+      'На iPhone сповіщення працюють лише зі встановленого на екран Домівки застосунку (iOS 16.4+) — застосунок сам підкаже',
+      'Сповіщення допоміжні, з волонтерських даних, і ніколи не замінюють офіційну повітряну тривогу — кожне має префікс «Допоміжно:»',
+    ],
+  },
+  {
+    version: '0.8.1',
     title: 'Огляд усього Києва та зручніша стрічка',
     date: '2026-07-17',
     kind: 'patch',

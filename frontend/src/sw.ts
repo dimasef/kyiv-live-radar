@@ -42,6 +42,33 @@ self.addEventListener('message', (e) => {
   if (e.data?.type === 'GET_VERSION') e.ports[0]?.postMessage(APP_VERSION)
 })
 
-// --- Stage B (Web Push) mounts here — see .claude/plans/pwa.md ---
-// self.addEventListener('push', (e) => { /* showNotification(...) */ })
-// self.addEventListener('notificationclick', (e) => { /* clients.openWindow('/') */ })
+// --- Web Push: danger near home (backend app/pipeline/home_push.py). The
+// payload is fully server-composed («Допоміжно:» wording per the notification
+// policy); one tag per track + renotify so an escalation REPLACES the earlier
+// warning notification instead of stacking.
+self.addEventListener('push', (e) => {
+  const data = e.data?.json()
+  if (data?.kind !== 'home-danger') return
+  e.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      tag: data.tag,
+      // `renotify` is missing from TS's NotificationOptions but real in browsers.
+      ...( { renotify: true } as object ),
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      data: { url: data.url ?? '/' },
+    }),
+  )
+})
+
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close()
+  e.waitUntil(
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((wins) =>
+        wins[0] ? wins[0].focus() : self.clients.openWindow(e.notification.data?.url ?? '/'),
+      ),
+  )
+})

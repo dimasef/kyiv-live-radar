@@ -16,6 +16,7 @@ from ..api.ws import manager
 from ..domain.districts import citywide_district_id
 from ..models import Incident, Notice, Threat, ThreatEvent
 from ..schemas import WSMessage
+from .home_push import evaluate_home_danger
 from .results import Broadcast
 
 log = logging.getLogger("broadcast")
@@ -79,3 +80,8 @@ async def broadcast_results(session, results: list[Broadcast]) -> None:
         await manager.broadcast(
             WSMessage(type=b.type, threat=threat_out(threat), event=ev_out)
         )
+        try:
+            await evaluate_home_danger(session, threat)
+        except Exception:
+            # Push is supplementary — a failure here must never break WS fan-out.
+            log.exception("home danger evaluation failed for threat %s", threat.id)

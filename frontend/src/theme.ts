@@ -12,6 +12,14 @@ export const STATUS_COLORS = {
  * legend's home swatch, and the feed's non-clear info-notice accent. */
 export const HOME_COLOR = '#38bdf8'
 
+/** Home-circle accent while a threat concerns the home zone (lib/homeDanger.ts):
+ * a track on course toward home reuses the conflict orange, a target near home
+ * (or ballistic on the home raion) the confirmed red. */
+export const HOME_DANGER_COLORS = {
+  warning: STATUS_COLORS.conflict,
+  danger: STATUS_COLORS.confirmed,
+} as const
+
 /** StatusBanner's attack-severity accent: ballistic gets the same red as a
  * confirmed sighting; every other notable attack type gets the same orange
  * as a fusion conflict — reusing the shared palette rather than one-off hex. */

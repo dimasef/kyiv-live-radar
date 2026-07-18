@@ -363,6 +363,44 @@ class Threat(Base):
     )
 
 
+class PushSubscription(Base):
+    """One browser Web Push endpoint + the home zone it wants guarded.
+
+    First client-identity table (single-user MVP, but never assume exactly one
+    row). The home zone lives here rather than in its own table because push is
+    its only server-side consumer — the map indication recomputes the same
+    condition client-side from localStorage (see app/domain/home_danger.py).
+    """
+
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # The push service URL — unique per browser+SW registration; upsert key.
+    endpoint: Mapped[str] = mapped_column(Text, unique=True)
+    p256dh: Mapped[str] = mapped_column(String(200))
+    auth: Mapped[str] = mapped_column(String(100))
+    home_lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    home_lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    home_radius_km: Mapped[float] = mapped_column(Float, default=3.0)
+    # Raion containing the home point, resolved at subscribe time
+    # (home_danger.raion_id_for_point) — the ballistic trigger compares ids.
+    home_district_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("districts.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+    # Per-track danger bookkeeping so pushes fire on level ESCALATION only:
+    # {str(threat_id): {"level": int, "max_pushed": int, "pushed_at": iso|None}}.
+    # In DB (not memory) so a Railway redeploy mid-attack doesn't re-push
+    # everything. Keys are pruned when their track closes.
+    danger_state: Mapped[dict] = mapped_column(JSON, default=dict)
+    last_push_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
 class ThreatEvent(Base):
     """A single sighting within a track."""
 

@@ -11,6 +11,7 @@ import {
   fetchRecentNotices,
 } from '@/api'
 import { requestGeolocation } from '@/components/chrome'
+import { resyncHomePush } from '@/lib/push'
 import { safeGet, safeSet, STORAGE_KEYS } from '@/lib/storage'
 import { registerLifecycleListeners } from '@/lifecycle'
 import { connectWS } from '@/ws'
@@ -63,4 +64,9 @@ export function bootstrapApp() {
   const firstRun = !safeGet(STORAGE_KEYS.geoAsked)
   if (firstRun) safeSet(STORAGE_KEYS.geoAsked, '1')
   if (firstRun && !store.home) requestGeolocation()
+
+  // Notifications opted in: re-register the still-live browser subscription so
+  // the server's home copy heals from anything missed offline (home edited in
+  // another tab, a wiped backend DB, ...).
+  if (store.notifyStatus === 'on') void resyncHomePush(store.home).catch(() => {})
 }

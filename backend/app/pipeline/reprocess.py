@@ -23,6 +23,7 @@ from ..models import (
     District,
     Incident,
     Notice,
+    PushSubscription,
     RawMessage,
     Source,
     Threat,
@@ -58,6 +59,10 @@ async def _wipe_tracks() -> None:
         await s.execute(delete(Notice))
         await s.execute(delete(Alert))
         await s.execute(delete(ThreatAxis))
+        # Rebuilt tracks reuse ids from 1 — per-track push bookkeeping keyed by
+        # the OLD ids would wrongly suppress pushes for unrelated new tracks.
+        for sub in await s.scalars(select(PushSubscription)):
+            sub.danger_state = {}
         await s.commit()
 
 

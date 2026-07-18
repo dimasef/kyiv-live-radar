@@ -133,6 +133,16 @@
     "iosHintBefore": "To install: tap",
     "iosHintAfter": "→ \"Add to Home Screen\""
   },
+  "notify": {
+    "title": "Danger notifications",
+    "enable": "Enable notifications",
+    "disable": "Disable notifications",
+    "pending": "Enabling…",
+    "needHome": "Set “My home” first — notifications are tied to your home zone.",
+    "denied": "Notifications are blocked in the browser — allow them in the site settings.",
+    "iosInstallFirst": "On iPhone notifications only work from the installed app (iOS 16.4+) — add it to the Home Screen first.",
+    "policy": "Supplementary alerts from volunteer data: a target near your home zone or on a course toward it. Never a replacement for the official air-raid alert."
+  },
   "update": {
     "available": "A new version is available",
     "reload": "Update",

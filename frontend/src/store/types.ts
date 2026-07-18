@@ -5,6 +5,7 @@ import type { DistrictsSlice } from './districtsSlice'
 import type { HomeSlice } from './homeSlice'
 import type { IncidentsSlice } from './incidentsSlice'
 import type { NoticesSlice } from './noticesSlice'
+import type { NotifySlice } from './notifySlice'
 import type { PrefsSlice } from './prefsSlice'
 import type { PwaSlice } from './pwaSlice'
 import type { ThreatsSlice } from './threatsSlice'
@@ -20,4 +21,5 @@ export type RadarState = DistrictsSlice &
   HomeSlice &
   PwaSlice &
   PrefsSlice &
+  NotifySlice &
   WsSlice

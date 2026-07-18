@@ -1,5 +1,6 @@
 import type { StateCreator } from 'zustand'
 
+import { resyncHomePush } from '@/lib/push'
 import { safeGet, safeRemove, safeSet, STORAGE_KEYS } from '@/lib/storage'
 
 import type { RadarState } from './types'
@@ -39,6 +40,9 @@ export const createHomeSlice: StateCreator<RadarState, [], [], HomeSlice> = (set
     if (h) safeSet(STORAGE_KEYS.home, JSON.stringify(h))
     else safeRemove(STORAGE_KEYS.home)
     set({ home: h })
+    // Keep the push subscription's server-side home zone in sync (no-op when
+    // notifications are off) — the backend assesses danger against ITS copy.
+    if (get().notifyStatus === 'on') void resyncHomePush(h).catch(() => {})
   },
   setHomeRadius: (radiusKm) => {
     const cur = get().home
@@ -46,6 +50,7 @@ export const createHomeSlice: StateCreator<RadarState, [], [], HomeSlice> = (set
     const next = { ...cur, radiusKm }
     safeSet(STORAGE_KEYS.home, JSON.stringify(next))
     set({ home: next })
+    if (get().notifyStatus === 'on') void resyncHomePush(next).catch(() => {})
   },
   setPlacingHome: (v) => set({ placingHome: v }),
 })

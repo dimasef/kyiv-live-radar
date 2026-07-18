@@ -10,8 +10,9 @@ import {
   Tooltip,
 } from "react-leaflet";
 
+import { homeDanger } from "../../lib/homeDanger";
 import { useRadar } from "../../store";
-import { HOME_COLOR } from "../../theme";
+import { HOME_COLOR, HOME_DANGER_COLORS } from "../../theme";
 import AxisLayer from "./AxisLayer";
 import CitywidePulse from "./CitywidePulse";
 import { KYIV_BOUNDS, DISTRICT_STYLE } from "./constants";
@@ -42,6 +43,9 @@ export default function MapView() {
   // case the live copy has fresher data, so just highlight it in place rather
   // than rendering a second, stale layer on top of it.
   const inspectedIsLive = inspectedThreat != null && inspectedThreat.id in threats;
+
+  const danger = home ? homeDanger(threats, home, boundaries) : "none";
+  const homeCircleColor = danger === "none" ? HOME_COLOR : HOME_DANGER_COLORS[danger];
 
   return (
     <div className="relative h-full w-full">
@@ -75,14 +79,19 @@ export default function MapView() {
 
         {home && (
           <>
+            {/* Keyed by danger level: setStyle doesn't re-apply className, so
+                the pulse class only attaches on a fresh mount (same trick as
+                CitywidePulse's color-keyed GeoJSON). */}
             <Circle
+              key={`home-${danger}`}
               center={[home.lat, home.lon]}
               radius={home.radiusKm * 1000}
               pathOptions={{
-                color: HOME_COLOR,
-                fillColor: HOME_COLOR,
-                fillOpacity: 0.06,
-                weight: 1,
+                color: homeCircleColor,
+                fillColor: homeCircleColor,
+                fillOpacity: danger === "none" ? 0.06 : 0.14,
+                weight: danger === "none" ? 1 : 2,
+                className: danger === "danger" ? "home-danger-pulse" : undefined,
               }}
             />
             <Marker position={[home.lat, home.lon]} icon={homeIcon}>

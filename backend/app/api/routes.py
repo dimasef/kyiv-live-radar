@@ -11,11 +11,13 @@ from sqlalchemy.orm import selectinload
 from ..config import settings
 from ..db import get_session
 from ..domain.districts import citywide_district_id
+from ..domain.home_danger import raion_id_for_point
 from ..models import (
     Alert,
     District,
     Incident,
     Notice,
+    PushSubscription,
     RawMessage,
     Source,
     Threat,
@@ -30,6 +32,9 @@ from ..schemas import (
     FeedEntryOut,
     IncidentOut,
     NoticeOut,
+    PushConfigOut,
+    PushSubscribeIn,
+    PushUnsubscribeIn,
     RawCountOut,
     RawExportOut,
     RawLlmStatsOut,
@@ -327,6 +332,59 @@ async def active_axes(session: AsyncSession = Depends(get_session)):
         .order_by(ThreatAxis.created_at.desc())
     )
     return [_axis_out(a) for a in await session.scalars(stmt)]
+
+
+@router.get("/push/config", response_model=PushConfigOut)
+async def push_config():
+    """Whether Web Push is configured server-side + the VAPID public key for
+    pushManager.subscribe. The frontend hides its notification control when
+    enabled=false."""
+    if not settings.push_configured:
+        return PushConfigOut(enabled=False)
+    return PushConfigOut(enabled=True, public_key=settings.vapid_public_key)
+
+
+@router.post("/push/subscribe")
+async def push_subscribe(body: PushSubscribeIn, session: AsyncSession = Depends(get_session)):
+    """Register (or update — upsert by endpoint) a push subscription with its
+    home zone. Re-POSTed on every home change; moving home resets the per-track
+    danger bookkeeping so levels computed for the OLD location can't suppress
+    fresh pushes for the new one."""
+    sub = await session.scalar(
+        select(PushSubscription).where(PushSubscription.endpoint == body.subscription.endpoint)
+    )
+    if sub is None:
+        sub = PushSubscription(
+            endpoint=body.subscription.endpoint,
+            p256dh=body.subscription.keys.p256dh,
+            auth=body.subscription.keys.auth,
+        )
+        session.add(sub)
+    else:
+        sub.p256dh = body.subscription.keys.p256dh
+        sub.auth = body.subscription.keys.auth
+    if body.home is not None:
+        home_moved = (sub.home_lat, sub.home_lon) != (body.home.lat, body.home.lon)
+        sub.home_lat = body.home.lat
+        sub.home_lon = body.home.lon
+        sub.home_radius_km = body.home.radius_km
+        sub.home_district_id = await raion_id_for_point(session, body.home.lat, body.home.lon)
+        if home_moved:
+            sub.danger_state = {}
+    await session.commit()
+    return {"ok": True}
+
+
+@router.delete("/push/subscribe")
+async def push_unsubscribe(body: PushUnsubscribeIn, session: AsyncSession = Depends(get_session)):
+    """Idempotent: deleting an unknown endpoint is a no-op success."""
+    sub = await session.scalar(
+        select(PushSubscription).where(PushSubscription.endpoint == body.endpoint)
+    )
+    if sub is not None:
+        await session.delete(sub)
+        await session.commit()
+    return {"ok": True}
 
 
 @router.get("/threats/{threat_id}/events", response_model=list[ThreatEventOut])
