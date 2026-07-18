@@ -92,6 +92,28 @@ def test_ballistic_and_missile_are_the_same_family_not_a_conflict():
     assert not r.has_conflict
 
 
+def test_shahed_and_jet_drone_are_the_same_family_not_a_conflict():
+    # A bare «БпЛА» parses as shahed, so «Реактивний БпЛА зі сторони
+    # Славутича» + «БпЛА на Славутич» about one target read as different
+    # specificity of the same drone callout, not a disagreement (the live
+    # track-274 false conflict, 2026-07-18).
+    events = [
+        _ev(source_id=1, source_message_id=100, event_target_type="jet_drone"),
+        _ev(source_id=2, source_message_id=200, event_target_type="shahed"),
+    ]
+    r = compute_fusion(events)
+    assert not r.has_conflict
+    assert r.confidence == settings.fusion_conf_two_sources
+
+
+def test_drone_vs_missile_still_flags_a_conflict():
+    events = [
+        _ev(source_id=1, source_message_id=100, event_target_type="jet_drone"),
+        _ev(source_id=2, source_message_id=200, event_target_type="ballistic"),
+    ]
+    assert compute_fusion(events).has_conflict
+
+
 def test_unknown_target_type_never_counts_as_a_conflicting_claim():
     events = [
         _ev(source_id=1, source_message_id=100, event_target_type="shahed"),

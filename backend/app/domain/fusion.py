@@ -64,8 +64,17 @@ def _origin_keys(events: list[ThreatEvent]) -> set:
 
 def _family(target_type: str) -> str:
     """Collapse target types to a family for conflict detection: ballistic is a
-    specialization of missile, so the two never count as a source conflict."""
-    return "missile" if target_type in ("missile", "ballistic") else target_type
+    specialization of missile, and jet_drone of a generic drone callout (a bare
+    «БпЛА» parses as shahed, so «Реактивний БпЛА» + «БпЛА» about one target
+    flagged a false conflict — track 274, 2026-07-18). Same drone family as
+    attack.py::classify. Trade-off: a genuine «Шахед!» vs «Реактивний!»
+    disagreement no longer flags — no real case of that in the corpus, while
+    the specificity mismatch is live."""
+    if target_type in ("missile", "ballistic"):
+        return "missile"
+    if target_type in ("shahed", "jet_drone"):
+        return "drone"
+    return target_type
 
 
 def compute_fusion(events: Iterable[ThreatEvent]) -> FusionResult:
