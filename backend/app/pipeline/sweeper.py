@@ -10,6 +10,8 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from sqlalchemy import func, select
+
 from ..api.ws import manager
 from ..config import settings
 from ..db import SessionLocal
@@ -17,8 +19,9 @@ from ..domain.alerts import close_stale_alerts
 from ..domain.axes import close_stale_axes
 from ..domain.incidents import close_stale_incidents
 from ..domain.tracking import close_stale_tracks
-from ..feeds.health import feed_health
-from ..models import utcnow
+from ..feeds.health import feed_health, get_status
+from ..models import Threat, ThreatAxis, utcnow
+from ..observability import metrics
 from ..schemas import WSMessage
 from .broadcast import broadcast_results
 from .results import Broadcast
@@ -65,6 +68,23 @@ async def run_sweeper() -> None:
                         len(failsafe), settings.alert_failsafe_hours,
                     )
                     await broadcast_results(session, [Broadcast("alert", alert=a) for a in failsafe])
+
+                # Sample the live gauges once per sweep (open = not yet closed;
+                # impacts self-close at creation so they don't inflate the count).
+                open_tracks = await session.scalar(
+                    select(func.count()).select_from(Threat).where(Threat.closed_at.is_(None))
+                )
+                open_axes = await session.scalar(
+                    select(func.count()).select_from(ThreatAxis).where(ThreatAxis.expires_at.is_(None))
+                )
+                metrics.observe_open(open_tracks or 0, open_axes or 0)
+
+            # Listener freshness — seconds since the last LIVE message, only when
+            # a real Telegram feed exists and has delivered at least one message
+            # (last_message_at is set by live traffic only, never the backfill).
+            last_message_at = get_status()["last_message_at"]
+            if settings.telegram_enabled and last_message_at is not None:
+                metrics.observe_listener_lag((now - last_message_at).total_seconds())
 
             # Feed health — process-state, not DB-backed, so it lives outside
             # the session block above. Log/push only on a transition.

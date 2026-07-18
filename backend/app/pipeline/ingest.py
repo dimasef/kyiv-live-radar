@@ -32,6 +32,7 @@ from ..domain.tracking import (
     find_track_by_reply,
 )
 from ..config import settings
+from ..observability import ingest_span, metrics
 from ..models import Notice, RawMessage, Threat, ThreatEvent
 from ..parsing import DistrictHit, DistrictMatcher, LlmUsage, ParseResult, normalize, parse_message
 from ..parsing.alert_parser import parse_alert_message
@@ -652,6 +653,19 @@ async def _handle_sighting(ctx: IngestContext) -> list[Broadcast]:
     return broadcasts
 
 
+def _ingest_outcome(broadcasts: list[Broadcast]) -> str:
+    """Domain result of one pipeline pass, for the Logfire span — the thing
+    auto-instrumentation can't see. `threat` = a real map target/impact was
+    created or corroborated (an event fired); `notice` = only informational
+    surfaces (directional/summary/clear/status-only/axis); `dropped` = nothing
+    actionable, raw row kept but no broadcast."""
+    if any(b.type == "event" for b in broadcasts):
+        return "threat"
+    if broadcasts:
+        return "notice"
+    return "dropped"
+
+
 async def process_parsed(
     session,
     *,
@@ -680,57 +694,79 @@ async def process_parsed(
         each message's natural chronological position (see reprocess.py).
       * 'off'    — no triage at all.
     """
-    parsed, decision_source, llm_attempted, llm_usage, llm_response = await _resolve(text, matcher)
-    raw.llm_attempted = llm_attempted
-    if llm_usage is not None:
-        raw.llm_input_tokens = llm_usage.input_tokens
-        raw.llm_output_tokens = llm_usage.output_tokens
-        raw.llm_cost_usd = llm_usage.cost_usd
-    if llm_response is not None:
-        raw.llm_response = llm_response
+    # One custom span per pass, parent to the auto-instrumented SQL/LLM child
+    # spans. It carries the domain facts auto-instrumentation can't see —
+    # decision_source, target_type, and the final outcome — so Logfire can answer
+    # "how many messages/hour landed in dropped" or "what share of decisions came
+    # from the LLM" by attribute filter, not log-text parsing. Dormant (no-op)
+    # until observability is set up, so reprocess/eval/tests are unaffected.
+    with ingest_span("ingest_message") as span:
+        parsed, decision_source, llm_attempted, llm_usage, llm_response = await _resolve(text, matcher)
+        raw.llm_attempted = llm_attempted
+        if llm_usage is not None:
+            raw.llm_input_tokens = llm_usage.input_tokens
+            raw.llm_output_tokens = llm_usage.output_tokens
+            raw.llm_cost_usd = llm_usage.cost_usd
+        if llm_response is not None:
+            raw.llm_response = llm_response
 
-    # Cross-message type inheritance: record this message's stated type, or
-    # inherit a recent one from the same channel onto a bare-toponym sighting
-    # ("Троя" mid-ballistic-attack -> missile, not unknown). Runs before every
-    # branch below so a typed post updates the context even when it produces no
-    # event of its own (e.g. a district-less "Балістика!").
-    _note_and_inherit_type(parsed, source_id, when)
+        # Cross-message type inheritance: record this message's stated type, or
+        # inherit a recent one from the same channel onto a bare-toponym sighting
+        # ("Троя" mid-ballistic-attack -> missile, not unknown). Runs before every
+        # branch below so a typed post updates the context even when it produces no
+        # event of its own (e.g. a district-less "Балістика!").
+        _note_and_inherit_type(parsed, source_id, when)
 
-    ctx = IngestContext(
-        session=session, raw=raw, parsed=parsed, decision_source=decision_source,
-        when=when, source_id=source_id, message_id=message_id,
-        forwarded_from_id=forwarded_from_id,
-        forwarded_from_channel_id=forwarded_from_channel_id,
-        reply_to_message_id=reply_to_message_id,
-        llm_summary=(llm_response.get("summary") or None
-                     if llm_response is not None and decision_source == "llm" else None),
-    )
+        span.set_attribute("decision_source", decision_source)
+        span.set_attribute("target_type", parsed.target_type)
+        span.set_attribute("llm_attempted", llm_attempted)
 
-    # Async triage: hand a district-less/suppressed-but-threat-flavored message
-    # to the second-pass engine (which surfaces directional/forecast/status
-    # notices, feeds the axis layer, and — behind a flag — rescues a wrongly
-    # suppressed live threat). Reuses the inline verdict if one exists (no second
-    # API call). Marked on the raw row so /raw shows where it went.
-    triage_extra: list[Broadcast] = []
-    if triage == "live":
-        from .triage import TriageJob, enqueue_job, should_triage
+        ctx = IngestContext(
+            session=session, raw=raw, parsed=parsed, decision_source=decision_source,
+            when=when, source_id=source_id, message_id=message_id,
+            forwarded_from_id=forwarded_from_id,
+            forwarded_from_channel_id=forwarded_from_channel_id,
+            reply_to_message_id=reply_to_message_id,
+            llm_summary=(llm_response.get("summary") or None
+                         if llm_response is not None and decision_source == "llm" else None),
+        )
 
-        if should_triage(parsed, decision_source, llm_response):
-            job = TriageJob(
-                raw_id=raw.id, text=text, when=when, source_id=source_id,
-                message_id=message_id, reply_to_message_id=reply_to_message_id,
-                forwarded_from_id=forwarded_from_id,
-                forwarded_from_channel_id=forwarded_from_channel_id,
-                verdict=llm_response,
-            )
-            raw.triage_state = "pending" if enqueue_job(job) else "skipped"
-    elif triage == "replay" and raw.llm_response is not None:
-        # Deterministic reprocess: route the STORED verdict inline (no API, no
-        # queue), at this message's natural chronological position.
-        triage_extra = await _replay_triage_verdict(ctx, raw.llm_response, matcher)
+        # Async triage: hand a district-less/suppressed-but-threat-flavored message
+        # to the second-pass engine (which surfaces directional/forecast/status
+        # notices, feeds the axis layer, and — behind a flag — rescues a wrongly
+        # suppressed live threat). Reuses the inline verdict if one exists (no second
+        # API call). Marked on the raw row so /raw shows where it went.
+        triage_extra: list[Broadcast] = []
+        if triage == "live":
+            from .triage import TriageJob, enqueue_job, should_triage
 
-    result = await _dispatch(ctx)
-    return result + triage_extra
+            if should_triage(parsed, decision_source, llm_response):
+                job = TriageJob(
+                    raw_id=raw.id, text=text, when=when, source_id=source_id,
+                    message_id=message_id, reply_to_message_id=reply_to_message_id,
+                    forwarded_from_id=forwarded_from_id,
+                    forwarded_from_channel_id=forwarded_from_channel_id,
+                    verdict=llm_response,
+                )
+                raw.triage_state = "pending" if enqueue_job(job) else "skipped"
+        elif triage == "replay" and raw.llm_response is not None:
+            # Deterministic reprocess: route the STORED verdict inline (no API, no
+            # queue), at this message's natural chronological position.
+            triage_extra = await _replay_triage_verdict(ctx, raw.llm_response, matcher)
+
+        result = await _dispatch(ctx)
+        broadcasts = result + triage_extra
+        outcome = _ingest_outcome(broadcasts)
+        span.set_attribute("outcome", outcome)
+
+        # Domain metrics (survive head-sampling; feed rate/hit-rate dashboards).
+        metrics.record_ingest(outcome, decision_source)
+        # An LLM call that was attempted resolved to a hit iff it recovered a
+        # district — which is exactly what decision_source=='llm' means here
+        # (see _resolve). llm_attempted with decision_source=='rule' is a miss.
+        if llm_attempted:
+            metrics.record_llm(hit=decision_source == "llm")
+        return broadcasts
 
 
 async def _dispatch(ctx: IngestContext) -> list[Broadcast]:
