@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import BigInteger, JSON, DateTime, Float, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -151,19 +151,22 @@ class RawMessage(Base):
         ForeignKey("sources.id"), nullable=True
     )
     source: Mapped[Optional["Source"]] = relationship()
-    message_id: Mapped[Optional[int]] = mapped_column(nullable=True)  # Telegram id
+    # Telegram id. BigInteger: Telegram peer/message ids are 64-bit and channel
+    # ids (e.g. -1001754665396) overflow Postgres INTEGER (int32). SQLite stores
+    # INTEGER as 64-bit so this only ever bit on prod Postgres.
+    message_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     text: Mapped[str] = mapped_column(Text, default="")
     event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    forwarded_from_id: Mapped[Optional[int]] = mapped_column(nullable=True)
+    forwarded_from_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     # The ORIGIN channel's Telegram peer id, when this message is a repost —
     # `forwarded_from_id` alone is a message id, not globally unique across
     # channels; this disambiguates two different channels whose reposted
     # messages happen to share a numeric id. See fusion.py::_origin_keys.
-    forwarded_from_channel_id: Mapped[Optional[int]] = mapped_column(nullable=True)
+    forwarded_from_channel_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     # Telegram id of the message this one replies to (same channel). Channels like
     # «Місто Кия | Безпека» reply to the previous post about the SAME target, so the
     # reply chain identifies the track far better than time-proximity does.
-    reply_to_message_id: Mapped[Optional[int]] = mapped_column(nullable=True)
+    reply_to_message_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     processed: Mapped[bool] = mapped_column(default=False)
     # Whether the LLM fallback (parsing/llm.py) was actually CALLED for this
     # message — distinct from a ThreatEvent's decision_source=='llm' (which
@@ -254,7 +257,7 @@ class Notice(Base):
     # Original channel message id that produced this notice — same purpose as
     # ThreatEvent.source_message_id, so /raw_messages can trace a raw message
     # to the notice it became (NULL for notices created before this existed).
-    source_message_id: Mapped[Optional[int]] = mapped_column(nullable=True)
+    source_message_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     # Curated origin key (origins.ORIGIN_KEYS) for a directional notice — the
     # feed clusters same-origin callouts and can point to the matching axis. NULL
     # for non-directional notices.
@@ -409,10 +412,10 @@ class ThreatEvent(Base):
     threat_id: Mapped[int] = mapped_column(ForeignKey("threats.id", ondelete="CASCADE"))
     district_id: Mapped[int] = mapped_column(ForeignKey("districts.id"))
     raw_text: Mapped[str] = mapped_column(Text, default="")
-    source_message_id: Mapped[Optional[int]] = mapped_column(nullable=True)
+    source_message_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     # Parent message id (same source) this sighting replied to — how it was grouped
     # onto its track. NULL for non-threaded posts (grouped by time-gap fallback).
-    reply_to_message_id: Mapped[Optional[int]] = mapped_column(nullable=True)
+    reply_to_message_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     confidence: Mapped[float] = mapped_column(Float, default=1.0)
     # 'rule' | 'llm' | 'sim' — how this structured event was produced.
@@ -427,10 +430,10 @@ class ThreatEvent(Base):
     # If this message is a repost/forward, the ORIGINAL message id. Two events
     # sharing a forwarded_from_id are the SAME origin — they must not be counted
     # as independent corroboration.
-    forwarded_from_id: Mapped[Optional[int]] = mapped_column(nullable=True)
+    forwarded_from_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     # The ORIGIN channel's Telegram peer id for a repost — see the identical
     # field on RawMessage; carried onto the event so fusion can key on it.
-    forwarded_from_channel_id: Mapped[Optional[int]] = mapped_column(nullable=True)
+    forwarded_from_channel_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     # Per-event claimed target type; disagreement across sources => conflict.
     event_target_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     # Group size KNOWN AS OF this event — the track's running-max target_count at
