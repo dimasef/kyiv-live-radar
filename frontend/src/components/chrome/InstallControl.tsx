@@ -40,7 +40,7 @@ export default function InstallControl() {
   return (
     <div className="mt-2.5 rounded-xl border border-white/[0.05] bg-white/[0.02] p-3">
       <div className="mb-2.5 flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
           {t('install.title')}
         </span>
         <button
@@ -62,7 +62,7 @@ export default function InstallControl() {
           {t('install.action')}
         </button>
       ) : (
-        <p className="flex flex-wrap items-center gap-1 text-[11px] leading-snug text-slate-400">
+        <p className="flex flex-wrap items-center gap-1 text-xs leading-snug text-slate-400">
           {t('install.iosHintBefore')}
           <Share size={12} className="inline text-phosphor-soft" />
           {t('install.iosHintAfter')}

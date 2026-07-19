@@ -42,13 +42,14 @@ self.addEventListener('message', (e) => {
   if (e.data?.type === 'GET_VERSION') e.ports[0]?.postMessage(APP_VERSION)
 })
 
-// --- Web Push: danger near home (backend app/pipeline/home_push.py). The
-// payload is fully server-composed («Допоміжно:» wording per the notification
-// policy); one tag per track + renotify so an escalation REPLACES the earlier
-// warning notification instead of stacking.
+// --- Web Push: danger near home + the city-wide alert (backend
+// app/pipeline/home_push.py). The payload is fully server-composed
+// («Допоміжно:» wording per the notification policy); one tag per track +
+// renotify so an escalation REPLACES the earlier warning notification
+// instead of stacking.
 self.addEventListener('push', (e) => {
   const data = e.data?.json()
-  if (data?.kind !== 'home-danger') return
+  if (data?.kind !== 'home-danger' && data?.kind !== 'citywide') return
   e.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,

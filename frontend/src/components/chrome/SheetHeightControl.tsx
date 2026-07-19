@@ -17,7 +17,7 @@ export default function SheetHeightControl() {
     <div className="mt-2 rounded-xl border border-white/[0.05] bg-white/[0.02] p-3 lg:hidden">
       <div className="mb-2.5 flex items-center gap-2">
         <PanelBottom size={13} className="text-phosphor-soft/80" />
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
           {t('settings.sheetHeight')}
         </span>
       </div>
@@ -27,7 +27,7 @@ export default function SheetHeightControl() {
             key={opt}
             onClick={() => setSheetHeight(opt)}
             aria-pressed={sheetHeight === opt}
-            className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors duration-200 ${
+            className={`flex-1 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200 ${
               sheetHeight === opt
                 ? 'border border-phosphor/30 bg-phosphor/15 text-phosphor-soft'
                 : 'border border-transparent bg-white/[0.04] text-slate-400'

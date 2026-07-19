@@ -363,6 +363,8 @@ async def push_subscribe(body: PushSubscribeIn, session: AsyncSession = Depends(
     else:
         sub.p256dh = body.subscription.keys.p256dh
         sub.auth = body.subscription.keys.auth
+    if body.prefs is not None:
+        sub.prefs = body.prefs.model_dump()
     if body.home is not None:
         home_moved = (sub.home_lat, sub.home_lon) != (body.home.lat, body.home.lon)
         sub.home_lat = body.home.lat

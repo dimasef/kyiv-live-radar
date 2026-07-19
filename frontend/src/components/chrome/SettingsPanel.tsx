@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { safeGet, safeSet, STORAGE_KEYS } from '../../lib/storage'
+import FeedTextControl from './FeedTextControl'
 import HomeControl from './HomeControl'
 import InstallControl from './InstallControl'
 import NotifyControl from './NotifyControl'
@@ -52,10 +53,13 @@ export default function SettingsPanel({ defaultOpen = false }: Props) {
         }`}
       >
         <div className="overflow-hidden">
-          <div className="px-3 pb-3">
+          {/* Desktop: the expanded settings can outgrow the viewport — scroll
+              inside the panel (header stays visible) instead of clipping. */}
+          <div className="scroll-slim max-h-[60vh] overflow-y-auto px-3 pb-3 lg:max-h-[70vh]">
             <HomeControl />
             <NotifyControl />
             <SheetHeightControl />
+            <FeedTextControl />
             <InstallControl />
             <VersionInfo />
           </div>

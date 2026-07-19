@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -309,12 +309,24 @@ class HomeZoneIn(BaseModel):
     radius_km: float = 3.0
 
 
+class PushPrefsIn(BaseModel):
+    """Notification preferences (phase 1). Defaults reproduce the pre-0.10
+    behavior (warning floor, every type) plus the citywide push on."""
+
+    min_level: Literal["warning", "danger"] = "warning"
+    types: list[Literal["ballistic", "missile", "shahed", "jet_drone"]] = [
+        "ballistic", "missile", "shahed", "jet_drone",
+    ]
+    citywide: bool = True
+
+
 class PushSubscribeIn(BaseModel):
     """POST /push/subscribe body. Upsert by endpoint; re-POSTed on every home
-    change so the server copy of the home zone never goes stale."""
+    or prefs change so the server copy never goes stale."""
 
     subscription: BrowserSubscriptionIn
     home: Optional[HomeZoneIn] = None
+    prefs: Optional[PushPrefsIn] = None
 
 
 class PushUnsubscribeIn(BaseModel):

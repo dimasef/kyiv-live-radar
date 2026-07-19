@@ -86,7 +86,7 @@
     "directional": "Threat axis",
     "forecast": "Forecast",
     "status": "Status",
-    "ai": "AI · unverified"
+    "ai": "AI · analysis"
   },
   "status": {
     "impact": "incident"
@@ -124,6 +124,12 @@
       "low": "Low",
       "mid": "Mid",
       "high": "High"
+    },
+    "feedText": "Feed text size",
+    "feedTextSize": {
+      "sm": "Smaller",
+      "md": "Default",
+      "lg": "Larger"
     }
   },
   "install": {
@@ -141,12 +147,32 @@
     "needHome": "Set “My home” first — notifications are tied to your home zone.",
     "denied": "Notifications are blocked in the browser — allow them in the site settings.",
     "iosInstallFirst": "On iPhone notifications only work from the installed app (iOS 16.4+) — add it to the Home Screen first.",
-    "policy": "Supplementary alerts from volunteer data: a target near your home zone or on a course toward it. Never a replacement for the official air-raid alert."
+    "policy": "Supplementary alerts from volunteer data: a target near your home zone or on a course toward it. Never a replacement for the official air-raid alert.",
+    "prefs": {
+      "level": "When to notify",
+      "levels": {
+        "warning": "All levels",
+        "danger": "Danger only"
+      },
+      "levelHint": {
+        "warning": "Course-toward-home warnings + danger nearby",
+        "danger": "Only when a target is already near your home zone"
+      },
+      "types": "Which targets",
+      "type": {
+        "ballistic": "Ballistic",
+        "missile": "Missiles",
+        "drone": "Drones"
+      },
+      "citywide": "City-wide threat",
+      "citywideHint": "A target on Kyiv with no district fix — once per attack wave"
+    }
   },
   "update": {
     "available": "A new version is available",
     "reload": "Update",
-    "dismiss": "Later"
+    "dismiss": "Later",
+    "reloading": "Updating…"
   },
   "legendCtl": {
     "show": "Show legend",
@@ -163,7 +189,8 @@
     "geoDenied": "Geolocation denied — set home by clicking the map",
     "radius": "Radius",
     "clear": "Reset",
-    "district": "District"
+    "district": "District",
+    "km": "km"
   },
   "changelog": {
     "back": "Back to radar",

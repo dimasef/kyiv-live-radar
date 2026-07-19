@@ -68,5 +68,5 @@ export function bootstrapApp() {
   // Notifications opted in: re-register the still-live browser subscription so
   // the server's home copy heals from anything missed offline (home edited in
   // another tab, a wiped backend DB, ...).
-  if (store.notifyStatus === 'on') void resyncHomePush(store.home).catch(() => {})
+  if (store.notifyStatus === 'on') void resyncHomePush(store.home, store.notifyPrefs).catch(() => {})
 }

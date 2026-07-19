@@ -15,9 +15,24 @@ function initialSheetHeight(): SheetHeight {
   return SHEET_HEIGHTS.includes(saved as SheetHeight) ? (saved as SheetHeight) : 'mid'
 }
 
+/** Event-feed text scale. Applied as CSS zoom on the feed list, so cards and
+ * spacing scale together — not just the letterforms. */
+export type FeedTextSize = 'sm' | 'md' | 'lg'
+
+const FEED_TEXT_SIZES: FeedTextSize[] = ['sm', 'md', 'lg']
+
+export const FEED_ZOOM: Record<FeedTextSize, number> = { sm: 0.85, md: 1, lg: 1.15 }
+
+function initialFeedTextSize(): FeedTextSize {
+  const saved = safeGet(STORAGE_KEYS.feedTextSize)
+  return FEED_TEXT_SIZES.includes(saved as FeedTextSize) ? (saved as FeedTextSize) : 'md'
+}
+
 export interface PrefsSlice {
   sheetHeight: SheetHeight
   setSheetHeight: (h: SheetHeight) => void
+  feedTextSize: FeedTextSize
+  setFeedTextSize: (s: FeedTextSize) => void
 }
 
 export const createPrefsSlice: StateCreator<RadarState, [], [], PrefsSlice> = (set) => ({
@@ -25,5 +40,10 @@ export const createPrefsSlice: StateCreator<RadarState, [], [], PrefsSlice> = (s
   setSheetHeight: (h) => {
     safeSet(STORAGE_KEYS.sheetHeight, h)
     set({ sheetHeight: h })
+  },
+  feedTextSize: initialFeedTextSize(),
+  setFeedTextSize: (s) => {
+    safeSet(STORAGE_KEYS.feedTextSize, s)
+    set({ feedTextSize: s })
   },
 })

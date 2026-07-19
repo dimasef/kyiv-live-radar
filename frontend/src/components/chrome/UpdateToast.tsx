@@ -1,4 +1,4 @@
-import { X } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useRegisterSW } from 'virtual:pwa-register/react'
@@ -33,6 +33,9 @@ export default function UpdateToast() {
     },
   })
   const [nextVersion, setNextVersion] = useState<string | null>(null)
+  // Clicking reload takes a few seconds (SW activation + full page reload) —
+  // without feedback it reads as a dead button.
+  const [updating, setUpdating] = useState(false)
 
   // Ask the waiting SW (the freshly-installed new build) which version it is.
   useEffect(() => {
@@ -68,8 +71,16 @@ export default function UpdateToast() {
           v{nextVersion}
         </span>
       )}
-      <button className="btn btn--accent text-xs" onClick={() => updateServiceWorker(true)}>
-        {t('update.reload')}
+      <button
+        className="btn btn--accent flex items-center gap-1.5 text-xs"
+        disabled={updating}
+        onClick={() => {
+          setUpdating(true)
+          void updateServiceWorker(true)
+        }}
+      >
+        {updating && <Loader2 size={13} className="animate-spin" />}
+        {updating ? t('update.reloading') : t('update.reload')}
       </button>
       <button
         className="flex h-6 w-6 flex-none items-center justify-center rounded-full text-slate-400 transition-colors duration-200 hover:bg-white/10 hover:text-slate-100"

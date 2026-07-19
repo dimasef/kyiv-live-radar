@@ -42,7 +42,7 @@ export const createHomeSlice: StateCreator<RadarState, [], [], HomeSlice> = (set
     set({ home: h })
     // Keep the push subscription's server-side home zone in sync (no-op when
     // notifications are off) — the backend assesses danger against ITS copy.
-    if (get().notifyStatus === 'on') void resyncHomePush(h).catch(() => {})
+    if (get().notifyStatus === 'on') void resyncHomePush(h, get().notifyPrefs).catch(() => {})
   },
   setHomeRadius: (radiusKm) => {
     const cur = get().home
@@ -50,7 +50,7 @@ export const createHomeSlice: StateCreator<RadarState, [], [], HomeSlice> = (set
     const next = { ...cur, radiusKm }
     safeSet(STORAGE_KEYS.home, JSON.stringify(next))
     set({ home: next })
-    if (get().notifyStatus === 'on') void resyncHomePush(next).catch(() => {})
+    if (get().notifyStatus === 'on') void resyncHomePush(next, get().notifyPrefs).catch(() => {})
   },
   setPlacingHome: (v) => set({ placingHome: v }),
 })

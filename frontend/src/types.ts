@@ -108,7 +108,7 @@ export interface Notice {
   source_name: string | null
   /** Curated origin key for a directional notice (else null). */
   origin: string | null
-  /** 'rule' (authoritative) | 'llm' (shown with an "AI · неперевірено" badge). */
+  /** 'rule' (authoritative) | 'llm' (shown with an "AI · аналіз" badge). */
   generated_by: 'rule' | 'llm'
 }
 

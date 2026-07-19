@@ -373,6 +373,33 @@ body::after {
   }
 }
 
+/* District boundaries are interactive only for the hover highlight + name —
+   keep the map's grab cursor instead of leaflet's default pointer. The hover
+   fill overrides leaflet's inline SVG presentation attributes via CSS. */
+.district-hit {
+  cursor: grab;
+  transition: fill-opacity 0.15s ease;
+}
+.district-hit:hover {
+  fill: #64748b;
+  fill-opacity: 0.08;
+}
+/* District name label: bare quiet text at the raion center, no tooltip chrome. */
+.leaflet-tooltip.district-label {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none;
+  color: #8fa3b5 !important;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.9),
+    0 0 10px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+}
+
 /* Home-placement mode: crosshair cursor over the whole map. */
 .placing-home.leaflet-container,
 .placing-home .leaflet-grab,

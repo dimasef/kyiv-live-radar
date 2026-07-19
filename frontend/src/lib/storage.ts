@@ -8,8 +8,10 @@ export const STORAGE_KEYS = {
   lang: 'klr-lang',
   installDismiss: 'klr-install-dismiss',
   sheetHeight: 'klr-sheet-height',
+  feedTextSize: 'klr-feed-text',
   geoAsked: 'klr-geo-asked',
   notify: 'klr-notify',
+  notifyPrefs: 'klr-notify-prefs',
 } as const
 
 /** Reads a localStorage value, swallowing errors (private-browsing/quota/etc.

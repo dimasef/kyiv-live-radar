@@ -47,6 +47,19 @@ _TITLES = {
 }
 
 
+def _sub_prefs(sub: PushSubscription) -> tuple[DangerLevel, set[str], bool]:
+    """Normalize a subscription's stored prefs — the single place absent keys
+    get their permissive defaults (warning floor, all types, citywide on).
+    `unknown` targets always pass the type filter: an untyped track can still
+    be the most dangerous thing in the sky, and filtering it out silently is
+    the one mistake this feature must not make."""
+    prefs = sub.prefs or {}
+    min_level = DangerLevel.DANGER if prefs.get("min_level") == "danger" else DangerLevel.WARNING
+    types = set(prefs.get("types") or ("ballistic", "missile", "shahed", "jet_drone"))
+    types.add("unknown")
+    return min_level, types, bool(prefs.get("citywide", True))
+
+
 async def evaluate_home_danger(session, threat: Threat) -> None:
     """Assess one broadcast track against every subscription's home zone and
     push on escalation. Requires threat.events with districts eager-loaded
@@ -54,11 +67,15 @@ async def evaluate_home_danger(session, threat: Threat) -> None:
     if not (settings.home_danger_enabled and settings.push_configured):
         return
     if threat.scope == "city":
+        await _evaluate_citywide(session, threat)
         return
     subs = list(await session.scalars(select(PushSubscription)))
     any_changed = False
     for sub in subs:
         if sub.home_lat is None or sub.home_lon is None:
+            continue
+        min_level, allowed_types, _ = _sub_prefs(sub)
+        if threat.target_type not in allowed_types:
             continue
         home = HomeZone(
             lat=sub.home_lat,
@@ -81,8 +98,10 @@ async def evaluate_home_danger(session, threat: Threat) -> None:
                 del sub.danger_state[key]
                 changed = True
         else:
-            should_push = level > prev_level and (
-                level > max_pushed or _cooldown_passed(prev.get("pushed_at"))
+            should_push = (
+                level >= min_level  # the sub's escalation floor ("тільки небезпека")
+                and level > prev_level
+                and (level > max_pushed or _cooldown_passed(prev.get("pushed_at")))
             )
             if should_push:
                 payload = build_payload(level, threat, home)
@@ -138,6 +157,52 @@ def build_payload(level: DangerLevel, threat: Threat, home: HomeZone) -> dict:
         "body": f"{label}{approx}{where}. Волонтерські дані — не офіційна тривога.",
         "url": "/",
     }
+
+
+async def _evaluate_citywide(session, threat: Threat) -> None:
+    """Push once per city-wide alert track to every subscription that opted in
+    («загроза по всьому місту»). No zone geometry — the whole city is the zone;
+    a home is not even required. Deduped per (subscription, track) via the same
+    danger_state bookkeeping (key "city:<id>"), so the grace-period reopen of a
+    stood-down alert does NOT re-push; a genuinely new salvo has a new track."""
+    subs = list(await session.scalars(select(PushSubscription)))
+    any_changed = False
+    for sub in subs:
+        _, allowed_types, citywide_on = _sub_prefs(sub)
+        key = f"city:{threat.id}"
+        changed = False
+        if threat.closed_at is not None:
+            if key in sub.danger_state:
+                del sub.danger_state[key]
+                changed = True
+        elif (
+            citywide_on
+            and threat.target_type in allowed_types
+            and key not in sub.danger_state
+            # Own cooldown against the previous CITYWIDE push only — a recent
+            # home push must never swallow the city-level signal.
+            and _cooldown_passed(sub.danger_state.get("city_last_push"))
+        ):
+            label = _TYPE_LABEL.get(threat.target_type, _TYPE_LABEL["unknown"])
+            await _send(session, sub, {
+                "kind": "citywide",
+                "level": "danger",
+                "threat_id": threat.id,
+                "tag": f"klr-city-{threat.id}",
+                "title": f"‼️ Загроза по всьому місту: {label.lower()}",
+                "body": "Допоміжно: ціль на Київ без прив'язки до району. "
+                        "Волонтерські дані — не офіційна тривога.",
+                "url": "/",
+            })
+            sub.last_push_at = utcnow()
+            sub.danger_state[key] = {"pushed_at": utcnow().isoformat()}
+            sub.danger_state["city_last_push"] = utcnow().isoformat()
+            changed = True
+        if changed:
+            flag_modified(sub, "danger_state")
+            any_changed = True
+    if any_changed:
+        await session.commit()
 
 
 def _head_event(threat: Threat):

@@ -32,12 +32,25 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = '0.9.4'
+const LATEST = '0.10.0'
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: 'Гнучкі сповіщення, назви районів, розмір тексту',
+    date: '2026-07-19',
+    kind: 'minor',
+    changes: [
+      'Сповіщення тепер налаштовуються: поріг («усі рівні» чи «лише небезпека»), типи цілей (балістика / ракети / дрони) і окремо — «загроза по всьому місту»',
+      'Новий пуш «загроза по всьому місту»: «Балістика на Київ» тепер приходить сповіщенням навіть без прив’язки до району — раз на хвилю атаки, без повторів',
+      'Наведення на район на мапі легенько підсвічує його і показує назву в межах району',
+      'У налаштуваннях зʼявився розмір тексту стрічки подій: менший / стандарт / більший',
+      'Бейдж AI-подій перейменовано з «AI · неперевірено» на «AI · аналіз»',
+    ],
+  },
+  {
+    version: '0.9.4',
     title: 'Уроки масованої балістичної атаки 18.07: типи цілей',
     date: '2026-07-19',
     kind: 'patch',

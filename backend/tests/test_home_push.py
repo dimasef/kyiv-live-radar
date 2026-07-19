@@ -235,13 +235,60 @@ async def test_closed_track_prunes_state(ctx, sent):
     assert str(t.id) not in sub.danger_state
 
 
-async def test_citywide_is_ignored(ctx, sent):
+async def test_citywide_pushes_once_per_track(ctx, sent):
+    # Default prefs: the city-wide alert pushes — once per track, so repeated
+    # corroborations (and a grace-period reopen, same id) never re-push.
     s, sub = ctx
     inside = await _mk_district(s, 0)
     t = await _mk_threat(s, target_type="ballistic", scope="city")
     await _add_event(s, t, inside, 0)
     await evaluate_home_danger(s, await _load_threat(s, t.id))
+    await evaluate_home_danger(s, await _load_threat(s, t.id))
+    assert len(sent) == 1 and sent[0]["kind"] == "citywide"
+
+
+async def test_citywide_opt_out_is_silent(ctx, sent):
+    s, sub = ctx
+    sub.prefs = {"citywide": False}
+    await s.commit()
+    inside = await _mk_district(s, 0)
+    t = await _mk_threat(s, target_type="ballistic", scope="city")
+    await _add_event(s, t, inside, 0)
+    await evaluate_home_danger(s, await _load_threat(s, t.id))
     assert sent == []
+
+
+async def test_type_filter_skips_disallowed_home_push(ctx, sent):
+    # «тільки балістика»: a shahed near home stays silent, a ballistic pushes.
+    s, sub = ctx
+    sub.prefs = {"types": ["ballistic"]}
+    await s.commit()
+    inside = await _mk_district(s, 0)
+    t = await _mk_threat(s, target_type="shahed")
+    await _add_event(s, t, inside, 0)
+    await evaluate_home_danger(s, await _load_threat(s, t.id))
+    assert sent == []
+    tb = await _mk_threat(s, target_type="ballistic")
+    await _add_event(s, tb, inside, 0)
+    await evaluate_home_danger(s, await _load_threat(s, tb.id))
+    assert len(sent) == 1
+
+
+async def test_danger_only_floor_skips_warning(ctx, sent):
+    # min_level=danger: the approach WARNING stays silent; the close-in DANGER
+    # still pushes even though warning was never sent.
+    s, sub = ctx
+    sub.prefs = {"min_level": "danger"}
+    await s.commit()
+    far = await _mk_district(s, 9)     # warning band
+    near = await _mk_district(s, 1)    # danger band
+    t = await _mk_threat(s, target_type="shahed")
+    await _add_event(s, t, far, 0)
+    await evaluate_home_danger(s, await _load_threat(s, t.id))
+    assert sent == []
+    await _add_event(s, t, near, 1)
+    await evaluate_home_danger(s, await _load_threat(s, t.id))
+    assert len(sent) == 1 and sent[0]["level"] == "danger"
 
 
 async def test_unconfigured_push_is_silent_noop(ctx, sent, monkeypatch):

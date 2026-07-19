@@ -49,14 +49,14 @@ export default function HomeControl() {
   return (
     <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-3">
       <div className="mb-2.5 flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+        <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
           <Home size={13} className="flex-none text-phosphor-soft/80" />
           {t('home.title')}
         </span>
         {home && (
           <button
             onClick={() => setHome(null)}
-            className="text-[11px] text-slate-500 underline decoration-slate-600 underline-offset-2 transition-colors hover:text-slate-200"
+            className="text-xs text-slate-500 underline decoration-slate-600 underline-offset-2 transition-colors hover:text-slate-200"
           >
             {t('home.clear')}
           </button>
@@ -66,18 +66,18 @@ export default function HomeControl() {
       {home ? (
         <>
           <div className="flex items-baseline justify-between gap-2">
-            <span className="font-mono text-xs text-phosphor-soft">
+            <span className="font-mono text-[13px] text-phosphor-soft">
               {home.lat.toFixed(4)}, {home.lon.toFixed(4)}
             </span>
             {homeDistrict && (
-              <span className="truncate text-[11px] text-slate-400">
+              <span className="truncate text-xs text-slate-400">
                 {homeDistrict}
               </span>
             )}
           </div>
-          <label className="mt-2.5 flex items-baseline justify-between text-[11px] text-slate-400">
+          <label className="mt-2.5 flex items-baseline justify-between text-xs text-slate-400">
             <span>{t('home.radius')}</span>
-            <span className="font-mono text-slate-200">{home.radiusKm} km</span>
+            <span className="font-mono text-slate-200">{home.radiusKm} {t('home.km')}</span>
           </label>
           <input
             type="range"
@@ -91,7 +91,7 @@ export default function HomeControl() {
           />
         </>
       ) : (
-        <div className="text-xs text-slate-500">{t('home.notSet')}</div>
+        <div className="text-[13px] text-slate-500">{t('home.notSet')}</div>
       )}
 
       <div className="mt-3 grid grid-cols-2 gap-1.5">
@@ -116,7 +116,7 @@ export default function HomeControl() {
         </button>
       </div>
       {(placingHome || denied) && (
-        <p className="mt-1.5 text-[11px] leading-snug text-slate-500">
+        <p className="mt-1.5 text-xs leading-snug text-slate-500">
           {placingHome ? t('home.placing') : t('home.geoDenied')}
         </p>
       )}

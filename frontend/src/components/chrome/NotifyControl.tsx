@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { fetchPushConfig } from '../../api'
 import { useRadar } from '../../store'
+import NotifyPrefsControl from './NotifyPrefsControl'
 
 const isStandalone = () =>
   window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true
@@ -45,36 +46,39 @@ export default function NotifyControl() {
   return (
     <div className="mt-2.5 rounded-xl border border-white/[0.05] bg-white/[0.02] p-3">
       <div className="mb-2.5 flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+        <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
           <BellRing size={13} className="flex-none text-phosphor-soft/80" />
           {t('notify.title')}
         </span>
       </div>
 
       {iosNeedsInstall ? (
-        <p className="text-[11px] leading-snug text-slate-500">{t('notify.iosInstallFirst')}</p>
+        <p className="text-xs leading-snug text-slate-500">{t('notify.iosInstallFirst')}</p>
       ) : notifyStatus === 'denied' ? (
-        <p className="text-[11px] leading-snug text-slate-500">{t('notify.denied')}</p>
+        <p className="text-xs leading-snug text-slate-500">{t('notify.denied')}</p>
       ) : !home ? (
-        <p className="text-[11px] leading-snug text-slate-500">{t('notify.needHome')}</p>
+        <p className="text-xs leading-snug text-slate-500">{t('notify.needHome')}</p>
       ) : (
-        <button
-          onClick={() => void (on ? disableNotify() : enableNotify())}
-          disabled={notifyStatus === 'pending'}
-          className={`btn flex w-full items-center justify-center gap-1.5 ${
-            on ? 'btn--warn' : 'btn--accent'
-          }`}
-        >
-          {on ? <BellOff size={13} /> : <Bell size={13} />}
-          {notifyStatus === 'pending'
-            ? t('notify.pending')
-            : on
-              ? t('notify.disable')
-              : t('notify.enable')}
-        </button>
+        <>
+          <button
+            onClick={() => void (on ? disableNotify() : enableNotify())}
+            disabled={notifyStatus === 'pending'}
+            className={`btn flex w-full items-center justify-center gap-1.5 ${
+              on ? 'btn--warn' : 'btn--accent'
+            }`}
+          >
+            {on ? <BellOff size={13} /> : <Bell size={13} />}
+            {notifyStatus === 'pending'
+              ? t('notify.pending')
+              : on
+                ? t('notify.disable')
+                : t('notify.enable')}
+          </button>
+          {on && <NotifyPrefsControl />}
+        </>
       )}
 
-      <p className="mt-2 text-[11px] leading-snug text-slate-500">{t('notify.policy')}</p>
+      <p className="mt-2.5 text-xs leading-snug text-slate-500">{t('notify.policy')}</p>
     </div>
   )
 }

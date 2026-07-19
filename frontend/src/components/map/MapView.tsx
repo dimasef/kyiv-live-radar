@@ -3,7 +3,6 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Circle,
-  GeoJSON,
   MapContainer,
   Marker,
   TileLayer,
@@ -15,8 +14,9 @@ import { useRadar } from "../../store";
 import { HOME_COLOR, HOME_DANGER_COLORS } from "../../theme";
 import AxisLayer from "./AxisLayer";
 import CitywidePulse from "./CitywidePulse";
-import { KYIV_BOUNDS, DISTRICT_STYLE } from "./constants";
+import { KYIV_BOUNDS } from "./constants";
 import { HomeController, InspectController, ResizeHandler } from "./controllers";
+import DistrictLayer from "./DistrictLayer";
 import IncidentHighlight from "./IncidentHighlight";
 import MapLegend from "./MapLegend";
 import ThreatLayer from "./ThreatLayer";
@@ -73,11 +73,9 @@ export default function MapView() {
           maxZoom={20}
         />
 
-        {/* Real OSM raion boundaries — a non-interactive context layer: clicks
-            pass through to the map (pan / home placement) and no focus outline. */}
-        {boundaries.map((b) => (
-          <GeoJSON key={b.id} data={b.geojson} style={DISTRICT_STYLE} interactive={false} />
-        ))}
+        {/* Real OSM raion boundaries with hover name tooltips; clicks bubble
+            through to the map (pan / home placement). */}
+        <DistrictLayer />
         {/* Attack heat (raions under an active incident) + city-wide pulse layer
             over the inert base boundaries. */}
         <IncidentHighlight />

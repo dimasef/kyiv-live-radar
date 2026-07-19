@@ -2,6 +2,7 @@ import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useRadar } from '@/store'
+import { FEED_ZOOM } from '@/store/prefsSlice'
 
 import AttackSummaryCard from './AttackSummaryCard'
 import ClosedGroupCard from './ClosedGroupCard'
@@ -15,6 +16,7 @@ export default function ThreatLog() {
   const log = useRadar((s) => s.log)
   const notices = useRadar((s) => s.notices)
   const recentIncidents = useRadar((s) => s.recentIncidents)
+  const feedTextSize = useRadar((s) => s.feedTextSize)
   const timeline = buildTimeline(log, notices, recentIncidents)
 
   return (
@@ -27,7 +29,12 @@ export default function ThreatLog() {
           <div className="font-mono text-xs text-slate-500">{t('log.empty')}</div>
         </div>
       ) : (
-        <ul className="scroll-slim min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
+        <ul
+          className="scroll-slim min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1"
+          // CSS zoom (not font-size): the cards' text uses absolute Tailwind
+          // sizes, so only zoom scales text and layout together.
+          style={{ zoom: FEED_ZOOM[feedTextSize] }}
+        >
           {timeline.map((item, i) => {
             const dayKey = kyivDayKey(new Date(item.time))
             const prevDayKey = i > 0 ? kyivDayKey(new Date(timeline[i - 1].time)) : null

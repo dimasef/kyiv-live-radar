@@ -393,6 +393,11 @@ class PushSubscription(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
+    # Notification preferences: {"min_level": "warning"|"danger",
+    # "types": [target_type, ...], "citywide": bool}. Absent keys mean the
+    # permissive default (warning floor, all types, citywide on) — see
+    # home_push._sub_prefs for the single normalization point.
+    prefs: Mapped[dict] = mapped_column(JSON, default=dict)
     # Per-track danger bookkeeping so pushes fire on level ESCALATION only:
     # {str(threat_id): {"level": int, "max_pushed": int, "pushed_at": iso|None}}.
     # In DB (not memory) so a Railway redeploy mid-attack doesn't re-push
