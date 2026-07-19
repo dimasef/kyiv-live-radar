@@ -873,3 +873,141 @@ async def test_night_forecast_does_not_open_citywide_track(ctx):
     await ingest_message(s, text="🚀 Балістика на Київ!", matcher=m,
                          when=BASE + timedelta(hours=2), source_id=src[0].id, message_id=2)
     assert await _count_threats(s) == 1
+
+
+# --- 07-18 postmortem: «Чисто» stand-down + grace-period reopen + incident type fallback ---
+
+
+async def test_chysto_is_a_stand_down(ctx):
+    # «Чисто!» = spotter shorthand for дорозвідка (confirmed semantics) — closes
+    # open tracks as a stand-down, not dropped as "не про загрозу".
+    s, m, src = ctx
+    await ingest_message(s, text="🔴 Шахед над Оболонню", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Чисто!", matcher=m,
+                         when=BASE + timedelta(minutes=1), source_id=src[0].id, message_id=2)
+    t = await s.scalar(select(Threat))
+    assert t.closed_at is not None and t.closed_reason == "stand_down"
+
+
+async def test_chysto_scoped_to_other_oblast_is_not_a_stand_down(ctx):
+    # «По Житомирщині чисто поки» is about Zhytomyr — Kyiv tracks stay open.
+    s, m, src = ctx
+    await ingest_message(s, text="🔴 Шахед над Оболонню", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="По Житомирщині чисто поки. Але можуть дійти звуки.",
+                         matcher=m, when=BASE + timedelta(minutes=1),
+                         source_id=src[0].id, message_id=2)
+    t = await s.scalar(select(Threat))
+    assert t.closed_at is None
+
+
+async def test_pulse_reopens_citywide_after_standdown_within_grace(ctx):
+    # The 07-18 hole: stand-down closed the city-wide sentinel and the next
+    # salvo's terse pulses fell into nothing. Within the grace window a pulse
+    # now REOPENS the same alert instead.
+    s, m, src = ctx
+    await ingest_message(s, text="БАЛІСТИКА НА КИЇВ", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Дорозвідка!", matcher=m,
+                         when=BASE + timedelta(minutes=1), source_id=src[0].id, message_id=2)
+    await ingest_message(s, text="Ще ціль", matcher=m,
+                         when=BASE + timedelta(minutes=3), source_id=src[0].id, message_id=3)
+    citywide = list(await s.scalars(select(Threat).where(Threat.scope == "city")))
+    assert len(citywide) == 1
+    assert citywide[0].closed_at is None and citywide[0].status == "tracking"
+
+
+async def test_citywide_callout_reopens_stood_down_alert(ctx):
+    # A typed "на Київ" callout right after a stand-down continues the SAME
+    # alert card, not a duplicate one.
+    s, m, src = ctx
+    await ingest_message(s, text="БАЛІСТИКА НА КИЇВ", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Чисто!", matcher=m,
+                         when=BASE + timedelta(minutes=1), source_id=src[0].id, message_id=2)
+    await ingest_message(s, text="Увага на Київ!", matcher=m,
+                         when=BASE + timedelta(minutes=2), source_id=src[0].id, message_id=3)
+    citywide = list(await s.scalars(select(Threat).where(Threat.scope == "city")))
+    assert len(citywide) == 1 and citywide[0].closed_at is None
+
+
+async def test_pulse_after_grace_window_does_not_reopen(ctx):
+    # Past the grace window the stand-down is final for that alert — a lone
+    # pulse has nothing to corroborate and stays dropped.
+    s, m, src = ctx
+    await ingest_message(s, text="БАЛІСТИКА НА КИЇВ", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Дорозвідка!", matcher=m,
+                         when=BASE + timedelta(minutes=1), source_id=src[0].id, message_id=2)
+    await ingest_message(s, text="Ще ціль", matcher=m,
+                         when=BASE + timedelta(minutes=15), source_id=src[0].id, message_id=3)
+    citywide = list(await s.scalars(select(Threat).where(Threat.scope == "city")))
+    assert len(citywide) == 1 and citywide[0].closed_at is not None
+
+
+async def test_mixed_dorozvidka_with_directional_raises_axis_not_standdown(ctx):
+    # «Дорозвідка триває, але паралельно триває загроза балістики з Брянщини…»
+    # carries a live directional threat — the axis wins; tracks are not closed.
+    s, m, src = ctx
+    await ingest_message(s, text="🔴 Шахед над Оболонню", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(
+        s, text="Дорозвідка триває, але паралельно триває загроза балістики з Брянщини, "
+                "Курщини та з району Ростова.",
+        matcher=m, when=BASE + timedelta(minutes=1), source_id=src[0].id, message_id=2)
+    t = await s.scalar(select(Threat))
+    assert t.closed_at is None
+    assert await s.scalar(select(func.count()).select_from(ThreatAxis)) >= 1
+
+
+async def test_untyped_sighting_inherits_open_incident_type_cross_channel(ctx):
+    # 07-18: the per-channel 5-min window kept expiring during the toponym
+    # barrage while the OTHER channel was shouting «балістика» — 12 tracks
+    # landed as "unknown". During a live attack an untyped sighting now falls
+    # back to the open incident's dominant type.
+    s, m, src = ctx
+    await ingest_message(s, text="БАЛІСТИКА НА КИЇВ", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Нивки", matcher=m,
+                         when=BASE + timedelta(minutes=6), source_id=src[1].id, message_id=2)
+    nyvky = await s.scalar(select(Threat).where(Threat.scope != "city"))
+    assert nyvky is not None and nyvky.target_type == "ballistic"
+
+
+async def test_ballistic_enumeration_splits_into_one_track_per_district(ctx):
+    # Mid-ballistic-salvo «Вишневе Жуляни» = two simultaneous targets, not one
+    # route — each gets its own track (on 07-18 the glued track zigzagged and
+    # stole later single-district callouts via corroboration).
+    s, m, src = ctx
+    await ingest_message(s, text="Балістика!", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Вишневе Жуляни", matcher=m,
+                         when=BASE + timedelta(minutes=1), source_id=src[0].id, message_id=2)
+    assert await _count_threats(s) == 2
+    # A follow-up single-district callout corroborates ITS track, no new one.
+    await ingest_message(s, text="Жуляни!", matcher=m,
+                         when=BASE + timedelta(minutes=2), source_id=src[1].id, message_id=3)
+    assert await _count_threats(s) == 2
+
+
+async def test_drone_enumeration_stays_one_track(ctx):
+    # On a drone night the same shape is usually ONE drone meandering between
+    # adjacent raions — enumeration split is ballistic-only (track-eval-tuned:
+    # splitting drone enumerations cost 16 points of session purity).
+    s, m, src = ctx
+    await ingest_message(s, text="Шахед в небі", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Троєщина, Оболонь", matcher=m,
+                         when=BASE + timedelta(minutes=1), source_id=src[0].id, message_id=2)
+    threats = list(await s.scalars(select(Threat).where(Threat.scope != "city")))
+    assert len(threats) == 1
+
+
+async def test_movement_frame_stays_one_track(ctx):
+    # «курсом через …» is a route (the vector case) — one track even for a
+    # ballistic-typed message, ordered multi-district events.
+    s, m, src = ctx
+    await ingest_message(s, text="Балістика проходить Троєщину, курсом через Оболонь",
+                         matcher=m, when=BASE, source_id=src[0].id, message_id=1)
+    assert await _count_threats(s) == 1

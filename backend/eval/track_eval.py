@@ -28,7 +28,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sqlalchemy import select  # noqa: E402
 
 from app.db import SessionLocal  # noqa: E402
-from app.models import Source, ThreatEvent  # noqa: E402
+from app.models import District, RawMessage, Source, Threat, ThreatEvent  # noqa: E402
+from app.parsing import DistrictMatcher, parse_message  # noqa: E402
 
 GT_FILE = Path(__file__).parent / "ground_truth_sessions.json"
 
@@ -44,14 +45,44 @@ async def _load_maps():
     async with SessionLocal() as s:
         sources = list(await s.scalars(select(Source)))
         events = list(await s.scalars(select(ThreatEvent)))
+        districts = list(await s.scalars(select(District)))
+        raws = list(await s.scalars(select(RawMessage)))
+        threats = list(await s.scalars(select(Threat)))
 
     name_by_source_id = {src.id: src.name for src in sources}
+    # The city-wide sentinel is the "attack on the city" banner — inherently
+    # multi-target, not a per-target track. A terse pulse («Увага ракета!»)
+    # corroborating it makes no claim about target identity, so city-scope
+    # tracks are excluded from session attribution (same rationale as the
+    # stand-down bookkeeping events below).
+    city_track_ids = {t.id for t in threats if t.scope == "city"}
+
+    # A stand-down message («Дорозвідка!», «Чисто!») fans a CLOSING event onto
+    # every open track — bookkeeping so the feed shows why tracks ended, not a
+    # localization claim. Counting those tracks would "split" any session that
+    # contains its own stand-down across every track open at that moment, so
+    # events born from a lost-signal message are excluded from attribution.
+    matcher = DistrictMatcher(districts)
+    text_by_key: dict[tuple[int, int], str] = {
+        (r.source_id, r.message_id): r.text
+        for r in raws
+        if r.source_id is not None and r.message_id is not None
+    }
+    lost_keys = {
+        key for key, text in text_by_key.items()
+        if parse_message(text, matcher).lost_signal
+    }
 
     key_to_threat_ids: dict[tuple[str, int], set[int]] = defaultdict(set)
     for e in events:
         name = name_by_source_id.get(e.source_id)
-        if name is not None and e.source_message_id is not None:
-            key_to_threat_ids[(name, e.source_message_id)].add(e.threat_id)
+        if name is None or e.source_message_id is None:
+            continue
+        if (e.source_id, e.source_message_id) in lost_keys:
+            continue
+        if e.threat_id in city_track_ids:
+            continue
+        key_to_threat_ids[(name, e.source_message_id)].add(e.threat_id)
     return key_to_threat_ids
 
 

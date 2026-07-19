@@ -64,6 +64,14 @@ class Settings(BaseSettings):
     # ~1-2 min). Below 3 the metric reverses — starts cutting genuine matches.
     corroboration_window_minutes: int = 3
 
+    # A stand-down ("Дорозвідка!", "Чисто!") closes the city-wide alert — but
+    # during a multi-wave ballistic night the next salvo follows within a
+    # couple of minutes, and its terse pulses ("Ще ціль") then had nothing to
+    # corroborate (the 07-18 hole: 22:40:55 stand-down dropped every pulse
+    # until a new "на Київ" at 22:43:18). A pulse or city-wide callout within
+    # this grace window REOPENS the stood-down city alert instead.
+    standdown_grace_minutes: int = 3
+
     # Cross-message target-type inheritance (per channel): the rule parser is
     # per-message and stateless, but spotters routinely state the TYPE in one
     # post ("Балістика!", "3 ракети") and the LOCATION in the next bare-toponym
@@ -252,9 +260,12 @@ class Settings(BaseSettings):
 
     # --- Rescue path (app/pipeline/triage.py::_route_rescue) — the riskiest
     #     consumer: an LLM verdict re-injecting a suppressed message as a live
-    #     track. Ships DISABLED; dark-launch by watching triage_action=
-    #     'rescue_candidate' on /raw for a few real nights, then enable. ---
-    triage_rescue_enabled: bool = False
+    #     track. Dark-launched 07-17, enabled after auditing the 07-18 mass
+    #     attack: 9 rescue_candidates that night, and the 0.75 confidence gate
+    #     passed exactly the two correct ones (the Шевченківський residential
+    #     impact at 0.95 and «Заліт у місто балістики» at 0.9) while filtering
+    #     all seven noisy recaps/vague callouts (0.5-0.7). ---
+    triage_rescue_enabled: bool = True
     triage_rescue_min_confidence: float = 0.75
     # A rescue older than this is notice-only (a track born past the stale window
     # would be closed by the sweeper on its next tick — pointless). Capped at the

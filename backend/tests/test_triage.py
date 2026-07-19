@@ -123,10 +123,11 @@ async def test_route_stale_verdict_is_audit_only(ctx):
     assert await session.scalar(select(func.count()).select_from(ThreatAxis)) == 0
 
 
-async def test_localized_verdict_is_rescue_candidate_when_disabled(ctx):
+async def test_localized_verdict_is_rescue_candidate_when_disabled(ctx, monkeypatch):
+    # The kill-switch still works: with rescue off (it ships ENABLED since the
+    # 07-18 audit) a qualifying verdict is only recorded, never acted on.
     session, _ = ctx
-    monkey_off = settings.triage_rescue_enabled
-    assert monkey_off is False  # ships disabled
+    monkeypatch.setattr(settings, "triage_rescue_enabled", False)
     raw, job = await _raw_job(session, "ціль над оболонню")
     verdict = make_verdict(category="localized", surface=True, district_ids=[1],
                            target_type="shahed", confidence=0.9)

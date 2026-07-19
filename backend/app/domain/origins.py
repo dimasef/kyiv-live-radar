@@ -126,11 +126,17 @@ _OBLAST_ALT_ANY = "|".join(sorted(map(re.escape, _OTHER_OBLAST), key=len, revers
 # Any other-oblast mention.
 _OBLAST_ANY_RE = re.compile(r"(?<![а-яіїєґ])(?:" + _OBLAST_ALT_ANY + r")")
 # An other-oblast in ORIGIN position ("з боку Сумщини", "з району Ростова"). Same
-# from-preposition + bridge shape as _FROM_PREFIX above.
+# from-preposition + bridge shape as _FROM_PREFIX above. One preposition can
+# govern a coordinated LIST ("загроза балістики з Брянщини, Курщини та з району
+# Ростова" — all three are origins) — the tail alternation swallows the
+# continuation so those oblasts count as origin-form too.
+_OBLAST_BRIDGE = r"(?:боку\s+|напрямку\s+|району\s+|р-ну\s+|межах\s+|межа\w*\s+)?"
 _OBLAST_ORIGIN_RE = re.compile(
     r"(?<![а-яіїєґ])(?:з|зі|із|від)\s+"
-    r"(?:боку\s+|напрямку\s+|району\s+|р-ну\s+|межах\s+|межа\w*\s+)?"
-    r"(?:" + _OBLAST_ALT_ANY + r")"
+    + _OBLAST_BRIDGE
+    + r"(?:" + _OBLAST_ALT_ANY + r")[а-яіїєґ]*"
+    r"(?:\s*(?:,|та|і|й)\s+(?:(?:з|зі|із|від)\s+)?" + _OBLAST_BRIDGE
+    + r"(?:" + _OBLAST_ALT_ANY + r")[а-яіїєґ]*)*"
 )
 
 
@@ -143,7 +149,12 @@ def target_elsewhere(norm: str) -> bool:
     total = len(_OBLAST_ANY_RE.findall(norm))
     if total == 0:
         return False
-    origins = len(_OBLAST_ORIGIN_RE.findall(norm))
+    # Count oblasts INSIDE each origin-form span (a coordinated list is one
+    # match carrying several oblasts), so it compares apples to `total`.
+    origins = sum(
+        len(_OBLAST_ANY_RE.findall(m.group(0)))
+        for m in _OBLAST_ORIGIN_RE.finditer(norm)
+    )
     return origins < total
 
 

@@ -29,6 +29,7 @@ from .vocab import (
     _AD_ACTION,
     _AFTERMATH,
     _BALLISTIC,
+    _CARD_NUMBER_RE,
     _CIVIC_NOTICE,
     _CITYWIDE_STRONG,
     _CITYWIDE_WEAK,
@@ -55,15 +56,19 @@ from .vocab import (
     _LOST_WORD,
     _MASC_ONE_RE,
     _MISSILE,
+    _MOVEMENT_CUE,
     _NEGATION,
     _NEW_TARGET,
     _NEW_TARGET_COUNT_RE,
     _POWER_OUTAGE,
+    _PREPOSITION_BEFORE_DISTRICT,
     _PULSE_WORD,
     _QUOTE_ATTRIBUTION_RE,
     _RETROSPECTIVE,
     _SHAHED,
     _SIREN_WORD,
+    _STANDDOWN_CLEAN_RE,
+    _STANDDOWN_LIVE_THREAT,
     _SUMMARY,
     _SUMMARY_NO_DISTRICT,
     _THREAT_CONTEXT,
@@ -102,6 +107,10 @@ class ParseResult:
     # A link-bearing promo/donation/ad/meta message ("створив ракетний канал…
     # https://t.me/…") — suppressed like aftermath (impact/clear/destroyed win).
     promo: bool = field(default=False)
+    # Air defence engaged ("Відпрацювали установки по X") — defensive action,
+    # not an incoming target. Stored so ingest can keep it out of the
+    # per-channel type context.
+    ad_action: bool = field(default=False)
     # A localized confirmed strike ("влучання ... в Дніпровському районі") — a
     # terminal marker to place on the map, NOT an active inbound target. Keeps
     # its district (unlike aftermath, which suppresses).
@@ -147,6 +156,11 @@ class ParseResult:
     directional: bool = field(default=False)
     origin_key: str | None = field(default=None)
     origin_sector: str | None = field(default=None)
+    # 2+ districts named as a bare enumeration ("Вишневе Жуляни", "Троя,Оболонь
+    # увага!") — SIMULTANEOUS separate targets, one track per district. False
+    # for a movement frame ("через Бровари", "курсом на Троєщину") — that's a
+    # route and stays one track (the vector case).
+    multi_targets: bool = field(default=False)
 
 
 # Some keywords are short abbreviations that collide with common words (e.g.
@@ -174,8 +188,21 @@ _SHAHED_RE = _kw_regex(_SHAHED)
 _DECOY_RE = _kw_regex(_DECOY)
 _HYPERSONIC_RE = _kw_regex(_HYPERSONIC)
 
+# A type named only to DENY it ("…це не БПЛА, воно з лівого на правий за
+# секунди") must not type the message — on 07-18 that exact sentence typed a
+# spotter aside as `shahed` and the next "Увага на Київ!" inherited it, so the
+# main city-wide card of a ballistic salvo spent 15 minutes labeled БПЛА. Only
+# the adjacent "не <type>" form is masked; a non-adjacent negation ("траєкторія
+# не притаманна для «Іскандер-М»") still talks about that type for real.
+_NEGATED_TYPE_RE = re.compile(
+    r"(?<![а-яіїєґ])не\s+(?:"
+    + "|".join(re.escape(w) for w in (*_BALLISTIC, *_MISSILE, *_JET, *_SHAHED))
+    + r")[а-яіїєґ]*"
+)
+
 
 def _target_type(norm: str) -> str:
+    norm = _NEGATED_TYPE_RE.sub(" ", norm)
     if _BALLISTIC_RE.search(norm):
         return "ballistic"
     if _MISSILE_RE.search(norm):
@@ -370,7 +397,18 @@ def _lost_signal(norm: str, districts, status: str) -> bool:
     stronger, more specific signal and must win — otherwise it would
     incorrectly close EVERY open track as "lost" instead of just the one
     destroyed target."""
-    return _LOST_WORD in norm and not districts and status not in ("clear", "destroyed")
+    if districts or status in ("clear", "destroyed"):
+        return False
+    # A live-threat continuation clause in the same message («…але паралельно
+    # триває загроза балістики з Брянщини») outranks the stand-down half —
+    # leaving lost_signal unset lets the directional/origin path handle it.
+    if any(k in norm for k in _STANDDOWN_LIVE_THREAT):
+        return False
+    if _LOST_WORD in norm:
+        return True
+    # "Чисто!" — same stand-down in spotter shorthand, but only when the
+    # message isn't scoped to another oblast ("По Житомирщині чисто поки").
+    return bool(_STANDDOWN_CLEAN_RE.search(norm)) and not target_elsewhere(norm)
 
 
 def _summary(norm: str, target_type: str, has_district: bool) -> bool:
@@ -391,13 +429,14 @@ def _summary(norm: str, target_type: str, has_district: bool) -> bool:
 
 
 def _promo(norm: str, status: str, impact: bool) -> bool:
-    """A message carrying a URL is promo / donation / channel-boost / ad / meta,
-    never a live target callout — a spotter's sighting never links out (validated
-    against the real corpus: zero link-bearing sightings). Suppress it like
-    aftermath: a real clear/destroyed keyword or a confirmed impact in the same
-    message still wins."""
+    """A message carrying a URL or a bare payment-card number is promo /
+    donation / channel-boost / ad / meta, never a live target callout — a
+    spotter's sighting never links out (validated against the real corpus:
+    zero link-bearing sightings). Suppress it like aftermath: a real
+    clear/destroyed keyword or a confirmed impact in the same message still
+    wins."""
     return (
-        any(m in norm for m in _LINK_MARKERS)
+        (any(m in norm for m in _LINK_MARKERS) or bool(_CARD_NUMBER_RE.search(norm)))
         and status not in ("clear", "destroyed")
         and not impact
     )
@@ -447,6 +486,22 @@ def _target_pulse(districts, citywide: bool, status: str, norm: str, aftermath: 
         and len(norm.split()) <= 3
         and any(any(p in w for p in _PULSE_WORD) for w in norm.split())
     )
+
+
+def _multi_targets(districts, norm: str) -> bool:
+    """Bare enumeration of 2+ districts = simultaneous separate targets (see
+    ParseResult.multi_targets). Any movement cue, or any district sitting in a
+    prepositional phrase, reads as a located/route frame instead — one track."""
+    if len(districts) < 2:
+        return False
+    if any(c in norm for c in _MOVEMENT_CUE):
+        return False
+    for h in districts:
+        before = norm[: h.position].rstrip(" ,./—–-")
+        word = before.rsplit(" ", 1)[-1] if before else ""
+        if word in _PREPOSITION_BEFORE_DISTRICT:
+            return False
+    return True
 
 
 def _origin_present(origin: Origin | None, status: str, target_type: str, norm: str,
@@ -535,6 +590,7 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
     if (aftermath or negated or siren_only or political_quote or ad_action or promo
             or civic_notice or eppo_marks):
         districts = []
+    multi_targets = not impact and _multi_targets(districts, norm)
     # Confidence drops when we can't localize the target.
     if not districts and status not in ("clear",):
         conf = min(conf, 0.3)
@@ -550,6 +606,7 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
         matched=matched,
         aftermath=aftermath,
         promo=promo,
+        ad_action=ad_action,
         impact=impact,
         negated=negated,
         siren_only=siren_only,
@@ -567,4 +624,5 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
         directional=directional,
         origin_key=origin.key if origin_present and origin is not None else None,
         origin_sector=origin.sector if origin_present and origin is not None else None,
+        multi_targets=multi_targets,
     )

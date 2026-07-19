@@ -58,7 +58,10 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Виноградар", "name_en": "Vynohradar", "lat": 50.500, "lon": 30.415,
      "aliases": ["виноградар"]},
     {"name_uk": "Нивки", "name_en": "Nyvky", "lat": 50.460, "lon": 30.410,
-     "aliases": ["нивки"]},
+     # "Антонов" = the Antonov plant/aerodrome by Нивки — spotters use it as a
+     # landmark for this area ("на нивки антонов", "Нивок (Антонов)"). The
+     # street guard keeps "вул. Антоновича" (a downtown street) from matching.
+     "aliases": ["нивки", "антонов"]},
     {"name_uk": "Борщагівка", "name_en": "Borshchahivka", "lat": 50.435, "lon": 30.375,
      "aliases": ["борщагівка", "борщага"]},
     {"name_uk": "Теремки", "name_en": "Teremky", "lat": 50.360, "lon": 30.455,
@@ -115,7 +118,9 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Чайки", "name_en": "Chaiky", "lat": 50.393, "lon": 30.302,
      "aliases": ["чайках"]},
     {"name_uk": "Вишневе", "name_en": "Vyshneve", "lat": 50.386, "lon": 30.372,
-     "aliases": ["вишневого"]},
+     # "Вишня" — spotter slang for the town mid-salvo ("Вишня!!!"). Corpus-swept:
+     # every "вишн…" form in the real feed is this town, zero cherry noise.
+     "aliases": ["вишневого", "вишня", "вишню"]},
     {"name_uk": "Вишгород", "name_en": "Vyshhorod", "lat": 50.585, "lon": 30.490,
      "aliases": ["вишгорода"]},
     {"name_uk": "Бровари", "name_en": "Brovary", "lat": 50.511, "lon": 30.790,
@@ -123,11 +128,18 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Бориспіль", "name_en": "Boryspil", "lat": 50.353, "lon": 30.955,
      "aliases": ["борисполя"]},
     {"name_uk": "Васильків", "name_en": "Vasylkiv", "lat": 50.185, "lon": 30.315,
-     "aliases": ["василькова"]},
+     # "Васік" — spotter slang ("Васік!"); both і/и spellings appear in feeds.
+     "aliases": ["василькова", "васік", "васик"]},
     {"name_uk": "Обухів", "name_en": "Obukhiv", "lat": 50.107, "lon": 30.615,
      "aliases": ["обухова"]},
     {"name_uk": "Фастів", "name_en": "Fastiv", "lat": 50.078, "lon": 29.910,
      "aliases": ["фастова"]},
+    # 07-18 mass-attack gaps — real sighting callouts with no entry (geocoded
+    # via Nominatim, corpus-swept: only target contexts).
+    {"name_uk": "Наливайківка", "name_en": "Nalyvaikivka", "lat": 50.484, "lon": 29.711,
+     "aliases": ["наливайківку", "наливайківки"]},
+    {"name_uk": "Трипілля", "name_en": "Trypillia", "lat": 50.115, "lon": 30.777,
+     "aliases": ["трипілля", "трипільськ"]},
 
     # --- Northern approach corridor (from the live feed) — targets are tracked
     #     here heading down toward the city from the north/north-east. ---

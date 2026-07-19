@@ -42,15 +42,20 @@ async def seed_districts() -> int:
     """Idempotently populate the districts table from the gazetteer.
 
     Inserts any gazetteer entry (keyed by name_en) not already present, so a
-    grown gazetteer picks up new localities on the next startup without a wipe.
-    Returns the number of districts inserted (0 if all already present).
+    grown gazetteer picks up new localities on the next startup without a wipe —
+    and re-syncs ALIASES on existing rows, which otherwise never reached a DB
+    seeded before the alias was added (the reason prod missed «Солома!» on
+    07-18 while the code had the alias). Returns the number inserted.
     """
     async with SessionLocal() as session:
-        have = set(await session.scalars(select(District.name_en)))
+        have = {d.name_en: d for d in await session.scalars(select(District))}
         boundaries = _load_boundaries()
         rows = []
         for d in DISTRICTS:
             if d["name_en"] in have:
+                row = have[d["name_en"]]
+                if (row.aliases or []) != d.get("aliases", []):
+                    row.aliases = d.get("aliases", [])
                 continue
             geom = boundaries.get(d["name_en"])
             lat, lon = d["lat"], d["lon"]

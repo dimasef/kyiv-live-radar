@@ -532,3 +532,56 @@ def test_retrospective_footage_is_not_a_live_impact():
     assert not r.impact and not r.matched
     # A genuine fresh strike still reads as an impact.
     assert parse_message("В Дніпровському районі влучання по будівлі", M).impact
+
+
+def test_zircon_types_as_ballistic():
+    # 07-18: a channel that mostly said "циркони" never typed its messages, so
+    # its bare toponyms all became "unknown" tracks. Zircon flies the same
+    # sub-minute profile — it types as ballistic (and keeps the hypersonic flag).
+    r = parse_message("Циркони !!!", M)
+    assert r.target_type == "ballistic"
+    assert r.hypersonic
+    assert r.target_pulse  # terse callout corroborates an open city-wide alert
+
+
+def test_negated_type_mention_does_not_type():
+    # The real 07-18 aside that typed itself as shahed via "це не БПЛА" and
+    # poisoned the channel context (the city-wide card spent 15 min as БПЛА).
+    r = parse_message(
+        "Воно з лівого на правий за кілька секунд, це не БПЛА. "
+        "Тому весь Київ уважно.", M)
+    assert r.target_type == "unknown"
+
+
+def test_negated_type_flips_to_the_stated_one():
+    r = parse_message("Це не шахед, це балістика!", M)
+    assert r.target_type == "ballistic"
+
+
+def test_non_adjacent_negation_keeps_type():
+    # "не притаманна для «Іскандер-М»" negates the verb, not the type — the
+    # message genuinely talks about ballistics.
+    r = parse_message("Фіксація та траєкторія не притаманна для «Іскандер-М».", M)
+    assert r.target_type == "ballistic"
+
+
+def test_card_number_donation_is_promo():
+    # The link-less donation variant ("Моно - 4441…") — its "до останнього
+    # Шахеда та ракети" sign-off must not read as a live target.
+    r = parse_message(
+        "Адмінам на енергетик за працю. Моно - 4441111126308174. "
+        "Будемо працювати до останнього Шахеда та ракети", M)
+    assert r.promo and not r.matched
+
+
+def test_blazing_verb_is_aftermath():
+    # "палає/палають" — post-strike fire, same class as "горить" ("Вся
+    # Лукʼянівка палає.." raised a live ballistic track on 07-19). "впала"
+    # (ракета впала) contains the bare stem and must stay live.
+    for txt in ["Вся Лукʼянівка палає..",
+                "У Святошинському районі палає приватний житловий будинок."]:
+        r = parse_message(txt, M)
+        assert r.aftermath and not r.matched, txt
+    assert not parse_message("Ракета здетонувала, що впала.", M).aftermath
+    # A fresh strike report with a fire mention is still an impact.
+    assert parse_message("В Дніпровському районі влучання по будівлі, палає дах", M).impact

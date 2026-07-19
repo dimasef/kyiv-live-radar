@@ -139,3 +139,32 @@ def test_specific_ballistic_still_overrides_a_generic_missile_context():
     _feed("Балістика!", source_id=1, when=T0 + timedelta(minutes=1))
     troya = _feed("Троя", source_id=1, when=T0 + timedelta(minutes=2))
     assert troya.target_type == "ballistic"
+
+
+def test_negated_type_aside_does_not_poison_context():
+    # The real 07-18 sequence: a spotter aside containing "це не БПЛА" typed
+    # itself shahed, and "Увага на Київ!" 22 seconds later inherited it — the
+    # main city-wide card of a ballistic salvo was labeled БПЛА for 15 minutes.
+    _feed("Балістика!", source_id=1, when=T0)
+    _feed("Воно з лівого на правий за кілька секунд, це не БПЛА. "
+          "Тому весь Київ уважно.", source_id=1, when=T0 + timedelta(minutes=1))
+    r = _feed("Увага на Київ!", source_id=1, when=T0 + timedelta(minutes=2))
+    assert r.citywide and r.target_type == "ballistic"
+
+
+def test_donation_post_does_not_update_type_context():
+    # A donation post's sign-off mentions types without being about a target —
+    # it must neither set nor overwrite the channel context.
+    _feed("Адмінам на енергетик за працю. Моно - 4441111126308174. "
+          "Будемо працювати до останнього Шахеда та ракети",
+          source_id=1, when=T0)
+    r = _feed("Троя", source_id=1, when=T0 + timedelta(minutes=1))
+    assert r.target_type == "unknown"
+
+
+def test_zircon_callout_updates_type_context():
+    # "Циркон з курська" now types (ballistic) — the channel's later bare
+    # toponyms inherit it instead of producing "unknown" tracks.
+    _feed("Циркон з курська", source_id=1, when=T0)
+    r = _feed("Троя", source_id=1, when=T0 + timedelta(minutes=1))
+    assert r.target_type == "ballistic"

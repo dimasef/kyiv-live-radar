@@ -24,8 +24,9 @@ from ..domain.incidents import (
     attach_to_incident,
     end_active_incidents,
     end_incidents_without_open_tracks,
+    find_active_incident,
 )
-from ..domain.lifecycle import close_track, promote_track
+from ..domain.lifecycle import close_track, promote_track, reopen_track
 from ..domain.tracking import (
     apply_fusion,
     close_all_active,
@@ -33,6 +34,8 @@ from ..domain.tracking import (
     find_open_citywide,
     find_open_track,
     find_recent_impact,
+    find_stood_down_citywide,
+    find_stood_down_track,
     find_track_by_reply,
 )
 from ..config import settings
@@ -64,6 +67,14 @@ def _note_and_inherit_type(parsed: ParseResult, source_id: int | None, when: dat
     """Record this message's stated type, or inherit a recent one onto a
     district-bearing message that stated none. Mutates `parsed.target_type`."""
     if source_id is None:  # no channel identity (e.g. simulator) — no context
+        return
+    # Conversational/meta chatter mentions types without being about a live
+    # target — a donation post's "до останнього Шахеда та ракети", a recap, a
+    # quoted official — and on 07-18 such a mention poisoned a channel's
+    # context mid-salvo. These classes neither record nor consume a type.
+    if (parsed.promo or parsed.ad_action or parsed.political_quote
+            or parsed.civic_notice or parsed.eppo_marks or parsed.siren_only
+            or parsed.negated or parsed.summary or parsed.day_recap):
         return
     if parsed.target_type != "unknown":
         # "missile" is the generic parent of the specific "ballistic": during a
@@ -281,6 +292,12 @@ class IngestContext:
     # stamped onto each ThreatEvent this message creates, for the feed headline.
     # None for rule-only messages.
     llm_summary: str | None = None
+    # True when parsed.target_type came from the open INCIDENT's dominant type
+    # (second-tier fallback), not the message/channel itself. The ballistic
+    # enumeration split must not trust it: on a mixed drone+ballistic night the
+    # incident reads "ballistic" and would wrongly split a meandering drone's
+    # «Троя/Воскресенка» enumeration.
+    type_from_incident: bool = False
 
     async def done(self) -> None:
         self.raw.processed = True
@@ -428,6 +445,10 @@ async def _handle_target_pulse(ctx: IngestContext) -> list[Broadcast] | None:
     the caller falls through to the next check."""
     session, parsed, when = ctx.session, ctx.parsed, ctx.when
     city = await find_open_citywide(session, when)
+    if city is None:
+        stood = await find_stood_down_citywide(session, when)
+        if stood is not None:
+            city = reopen_track(stood)
     did = await citywide_district_id(session) if city is not None else None
     if city is None or did is None:
         return await _pulse_corroborates_axis(ctx)
@@ -588,6 +609,10 @@ async def _handle_citywide(ctx: IngestContext) -> list[Broadcast]:
         return []
     track = await find_open_citywide(session, when)
     if track is None:
+        stood = await find_stood_down_citywide(session, when)
+        if stood is not None:
+            track = reopen_track(stood)
+    if track is None:
         track = Threat(target_type=parsed.target_type, status=_threat_status_for(parsed),
                        target_count=parsed.target_count or 1, scope="city")
         session.add(track)
@@ -629,10 +654,24 @@ async def _handle_sighting(ctx: IngestContext) -> list[Broadcast]:
     over the same district; (3) else a new track. A reply into a CLOSED chain
     falls through to (2)/(3), so it won't glue onto the newest track."""
     session, parsed, when = ctx.session, ctx.parsed, ctx.when
+    # Enumeration split is BALLISTIC-only: a ballistic salvo's «Вишневе Жуляни»
+    # is two simultaneous impacts-in-seconds (gluing them zigzagged the map on
+    # 07-18 and let the glued track steal later single-district callouts). On a
+    # drone night the same shape («Троя,Оболонь») is usually ONE drone
+    # meandering between adjacent raions — the track-eval ground truth
+    # (drone/cruise nights) loses 16 points of session purity if those split,
+    # and ballistic tracks never draw vectors anyway, so nothing is lost there.
+    if (parsed.multi_targets and parsed.target_type == "ballistic"
+            and not ctx.type_from_incident):
+        return await _handle_multi_targets(ctx)
     track = await find_track_by_reply(session, ctx.source_id, ctx.reply_to_message_id)
     if track is None and not parsed.is_new_target:
         district_ids = {h.district_id for h in parsed.districts}
         track = await find_corroborating_track(session, when, district_ids, as_of=ctx.as_of)
+        if track is None:
+            stood = await find_stood_down_track(session, when, district_ids)
+            if stood is not None:
+                track = reopen_track(stood)
     if track is None:
         track = Threat(target_type=parsed.target_type, status=_threat_status_for(parsed),
                        target_count=parsed.target_count or 1)
@@ -663,6 +702,57 @@ async def _handle_sighting(ctx: IngestContext) -> list[Broadcast]:
     inc = await attach_to_incident(session, track, when, decoy=parsed.decoy,
                                    hypersonic=parsed.hypersonic)
     broadcasts.append(Broadcast("attack", incident=inc))
+    axis_bc = await _raise_axis_from_parsed(ctx)
+    if axis_bc is not None:
+        broadcasts.append(axis_bc)
+    await ctx.done()
+    return broadcasts
+
+
+async def _handle_multi_targets(ctx: IngestContext) -> list[Broadcast]:
+    """A bare enumeration of districts ("Вишневе Жуляни", "Особливо Поділ,
+    Святошин та Жуляни!") names SIMULTANEOUS separate targets — each district
+    continues/starts its OWN track. Gluing them all onto one track (the old
+    behavior) recreated the zigzag mega-track on 07-18 AND poisoned
+    corroboration: the glued track's "latest district" kept stealing the next
+    single-district callouts from their real tracks. Reply-joining is skipped
+    on purpose — one reply chain can't own several simultaneous targets."""
+    session, parsed, when = ctx.session, ctx.parsed, ctx.when
+    broadcasts: list[Broadcast] = []
+    inc = None
+    for hit in parsed.districts:
+        track = None
+        if not parsed.is_new_target:
+            track = await find_corroborating_track(session, when, {hit.district_id},
+                                                   as_of=ctx.as_of)
+            if track is None:
+                stood = await find_stood_down_track(session, when, {hit.district_id})
+                if stood is not None:
+                    track = reopen_track(stood)
+        if track is None:
+            track = Threat(target_type=parsed.target_type, status=_threat_status_for(parsed),
+                           target_count=parsed.target_count or 1)
+            session.add(track)
+            await session.commit()
+            log.info("track %s created (target_type=%s, multi-target enumeration)",
+                     track.id, track.target_type)
+        else:
+            track.target_type = _upgrade_type(track.target_type, parsed.target_type)
+            if parsed.status != "unconfirmed":
+                promote_track(track)
+        ev = _make_event(track.id, parsed, hit, ctx.source_id, ctx.message_id,
+                         ctx.forwarded_from_id, when, ctx.decision_source,
+                         ctx.reply_to_message_id, target_count=track.target_count,
+                         forwarded_from_channel_id=ctx.forwarded_from_channel_id,
+                         llm_summary=ctx.llm_summary)
+        session.add(ev)
+        await session.commit()
+        await apply_fusion(session, track)
+        broadcasts.append(Broadcast("event", track, ev))
+        inc = await attach_to_incident(session, track, when, decoy=parsed.decoy,
+                                       hypersonic=parsed.hypersonic)
+    if inc is not None:
+        broadcasts.append(Broadcast("attack", incident=inc))
     axis_bc = await _raise_axis_from_parsed(ctx)
     if axis_bc is not None:
         broadcasts.append(axis_bc)
@@ -734,6 +824,20 @@ async def process_parsed(
         # event of its own (e.g. a district-less "Балістика!").
         _note_and_inherit_type(parsed, source_id, when)
 
+        # Second-tier fallback: a still-untyped sighting during a live attack
+        # takes the open incident's dominant type. The per-channel window above
+        # is only 5 min and channel-scoped — during the 07-18 toponym barrage
+        # («Нивки», «Обухів»…) it kept expiring while the OTHER channel was
+        # shouting «балістика», leaving 12 tracks typed "unknown" mid-salvo.
+        # A later explicitly-typed event that disagrees still surfaces as a
+        # fusion conflict, same as any cross-family mismatch.
+        type_from_incident = False
+        if parsed.target_type == "unknown" and (parsed.districts or parsed.citywide):
+            inc = await find_active_incident(session, when)
+            if inc is not None and inc.target_type != "unknown":
+                parsed.target_type = inc.target_type
+                type_from_incident = True
+
         span.set_attribute("decision_source", decision_source)
         span.set_attribute("target_type", parsed.target_type)
         span.set_attribute("llm_attempted", llm_attempted)
@@ -746,6 +850,7 @@ async def process_parsed(
             reply_to_message_id=reply_to_message_id,
             llm_summary=(llm_response.get("summary") or None
                          if llm_response is not None and decision_source == "llm" else None),
+            type_from_incident=type_from_incident,
         )
 
         # Async triage: hand a district-less/suppressed-but-threat-flavored message
@@ -803,8 +908,14 @@ async def _dispatch(ctx: IngestContext) -> list[Broadcast]:
             return []
         return await _handle_clear(ctx)
 
-    # 2a-bis. "Дорозвідка" stand-down.
+    # 2a-bis. "Дорозвідка" stand-down. A MIXED message («Дорозвідка триває, але
+    #     паралельно триває загроза балістики з Брянщини…») carries a live
+    #     directional threat next to the stand-down — the live half wins (raise
+    #     the axis, don't close everything on it): on 07-18 such a message was
+    #     swallowed as a plain stand-down while warning of 3 launch directions.
     if parsed.lost_signal:
+        if parsed.directional:
+            return await _handle_directional(ctx)
         return await _handle_lost_signal(ctx)
 
     # 2a-ter. Terse target/launch pulse — falls through to the checks below

@@ -111,6 +111,35 @@ def _after(a: datetime, b: datetime) -> bool:
     return an > bn
 
 
+async def find_stood_down_track(
+    session, when: datetime, district_ids: set[int]
+) -> Threat | None:
+    """Newest track closed by a stand-down within the grace window whose latest
+    sighting was over one of `district_ids` — the district-track twin of
+    `find_stood_down_citywide`. A «Чисто!»/«Дорозвідка» between callouts of the
+    SAME still-flying target must not split its session in two: the follow-up
+    callout reopens the stood-down track instead of starting a fresh one."""
+    if not district_ids:
+        return None
+    grace = timedelta(minutes=settings.standdown_grace_minutes)
+    stmt = (
+        select(Threat)
+        .where(Threat.closed_reason == "stand_down", Threat.scope != "city")
+        .options(selectinload(Threat.events))
+        .order_by(Threat.closed_at.desc())
+    )
+    for threat in await session.scalars(stmt):  # most recently closed first
+        if threat.closed_at is None or not _within(threat.closed_at, when, grace):
+            break  # ordered by closed_at — everything after is older still
+        if not threat.events:
+            continue
+        latest_time = max(e.event_time for e in threat.events)
+        latest_districts = {e.district_id for e in threat.events if e.event_time == latest_time}
+        if latest_districts & district_ids:
+            return threat
+    return None
+
+
 async def find_open_track(
     session,
     when: datetime,
@@ -199,6 +228,25 @@ async def find_open_citywide(session, when: datetime) -> Threat | None:
         last = threat.events[-1].event_time if threat.events else threat.created_at
         if _within(last, when, gap):
             return threat
+    return None
+
+
+async def find_stood_down_citywide(session, when: datetime) -> Threat | None:
+    """The most recent city-wide alert closed by a stand-down within the grace
+    window — «Чисто!»/«Дорозвідка» between waves of one salvo must not leave
+    the very next pulse or "на Київ" callout with nothing to continue. Only a
+    stand-down qualifies: an official all-clear ("відбій") is final."""
+    stmt = (
+        select(Threat)
+        .where(Threat.scope == "city", Threat.closed_reason == "stand_down")
+        .options(selectinload(Threat.events))
+        .order_by(Threat.closed_at.desc())
+        .limit(1)
+    )
+    threat = await session.scalar(stmt)
+    grace = timedelta(minutes=settings.standdown_grace_minutes)
+    if threat is not None and threat.closed_at is not None and _within(threat.closed_at, when, grace):
+        return threat
     return None
 
 

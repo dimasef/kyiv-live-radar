@@ -59,3 +59,14 @@ def promote_track(threat: Threat) -> Threat:
     threat.status = "tracking"
     log.info("track %s promoted to tracking", threat.id)
     return threat
+
+
+def reopen_track(threat: Threat) -> Threat:
+    """Reverse a stand-down close: a pulse / city-wide callout arriving within
+    the grace window means the stand-down was a between-waves lull, not the
+    end — the SAME alert continues instead of spawning a duplicate card."""
+    threat.status = "tracking"
+    threat.closed_at = None
+    threat.closed_reason = None
+    log.info("track %s reopened after stand-down", threat.id)
+    return threat
