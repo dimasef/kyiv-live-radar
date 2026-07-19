@@ -18,7 +18,12 @@ export function registerLifecycleListeners() {
     if (document.visibilityState === 'visible') onResume()
   })
   window.addEventListener('focus', onResume)
-  window.addEventListener('pageshow', onResume)
+  // `pageshow` fires on EVERY navigation, not just bfcache restores — an
+  // unguarded listener re-hydrated the whole app seconds after bootstrap
+  // already had. Only the restored-from-bfcache case is a real resume.
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted) onResume()
+  })
   window.addEventListener('online', onResume)
   window.addEventListener('offline', () => useRadar.getState().setConnected(false))
 }

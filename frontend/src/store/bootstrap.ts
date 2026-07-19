@@ -24,6 +24,10 @@ import { useRadar } from './index'
  * `setX` REPLACES its slice from the server's current active set, so
  * anything closed/cleared while we were disconnected drops out on its own.
  * Called both by bootstrap and by `ws.ts`'s resync-on-reconnect. */
+/** When the last full hydrate finished — resync()'s freshness guard reads it
+ * to skip a redundant refetch right after boot (live `let` export binding). */
+export let lastHydrateAt = 0
+
 export async function hydrate(): Promise<void> {
   const store = useRadar.getState()
 
@@ -40,6 +44,7 @@ export async function hydrate(): Promise<void> {
       .then((h) => store.setFeedOk(h.telegram?.feed_ok ?? null))
       .catch(() => {}),
   ])
+  lastHydrateAt = Date.now()
 }
 
 /** One-shot static data + first hydration + live WS connection for the radar

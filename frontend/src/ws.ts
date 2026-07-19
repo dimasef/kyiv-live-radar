@@ -1,5 +1,5 @@
 import { useRadar } from './store'
-import { hydrate } from './store/bootstrap'
+import { hydrate, lastHydrateAt } from './store/bootstrap'
 import type { WSMessage } from './types'
 
 const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8137/ws/threats'
@@ -14,6 +14,8 @@ const WATCHDOG_INTERVAL_MS = 20_000
 // Coalesces near-simultaneous triggers (e.g. a background-resume event and
 // the watchdog firing together) into a single reconnect+rehydrate.
 const RESYNC_DEBOUNCE_MS = 3_000
+// A hydrate younger than this + a live socket = resume is a no-op.
+const RESYNC_MIN_FRESH_MS = 10_000
 
 let socket: WebSocket | null = null
 let retry = 0
@@ -100,6 +102,11 @@ export function resync() {
   resyncTimer = setTimeout(() => {
     resyncTimer = null
     if (resyncInFlight) return
+    // Socket alive + data just hydrated (boot, or a resume seconds ago) —
+    // nothing to recover; a focus/visibility flurry must not re-fetch
+    // everything and churn the WS.
+    if (useRadar.getState().connected && Date.now() - lastHydrateAt < RESYNC_MIN_FRESH_MS)
+      return
     resyncInFlight = true
     useRadar.getState().setResyncing(true)
     forceReconnect()

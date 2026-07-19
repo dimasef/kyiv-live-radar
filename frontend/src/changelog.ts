@@ -32,12 +32,21 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = '0.10.0'
+const LATEST = '0.10.1'
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: 'Менше зайвих запитів при завантаженні',
+    date: '2026-07-19',
+    kind: 'patch',
+    changes: [
+      'Прибрано подвійне-потрійне завантаження даних при відкритті сторінки: повна синхронізація тепер не повторюється одразу після старту (спрацьовувала на кожен фокус вікна і кожне завантаження), а лише коли зʼєднання реально втрачалось або дані застаріли',
+    ],
+  },
+  {
+    version: '0.10.0',
     title: 'Гнучкі сповіщення, назви районів, розмір тексту',
     date: '2026-07-19',
     kind: 'minor',
