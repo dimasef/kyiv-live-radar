@@ -7,6 +7,24 @@ import { useRadar } from '@/store'
 import LanguageSwitcher from './LanguageSwitcher'
 import TelegramIcon from './TelegramIcon'
 
+/** Renders the wordmark with "Live" in the phosphor accent, split from the
+ * localized title so it stays a single source of truth. */
+function BrandTitle({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(/(Live)/i).map((part, i) =>
+        part.toLowerCase() === 'live' ? (
+          <span key={i} className="text-phosphor-soft">
+            {part}
+          </span>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  )
+}
+
 export default function Header() {
   const { t } = useTranslation()
   const feedOk = useRadar((s) => s.feedOk)
@@ -18,14 +36,18 @@ export default function Header() {
       style={riseDelay(0)}
     >
       <div className="flex items-center gap-3 min-w-0">
-        <div className="radar radar--rings w-9 h-9 sm:w-10 sm:h-10" aria-hidden />
-        <div className="min-w-0">
+        <img
+          src="/favicon.svg"
+          alt=""
+          aria-hidden
+          className="w-9 h-9 sm:w-10 sm:h-10 flex-none"
+        />
+        {/* Mobile shows the mark alone; the wordmark appears from sm up. */}
+        <div className="sr-only sm:not-sr-only sm:block min-w-0">
           <h1 className="font-display font-bold text-[13px] sm:text-[15px] tracking-wide text-slate-100 leading-tight truncate">
-            {t('app.title')}
+            <BrandTitle text={t('app.title')} />
           </h1>
-          <p className="hidden sm:block text-[11px] text-slate-400 truncate">
-            {t('app.subtitle')}
-          </p>
+          <p className="text-[11px] text-slate-400 truncate">{t('app.subtitle')}</p>
         </div>
       </div>
 

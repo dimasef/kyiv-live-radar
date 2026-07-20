@@ -59,7 +59,7 @@ export default function SplashScreen() {
         phase === 'fade' ? 'pointer-events-none opacity-0' : 'opacity-100'
       }`}
     >
-      <div className="radar radar--rings h-24 w-24" />
+      <img src="/favicon-animated.svg" alt="" aria-hidden className="h-24 w-24" />
       <div className="flex flex-col items-center gap-1">
         <div className="font-display text-base font-bold tracking-wide text-slate-100">
           {t('app.title')}
