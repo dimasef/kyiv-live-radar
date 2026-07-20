@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -12,6 +12,7 @@ from ..config import settings
 from ..db import get_session
 from ..domain.districts import citywide_district_id
 from ..domain.home_danger import raion_ids_for_zone
+from ..domain.journal import KYIV, build_journal
 from ..models import (
     Alert,
     District,
@@ -31,6 +32,7 @@ from ..schemas import (
     DistrictOut,
     FeedEntryOut,
     IncidentOut,
+    JournalOut,
     NoticeOut,
     PushConfigOut,
     PushSubscribeIn,
@@ -50,6 +52,7 @@ from .serialize import axis_out as _axis_out
 from .serialize import event_out as _event_out
 from .serialize import feed_entry_out as _feed_entry_out
 from .serialize import incident_out as _incident_out
+from .serialize import journal_out as _journal_out
 from .serialize import notice_out as _notice_out
 from .serialize import threat_out as _threat_out
 
@@ -125,6 +128,52 @@ async def recent_events(
     )
     events = await session.scalars(stmt)
     return [_feed_entry_out(ev) for ev in events]
+
+
+@router.get("/journal/days", response_model=JournalOut)
+async def journal_days(
+    from_: Optional[str] = Query(None, alias="from", description="Start day (Kyiv), YYYY-MM-DD"),
+    to: Optional[str] = Query(None, description="End day (Kyiv), YYYY-MM-DD; defaults to today"),
+    session: AsyncSession = Depends(get_session),
+):
+    """Per-day threat activity for the journal calendar: attacks, targets,
+    target-type mix, alert duration and districts touched, one row per day in
+    [from, to] inclusive (zero-activity days included). Days are bucketed by
+    Europe/Kyiv local date. Data volume is tiny, so whole tables are fetched and
+    aggregated in Python (see domain/journal.py) — no tz-fragile SQL date math."""
+    today = datetime.now(timezone.utc).astimezone(KYIV).date()
+    try:
+        end = date.fromisoformat(to) if to else today
+        start = date.fromisoformat(from_) if from_ else end - timedelta(days=34)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date (expected YYYY-MM-DD)")
+    if start > end:
+        raise HTTPException(status_code=400, detail="'from' must be on or before 'to'")
+    if (end - start).days > 92:
+        raise HTTPException(status_code=400, detail="Range too large (max 92 days)")
+
+    threats = list(await session.scalars(select(Threat)))
+    incidents = list(await session.scalars(select(Incident)))
+    alerts = list(await session.scalars(select(Alert).where(Alert.scope == "city")))
+    district_events = (
+        await session.execute(select(ThreatEvent.event_time, ThreatEvent.district_id))
+    ).all()
+    sentinel = await citywide_district_id(session)
+
+    stats = build_journal(
+        start,
+        end,
+        threats=threats,
+        incidents=incidents,
+        alerts=alerts,
+        district_events=district_events,
+        sentinel_district_id=sentinel,
+    )
+    return JournalOut(
+        from_date=start.isoformat(),
+        to_date=end.isoformat(),
+        days=[_journal_out(s) for s in stats],
+    )
 
 
 @router.get("/raw_messages", response_model=RawMessagesPage)

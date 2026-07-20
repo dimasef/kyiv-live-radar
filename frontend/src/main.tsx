@@ -3,8 +3,10 @@ import ReactDOM from 'react-dom/client'
 
 import App from './App'
 import { ChangelogPage } from './components/changelog'
+import { UpdateToast } from './components/chrome'
+import { ThreatJournalPage } from './components/journal'
 import { RawMessagesPage } from './components/raw'
-import { CHANGELOG_PATH, RAW_MESSAGES_PATH, useRoute } from './router'
+import { CHANGELOG_PATH, RAW_MESSAGES_PATH, THREAT_JOURNAL_PATH, useRoute } from './router'
 import { useRadar } from './store'
 import './i18n'
 import './index.css'
@@ -21,14 +23,29 @@ window.addEventListener('appinstalled', () => {
   useRadar.getState().setInstallPrompt(null)
 })
 
-/** Tiny top-level router: the changelog and raw-message debug view are their
- * own routes; everything else is the radar app (whose data-fetching hooks
- * then only run there — see store/bootstrap.ts). */
+/** Tiny top-level router: the changelog, journal and raw-message debug view are
+ * their own routes; everything else is the radar app (whose data-fetching hooks
+ * then only run there — see store/bootstrap.ts). UpdateToast lives HERE, not in
+ * App: it is the app's single SW-registration point and the "new version" banner
+ * must appear on every route, including a tab left open on a secondary page. */
 function Root() {
   const route = useRoute()
-  if (route === CHANGELOG_PATH) return <ChangelogPage />
-  if (route === RAW_MESSAGES_PATH) return <RawMessagesPage />
-  return <App />
+  const page =
+    route === CHANGELOG_PATH ? (
+      <ChangelogPage />
+    ) : route === THREAT_JOURNAL_PATH ? (
+      <ThreatJournalPage />
+    ) : route === RAW_MESSAGES_PATH ? (
+      <RawMessagesPage />
+    ) : (
+      <App />
+    )
+  return (
+    <>
+      {page}
+      <UpdateToast />
+    </>
+  )
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

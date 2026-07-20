@@ -92,6 +92,44 @@ export interface Incident {
   notable: boolean
 }
 
+/** One тривога→відбій window within a journal day. `seconds` is 0 for an
+ * incomplete window (still open / failsafe-closed) so it never wins "longest". */
+export interface JournalAlertWindow {
+  started_at: string
+  ended_at: string | null
+  seconds: number
+  incomplete: boolean
+}
+
+/** One calendar day of aggregated threat activity (GET /journal/days). Mirrors
+ * backend schemas.py::JournalDayOut. The intensity score is derived on the
+ * client from these fields — see components/journal/journalStats.ts. */
+export interface JournalDay {
+  /** Kyiv-local ISO date, YYYY-MM-DD. */
+  date: string
+  attack_count: number
+  track_count: number
+  target_count: number
+  impact_count: number
+  type_counts: Record<TargetType, number>
+  alert_count: number
+  alert_seconds: number
+  longest_alert_seconds: number
+  /** The day's alert duration is a lower bound (some alert was open/failsafe). */
+  alert_incomplete: boolean
+  /** Chronological тривога→відбій intervals. */
+  alert_windows: JournalAlertWindow[]
+  /** Most-active district first (by event count). */
+  district_ids: number[]
+  district_count: number
+}
+
+export interface Journal {
+  from_date: string
+  to_date: string
+  days: JournalDay[]
+}
+
 /** A non-threat feed notice. Rule-emitted: 'clear' (відбій) / 'summary' (recap).
  * LLM-triage-emitted context notices: 'directional' (an inbound axis),
  * 'forecast' (an expected strike / threat level), 'status' (PPO/operational).

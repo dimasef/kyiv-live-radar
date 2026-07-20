@@ -199,6 +199,27 @@
     "version": "Version",
     "history": "History"
   },
+  "journal": {
+    "title": "Air threat journal",
+    "short": "Journal",
+    "subtitle": "Daily activity: attacks, targets, types and alert duration",
+    "back": "Back to radar",
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
+    "pickDay": "Pick a day on the calendar",
+    "quietDay": "No activity recorded this day",
+    "loadError": "Failed to load the journal",
+    "heaviestDay": "Heaviest day",
+    "less": "less",
+    "more": "more",
+    "attacks": "Attacks",
+    "targets": "Targets",
+    "byType": "By type",
+    "alerts": "Alerts",
+    "noAlerts": "No air-raid alerts in Kyiv",
+    "longest": "longest",
+    "districts": "Districts"
+  },
   "banner": {
     "expand": "Expand",
     "collapse": "Collapse"

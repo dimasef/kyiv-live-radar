@@ -5,6 +5,7 @@ import type {
   FeedEntry,
   HealthStatus,
   Incident,
+  Journal,
   Notice,
   RawCount,
   RawExportResponse,
@@ -48,6 +49,10 @@ export const fetchRecentNotices = (limit = 30) =>
   get<Notice[]>(`/notices/recent?limit=${limit}`)
 export const fetchRecentEvents = (limit = 60) =>
   get<FeedEntry[]>(`/events/recent?limit=${limit}`)
+// Per-day threat-activity journal for the calendar page (/journal). `from`/`to`
+// are Kyiv-local YYYY-MM-DD; the response spans every day in [from, to].
+export const fetchJournal = (from: string, to: string) =>
+  get<Journal>(`/journal/days?from=${from}&to=${to}`)
 // Full event history for one track (oldest -> newest), including closed/
 // destroyed ones — used to draw a track on the map for a feed item click,
 // independent of the live `threats` map (which evicts closed tracks after

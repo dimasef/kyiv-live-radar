@@ -1,7 +1,8 @@
-import { Eye } from 'lucide-react'
+import { CalendarClock, Eye } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { riseDelay } from '@/lib/motion'
+import { navigate, THREAT_JOURNAL_PATH } from '@/router'
 import { useRadar } from '@/store'
 
 import LanguageSwitcher from './LanguageSwitcher'
@@ -70,6 +71,20 @@ export default function Header() {
             <span className="hidden md:inline">{t('conn.feedUnavailable')}</span>
           </span>
         )}
+        <a
+          href={THREAT_JOURNAL_PATH}
+          onClick={(e) => {
+            e.preventDefault()
+            navigate(THREAT_JOURNAL_PATH)
+          }}
+          className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] p-1.5 text-slate-400 transition-colors hover:border-white/20 hover:text-phosphor-soft md:px-2.5 md:py-1"
+          title={t('journal.title')}
+          aria-label={t('journal.title')}
+        >
+          <CalendarClock size={16} className="flex-none md:h-[13px] md:w-[13px]" />
+          {/* Mobile keeps the icon alone; the label appears from md up. */}
+          <span className="hidden font-mono text-[11px] md:inline">{t('journal.short')}</span>
+        </a>
         <LanguageSwitcher />
       </div>
     </header>

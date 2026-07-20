@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
+
 from ..domain.attack import classify
+from ..domain.journal import DayStat
 from ..domain.origins import ORIGIN_BY_KEY, bearing_for
 from ..models import Alert, Incident, Notice, Threat, ThreatAxis, ThreatEvent
 from ..schemas import (
@@ -10,10 +13,15 @@ from ..schemas import (
     AxisOut,
     FeedEntryOut,
     IncidentOut,
+    JournalDayOut,
     NoticeOut,
     ThreatEventOut,
     ThreatOut,
 )
+
+
+def journal_out(stat: DayStat) -> JournalDayOut:
+    return JournalDayOut(**asdict(stat))
 
 
 def event_out(ev: ThreatEvent) -> ThreatEventOut:

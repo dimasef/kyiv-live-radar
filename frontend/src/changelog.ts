@@ -32,12 +32,24 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = '0.10.2'
+const LATEST = '0.11.0'
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: 'Журнал повітряних загроз',
+    date: '2026-07-20',
+    kind: 'minor',
+    changes: [
+      'Нова сторінка «Журнал повітряних загроз» — календар минулих днів (відкривається з налаштувань)',
+      'Кожен день у календарі зафарбований за інтенсивністю атаки, тож важкі дні видно з першого погляду',
+      'Тап по дню показує розбивку: кількість атак, цілей і прильотів, типи (балістика / ракети / дрони), кількість і тривалість тривог та які райони були під загрозою',
+      'Перемикання між місяцями',
+    ],
+  },
+  {
+    version: '0.10.2',
     title: 'Оновлений логотип',
     date: '2026-07-20',
     kind: 'patch',
