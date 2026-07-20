@@ -24,4 +24,7 @@ export const CHANGELOG_PATH = '/change-log'
 export const THREAT_JOURNAL_PATH = '/journal'
 // Hidden debug route (not linked from the UI) — every raw ingested message,
 // including ones the parser suppressed or couldn't localize. See /raw.
+// Now admin-only: the backend 403s a non-admin (see components/raw).
 export const RAW_MESSAGES_PATH = '/raw'
+// Signed-in user's account page (profile, linked providers, sign-out).
+export const ACCOUNT_PATH = '/account'

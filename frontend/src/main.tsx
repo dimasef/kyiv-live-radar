@@ -2,11 +2,18 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 
 import App from './App'
+import { AccountPage } from './components/auth'
 import { ChangelogPage } from './components/changelog'
 import { UpdateToast } from './components/chrome'
 import { ThreatJournalPage } from './components/journal'
 import { RawMessagesPage } from './components/raw'
-import { CHANGELOG_PATH, RAW_MESSAGES_PATH, THREAT_JOURNAL_PATH, useRoute } from './router'
+import {
+  ACCOUNT_PATH,
+  CHANGELOG_PATH,
+  RAW_MESSAGES_PATH,
+  THREAT_JOURNAL_PATH,
+  useRoute,
+} from './router'
 import { useRadar } from './store'
 import './i18n'
 import './index.css'
@@ -23,6 +30,11 @@ window.addEventListener('appinstalled', () => {
   useRadar.getState().setInstallPrompt(null)
 })
 
+// Restore any signed-in session from the stored refresh token, once at boot —
+// module scope (not a component effect) so it runs a single time across every
+// route, not just the radar app, and isn't double-fired by StrictMode.
+void useRadar.getState().refreshSession()
+
 /** Tiny top-level router: the changelog, journal and raw-message debug view are
  * their own routes; everything else is the radar app (whose data-fetching hooks
  * then only run there — see store/bootstrap.ts). UpdateToast lives HERE, not in
@@ -37,6 +49,8 @@ function Root() {
       <ThreatJournalPage />
     ) : route === RAW_MESSAGES_PATH ? (
       <RawMessagesPage />
+    ) : route === ACCOUNT_PATH ? (
+      <AccountPage />
     ) : (
       <App />
     )

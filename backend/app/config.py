@@ -313,6 +313,62 @@ class Settings(BaseSettings):
     def push_configured(self) -> bool:
         return bool(self.push_enabled and self.vapid_public_key and self.vapid_private_key)
 
+    # --- Auth: user accounts + roles (app/auth/). All dormant until
+    #     AUTH_JWT_SECRET is set; a route whose provider isn't configured
+    #     returns 503, exactly like push_configured gates the push routes. ---
+    # HS256 signing secret for our own access/refresh JWTs. Empty => auth is
+    # unconfigured; register/login return 503. In development ONLY, an empty
+    # secret falls back to a fixed insecure constant so the local app still
+    # boots (see auth.security._signing_key) — never used when environment != dev.
+    auth_jwt_secret: str = ""
+    auth_access_ttl_minutes: int = 30
+    auth_refresh_ttl_days: int = 30
+    # Comma-separated allowlists that resolve a login to role=admin. Email match
+    # only counts for a VERIFIED email (Google id_token, never a self-registered
+    # password account — see auth.service.resolve_role). Telegram is id-based.
+    admin_emails: str = ""
+    admin_telegram_ids: str = ""
+    # Google OIDC (Phase 2) — the SPA obtains an id_token via Google Identity
+    # Services and POSTs it to /auth/google; we verify it against Google's JWKS.
+    # No client secret needed for the id-token flow.
+    google_client_id: str = ""
+    # Telegram Login Widget (Phase 3) — a Bot API bot token (DISTINCT from the
+    # MTProto telegram_api_id/hash the listener uses). Reuses the already-present
+    # KLR_TEST_BOT_TOKEN env var if TELEGRAM_LOGIN_BOT_TOKEN isn't set.
+    telegram_login_bot_token: str = Field(
+        "", validation_alias=AliasChoices("TELEGRAM_LOGIN_BOT_TOKEN", "KLR_TEST_BOT_TOKEN")
+    )
+
+    @property
+    def admin_email_list(self) -> list[str]:
+        return [e.strip().lower() for e in self.admin_emails.split(",") if e.strip()]
+
+    @property
+    def admin_telegram_id_list(self) -> list[int]:
+        out: list[int] = []
+        for part in self.admin_telegram_ids.split(","):
+            part = part.strip()
+            if part:
+                try:
+                    out.append(int(part))
+                except ValueError:
+                    pass
+        return out
+
+    @property
+    def auth_configured(self) -> bool:
+        # Configured when a real secret is set, OR in local development (where an
+        # insecure dev-only fallback key lets the app run with zero setup).
+        return bool(self.auth_jwt_secret) or self.environment == "development"
+
+    @property
+    def google_configured(self) -> bool:
+        return bool(self.google_client_id)
+
+    @property
+    def telegram_login_configured(self) -> bool:
+        return bool(self.telegram_login_bot_token)
+
     # --- Observability (app/observability.py). All opt-in: with the token/DSN
     #     empty the SDKs stay fully dormant — no network calls, no behavior
     #     change — so local dev and the test suite run exactly as before. Set on

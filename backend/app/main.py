@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
+from .api.auth_routes import router as auth_router
 from .api.routes import router
 from .api.ws import manager
 from .config import settings
@@ -88,6 +89,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Kyiv Aerial Threat Tracker (MVP)", lifespan=lifespan)
 
 app.include_router(router)
+app.include_router(auth_router)
 
 setup_observability(app)
 
@@ -118,16 +120,10 @@ async def ws_threats(ws: WebSocket):
         await manager.disconnect(ws)
 
 
-# The ASGI entrypoint uvicorn actually serves (see railpack.json). CORS is
-# applied here as a raw ASGI wrapper around the fully-built FastAPI app — NOT via
-# app.add_middleware — so it is the ABSOLUTE outermost layer. Logfire's
-# OpenTelemetry FastAPI instrumentation wraps `app` OUTSIDE its user-middleware
-# stack and raises on a CORS-preflight OPTIONS to a router route; an inner
-# CORSMiddleware (any add_middleware ordering) never gets to answer the
-# preflight, so it 500s with no Access-Control-Allow-Origin and every
-# cross-origin POST (e.g. /push/subscribe from the Vercel frontend) fails. As the
-# outer wrapper, CORS short-circuits the preflight before the instrumentation
-# runs. `app` (the FastAPI instance) stays exported for the ASGITransport tests.
+# The ASGI entrypoint uvicorn serves (see railpack.json). CORS MUST be a raw ASGI
+# wrapper here, not app.add_middleware — it has to sit outside Logfire's OTel
+# instrumentation or cross-origin preflights 500. Full story: docs/cors-preflight.md.
+# `app` (the FastAPI instance) stays exported for the ASGITransport tests.
 asgi = CORSMiddleware(
     app,
     allow_origins=settings.cors_origin_list,

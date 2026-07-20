@@ -81,6 +81,12 @@ ALERT_CLOSED_REASONS = ("official", "failsafe")
 # official city alert ending ('alert_end'), or the stale sweeper timing it out
 # ('stale'). NULL while active — see app/incidents.py.
 INCIDENT_ENDED_REASONS = ("all_clear", "alert_end", "stale")
+# User roles (app/auth/). Two roles for the MVP: 'admin' gets the service tools
+# (/raw, source management), 'user' gets personalization only.
+USER_ROLES = ("admin", "user")
+# Linked SSO providers on OAuthIdentity. Email+password is native on the User
+# row (password_hash), NOT an identity — so it's absent here.
+PROVIDERS = ("google", "telegram")
 
 
 class Source(Base):
@@ -366,6 +372,70 @@ class Threat(Base):
     )
 
 
+class User(Base):
+    """A registered person (single-user MVP → now multi-user with roles).
+
+    The public map stays open to everyone; a User row only exists once someone
+    signs in. `email`/`password_hash` are both nullable so a Telegram-only or
+    Google-only account (no local password, maybe no email) is representable.
+    `role` is re-resolved from the env allowlist on every login and persisted so
+    `require_admin` is a single cheap column read (see app/auth/service.py).
+    """
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # Unique when present; NULL for a Telegram account with no email (SQLite &
+    # Postgres both treat multiple NULLs as distinct, so many null-email rows coexist).
+    email: Mapped[Optional[str]] = mapped_column(String(320), unique=True, nullable=True)
+    # True only when the provider vouched for the email (Google id_token). A
+    # self-registered password account stays False — and an unverified email can
+    # never resolve to admin (closes the "register as admin@… and self-promote" hole).
+    email_verified: Mapped[bool] = mapped_column(default=False)
+    # argon2 hash; NULL for OAuth/Telegram-only accounts (no local password).
+    password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    role: Mapped[str] = mapped_column(String(10), default="user")
+    display_name: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    avatar_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+    last_login_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    identities: Mapped[list["OAuthIdentity"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class OAuthIdentity(Base):
+    """One linked SSO provider for a user — lets one account hold
+    email+password AND Google AND Telegram at once (linked by verified-email
+    match, see app/auth/service.py::get_or_create_user_for_identity).
+    """
+
+    __tablename__ = "oauth_identities"
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_user_id", name="uq_identity_provider_user"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    provider: Mapped[str] = mapped_column(String(20))  # see PROVIDERS
+    # Google `sub`; Telegram numeric id as a string.
+    provider_user_id: Mapped[str] = mapped_column(String(255))
+    # Provider-reported email snapshot at link time (audit only).
+    email: Mapped[Optional[str]] = mapped_column(String(320), nullable=True)
+    # Last raw provider payload, for debugging a bad login.
+    raw_profile: Mapped[Optional[dict]] = mapped_column(JSON(none_as_null=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    user: Mapped["User"] = relationship(back_populates="identities")
+
+
 class PushSubscription(Base):
     """One browser Web Push endpoint + the home zone it wants guarded.
 
@@ -378,6 +448,12 @@ class PushSubscription(Base):
     __tablename__ = "push_subscriptions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    # The signed-in owner, when the device subscribed while logged in — lets a
+    # user's home/push settings sync across their devices. NULL for anonymous
+    # device subscriptions (fully backward-compatible; SET NULL on user delete).
+    user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     # The push service URL — unique per browser+SW registration; upsert key.
     endpoint: Mapped[str] = mapped_column(Text, unique=True)
     p256dh: Mapped[str] = mapped_column(String(200))

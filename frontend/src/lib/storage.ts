@@ -12,6 +12,8 @@ export const STORAGE_KEYS = {
   geoAsked: 'klr-geo-asked',
   notify: 'klr-notify',
   notifyPrefs: 'klr-notify-prefs',
+  // The refresh token (the access token stays in memory only — see api.ts).
+  authRefresh: 'klr-auth',
 } as const
 
 /** Reads a localStorage value, swallowing errors (private-browsing/quota/etc.

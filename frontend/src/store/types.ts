@@ -1,4 +1,5 @@
 import type { AlertsSlice } from './alertsSlice'
+import type { AuthSlice } from './authSlice'
 import type { AxesSlice } from './axesSlice'
 import type { ConnectionSlice } from './connectionSlice'
 import type { DistrictsSlice } from './districtsSlice'
@@ -22,4 +23,5 @@ export type RadarState = DistrictsSlice &
   PwaSlice &
   PrefsSlice &
   NotifySlice &
-  WsSlice
+  WsSlice &
+  AuthSlice

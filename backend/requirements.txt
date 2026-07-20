@@ -18,6 +18,11 @@ anthropic>=0.40         # LLM fallback parser (Claude Haiku 4.5)
 # Web Push — danger-near-home notifications (app/pipeline/home_push.py)
 pywebpush>=2.0
 
+# Auth — user accounts + SSO (app/auth/)
+argon2-cffi>=23.1       # password hashing (no bcrypt 72-byte truncation)
+pyjwt[crypto]>=2.8      # JWT: HS256 for our tokens, RS256 to verify Google id_token
+email-validator>=2.1    # pydantic EmailStr
+
 # Observability (opt-in: dormant unless LOGFIRE_TOKEN / SENTRY_DSN are set)
 logfire[fastapi,sqlalchemy,asyncpg,httpx,system-metrics]>=3.0
 sentry-sdk[fastapi]>=2.0

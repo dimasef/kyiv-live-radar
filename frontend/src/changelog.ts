@@ -32,12 +32,24 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = '0.11.1'
+const LATEST = '0.12.0'
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: 'Акаунти та вхід',
+    date: '2026-07-20',
+    kind: 'minor',
+    changes: [
+      'Зʼявилися акаунти: можна зареєструватися й увійти через пошту та пароль (карта, як і раніше, доступна всім без входу)',
+      'Швидкий вхід через Google і Telegram (вмикається, коли адміністратор налаштує відповідні ключі)',
+      'Сторінка акаунта: профіль, привʼязані способи входу та вихід',
+      'Ролі користувачів: адміністратор і звичайний користувач. Службові інструменти (сирі повідомлення /raw) тепер лише для адміністраторів',
+    ],
+  },
+  {
+    version: '0.11.1',
     title: 'Сповіщення знову працюють',
     date: '2026-07-20',
     kind: 'patch',

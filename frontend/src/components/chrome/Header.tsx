@@ -1,6 +1,7 @@
 import { CalendarClock, Eye } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { AuthButton } from '@/components/auth'
 import { riseDelay } from '@/lib/motion'
 import { navigate, THREAT_JOURNAL_PATH } from '@/router'
 import { useRadar } from '@/store'
@@ -85,6 +86,7 @@ export default function Header() {
           {/* Mobile keeps the icon alone; the label appears from md up. */}
           <span className="hidden font-mono text-[11px] md:inline">{t('journal.short')}</span>
         </a>
+        <AuthButton />
         <LanguageSwitcher />
       </div>
     </header>

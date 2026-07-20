@@ -20,19 +20,75 @@ import type {
 
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:8137'
 
+/** An HTTP error carrying the status code so callers can branch on it (401 vs
+ * 403 vs 400) instead of parsing a string. */
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message)
+    this.name = 'ApiError'
+  }
+}
+
+// --- Auth token plumbing ---------------------------------------------------
+// The access token lives in memory only (never localStorage) to shrink the XSS
+// exfiltration surface; the refresh token is persisted by the auth store. On a
+// 401 we transparently refresh once and retry via `refreshHandler`, which the
+// auth store registers (setRefreshHandler) — api.ts stays storage-agnostic.
+let accessToken: string | null = null
+let refreshHandler: (() => Promise<string | null>) | null = null
+
+export function setAccessToken(token: string | null): void {
+  accessToken = token
+}
+export function setRefreshHandler(fn: (() => Promise<string | null>) | null): void {
+  refreshHandler = fn
+}
+
+function withAuth(headers: HeadersInit | undefined, token: string | null): HeadersInit {
+  return token ? { ...(headers ?? {}), Authorization: `Bearer ${token}` } : (headers ?? {})
+}
+
+/** fetch + bearer token + one transparent refresh-and-retry on 401. */
+async function authedFetch(path: string, init: RequestInit = {}, retry = true): Promise<Response> {
+  const res = await fetch(`${API}${path}`, { ...init, headers: withAuth(init.headers, accessToken) })
+  if (res.status === 401 && retry && refreshHandler) {
+    const fresh = await refreshHandler()
+    if (fresh) {
+      return fetch(`${API}${path}`, { ...init, headers: withAuth(init.headers, fresh) })
+    }
+  }
+  return res
+}
+
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${API}${path}`)
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`)
+  const res = await authedFetch(path)
+  if (!res.ok) throw new ApiError(res.status, `${path} -> ${res.status}`)
   return res.json() as Promise<T>
 }
 
 async function send<T>(path: string, method: 'POST' | 'DELETE', body: unknown): Promise<T> {
-  const res = await fetch(`${API}${path}`, {
+  const res = await authedFetch(path, {
     method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  if (!res.ok) throw new Error(`${method} ${path} -> ${res.status}`)
+  if (!res.ok) throw new ApiError(res.status, `${method} ${path} -> ${res.status}`)
+  return res.json() as Promise<T>
+}
+
+/** POST that carries NO auth and never triggers the refresh-retry — for the
+ * auth endpoints themselves, where a 401 is a real credential error, not an
+ * expired access token. */
+async function authPost<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new ApiError(res.status, `POST ${path} -> ${res.status}`)
   return res.json() as Promise<T>
 }
 
@@ -116,3 +172,44 @@ export const postPushSubscribe = (body: PushSubscribeBody) =>
   send<{ ok: boolean }>('/push/subscribe', 'POST', body)
 export const deletePushSubscribe = (endpoint: string) =>
   send<{ ok: boolean }>('/push/subscribe', 'DELETE', { endpoint })
+
+// --- Auth (see store/authSlice.ts + components/auth) -----------------------
+export interface AuthUser {
+  id: number
+  email: string | null
+  display_name: string | null
+  avatar_url: string | null
+  role: string
+  /** Linked sign-in methods: 'password' + any of 'google' | 'telegram'. */
+  providers: string[]
+}
+export interface TokenPair {
+  access: string
+  refresh: string
+  token_type: string
+  user: AuthUser
+}
+/** The Telegram Login Widget payload (forwarded verbatim so the backend can
+ * re-verify the HMAC over exactly the fields Telegram signed). */
+export interface TelegramAuthPayload {
+  id: number
+  first_name: string
+  last_name?: string
+  username?: string
+  photo_url?: string
+  auth_date: number
+  hash: string
+}
+
+export const authRegister = (email: string, password: string, displayName?: string) =>
+  authPost<TokenPair>('/auth/register', { email, password, display_name: displayName })
+export const authLogin = (email: string, password: string) =>
+  authPost<TokenPair>('/auth/login', { email, password })
+export const authGoogle = (credential: string) =>
+  authPost<TokenPair>('/auth/google', { credential })
+export const authTelegram = (payload: TelegramAuthPayload) =>
+  authPost<TokenPair>('/auth/telegram', payload)
+export const authRefreshToken = (refresh: string) =>
+  authPost<{ access: string; token_type: string }>('/auth/refresh', { refresh })
+export const authMe = () => get<AuthUser>('/auth/me')
+export const authLogout = () => authPost<{ ok: boolean }>('/auth/logout', {})

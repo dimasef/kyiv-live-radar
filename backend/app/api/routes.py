@@ -8,6 +8,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from ..auth.deps import get_optional_user, require_admin
 from ..config import settings
 from ..db import get_session
 from ..domain.districts import citywide_district_id
@@ -24,6 +25,7 @@ from ..models import (
     Threat,
     ThreatAxis,
     ThreatEvent,
+    User,
     utcnow,
 )
 from ..schemas import (
@@ -193,6 +195,7 @@ async def raw_messages(
     ),
     source_id: Optional[int] = Query(None, description="Filter to one monitored channel"),
     session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
 ):
     """Every ingested message verbatim, INCLUDING ones the parser suppressed
     or couldn't localize — a debug view onto the pipeline, distinct from
@@ -221,6 +224,7 @@ async def raw_messages_count(
     llm: Optional[str] = Query(None),
     source_id: Optional[int] = Query(None),
     session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
 ):
     """How many raw messages match the current filter set — powers the
     "показано N з M" counter on /raw without paging through everything."""
@@ -245,6 +249,7 @@ async def raw_messages_export(
     llm: Optional[str] = Query(None),
     source_id: Optional[int] = Query(None),
     session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
 ):
     """Every message matching the current filter (up to _RAW_EXPORT_CAP), for
     offline analysis. Returned oldest-first so the export reads as a sequence
@@ -265,7 +270,10 @@ async def raw_messages_export(
 
 
 @router.get("/raw_messages/sources", response_model=list[RawSourceOut])
-async def raw_messages_sources(session: AsyncSession = Depends(get_session)):
+async def raw_messages_sources(
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
     """Currently-configured channels only, for the /raw channel filter
     dropdown — `sources` accumulates one row per channel_key ever resolved,
     including ones dropped from TELEGRAM_CHANNELS/ALERT_CHANNELS long ago
@@ -281,7 +289,10 @@ async def raw_messages_sources(session: AsyncSession = Depends(get_session)):
 
 
 @router.get("/raw_messages/llm_stats", response_model=RawLlmStatsOut)
-async def raw_messages_llm_stats(session: AsyncSession = Depends(get_session)):
+async def raw_messages_llm_stats(
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
     """Aggregate LLM fallback usage across ALL raw messages — total calls,
     tokens, and cost, for the analytics strip on /raw. Unfiltered (ignores
     search/outcome filters) so it always reads as "overall spend", not
@@ -394,11 +405,16 @@ async def push_config():
 
 
 @router.post("/push/subscribe")
-async def push_subscribe(body: PushSubscribeIn, session: AsyncSession = Depends(get_session)):
+async def push_subscribe(
+    body: PushSubscribeIn,
+    session: AsyncSession = Depends(get_session),
+    user: Optional[User] = Depends(get_optional_user),
+):
     """Register (or update — upsert by endpoint) a push subscription with its
     home zone. Re-POSTed on every home change; moving home resets the per-track
     danger bookkeeping so levels computed for the OLD location can't suppress
-    fresh pushes for the new one."""
+    fresh pushes for the new one. When the request carries a valid token, the
+    subscription is stamped with the owner so a user's devices can be linked."""
     sub = await session.scalar(
         select(PushSubscription).where(PushSubscription.endpoint == body.subscription.endpoint)
     )
@@ -412,6 +428,8 @@ async def push_subscribe(body: PushSubscribeIn, session: AsyncSession = Depends(
     else:
         sub.p256dh = body.subscription.keys.p256dh
         sub.auth = body.subscription.keys.auth
+    if user is not None:
+        sub.user_id = user.id
     if body.prefs is not None:
         sub.prefs = body.prefs.model_dump()
     if body.home is not None:

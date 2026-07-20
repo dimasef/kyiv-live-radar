@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 def _as_utc(v: object) -> object:
@@ -389,6 +389,79 @@ class PushConfigOut(BaseModel):
 
     enabled: bool
     public_key: Optional[str] = None
+
+
+class RegisterIn(BaseModel):
+    """POST /auth/register — email+password signup."""
+
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+    display_name: Optional[str] = Field(default=None, max_length=120)
+
+
+class LoginIn(BaseModel):
+    """POST /auth/login."""
+
+    email: EmailStr
+    password: str = Field(min_length=1, max_length=128)
+
+
+class RefreshIn(BaseModel):
+    """POST /auth/refresh — exchange a refresh token for a new access token."""
+
+    refresh: str
+
+
+class GoogleAuthIn(BaseModel):
+    """POST /auth/google — the id_token from Google Identity Services."""
+
+    credential: str
+
+
+class TelegramAuthIn(BaseModel):
+    """POST /auth/telegram — the Telegram Login Widget payload. extra='allow'
+    so any future widget field is preserved for the HMAC data-check-string
+    (which must include EXACTLY the fields Telegram signed)."""
+
+    model_config = ConfigDict(extra="allow")
+
+    id: int
+    first_name: str
+    last_name: Optional[str] = None
+    username: Optional[str] = None
+    photo_url: Optional[str] = None
+    auth_date: int
+    hash: str
+
+
+class UserOut(BaseModel):
+    """The authenticated user's public profile."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    email: Optional[str] = None
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    role: str
+    # Which sign-in methods are linked: 'password' + any of PROVIDERS.
+    providers: list[str] = []
+
+
+class TokenPairOut(BaseModel):
+    """Access + refresh tokens plus the user they belong to."""
+
+    access: str
+    refresh: str
+    token_type: str = "bearer"
+    user: UserOut
+
+
+class AccessTokenOut(BaseModel):
+    """POST /auth/refresh result — a fresh access token only."""
+
+    access: str
+    token_type: str = "bearer"
 
 
 class WSMessage(BaseModel):

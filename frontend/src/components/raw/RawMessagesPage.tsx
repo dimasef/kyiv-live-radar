@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { fetchRawSources } from '@/api'
+import { AuthModal } from '@/components/auth'
+import { navigate } from '@/router'
+import { useRadar } from '@/store'
 import type { RawOutcomeFilter, RawSource } from '@/types'
 
 import LlmStatsStrip from './LlmStatsStrip'
@@ -12,10 +15,57 @@ import { useRawSelection } from './useRawSelection'
 
 const SEARCH_DEBOUNCE_MS = 300
 
+/** Admin gate for /raw — the backend also enforces this (401/403), so this is
+ * UX only. Non-admins never mount the data view (and never fire its fetches). */
+export default function RawMessagesPage() {
+  const status = useRadar((s) => s.authStatus)
+  const isAdmin = useRadar((s) => s.user?.role === 'admin')
+  const [loginOpen, setLoginOpen] = useState(false)
+
+  if (status === 'unknown') {
+    return (
+      <div className="flex h-[100dvh] items-center justify-center bg-ink-950 text-xs text-slate-500">
+        Завантаження…
+      </div>
+    )
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="flex h-[100dvh] flex-col items-center justify-center gap-4 bg-ink-950 px-4 text-center text-slate-300">
+        <p className="max-w-xs text-sm text-slate-400">
+          {status === 'authed'
+            ? 'Ця сторінка доступна лише адміністраторам.'
+            : 'Увійдіть як адміністратор, щоб переглянути сирі повідомлення.'}
+        </p>
+        <div className="flex gap-2">
+          {status !== 'authed' && (
+            <button
+              onClick={() => setLoginOpen(true)}
+              className="rounded-lg bg-phosphor px-4 py-2 text-sm font-semibold text-ink-950 hover:opacity-90"
+            >
+              Увійти
+            </button>
+          )}
+          <button
+            onClick={() => navigate('/')}
+            className="rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-white/20"
+          >
+            На головну
+          </button>
+        </div>
+        {loginOpen && <AuthModal onClose={() => setLoginOpen(false)} />}
+      </div>
+    )
+  }
+
+  return <RawMessagesView />
+}
+
 /** Hidden debug route (/raw): every ingested message, including ones the
  * parser suppressed or couldn't localize — distinct from the operator-facing
  * event feed, which only shows messages that became a live sighting. */
-export default function RawMessagesPage() {
+function RawMessagesView() {
   const [searchInput, setSearchInput] = useState('')
   const [q, setQ] = useState('')
   const [outcome, setOutcome] = useState<RawOutcomeFilter | 'all'>('all')
