@@ -87,6 +87,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Kyiv Aerial Threat Tracker (MVP)", lifespan=lifespan)
 
+app.include_router(router)
+
+setup_observability(app)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
@@ -94,10 +98,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-app.include_router(router)
-
-setup_observability(app)
 
 
 @app.get("/health")
