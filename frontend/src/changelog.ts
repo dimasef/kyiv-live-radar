@@ -32,12 +32,27 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = '0.12.0'
+const LATEST = '0.13.0'
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: 'Оновлена навігація',
+    date: '2026-07-23',
+    kind: 'minor',
+    changes: [
+      'Єдина верхня панель навігації на кожній сторінці: Мапа, Журнал, а для адміністраторів — Весь Фід. Більше жодних окремих кнопок «на головну» — усе під рукою звідусіль',
+      'Налаштування переїхали у зручну висувну панель, що відкривається з будь-якої сторінки; туди ж перенесено перемикання мови',
+      'Стан зʼєднання — одна іконка в куті карти: зелена, коли все стабільно, червона при втраті звʼязку, окремо показує проблеми з телеграм-джерелом (підказка при наведенні). Індикатори більше не зʼявляються й не зникають ривками',
+      'У «Стрічці подій» зʼявилося налаштування кількості повідомлень (30 / 60 / 120 / 250); висота стрічки й розмір тексту тепер в одному місці',
+      'Лічильник глядачів онлайн переїхав у заголовок «Стрічки подій»',
+      'Оновлене вікно входу: кнопки Google / Telegram — зверху, додано кнопку показу пароля, інтерфейс входу перекладено англійською',
+      'Плавні анімації відкриття та закриття вікон',
+    ],
+  },
+  {
+    version: '0.12.0',
     title: 'Акаунти та вхід',
     date: '2026-07-20',
     kind: 'minor',

@@ -28,11 +28,22 @@ function initialFeedTextSize(): FeedTextSize {
   return FEED_TEXT_SIZES.includes(saved as FeedTextSize) ? (saved as FeedTextSize) : 'md'
 }
 
+/** How many recent feed messages to fetch and keep. */
+export const FEED_LIMITS = [30, 60, 120, 250] as const
+export type FeedLimit = (typeof FEED_LIMITS)[number]
+
+function initialFeedLimit(): FeedLimit {
+  const saved = Number(safeGet(STORAGE_KEYS.feedLimit))
+  return (FEED_LIMITS as readonly number[]).includes(saved) ? (saved as FeedLimit) : 60
+}
+
 export interface PrefsSlice {
   sheetHeight: SheetHeight
   setSheetHeight: (h: SheetHeight) => void
   feedTextSize: FeedTextSize
   setFeedTextSize: (s: FeedTextSize) => void
+  feedLimit: FeedLimit
+  setFeedLimit: (n: FeedLimit) => void
 }
 
 export const createPrefsSlice: StateCreator<RadarState, [], [], PrefsSlice> = (set) => ({
@@ -45,5 +56,10 @@ export const createPrefsSlice: StateCreator<RadarState, [], [], PrefsSlice> = (s
   setFeedTextSize: (s) => {
     safeSet(STORAGE_KEYS.feedTextSize, s)
     set({ feedTextSize: s })
+  },
+  feedLimit: initialFeedLimit(),
+  setFeedLimit: (n) => {
+    safeSet(STORAGE_KEYS.feedLimit, String(n))
+    set({ feedLimit: n })
   },
 })

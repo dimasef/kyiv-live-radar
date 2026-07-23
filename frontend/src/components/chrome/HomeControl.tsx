@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { districtAt } from '../../lib/geo'
+import { MAP_PATH, navigate } from '../../router'
 import { useRadar } from '../../store'
 
 /** Request the browser geolocation and set it as home (origin 'geo'). */
@@ -30,7 +31,7 @@ export function requestGeolocation(onDenied?: () => void) {
 const RADIUS_MIN = 1
 const RADIUS_MAX = 15
 
-/** "My home" section — rendered inside SettingsPanel (no own panel chrome). */
+/** "My home" section — rendered inside the settings drawer (no own panel chrome). */
 export default function HomeControl() {
   const { t } = useTranslation()
   const home = useRadar((s) => s.home)
@@ -39,7 +40,18 @@ export default function HomeControl() {
   const setHomeRadius = useRadar((s) => s.setHomeRadius)
   const placingHome = useRadar((s) => s.placingHome)
   const setPlacingHome = useRadar((s) => s.setPlacingHome)
+  const setSettingsOpen = useRadar((s) => s.setSettingsOpen)
   const [denied, setDenied] = useState(false)
+
+  // Placing home needs the map visible — leave the drawer (and any sub-page).
+  const togglePlacing = () => {
+    const next = !placingHome
+    setPlacingHome(next)
+    if (next) {
+      setSettingsOpen(false)
+      navigate(MAP_PATH)
+    }
+  }
 
   const homeDistrict = home ? districtAt(home.lat, home.lon, boundaries) : null
   const fill = home
@@ -56,7 +68,7 @@ export default function HomeControl() {
         {home && (
           <button
             onClick={() => setHome(null)}
-            className="text-xs text-slate-500 underline decoration-slate-600 underline-offset-2 transition-colors hover:text-slate-200"
+            className="text-xs text-red-400 underline decoration-red-400/40 underline-offset-2 transition-colors hover:text-red-300"
           >
             {t('home.clear')}
           </button>
@@ -96,7 +108,7 @@ export default function HomeControl() {
 
       <div className="mt-3 grid grid-cols-2 gap-1.5">
         <button
-          onClick={() => setPlacingHome(!placingHome)}
+          onClick={togglePlacing}
           className={`btn flex items-center justify-center gap-1.5 ${
             placingHome ? 'btn--warn' : ''
           }`}

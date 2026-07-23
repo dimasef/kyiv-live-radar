@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { fetchRawSources } from '@/api'
 import { AuthModal } from '@/components/auth'
-import { navigate } from '@/router'
 import { useRadar } from '@/store'
 import type { RawOutcomeFilter, RawSource } from '@/types'
 
@@ -24,7 +23,7 @@ export default function RawMessagesPage() {
 
   if (status === 'unknown') {
     return (
-      <div className="flex h-[100dvh] items-center justify-center bg-ink-950 text-xs text-slate-500">
+      <div className="flex h-full items-center justify-center bg-ink-950 text-xs text-slate-500">
         Завантаження…
       </div>
     )
@@ -32,28 +31,20 @@ export default function RawMessagesPage() {
 
   if (!isAdmin) {
     return (
-      <div className="flex h-[100dvh] flex-col items-center justify-center gap-4 bg-ink-950 px-4 text-center text-slate-300">
+      <div className="flex h-full flex-col items-center justify-center gap-4 bg-ink-950 px-4 text-center text-slate-300">
         <p className="max-w-xs text-sm text-slate-400">
           {status === 'authed'
             ? 'Ця сторінка доступна лише адміністраторам.'
             : 'Увійдіть як адміністратор, щоб переглянути сирі повідомлення.'}
         </p>
-        <div className="flex gap-2">
-          {status !== 'authed' && (
-            <button
-              onClick={() => setLoginOpen(true)}
-              className="rounded-lg bg-phosphor px-4 py-2 text-sm font-semibold text-ink-950 hover:opacity-90"
-            >
-              Увійти
-            </button>
-          )}
+        {status !== 'authed' && (
           <button
-            onClick={() => navigate('/')}
-            className="rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-white/20"
+            onClick={() => setLoginOpen(true)}
+            className="rounded-lg bg-phosphor px-4 py-2 text-sm font-semibold text-ink-950 hover:opacity-90"
           >
-            На головну
+            Увійти
           </button>
-        </div>
+        )}
         {loginOpen && <AuthModal onClose={() => setLoginOpen(false)} />}
       </div>
     )
@@ -101,7 +92,7 @@ function RawMessagesView() {
   }, [loadMore])
 
   return (
-    <div className="h-[100dvh] overflow-y-auto overscroll-contain bg-ink-950 px-4 py-8 text-slate-200">
+    <div className="h-full overflow-y-auto overscroll-contain bg-ink-950 px-4 py-8 text-slate-200">
       <div className="mx-auto max-w-3xl">
         <h1 className="font-display text-lg font-bold text-slate-100">Сирі повідомлення</h1>
         <p className="mt-1 text-xs text-slate-500">

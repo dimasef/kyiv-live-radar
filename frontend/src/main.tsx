@@ -4,7 +4,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import { AccountPage } from './components/auth'
 import { ChangelogPage } from './components/changelog'
-import { UpdateToast } from './components/chrome'
+import { AppShell } from './components/chrome'
 import { ThreatJournalPage } from './components/journal'
 import { RawMessagesPage } from './components/raw'
 import {
@@ -37,9 +37,9 @@ void useRadar.getState().refreshSession()
 
 /** Tiny top-level router: the changelog, journal and raw-message debug view are
  * their own routes; everything else is the radar app (whose data-fetching hooks
- * then only run there — see store/bootstrap.ts). UpdateToast lives HERE, not in
- * App: it is the app's single SW-registration point and the "new version" banner
- * must appear on every route, including a tab left open on a secondary page. */
+ * then only run there — see store/bootstrap.ts). Every route renders inside the
+ * persistent AppShell (top bar + mobile bottom nav + settings drawer + the
+ * global SW-update toast), so navigation and status are consistent everywhere. */
 function Root() {
   const route = useRoute()
   const page =
@@ -54,12 +54,7 @@ function Root() {
     ) : (
       <App />
     )
-  return (
-    <>
-      {page}
-      <UpdateToast />
-    </>
-  )
+  return <AppShell>{page}</AppShell>
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

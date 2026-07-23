@@ -37,7 +37,7 @@ export async function hydrate(): Promise<void> {
     fetchRecentIncidents().then(store.setRecentIncidents).catch(() => {}),
     fetchActiveAxes().then(store.setAxes).catch(() => {}),
     fetchActiveAlerts().then(store.setAlerts).catch(() => {}),
-    fetchRecentEvents().then(store.setLog).catch(() => {}),
+    fetchRecentEvents(store.feedLimit).then(store.setLog).catch(() => {}),
     fetchRecentNotices().then(store.setNotices).catch(() => {}),
     // Hydrate feed health once; live changes arrive via the WS 'health' frame.
     fetchHealth()

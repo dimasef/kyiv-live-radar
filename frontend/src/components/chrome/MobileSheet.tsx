@@ -2,13 +2,9 @@ import { ChevronUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ThreatLog } from "@/components/feed";
+import { OnlineBadge, ThreatLog } from "@/components/feed";
 import { useRadar } from "@/store";
 import type { SheetHeight } from "@/store/prefsSlice";
-
-import SettingsPanel from "./SettingsPanel";
-
-const TABS = ["feed", "settings"] as const;
 
 // Open height per user preference. Literal classes so Tailwind's JIT keeps them.
 const HEIGHT_CLASS: Record<SheetHeight, string> = {
@@ -17,16 +13,15 @@ const HEIGHT_CLASS: Record<SheetHeight, string> = {
   high: "h-[80dvh]",
 };
 
-/** Mobile bottom sheet — expanded state + which tab is shown. Reads
- * placingHome/inspectedThreat straight from the store to auto-collapse
- * (both need the map visible), instead of App lifting that state down. */
+/** Mobile bottom sheet for the event feed. Reads placingHome/inspectedThreat
+ * straight from the store to auto-collapse (both need the map visible). Settings
+ * moved to the shell drawer, so this is feed-only now. */
 export default function MobileSheet() {
   const { t } = useTranslation();
   const placingHome = useRadar((s) => s.placingHome);
   const inspectedThreatId = useRadar((s) => s.inspectedThreat?.id);
   const sheetHeight = useRadar((s) => s.sheetHeight);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [tab, setTab] = useState<(typeof TABS)[number]>("feed");
 
   useEffect(() => {
     if (placingHome) setSheetOpen(false);
@@ -44,42 +39,29 @@ export default function MobileSheet() {
       <button
         onClick={() => setSheetOpen(!sheetOpen)}
         aria-label={sheetOpen ? t("panel.close") : t("panel.open")}
-        className="flex-none flex items-center justify-between gap-3 px-4 h-[3.4rem] w-full text-left"
+        className="flex-none flex items-center justify-between gap-3 px-6 h-[3.4rem] w-full text-left"
       >
         <span className="flex items-center gap-2.5 min-w-0">
           <span className="w-8 h-1 rounded-full bg-white/15" aria-hidden />
-          <span className="panel-title">{t("log.title")}</span>
+          {/* Collapsed: draw the eye to the feed with the phosphor accent. */}
+          <span className={`panel-title ${sheetOpen ? "" : "text-phosphor-soft"}`}>
+            {t("log.title")}
+          </span>
         </span>
-        <ChevronUp
-          size={16}
-          className={`text-slate-400 transition-transform duration-300 ${
-            sheetOpen ? "rotate-180" : ""
-          }`}
-          aria-hidden
-        />
+        <span className="flex items-center gap-3">
+          <OnlineBadge />
+          <ChevronUp
+            size={24}
+            className={`text-slate-400 transition-transform duration-300 ${
+              sheetOpen ? "rotate-180" : ""
+            }`}
+            aria-hidden
+          />
+        </span>
       </button>
 
-      <div className="flex-none flex gap-1 px-3 pb-2">
-        {TABS.map((k) => (
-          <button
-            key={k}
-            onClick={() => {
-              setTab(k);
-              setSheetOpen(true);
-            }}
-            className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors duration-200 ${
-              tab === k
-                ? "bg-phosphor/15 text-phosphor-soft border border-phosphor/30"
-                : "bg-white/[0.04] text-slate-400 border border-transparent"
-            }`}
-          >
-            {t(`panel.${k}`)}
-          </button>
-        ))}
-      </div>
-
       <div className="flex-1 min-h-0 overflow-y-auto scroll-slim px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        {tab === "feed" ? <ThreatLog /> : <SettingsPanel defaultOpen />}
+        <ThreatLog />
       </div>
     </section>
   );

@@ -1,9 +1,8 @@
-import { ArrowLeft, ChevronDown } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { APP_VERSION, CHANGELOG, SEMVER_RULES, type BumpKind } from '../../changelog'
-import { navigate } from '../../router'
 
 const KIND_COLOR: Record<BumpKind, string> = {
   major: '#f43f5e',
@@ -24,20 +23,8 @@ export default function ChangelogPage() {
   const [rulesOpen, setRulesOpen] = useState(false)
 
   return (
-    <div className="h-[100dvh] overflow-y-auto overscroll-contain">
+    <div className="h-full overflow-y-auto overscroll-contain">
       <div className="mx-auto max-w-2xl px-5 py-6 sm:px-8 sm:py-10">
-        <a
-          href="/"
-          onClick={(e) => {
-            e.preventDefault()
-            navigate('/')
-          }}
-          className="mb-7 inline-flex items-center gap-2 text-[13px] text-slate-400 transition-colors hover:text-slate-100"
-        >
-          <ArrowLeft size={16} />
-          {t('changelog.back')}
-        </a>
-
         <div className="flex items-baseline gap-3">
           <h1 className="font-display text-lg font-bold tracking-wide text-slate-100">
             {t('changelog.title')}

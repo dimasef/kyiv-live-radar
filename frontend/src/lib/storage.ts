@@ -9,6 +9,7 @@ export const STORAGE_KEYS = {
   installDismiss: 'klr-install-dismiss',
   sheetHeight: 'klr-sheet-height',
   feedTextSize: 'klr-feed-text',
+  feedLimit: 'klr-feed-limit',
   geoAsked: 'klr-geo-asked',
   notify: 'klr-notify',
   notifyPrefs: 'klr-notify-prefs',

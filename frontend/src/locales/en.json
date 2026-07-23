@@ -3,6 +3,39 @@
     "title": "Kyiv Live Radar",
     "subtitle": "Auxiliary aerial threat tracker"
   },
+  "nav": {
+    "map": "Map",
+    "journal": "Journal",
+    "account": "Account",
+    "raw": "Raw feed",
+    "settings": "Settings"
+  },
+  "auth": {
+    "signIn": "Sign in",
+    "account": "Account",
+    "register": "Register",
+    "loginTitle": "Sign in",
+    "registerTitle": "Register",
+    "email": "Email",
+    "password": "Password",
+    "name": "Name (optional)",
+    "noAccount": "No account?",
+    "haveAccount": "Already have an account?",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "or": "or",
+    "close": "Close",
+    "err": {
+      "badCredentials": "Wrong email or password",
+      "emailTaken": "This email is already registered",
+      "weakPassword": "Password must be at least 8 characters",
+      "unavailable": "Sign-in is temporarily unavailable",
+      "loginFailed": "Could not sign in",
+      "registerFailed": "Could not register",
+      "googleFailed": "Could not sign in with Google",
+      "telegramFailed": "Could not sign in with Telegram"
+    }
+  },
   "citywide": {
     "title": "City-wide threat"
   },
@@ -109,7 +142,10 @@
     "feedUnavailable": "Data source unavailable",
     "lost": "Connection lost",
     "lostHint": "Reconnecting automatically…",
-    "resyncing": "Refreshing data"
+    "resyncing": "Refreshing data",
+    "ok": "Connection stable",
+    "reconnecting": "Reconnecting…",
+    "feedLost": "Lost connection to Telegram sources"
   },
   "panel": {
     "feed": "Feed",
@@ -119,6 +155,9 @@
   },
   "settings": {
     "title": "Settings",
+    "language": "Language",
+    "feed": "Event feed",
+    "feedCount": "Message count",
     "sheetHeight": "Feed height (mobile)",
     "sheet": {
       "low": "Low",

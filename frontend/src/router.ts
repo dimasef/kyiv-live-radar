@@ -19,6 +19,8 @@ export function useRoute(): string {
   return path
 }
 
+// The radar map — the app's default/home route.
+export const MAP_PATH = '/'
 export const CHANGELOG_PATH = '/change-log'
 // Operator-facing calendar of past aerial-threat activity (linked from Settings).
 export const THREAT_JOURNAL_PATH = '/journal'

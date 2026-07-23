@@ -1,4 +1,4 @@
-import { ArrowLeft, LogOut, ShieldCheck } from 'lucide-react'
+import { LogOut, ShieldCheck } from 'lucide-react'
 
 import { navigate, RAW_MESSAGES_PATH } from '@/router'
 import { useRadar } from '@/store'
@@ -18,18 +18,10 @@ export default function AccountPage() {
 
   if (status !== 'authed' || !user) {
     return (
-      <div className="flex h-[100dvh] flex-col items-center justify-center gap-4 bg-ink-950 text-slate-300">
+      <div className="flex h-full flex-col items-center justify-center gap-4 bg-ink-950 text-slate-300">
         <p className="text-sm text-slate-400">
           {status === 'unknown' ? 'Завантаження…' : 'Ви не увійшли.'}
         </p>
-        {status !== 'unknown' && (
-          <button
-            onClick={() => navigate('/')}
-            className="rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-white/20"
-          >
-            На головну
-          </button>
-        )}
       </div>
     )
   }
@@ -37,15 +29,8 @@ export default function AccountPage() {
   const isAdmin = user.role === 'admin'
 
   return (
-    <div className="h-[100dvh] overflow-y-auto bg-ink-950 px-4 py-8 text-slate-200">
+    <div className="h-full overflow-y-auto bg-ink-950 px-4 py-8 text-slate-200">
       <div className="mx-auto max-w-md">
-        <button
-          onClick={() => navigate('/')}
-          className="mb-6 flex items-center gap-1.5 text-xs text-slate-400 hover:text-phosphor-soft"
-        >
-          <ArrowLeft size={14} /> На головну
-        </button>
-
         <div className="flex items-center gap-3">
           {user.avatar_url && (
             <img src={user.avatar_url} alt="" className="h-14 w-14 rounded-full" />

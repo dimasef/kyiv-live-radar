@@ -1,10 +1,9 @@
-import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { fetchDistricts, fetchJournal } from '@/api'
 import { riseDelay } from '@/lib/motion'
-import { navigate } from '@/router'
 import type { JournalDay } from '@/types'
 
 import CalendarHeatmap from './CalendarHeatmap'
@@ -77,21 +76,8 @@ export default function ThreatJournalPage() {
     year > now.getFullYear() || (year === now.getFullYear() && month0 >= now.getMonth())
 
   return (
-    <div className="h-[100dvh] overflow-y-auto overscroll-contain">
+    <div className="h-full overflow-y-auto overscroll-contain">
       <div className="mx-auto max-w-xl px-4 py-6 sm:px-6 sm:py-10">
-        <a
-          href="/"
-          onClick={(e) => {
-            e.preventDefault()
-            navigate('/')
-          }}
-          className="rise mb-6 inline-flex items-center gap-2 text-[13px] text-slate-400 transition-colors hover:text-slate-100"
-          style={riseDelay(0)}
-        >
-          <ArrowLeft size={16} />
-          {t('journal.back')}
-        </a>
-
         <div className="rise" style={riseDelay(1)}>
           <h1 className="font-display text-lg font-bold tracking-wide text-slate-100">
             {t('journal.title')}

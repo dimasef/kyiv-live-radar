@@ -1,39 +1,39 @@
 import { ExternalLink, TriangleAlert, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { useDismissTransition } from '@/lib/useDismissTransition'
+
 import { safeSet, STORAGE_KEYS } from '../../lib/storage'
 
-/** Safety disclaimer as a load-time modal (spec §1, §11 — reachable anytime via
- *  the header warning button; "don't show again" only skips the auto-open). */
-
-interface Props {
-  open: boolean
-  onClose: () => void
-}
-
-export default function DisclaimerModal({ open, onClose }: Props) {
+/** Safety disclaimer as a load-time modal. Mounted only while open (by App), so
+ * it animates in and out; "don't show again" only skips the auto-open. */
+export default function DisclaimerModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation()
-  if (!open) return null
+  const { shown, close } = useDismissTransition(onClose)
 
   const dontShowAgain = () => {
     safeSet(STORAGE_KEYS.disclaimerHide, '1')
-    onClose()
+    close()
   }
 
   return (
     <div
-      className="modal-backdrop fixed inset-0 z-[1500] flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm"
+      className={`fixed inset-0 z-[1500] flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm transition-opacity duration-200 ${
+        shown ? 'opacity-100' : 'opacity-0'
+      }`}
       role="dialog"
       aria-modal="true"
       aria-label={t('disclaimer.title')}
-      onClick={onClose}
+      onClick={close}
     >
       <div
-        className="modal-card panel relative w-full max-w-md border-amber-500/20 p-5 sm:p-6"
+        className={`panel relative w-full max-w-md border-amber-500/20 p-5 transition-all duration-200 ease-out sm:p-6 ${
+          shown ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-2 scale-95 opacity-0'
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         <button
-          onClick={onClose}
+          onClick={close}
           aria-label={t('disclaimer.dismiss')}
           className="absolute right-3 top-3 rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-white/5 hover:text-slate-200"
         >
@@ -49,9 +49,7 @@ export default function DisclaimerModal({ open, onClose }: Props) {
           </h2>
         </div>
 
-        <p className="mt-4 text-[13px] leading-relaxed text-slate-300">
-          {t('disclaimer.text')}
-        </p>
+        <p className="mt-4 text-[13px] leading-relaxed text-slate-300">{t('disclaimer.text')}</p>
         <p className="mt-2 text-[13px] font-semibold leading-relaxed text-amber-200">
           {t('disclaimer.never')}
         </p>
@@ -70,7 +68,7 @@ export default function DisclaimerModal({ open, onClose }: Props) {
           <button onClick={dontShowAgain} className="btn text-slate-400">
             {t('disclaimer.dontShow')}
           </button>
-          <button onClick={onClose} className="btn btn--warn font-semibold">
+          <button onClick={close} className="btn btn--warn font-semibold">
             {t('disclaimer.dismiss')}
           </button>
         </div>

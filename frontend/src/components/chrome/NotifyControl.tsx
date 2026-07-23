@@ -21,7 +21,7 @@ function checkServerEnabled(): Promise<boolean> {
   return serverEnabled
 }
 
-/** "Danger near home" push opt-in — rendered inside SettingsPanel. Hidden when
+/** "Danger near home" push opt-in — rendered inside the settings drawer. Hidden when
  * the browser can't push or the server has no VAPID keys; on iOS push only
  * works from an installed PWA (16.4+), so an uninstalled iOS Safari gets the
  * install hint instead of a dead toggle. */

@@ -5,7 +5,6 @@ import type { FeedEntry, Threat, ThreatEvent } from '@/types'
 
 import type { RadarState } from './types'
 
-const LOG_CAP = 60
 // How long a closed (destroyed/lost) track lingers on the map before it clears.
 const CLOSED_LINGER_MS = 6000
 
@@ -74,7 +73,7 @@ export const createThreatsSlice: StateCreator<RadarState, [], [], ThreatsSlice> 
       // 1), which would otherwise leave two React list items with the same
       // key (a real warning seen live) until the next full page reload.
       set((s) => ({
-        log: [entry, ...s.log.filter((e) => e.event.id !== entry.event.id)].slice(0, LOG_CAP),
+        log: [entry, ...s.log.filter((e) => e.event.id !== entry.event.id)].slice(0, s.feedLimit),
       }))
     }
 

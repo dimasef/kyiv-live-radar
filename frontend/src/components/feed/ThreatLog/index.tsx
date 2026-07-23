@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useRadar } from '@/store'
 import { FEED_ZOOM } from '@/store/prefsSlice'
 
+import OnlineBadge from '../OnlineBadge'
 import AttackSummaryCard from './AttackSummaryCard'
 import ClosedGroupCard from './ClosedGroupCard'
 import DaySeparator from './DaySeparator'
@@ -21,7 +22,10 @@ export default function ThreatLog() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="panel-title mb-2 hidden lg:block">{t('log.title')}</div>
+      <div className="mb-2 hidden items-center justify-between lg:flex">
+        <span className="panel-title">{t('log.title')}</span>
+        <OnlineBadge />
+      </div>
 
       {timeline.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 py-10 text-center">

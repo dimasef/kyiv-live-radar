@@ -13,6 +13,7 @@ import { createPrefsSlice } from './prefsSlice'
 import { createPwaSlice } from './pwaSlice'
 import { createThreatsSlice } from './threatsSlice'
 import type { RadarState } from './types'
+import { createUiSlice } from './uiSlice'
 import { createWsSlice } from './wsSlice'
 
 export type { Home } from './homeSlice'
@@ -32,4 +33,5 @@ export const useRadar = create<RadarState>()((...a) => ({
   ...createNotifySlice(...a),
   ...createWsSlice(...a),
   ...createAuthSlice(...a),
+  ...createUiSlice(...a),
 }))
