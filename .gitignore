@@ -22,3 +22,12 @@ frontend/.env
 
 # Claude Code planning docs (local working notes, not project history)
 .claude/plans/
+
+# design-sync (claude.ai/design) — staged scripts, build output, machine state
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
+frontend/.ds-entry.tsx
+frontend/.ds-app.css

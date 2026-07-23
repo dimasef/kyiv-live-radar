@@ -27,6 +27,8 @@ class LlmUsage:
     cost_usd: float
 from .vocab import (
     _AD_ACTION,
+    _AD_RECRUIT,
+    _ADVISORY_RELAY,
     _AFTERMATH,
     _BALLISTIC,
     _CARD_NUMBER_RE,
@@ -89,6 +91,16 @@ def _has_conditional_hedge(norm: str) -> bool:
     if any(v in norm for v in _FORECAST_VERB) and any(w in norm for w in _THREAT_CONTEXT):
         return True
     if any(p in norm for p in _FORECAST_TIMEFRAME) and any(w in norm for w in _THREAT_CONTEXT):
+        return True
+    # Advisory / relayed-opinion preview of which raions MIGHT be hit — see
+    # _ADVISORY_RELAY. The relay/warning phrases carry the class on their own;
+    # the nominal «підвищена загроза» and «ворога цікавлять» speculation need a
+    # co-occurring weapon word (same gate as the forecast rows above).
+    if any(p in norm for p in _ADVISORY_RELAY):
+        return True
+    if "підвищен" in norm and "загроз" in norm and any(w in norm for w in _THREAT_CONTEXT):
+        return True
+    if "цікавл" in norm and "ворог" in norm:
         return True
     return False
 
@@ -429,14 +441,15 @@ def _summary(norm: str, target_type: str, has_district: bool) -> bool:
 
 
 def _promo(norm: str, status: str, impact: bool) -> bool:
-    """A message carrying a URL or a bare payment-card number is promo /
-    donation / channel-boost / ad / meta, never a live target callout — a
-    spotter's sighting never links out (validated against the real corpus:
-    zero link-bearing sightings). Suppress it like aftermath: a real
-    clear/destroyed keyword or a confirmed impact in the same message still
-    wins."""
+    """A message carrying a URL, a bare payment-card number, or a link-less
+    channel-recruitment phrase (_AD_RECRUIT) is promo / donation / channel-boost
+    / ad / meta, never a live target callout — a spotter's sighting never links
+    out or advertises (validated against the real corpus: zero such sightings).
+    Suppress it like aftermath: a real clear/destroyed keyword or a confirmed
+    impact in the same message still wins."""
     return (
-        (any(m in norm for m in _LINK_MARKERS) or bool(_CARD_NUMBER_RE.search(norm)))
+        (any(m in norm for m in _LINK_MARKERS) or bool(_CARD_NUMBER_RE.search(norm))
+         or any(m in norm for m in _AD_RECRUIT))
         and status not in ("clear", "destroyed")
         and not impact
     )

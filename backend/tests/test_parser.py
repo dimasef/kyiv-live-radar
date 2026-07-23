@@ -178,6 +178,60 @@ def test_eppo_confirmed_target_not_suppressed():
     assert BY_EN["Obolon"] in {h.district_id for h in r.districts}
 
 
+def test_advisory_preview_of_targeted_raions_is_suppressed():
+    # Real FP class (07-23, «Віраж Києва»): forecast / relayed-opinion previews
+    # listing which raions MIGHT be hit — not live sightings. None may produce a
+    # track: relayed rumour, relayed speculation, and a warning bulletin.
+    for txt in [
+        "Пишуть що також є загроза для Броварів!",
+        "По тому що я читав в інших джерелах та бачив, то ймовірно ворога "
+        "цікавлять такі райони: Жуляни, Святошин, Дарниця, Оболонь, Борщагівка",
+        "Є попередження про використання 35 балістичних ракет Іскандер-М/С-400 "
+        "найближчими ночами по м. Київ. Підвищена загроза таким районам: "
+        "Видубичі, Борщагівка, Дарниця, Березняки",
+    ]:
+        r = parse_message(txt, M)
+        assert r.negated, txt
+        assert r.districts == [], txt
+        assert not r.matched, txt
+
+
+def test_live_probable_type_callout_not_suppressed_as_advisory():
+    # "Ймовірно" about the TYPE (not whether it's real) is a genuine live
+    # city-wide callout — the advisory markers must not swallow it.
+    r = parse_message("Увага ймовірно Циркон на Київ", M)
+    assert not r.negated
+    assert r.citywide
+
+
+def test_retrospective_applied_count_is_summary_not_citywide():
+    # "Було застосовано ~40 ракет" is a recap of an attack that already happened
+    # (no raion) — a summary, must not raise a live city-wide alert.
+    r = parse_message(
+        "Ймовірно найбільша балістична атака на столицю за весь час. "
+        "Було застосовано близько 40 ракет Іскандер-М/Циркон/С-400", M)
+    assert r.summary
+    assert not r.citywide and not r.matched
+
+
+def test_applied_count_with_district_stays_a_live_impact():
+    # The same "застосован" stem must NOT summarise away a district-bearing
+    # strike report — the has_district gate keeps it.
+    r = parse_message("Ракета застосована по Троєщині, влучання", M)
+    assert not r.summary
+    assert "Троєщина" in names(r)
+
+
+def test_linkless_channel_ad_is_promo():
+    # Real FP (raw 1038): a subscribe/recruitment post listing localities but
+    # carrying no URL — the link-less promo variant. Must not raise tracks.
+    r = parse_message(
+        "❗️Вишневе тепер в Telegram\nЯкщо ти живеш у такому населеному пункті:\n"
+        "▪️Вишневе ▪️Софіївська Борщагівка ▪️Крюківщина ▪️Чайки ▪️Гатне", M)
+    assert r.promo
+    assert not r.matched
+
+
 def test_bilohorodka_matches():
     for txt in ["Білогородка увага по БпЛА", "Один шахед на Білогородку звернув"]:
         r = parse_message(txt, M)

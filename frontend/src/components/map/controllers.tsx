@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useMap, useMapEvents } from "react-leaflet";
 
+import { centerPinMode } from "../../lib/device";
 import { useRadar } from "../../store";
 import { KYIV_BOUNDS } from "./constants";
 import { trackPoints } from "./track";
@@ -82,6 +83,10 @@ export function HomeController() {
       // Only place home when the user explicitly armed placement — otherwise a
       // click is just a map interaction and must not move home.
       if (!state.placingHome) return;
+      // On touch, placement is confirmed via the center pin + button
+      // (HomePlacement); a tap fires this same click event, so ignore it here —
+      // otherwise the tap would drop home before the user aimed the pin.
+      if (centerPinMode()) return;
       setHome({
         lat: e.latlng.lat,
         lon: e.latlng.lng,

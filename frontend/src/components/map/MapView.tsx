@@ -17,6 +17,7 @@ import CitywidePulse from "./CitywidePulse";
 import { KYIV_BOUNDS } from "./constants";
 import { HomeController, InspectController, ResizeHandler } from "./controllers";
 import DistrictLayer from "./DistrictLayer";
+import HomePlacement from "./HomePlacement";
 import IncidentHighlight from "./IncidentHighlight";
 import MapLegend from "./MapLegend";
 import ThreatLayer from "./ThreatLayer";
@@ -85,7 +86,9 @@ export default function MapView() {
         <HomeController />
         <InspectController />
 
-        {home && (
+        {/* Hidden while arming a new position — HomePlacement shows the single
+            house being placed (cursor ghost / center pin) instead. */}
+        {home && !placingHome && (
           <>
             {/* Keyed by danger level: setStyle doesn't re-apply className, so
                 the pulse class only attaches on a fresh mount (same trick as
@@ -120,6 +123,7 @@ export default function MapView() {
         )}
       </MapContainer>
       <AxisLayer map={map} />
+      <HomePlacement map={map} />
       <MapLegend />
     </div>
   );

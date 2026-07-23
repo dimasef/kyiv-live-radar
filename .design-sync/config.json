@@ -1,0 +1,29 @@
+{
+  "projectId": "66423b69-1584-40d1-a6a7-a54e69383a13",
+  "pkg": "kyiv-live-radar-frontend",
+  "globalName": "KyivLiveRadar",
+  "shape": "package",
+  "srcDir": "src",
+  "readmeHeader": ".design-sync/conventions.md",
+  "tsconfig": "tsconfig.json",
+  "cssEntry": ".ds-app.css",
+  "componentSrcMap": {
+    "StatusChip": "src/components/feed/ThreatLog/StatusChip.tsx",
+    "TypeGlyph": "src/components/feed/ThreatLog/TypeGlyph.tsx",
+    "NoticeCard": "src/components/feed/ThreatLog/NoticeCard.tsx",
+    "AttackSummaryCard": "src/components/feed/ThreatLog/AttackSummaryCard.tsx",
+    "DaySeparator": "src/components/feed/ThreatLog/DaySeparator.tsx",
+    "ClampText": "src/components/feed/ThreatLog/ClampText.tsx",
+    "OutcomeBadge": "src/components/raw/OutcomeBadge.tsx",
+    "LlmTriageBadge": "src/components/raw/LlmTriageBadge.tsx",
+    "LlmUsageBadge": "src/components/raw/LlmUsageBadge.tsx",
+    "FilterSelect": "src/components/raw/FilterSelect.tsx",
+    "Switch": "src/components/chrome/Switch.tsx",
+    "LanguageSwitcher": "src/components/chrome/LanguageSwitcher.tsx",
+    "BannerShell": "src/components/banners/BannerShell.tsx",
+    "Collapsible": "src/components/banners/Collapsible.tsx",
+    "Presence": "src/components/banners/Presence.tsx",
+    "AlertSegment": "src/components/banners/AlertSegment.tsx",
+    "CalendarHeatmap": "src/components/journal/CalendarHeatmap.tsx"
+  }
+}

@@ -2,7 +2,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { useEffect, useState } from "react";
 
 import { StatusBanner } from "@/components/banners";
-import { AppStatus, DisclaimerModal, MobileSheet, SplashScreen } from "@/components/chrome";
+import { AppStatus, DisclaimerModal, MobileSheet } from "@/components/chrome";
 import { ThreatLog } from "@/components/feed";
 import { InspectBadge, MapView } from "@/components/map";
 import { riseDelay } from "@/lib/motion";
@@ -24,7 +24,6 @@ export default function App() {
 
   return (
     <div className="h-full lg:flex">
-      <SplashScreen />
       {showDisclaimer && <DisclaimerModal onClose={() => setShowDisclaimer(false)} />}
 
       {/* Map fills the shell slot; on mobile the sheet floats above it. */}

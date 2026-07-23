@@ -49,8 +49,17 @@ export async function hydrate(): Promise<void> {
 
 /** One-shot static data + first hydration + live WS connection for the radar
  * app — never called for the changelog route, which needs none of this (see
- * main.tsx). */
+ * main.tsx). Guarded to run a single time per app session: the map route
+ * (App.tsx) remounts on every in-app navigation back to Мапа, and re-running
+ * this would stack duplicate WS connections + lifecycle listeners and refire a
+ * full refetch. After the first boot the live WS (+ its resync-on-reconnect)
+ * keeps every slice fresh, so a remount needs no re-bootstrap. */
+let bootstrapped = false
+
 export function bootstrapApp() {
+  if (bootstrapped) return
+  bootstrapped = true
+
   const store = useRadar.getState()
 
   fetchDistricts().then(store.setDistricts).catch(() => {})

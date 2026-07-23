@@ -1,6 +1,6 @@
 import { LogOut, ShieldCheck } from 'lucide-react'
 
-import { navigate, RAW_MESSAGES_PATH } from '@/router'
+import { navigate } from '@/router'
 import { useRadar } from '@/store'
 
 const PROVIDER_LABEL: Record<string, string> = {
@@ -71,20 +71,6 @@ export default function AccountPage() {
             ))}
           </div>
         </div>
-
-        {isAdmin && (
-          <div className="mt-6">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Службові інструменти
-            </h2>
-            <button
-              onClick={() => navigate(RAW_MESSAGES_PATH)}
-              className="mt-2 w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-left text-sm text-slate-200 hover:border-white/20"
-            >
-              Сирі повідомлення (/raw)
-            </button>
-          </div>
-        )}
 
         <button
           onClick={() => {

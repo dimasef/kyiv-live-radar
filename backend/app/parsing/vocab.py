@@ -306,7 +306,7 @@ _FORECAST_VERB = ("готу", "планує", "планують")
 # have their own filter). Clear/destroyed/impact carve-outs in _negated keep a
 # real «Відбій ... цієї ночі ...» recap safe.
 _FORECAST_TIMEFRAME = ("на сьогоднішню ніч", "на цю ніч", "цієї ночі", "на ніч",
-                       "протягом ночі", "на вечір")
+                       "протягом ночі", "на вечір", "найближчими ноч")
 
 # --- "можуть бути"/"може бути" as a bare hedge is UNSAFE alone: a real
 # confirmed-strike report with real casualties across 4 real districts uses
@@ -317,6 +317,31 @@ _FORECAST_TIMEFRAME = ("на сьогоднішню ніч", "на цю ніч",
 # register ("Знову можуть бути вибухи до тривоги") without touching "можуть
 # бути люди/постраждалі".
 _HEDGE_MODAL_RE = re.compile(r"(?:можуть бути|може бути)\s+(вибух|обстріл|удар|приліт|пуск)")
+
+# --- Advisory / relayed-opinion PREVIEW of which raions MIGHT be hit — a
+# second-hand or forecast bulletin, not a first-hand live sighting. Three
+# real shapes seen in the feed (all 07-23, «Віраж Києва»):
+#   - relayed rumour:     «Пишуть що також є загроза для Броварів»
+#   - relayed speculation:«По тому що я читав в інших джерелах … ймовірно
+#                          ворога цікавлять такі райони: …» + a raion list
+#   - warning bulletin:   «Є попередження про використання 35 балістичних
+#                          ракет … Підвищена загроза таким районам: …»
+# Each listed a set of gazetteer raions and so raised live tracks/dots for
+# targets not in flight. Folded into the conditional-hedge path (-> _negated),
+# same family as the «якщо»/«готує»/forecast-timeframe hedges above: the
+# message is about a POSSIBLE / SECOND-HAND threat, not a live callout, and
+# gets the same clear/destroyed/impact carve-out.
+#
+# _ADVISORY_RELAY phrases are self-sufficient — the relay/warning register
+# alone marks the class (corpus-swept: 871 jsonl + 1776 live raw, these
+# multiword phrases appear ONLY in this class, zero live-sighting collision).
+# The nominal «підвищена загроза» advisory and the «ворога цікавлять» /
+# «найближчими ночами» forecast markers are handled in rules._has_conditional_hedge
+# with a co-occurring weapon word (_THREAT_CONTEXT), same gate as the forecast
+# verb/timeframe rows — «підвищена загроза» alone also appears in an unrelated
+# air-pollution notice («…відповідає підвищеній загрозі») that carries no
+# weapon word and must stay untouched.
+_ADVISORY_RELAY = ("пишуть що", "пишуть, що", "інших джерелах", "є попередження про")
 
 # --- Siren-status announcement ("+ Бучанський район тривога", "Тривога у
 # Вишгородському районі"). This is a technical "the siren went off in this
@@ -408,7 +433,16 @@ _SUMMARY = ("загалом", "всього", "за останні", "випус
 # live strike ("ракета вдарила по Троєщині"), so it counts as a summary ONLY
 # when NO raion is named (see rules.py::_summary's has_district gate) — an
 # aggregate citywide recap, not a district impact to map.
-_SUMMARY_NO_DISTRICT = ("вдарил",)
+#
+# "застосован" (past passive: застосовано/застосовані) is the same aggregate-
+# recap register ("Ймовірно найбільша балістична атака… Було застосовано
+# близько 40 ракет" — raw 2167 raised a live citywide ballistic alert for an
+# attack that had ALREADY happened). Kept district-gated like "вдарил": the one
+# district-bearing corpus hit ("ракета потрапила… на Подолі… летіли Циркони")
+# is a real localized impact and must stay. The present tense "застосовує" (a
+# live "ворог застосовує Шахеди") does NOT share this stem, so only the
+# retrospective participle matches.
+_SUMMARY_NO_DISTRICT = ("вдарил", "застосован")
 
 # --- URL / link presence. Every link-bearing message in the real corpus is
 # promo / donation / channel-boost / ad / meta ("створив ракетний канал…
@@ -422,6 +456,17 @@ _LINK_MARKERS = ("http", "t.me/")
 # contiguous digits. On 07-18 these posts slipped past _LINK_MARKERS and their
 # "до останнього Шахеда та ракети" sign-off kept re-typing the channel context.
 _CARD_NUMBER_RE = re.compile(r"(?<!\d)\d{16}(?!\d)")
+# The LINK-LESS channel-ad variant: a recruitment/subscribe post that carries
+# no URL but lists localities to pull in subscribers ("❗️Вишневе тепер в
+# Telegram\nЯкщо ти живеш у такому населеному пункті:\n▪️Вишневе ▪️Софіївська
+# Борщагівка …" — raw 1038 raised 5 raion tracks). The URL premise of
+# _LINK_MARKERS doesn't cover it, so anchor on the recruitment register
+# instead. Corpus-swept (871 jsonl + 1776 live raw): "тепер в telegram" /
+# "якщо ти живеш у" hit ONLY this ad; "підписуйс" additionally hits a
+# power-schedule channel promo (already suppressed) — no live-sighting
+# collision. Same clear/destroyed/impact carve-out as the link/card variants.
+_AD_RECRUIT = ("тепер в telegram", "тепер у telegram", "якщо ти живеш у",
+               "підписуйс", "підписуйтес")
 
 # --- Decoy / electronic-warfare vocabulary ("Ймовірно, імітація", "працює
 # РЕБ", "хибна ціль") — a modifier on the attack (see app/domain/attack.py::

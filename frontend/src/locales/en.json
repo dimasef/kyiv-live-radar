@@ -223,6 +223,7 @@
     "hint": "Click on the map to set home",
     "place": "Set on map",
     "placing": "Click on the map…",
+    "confirmPlace": "Confirm",
     "cancel": "Cancel",
     "useGeo": "My location",
     "geoDenied": "Geolocation denied — set home by clicking the map",
