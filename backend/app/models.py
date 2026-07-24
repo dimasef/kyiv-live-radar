@@ -81,9 +81,13 @@ ALERT_CLOSED_REASONS = ("official", "failsafe")
 # official city alert ending ('alert_end'), or the stale sweeper timing it out
 # ('stale'). NULL while active — see app/incidents.py.
 INCIDENT_ENDED_REASONS = ("all_clear", "alert_end", "stale")
-# User roles (app/auth/). Two roles for the MVP: 'admin' gets the service tools
-# (/raw, source management), 'user' gets personalization only.
-USER_ROLES = ("admin", "user")
+# User roles (app/auth/). 'admin' and 'admin_g' both get the service tools
+# (/raw, source management — see require_admin); 'user' gets personalization
+# only. 'admin' is derived from the env allowlists on every login; 'admin_g' is
+# a manual DB-only role that role resolution preserves (never auto-assigned,
+# never overwritten — see auth/service.resolve_and_set_role).
+USER_ROLES = ("admin", "admin_g", "user")
+ADMIN_ROLES = ("admin", "admin_g")
 # Linked SSO providers on OAuthIdentity. Email+password is native on the User
 # row (password_hash), NOT an identity — so it's absent here.
 PROVIDERS = ("google", "telegram")

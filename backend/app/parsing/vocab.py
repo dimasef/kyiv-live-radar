@@ -352,8 +352,18 @@ _HEDGE_MODAL_RE = re.compile(r"(?:можуть бути|може бути)\s+(в
 # a ПС shoot-down recap, two forecast bulletins) — zero first-hand spotter
 # callouts ("за даними" is the register of a monitor relaying, never a live
 # sighting), so it carries the class on its own like the phrases above.
+# "готова до застосування по Києву — більше 35 ракет", "Спостерігаю підвезення
+# нових ракет в Брянську область" — an enemy-territory buildup / stockpile-
+# readiness report (their side, ready FOR use), not a live inbound. Corpus-swept
+# (2606 unique): "до застосування" 9 hits / "підвезенн" 3 hits, all intelligence
+# bulletins — the only currently-kept one is the 24.07 buildup this catches; no
+# first-hand spotter callout uses either.
+# "Маю інформацію, що на території Брянської … може перебувати до 35 балістичних
+# ракет … Можливі райони підвищеного ризику: …" — first-person intel-relay of an
+# enemy stockpile, same register as "за даними". Corpus: 2 hits, both intel
+# buildup reports, no live callout.
 _ADVISORY_RELAY = ("пишуть що", "пишуть, що", "інших джерелах", "є попередження про",
-                   "за даними")
+                   "за даними", "до застосування", "підвезенн", "маю інформац")
 
 # --- Siren-status announcement ("+ Бучанський район тривога", "Тривога у
 # Вишгородському районі"). This is a technical "the siren went off in this
@@ -449,8 +459,19 @@ _THREAT_CONTEXT = ("ціль", "цілі", "ракет", "баліст", "шах
 # from a live callout ("3 ракети", "ціль на місто") by an aggregate/past marker.
 # Curated word list, same shape as _AFTERMATH. "під час (нічної) атаки" is a
 # retrospective FRAME — an after-the-fact report ("Під час нічної атаки на Київ
-# запустили 6 балістичних… — ПС"), not a live callout. ---
-_SUMMARY = ("загалом", "всього", "за останні", "випустил", "під час")
+# запустили 6 балістичних… — ПС"), not a live callout.
+#
+# "завдав удару"/"завдали удару" (past-tense "dealt a strike") + the official
+# "повідомили у ПС/Повітряних Силах" after-action attribution mark the ПС
+# post-attack bulletin ("Близько 11:30 ворог завдав удару … інші дві влучили в
+# Бучанському районі, – повідомили у ПС") — a recap arriving hours late, which
+# otherwise parsed as a fresh impact on the map (it names a raion + "влучили").
+# Routed as a summary here (dispatch precedes the impact handler). A live strike
+# is first-hand present-tense ("влучання в Дарницькому!"), never "завдав удару о
+# 11:30 — повідомили у ПС". Corpus-swept: 1 hit, this bulletin. ---
+_SUMMARY = ("загалом", "всього", "за останні", "випустил", "під час",
+            "завдав удар", "завдали удар", "завдано удар",
+            "повідомили у пс", "повідомили у повітр")
 
 # Softer past-strike aggregate marker ("Близько 6 балістичних ракет ВДАРИЛО по
 # Києву", "всі 30 балістичних… вдарили по будинках") — a recap of what already

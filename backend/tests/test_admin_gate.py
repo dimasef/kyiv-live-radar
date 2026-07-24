@@ -6,7 +6,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.auth.security import encode_access
-from app.auth.service import role_for
+from app.auth.service import resolve_and_set_role, role_for
 from app.config import settings
 from app.db import Base, get_session
 from app.main import app
@@ -55,6 +55,22 @@ async def test_raw_messages_requires_admin(client):
     admin_tok = await _seed(s, role="admin")
     r = await c.get("/raw_messages", headers={"Authorization": f"Bearer {admin_tok}"})
     assert r.status_code == 200
+
+    # admin_g (manual admin variant) → also 200.
+    admin_g_tok = await _seed(s, role="admin_g")
+    r = await c.get("/raw_messages", headers={"Authorization": f"Bearer {admin_g_tok}"})
+    assert r.status_code == 200
+
+
+async def test_resolve_preserves_manual_admin_g(client):
+    _c, s = client
+    # An admin_g user whose email is NOT allowlisted: role resolution must leave
+    # admin_g intact (it's manual/DB-only), not downgrade it to 'user'.
+    user = User(email="not-allowlisted@x.com", role="admin_g", password_hash="x")
+    s.add(user)
+    await s.commit()
+    await resolve_and_set_role(s, user)
+    assert user.role == "admin_g"
 
 
 def test_role_for_allowlist(monkeypatch):

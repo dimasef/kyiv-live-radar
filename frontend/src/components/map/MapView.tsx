@@ -18,7 +18,6 @@ import { KYIV_BOUNDS } from "./constants";
 import { HomeController, InspectController, ResizeHandler } from "./controllers";
 import DistrictLayer from "./DistrictLayer";
 import HomePlacement from "./HomePlacement";
-import IncidentHighlight from "./IncidentHighlight";
 import MapLegend from "./MapLegend";
 import ThreatLayer from "./ThreatLayer";
 
@@ -77,9 +76,8 @@ export default function MapView() {
         {/* Real OSM raion boundaries with hover name tooltips; clicks bubble
             through to the map (pan / home placement). */}
         <DistrictLayer />
-        {/* Attack heat (raions under an active incident) + city-wide pulse layer
-            over the inert base boundaries. */}
-        <IncidentHighlight />
+        {/* City-wide pulse layer over the inert base boundaries. Per-incident
+            raion "attack heat" (IncidentHighlight) is intentionally not drawn. */}
         <CitywidePulse />
 
         <ResizeHandler />

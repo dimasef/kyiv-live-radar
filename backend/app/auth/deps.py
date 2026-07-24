@@ -11,7 +11,7 @@ from fastapi import Depends, Header, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
-from ..models import User
+from ..models import ADMIN_ROLES, User
 from .security import AuthError, decode_access
 
 
@@ -64,7 +64,8 @@ async def get_optional_user(
 
 
 async def require_admin(user: User = Depends(get_current_user)) -> User:
-    """401 when unauthenticated (via get_current_user), 403 when authed-but-not-admin."""
-    if user.role != "admin":
+    """401 when unauthenticated (via get_current_user), 403 when authed-but-not-admin.
+    Both 'admin' and the manual 'admin_g' role are admins (models.ADMIN_ROLES)."""
+    if user.role not in ADMIN_ROLES:
         raise HTTPException(status_code=403, detail="Admin only")
     return user

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { fetchRawSources } from '@/api'
+import { fetchRawSources, isAdminRole } from '@/api'
 import { AuthModal } from '@/components/auth'
 import { useRadar } from '@/store'
 import type { RawOutcomeFilter, RawSource } from '@/types'
@@ -18,7 +18,7 @@ const SEARCH_DEBOUNCE_MS = 300
  * UX only. Non-admins never mount the data view (and never fire its fetches). */
 export default function RawMessagesPage() {
   const status = useRadar((s) => s.authStatus)
-  const isAdmin = useRadar((s) => s.user?.role === 'admin')
+  const isAdmin = useRadar((s) => isAdminRole(s.user?.role))
   const [loginOpen, setLoginOpen] = useState(false)
 
   if (status === 'unknown') {

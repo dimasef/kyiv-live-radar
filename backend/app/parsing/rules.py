@@ -95,11 +95,13 @@ def _has_conditional_hedge(norm: str) -> bool:
         return True
     # Advisory / relayed-opinion preview of which raions MIGHT be hit — see
     # _ADVISORY_RELAY. The relay/warning phrases carry the class on their own;
-    # the nominal «підвищена загроза» and «ворога цікавлять» speculation need a
-    # co-occurring weapon word (same gate as the forecast rows above).
+    # the nominal «підвищена загроза»/«райони підвищеного ризику» and «ворога
+    # цікавлять» speculation need a co-occurring weapon word (same gate as the
+    # forecast rows above).
     if any(p in norm for p in _ADVISORY_RELAY):
         return True
-    if "підвищен" in norm and "загроз" in norm and any(w in norm for w in _THREAT_CONTEXT):
+    if ("підвищен" in norm and ("загроз" in norm or "ризик" in norm)
+            and any(w in norm for w in _THREAT_CONTEXT)):
         return True
     if "цікавл" in norm and "ворог" in norm:
         return True

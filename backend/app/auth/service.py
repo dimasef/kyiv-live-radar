@@ -45,7 +45,13 @@ async def _telegram_ids_for(session: AsyncSession, user: User) -> list[int]:
 async def resolve_and_set_role(session: AsyncSession, user: User) -> None:
     """Recompute and persist user.role from ALL of the user's admin signals
     (verified email + any linked Telegram id). Called on every login so a change
-    to the allowlist takes effect on the user's next sign-in."""
+    to the allowlist takes effect on the user's next sign-in.
+
+    'admin_g' is a manual DB-only role (never derivable from the allowlists), so
+    it is preserved as-is — recomputing would clobber it back to admin/user on
+    the next login."""
+    if user.role == "admin_g":
+        return
     verified_email = user.email if user.email_verified else None
     telegram_ids = await _telegram_ids_for(session, user)
     user.role = role_for(verified_email, telegram_ids)

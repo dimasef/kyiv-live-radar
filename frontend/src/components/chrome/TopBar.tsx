@@ -1,6 +1,7 @@
 import { Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { isAdminRole } from '@/api'
 import { AuthButton } from '@/components/auth'
 import { MAP_PATH, navigate, useRoute } from '@/router'
 import { useRadar } from '@/store'
@@ -45,7 +46,7 @@ const navIdle =
 export default function TopBar() {
   const { t } = useTranslation()
   const route = useRoute()
-  const isAdmin = useRadar((s) => s.user?.role === 'admin')
+  const isAdmin = useRadar((s) => isAdminRole(s.user?.role))
   const setSettingsOpen = useRadar((s) => s.setSettingsOpen)
   const dests = NAV_DESTINATIONS.filter((d) => !d.adminOnly || isAdmin)
 

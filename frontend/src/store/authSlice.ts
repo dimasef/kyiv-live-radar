@@ -8,6 +8,7 @@ import {
   authRefreshToken,
   authRegister,
   authTelegram,
+  isAdminRole,
   setAccessToken,
   setRefreshHandler,
   type AuthUser,
@@ -67,7 +68,7 @@ export const createAuthSlice: StateCreator<RadarState, [], [], AuthSlice> = (set
     user: null,
     authStatus: 'unknown',
 
-    isAdmin: () => get().user?.role === 'admin',
+    isAdmin: () => isAdminRole(get().user?.role),
 
     register: async (email, password, displayName) => {
       applyTokens(await authRegister(email, password, displayName))

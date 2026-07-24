@@ -183,6 +183,12 @@ export interface AuthUser {
   /** Linked sign-in methods: 'password' + any of 'google' | 'telegram'. */
   providers: string[]
 }
+
+/** Roles that carry admin access (service tools / admin routes). Mirrors the
+ * backend models.ADMIN_ROLES — 'admin_g' is a manual admin variant. */
+export const ADMIN_ROLES = ['admin', 'admin_g']
+export const isAdminRole = (role?: string | null): boolean =>
+  role != null && ADMIN_ROLES.includes(role)
 export interface TokenPair {
   access: string
   refresh: string

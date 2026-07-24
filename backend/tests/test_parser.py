@@ -192,11 +192,29 @@ def test_advisory_preview_of_targeted_raions_is_suppressed():
         "🚀Найближчі 24 години: існує загроза масованої ракетної атаки. За даними "
         "моніторів, ворог може застосувати до 100 ракет. Для Києва серед імовірних "
         "напрямків називають Дарницький, Солом'янський райони, Видубичі, Березняки",
+        "❗️Спостерігаю підвезення нових ракет в Брянську область. Загальна "
+        "кількість, готова до застосування по Києву та області — більше 35 ракет.",
+        "Маю інформацію, що на території Брянської та Курської областей може "
+        "перебувати до 35 балістичних ракет. Можливі райони підвищеного ризику: "
+        "Лук'янівка; Шулявка; Оболонь і Петрівка; Жуляни.",
     ]:
         r = parse_message(txt, M)
         assert r.negated, txt
         assert r.districts == [], txt
         assert not r.matched, txt
+
+
+def test_official_after_action_recap_is_summary_not_impact():
+    # An official ПС after-action bulletin ("Близько 11:30 ворог завдав удару …
+    # інші дві влучили в Бучанському районі, – повідомили у ПС") names a raion +
+    # "влучили", so it parsed as a fresh impact hours late. It's a retrospective
+    # recap → routed as a summary (dispatch precedes the impact handler), so it
+    # surfaces as a feed notice, not a live map strike.
+    r = parse_message(
+        "❗️Близько 11:30 ворог завдав удару по Київщині трьома балістичними "
+        "ракетами Іскандер-М/С-400 з північного напрямку, – повідомили у ПС. "
+        "Силам ППО вдалось перехопити 1 ракету, інші дві влучили в Бучанському районі.", M)
+    assert r.summary
 
 
 def test_live_probable_type_callout_not_suppressed_as_advisory():
