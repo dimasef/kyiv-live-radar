@@ -31,6 +31,7 @@ from .vocab import (
     _ADVISORY_RELAY,
     _AFTERMATH,
     _BALLISTIC,
+    _BUZZ_CHATTER,
     _CARD_NUMBER_RE,
     _CIVIC_NOTICE,
     _CITYWIDE_STRONG,
@@ -138,6 +139,12 @@ class ParseResult:
     # live targets. Suppressed like civic_notice (see rules._eppo_marks).
     eppo_marks: bool = field(default=False)
     day_recap: bool = field(default=False)
+    # Spotter buzz-slang ("бджілки"/"бджоли" = drones) in casual reassurance
+    # chatter — must not set/consume the per-channel live target-type context
+    # (see ingest._note_and_inherit_type). Not a suppressor: with no district it
+    # forms no track anyway; this flag exists purely to keep it out of type
+    # inheritance, which it otherwise poisons ("реактивні бджілки" -> jet_drone).
+    chatter: bool = field(default=False)
     political_quote: bool = field(default=False)
     lost_signal: bool = field(default=False)
     # A city-level threat with no raion of its own ("Ціль на місто!") — ingest
@@ -567,6 +574,7 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
     # accumulating onto the incident even on an otherwise-terse message.
     decoy = bool(_DECOY_RE.search(norm))
     hypersonic = bool(_HYPERSONIC_RE.search(norm))
+    chatter = any(w in norm for w in _BUZZ_CHATTER)
 
     clear_scope = _clear_scope(status, target_type, norm)
     impact = _impact(districts, norm, status)
@@ -626,6 +634,7 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
         civic_notice=civic_notice,
         eppo_marks=eppo_marks,
         day_recap=day_recap,
+        chatter=chatter,
         political_quote=political_quote,
         lost_signal=lost_signal,
         clear_scope=clear_scope,

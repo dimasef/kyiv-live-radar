@@ -253,6 +253,10 @@ class RawEventLinkOut(BaseModel):
 
     threat_id: int
     event_id: int
+    # The target type stamped on this event ('shahed'|'ballistic'|... or
+    # 'unknown'/None) — surfaced in /raw so an admin sees what type the message
+    # was classified as, not just that it produced an event.
+    target_type: Optional[str] = None
 
 
 class RawMessageOut(BaseModel):

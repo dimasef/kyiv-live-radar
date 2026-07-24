@@ -109,18 +109,18 @@ async def serialize_raw_rows(session, rows: list[RawMessage]) -> list[RawMessage
     message_id is only unique within its own channel), a best-effort re-derived
     label otherwise (see raw_diagnosis.diagnose)."""
     message_ids = [r.message_id for r in rows if r.message_id is not None]
-    events_by_key: dict[tuple[int | None, int], list[tuple[int, int]]] = {}
+    events_by_key: dict[tuple[int | None, int], list[tuple[int, int, str | None]]] = {}
     notice_by_key: dict[tuple[int | None, int], int] = {}
     if message_ids:
         ev_rows = await session.execute(
             select(
                 ThreatEvent.source_id, ThreatEvent.source_message_id,
-                ThreatEvent.threat_id, ThreatEvent.id,
+                ThreatEvent.threat_id, ThreatEvent.id, ThreatEvent.event_target_type,
             ).where(ThreatEvent.source_message_id.in_(message_ids))
         )
-        for source_id, source_message_id, threat_id, event_id in ev_rows:
+        for source_id, source_message_id, threat_id, event_id, target_type in ev_rows:
             events_by_key.setdefault((source_id, source_message_id), []).append(
-                (threat_id, event_id)
+                (threat_id, event_id, target_type)
             )
         n_rows = await session.execute(
             select(Notice.source_id, Notice.source_message_id, Notice.id).where(
@@ -156,7 +156,10 @@ async def serialize_raw_rows(session, rows: list[RawMessage]) -> list[RawMessage
                 reply_to_message_id=r.reply_to_message_id,
                 processed=r.processed,
                 outcome=row_outcome,
-                events=[RawEventLinkOut(threat_id=t, event_id=e) for t, e in events],
+                events=[
+                    RawEventLinkOut(threat_id=t, event_id=e, target_type=tt)
+                    for t, e, tt in events
+                ],
                 notice_id=notice_id,
                 llm_attempted=r.llm_attempted,
                 llm_input_tokens=r.llm_input_tokens,

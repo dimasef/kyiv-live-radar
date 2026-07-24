@@ -74,7 +74,8 @@ def _note_and_inherit_type(parsed: ParseResult, source_id: int | None, when: dat
     # context mid-salvo. These classes neither record nor consume a type.
     if (parsed.promo or parsed.ad_action or parsed.political_quote
             or parsed.civic_notice or parsed.eppo_marks or parsed.siren_only
-            or parsed.negated or parsed.summary or parsed.day_recap):
+            or parsed.negated or parsed.summary or parsed.day_recap
+            or parsed.chatter):
         return
     if parsed.target_type != "unknown":
         # "missile" is the generic parent of the specific "ballistic": during a
@@ -152,6 +153,8 @@ def should_fallback(parsed: ParseResult) -> bool:
     if parsed.eppo_marks:  # dismissed єППО app marks — not a live target
         return False
     if parsed.political_quote:  # official statement repost — not a live target
+        return False
+    if parsed.chatter:  # buzz-slang reassurance chatter — nothing to localize
         return False
     if parsed.lost_signal:  # "дорозвідка" stand-down — handled directly by ingest, not a live target
         return False
@@ -564,6 +567,7 @@ async def _handle_impact(ctx: IngestContext) -> list[Broadcast]:
                 status="impact",
                 kind="impact",
                 target_count=parsed.target_count or 1,
+                created_at=when,
                 closed_at=when,
             )
             session.add(track)
@@ -614,7 +618,7 @@ async def _handle_citywide(ctx: IngestContext) -> list[Broadcast]:
             track = reopen_track(stood)
     if track is None:
         track = Threat(target_type=parsed.target_type, status=_threat_status_for(parsed),
-                       target_count=parsed.target_count or 1, scope="city")
+                       target_count=parsed.target_count or 1, scope="city", created_at=when)
         session.add(track)
         await session.commit()
         log.info("track %s created (scope=city, target_type=%s)", track.id, track.target_type)
@@ -674,7 +678,7 @@ async def _handle_sighting(ctx: IngestContext) -> list[Broadcast]:
                 track = reopen_track(stood)
     if track is None:
         track = Threat(target_type=parsed.target_type, status=_threat_status_for(parsed),
-                       target_count=parsed.target_count or 1)
+                       target_count=parsed.target_count or 1, created_at=when)
         session.add(track)
         await session.commit()
         log.info("track %s created (target_type=%s)", track.id, track.target_type)
@@ -730,8 +734,15 @@ async def _handle_multi_targets(ctx: IngestContext) -> list[Broadcast]:
                 if stood is not None:
                     track = reopen_track(stood)
         if track is None:
+            # Each named district is ONE target here — the enumeration itself is
+            # the count (N districts = N targets). A stated group size in the
+            # SAME message ("35 балістичних ракет … по районах: …") is the whole
+            # salvo TOTAL, not a per-district count, so it must NOT be stamped on
+            # every district track — that multiplied 35× per raion and the
+            # journal, summing target_count across tracks, reported hundreds of
+            # phantom targets for one bulletin.
             track = Threat(target_type=parsed.target_type, status=_threat_status_for(parsed),
-                           target_count=parsed.target_count or 1)
+                           target_count=1, created_at=when)
             session.add(track)
             await session.commit()
             log.info("track %s created (target_type=%s, multi-target enumeration)",

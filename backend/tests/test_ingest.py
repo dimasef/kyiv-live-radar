@@ -162,6 +162,28 @@ def test_donation_post_does_not_update_type_context():
     assert r.target_type == "unknown"
 
 
+def test_buzz_slang_chatter_does_not_poison_type_context():
+    # The real 07-24 sequence: a reassurance aside "там реактивні бджілки" typed
+    # itself jet_drone, and the citywide ballistic callout "На Київщину!" 26s
+    # later inherited it — the main city card of a ballistic salvo stuck at БпЛА
+    # (jet_drone never upgrades to the missile family). The buzz-slang aside is
+    # parsed with a jet type but must NOT set the channel's live type context.
+    aside = _feed("Кажу одразу, що там реактивні бджілки, але до відбою уважно",
+                  source_id=1, when=T0)
+    assert aside.chatter and aside.target_type == "jet_drone"
+    r = _feed("На Київщину!", source_id=1, when=T0 + timedelta(seconds=26))
+    assert r.citywide and r.target_type == "unknown"  # not the poisoned jet_drone
+
+
+def test_buzz_slang_does_not_overwrite_live_ballistic_context():
+    # A buzz-slang aside carrying a jet keyword mid-salvo must not knock an
+    # already-live ballistic context down to jet_drone.
+    _feed("Балістика!", source_id=1, when=T0)
+    _feed("там реактивні бджілки", source_id=1, when=T0 + timedelta(seconds=20))
+    r = _feed("На Київщину!", source_id=1, when=T0 + timedelta(seconds=40))
+    assert r.target_type == "ballistic"
+
+
 def test_zircon_callout_updates_type_context():
     # "Циркон з курська" now types (ballistic) — the channel's later bare
     # toponyms inherit it instead of producing "unknown" tracks.

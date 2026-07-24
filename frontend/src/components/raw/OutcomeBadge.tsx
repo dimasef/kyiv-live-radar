@@ -1,10 +1,11 @@
 import type { RawEventLink } from '@/types'
 
-/** `events`/`noticeId` set = an authoritative match against real
- * ThreatEvent(s)/a Notice (this message became a feed card — one T/M chip
- * per event, since one message can close several tracks at once).
- * Otherwise `outcome` is a best-effort guess at why it didn't — see backend
- * api/raw_diagnosis.py. */
+/** Compact outcome label for the row header: 'подія'/'нотіс' when an
+ * authoritative ThreatEvent/Notice matched (with a ×N count when one message
+ * closed several tracks at once), a best-effort diagnosis label otherwise (see
+ * backend api/raw_diagnosis.py). The per-event T/M chips + their assigned type
+ * live in a wrapping row below the text (RawMessageRow), so a message that
+ * closed many tracks no longer overflows this header. */
 export default function OutcomeBadge({
   outcome,
   events,
@@ -25,12 +26,7 @@ export default function OutcomeBadge({
       className={`whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${tone}`}
     >
       {outcome}
-      {events.map((e) => (
-        <span key={e.event_id} className="ml-1 opacity-70">
-          T{e.threat_id}/M{e.event_id}
-        </span>
-      ))}
-      {noticeId != null && <span className="ml-1 opacity-70">N{noticeId}</span>}
+      {events.length > 1 && <span className="ml-1 opacity-70">×{events.length}</span>}
     </span>
   )
 }

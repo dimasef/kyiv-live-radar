@@ -92,61 +92,69 @@ function RawMessagesView() {
   }, [loadMore])
 
   return (
-    <div className="h-full overflow-y-auto overscroll-contain bg-ink-950 px-4 py-8 text-slate-200">
-      <div className="mx-auto max-w-3xl">
-        <h1 className="font-display text-lg font-bold text-slate-100">Сирі повідомлення</h1>
-        <p className="mt-1 text-xs text-slate-500">
-          Усі вхідні повідомлення, включно з тими, що не потрапили у Стрічку подій.
-        </p>
+    <div className="flex h-full flex-col bg-ink-950 text-slate-200">
+      {/* Fixed header: title, stats, filters and toolbar stay in view while only
+          the message list below scrolls. */}
+      <div className="shrink-0 border-b border-white/[0.06] px-4 pt-6 pb-3">
+        <div className="mx-auto max-w-3xl">
+          <h1 className="font-display text-lg font-bold text-slate-100">Сирі повідомлення</h1>
+          <p className="mt-1 text-xs text-slate-500">
+            Усі вхідні повідомлення, включно з тими, що не потрапили у Стрічку подій.
+          </p>
 
-        <LlmStatsStrip />
+          <LlmStatsStrip />
 
-        <RawFilterBar
-          search={searchInput}
-          onSearchChange={setSearchInput}
-          outcome={outcome}
-          onOutcomeChange={setOutcome}
-          llm={llm}
-          onLlmChange={setLlm}
-          sources={sources}
-          sourceId={sourceId}
-          onSourceIdChange={setSourceId}
-        />
+          <RawFilterBar
+            search={searchInput}
+            onSearchChange={setSearchInput}
+            outcome={outcome}
+            onOutcomeChange={setOutcome}
+            llm={llm}
+            onLlmChange={setLlm}
+            sources={sources}
+            sourceId={sourceId}
+            onSourceIdChange={setSourceId}
+          />
 
-        <RawToolbar
-          loaded={items.length}
-          total={total}
-          selectedCount={selection.selectedCount}
-          allLoadedSelected={selection.allLoadedSelected}
-          exporting={selection.exporting}
-          onExportFiltered={selection.exportFiltered}
-          onExportSelected={selection.exportSelected}
-          onViewFiltered={selection.viewFiltered}
-          onViewSelected={selection.viewSelected}
-          onToggleSelectAll={selection.toggleSelectAll}
-          onClearSelection={selection.clearSelection}
-        />
+          <RawToolbar
+            loaded={items.length}
+            total={total}
+            selectedCount={selection.selectedCount}
+            allLoadedSelected={selection.allLoadedSelected}
+            exporting={selection.exporting}
+            onExportFiltered={selection.exportFiltered}
+            onExportSelected={selection.exportSelected}
+            onViewFiltered={selection.viewFiltered}
+            onViewSelected={selection.viewSelected}
+            onToggleSelectAll={selection.toggleSelectAll}
+            onClearSelection={selection.clearSelection}
+          />
+        </div>
+      </div>
 
-        <ul className="mt-4 space-y-2">
-          {items.map((item) => (
-            <RawMessageRow
-              key={item.id}
-              item={item}
-              selected={selection.selectedIds.has(item.id)}
-              onToggleSelect={selection.toggleSelect}
-            />
-          ))}
-        </ul>
+      <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+        <div className="mx-auto max-w-3xl">
+          <ul className="space-y-2">
+            {items.map((item) => (
+              <RawMessageRow
+                key={item.id}
+                item={item}
+                selected={selection.selectedIds.has(item.id)}
+                onToggleSelect={selection.toggleSelect}
+              />
+            ))}
+          </ul>
 
-        {!loading && items.length === 0 && (
-          <div className="py-10 text-center text-xs text-slate-500">Нічого не знайдено.</div>
-        )}
+          {!loading && items.length === 0 && (
+            <div className="py-10 text-center text-xs text-slate-500">Нічого не знайдено.</div>
+          )}
 
-        <div ref={sentinelRef} className="h-10" />
-        {loading && <div className="py-4 text-center text-xs text-slate-500">Завантаження…</div>}
-        {done && items.length > 0 && (
-          <div className="py-4 text-center text-xs text-slate-600">Це все.</div>
-        )}
+          <div ref={sentinelRef} className="h-10" />
+          {loading && <div className="py-4 text-center text-xs text-slate-500">Завантаження…</div>}
+          {done && items.length > 0 && (
+            <div className="py-4 text-center text-xs text-slate-600">Це все.</div>
+          )}
+        </div>
       </div>
     </div>
   )

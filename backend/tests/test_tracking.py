@@ -991,6 +991,20 @@ async def test_ballistic_enumeration_splits_into_one_track_per_district(ctx):
     assert await _count_threats(s) == 2
 
 
+async def test_stated_salvo_count_not_multiplied_across_enumerated_districts(ctx):
+    # A stated group size in a multi-district ballistic enumeration ("6 ракет …
+    # Вишневе Жуляни") is the whole-salvo TOTAL, not per-district. Each district
+    # track must stay target_count=1, else the journal (which sums target_count
+    # over tracks) reports N×count phantom targets — the 07-23 «432 цілі» bug,
+    # where a "35 ракет" bulletin over 6 raions summed to 420.
+    s, m, src = ctx
+    await ingest_message(s, text="6 балістичних ракет Вишневе Жуляни", matcher=m,
+                         when=BASE, source_id=src[0].id, message_id=1)
+    threats = list(await s.scalars(select(Threat).where(Threat.scope != "city")))
+    assert len(threats) == 2
+    assert all(t.target_count == 1 for t in threats)
+
+
 async def test_drone_enumeration_stays_one_track(ctx):
     # On a drone night the same shape is usually ONE drone meandering between
     # adjacent raions — enumeration split is ballistic-only (track-eval-tuned:

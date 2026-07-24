@@ -230,6 +230,9 @@ export interface HealthStatus {
 export interface RawEventLink {
   threat_id: number
   event_id: number
+  /** Target type stamped on this event ('shahed'|'ballistic'|...|'unknown'),
+   * null for events ingested before it was recorded. */
+  target_type: string | null
 }
 
 /** One verbatim ingested message, INCLUDING ones the parser suppressed or
