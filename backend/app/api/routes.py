@@ -320,18 +320,15 @@ async def raw_messages_sources(
     session: AsyncSession = Depends(get_session),
     _admin: User = Depends(require_admin),
 ):
-    """Currently-configured channels only, for the /raw channel filter
-    dropdown — `sources` accumulates one row per channel_key ever resolved,
-    including ones dropped from TELEGRAM_CHANNELS/ALERT_CHANNELS long ago
-    (a channel migrating username leaves its old key behind), so it's NOT
-    the same as "channels we actually watch today"."""
-    configured = {
-        c.lower() for c in settings.telegram_channel_list + settings.alert_channel_list
-    }
-    rows = await session.scalars(select(Source).order_by(Source.name))
-    return [
-        RawSourceOut(id=s.id, name=s.name) for s in rows if s.channel_key.lower() in configured
-    ]
+    """Channels that actually have stored raw messages, for the /raw channel
+    filter dropdown. DB-driven now (subscription moved off the env lists), so it
+    lists every source with data — active or not — instead of the env-configured
+    set, which is empty once TELEGRAM_CHANNELS/ALERT_CHANNELS are cleared."""
+    with_messages = select(RawMessage.source_id).where(RawMessage.source_id.is_not(None))
+    rows = await session.scalars(
+        select(Source).where(Source.id.in_(with_messages)).order_by(Source.name)
+    )
+    return [RawSourceOut(id=s.id, name=s.name) for s in rows]
 
 
 @router.get("/raw_messages/llm_stats", response_model=RawLlmStatsOut)
