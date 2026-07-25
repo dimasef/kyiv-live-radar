@@ -144,6 +144,8 @@ def should_fallback(parsed: ParseResult) -> bool:
     message — not for junk/news and not when rules already succeeded."""
     if parsed.aftermath:  # consequence/casualty news — not a live target
         return False
+    if parsed.promo:  # donation/ad/channel-boost (link or payment card) — never a target
+        return False
     if parsed.siren_only:  # technical "alarm is on here" echo — not a live target
         return False
     if parsed.negated:  # explicit denial ("не йде на...") — not a live target

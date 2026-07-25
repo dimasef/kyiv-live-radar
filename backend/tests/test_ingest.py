@@ -56,6 +56,20 @@ def test_citywide_message_does_not_trigger_llm_fallback():
         assert not should_fallback(r), txt
 
 
+def test_donation_ad_does_not_trigger_llm_fallback():
+    # A donation/ad post (monobank link + bare card number) is flagged promo by
+    # rules and must NEVER reach the LLM — it's definitionally not a target, and
+    # a fallback call just burns budget (real case: a "підтримати проект на каву"
+    # post cost a Haiku call before this gate).
+    for txt in [
+        "Підтримати проект на каву:\nhttps://send.monobank.ua/jar/2EDJBw6Bv1\n4874100038678838\nДонати тримають проект на плаву!",
+        "Створив ракетний канал, підписуйтесь: https://t.me/somechannel",
+    ]:
+        r = parse_message(txt, M)
+        assert r.promo, txt
+        assert not should_fallback(r), txt
+
+
 def test_other_oblast_mention_does_not_hide_a_real_kyiv_district():
     # If a real Kyiv-area district WAS rule-matched, the early "districts
     # non-empty" check already wins — the other-oblast wording elsewhere in
