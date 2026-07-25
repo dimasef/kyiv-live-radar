@@ -8,7 +8,13 @@ export interface District {
 }
 
 export type TargetType = 'shahed' | 'jet_drone' | 'missile' | 'ballistic' | 'unknown'
-export type ThreatStatus = 'unconfirmed' | 'tracking' | 'destroyed' | 'lost' | 'impact'
+export type ThreatStatus =
+  | 'unconfirmed'
+  | 'tracking'
+  | 'destroyed'
+  | 'lost'
+  | 'impact'
+  | 'dismissed'
 
 export interface ThreatEvent {
   id: number
@@ -49,7 +55,7 @@ export interface Threat {
   closed_at: string | null
   /** Explicit reason a track closed; null while open. See ThreatLog.tsx for
    * how this drives the feed's closed-track label. */
-  closed_reason: 'destroyed' | 'all_clear' | 'stand_down' | 'stale' | null
+  closed_reason: 'destroyed' | 'all_clear' | 'stand_down' | 'stale' | 'dismissed' | null
   corroboration_count: number
   has_conflict: boolean
   confidence: number
@@ -71,6 +77,7 @@ export interface Incident {
   id: number
   started_at: string
   ended_at: string | null
+  ended_reason: 'all_clear' | 'alert_end' | 'stale' | 'dismissed' | null
   target_type: TargetType
   status: 'active' | 'ended'
   track_count: number
@@ -183,7 +190,7 @@ export interface Alert {
   started_at: string
   ended_at: string | null
   provider: string
-  closed_reason: 'official' | 'failsafe' | null
+  closed_reason: 'official' | 'failsafe' | 'dismissed' | null
 }
 
 export interface WSMessage {

@@ -13,6 +13,7 @@ import type {
   RawMessagesPage,
   RawOutcomeFilter,
   RawSource,
+  TargetType,
   Threat,
   ThreatAxis,
   ThreatEvent,
@@ -69,11 +70,15 @@ async function get<T>(path: string): Promise<T> {
   return res.json() as Promise<T>
 }
 
-async function send<T>(path: string, method: 'POST' | 'DELETE', body: unknown): Promise<T> {
+async function send<T>(
+  path: string,
+  method: 'POST' | 'DELETE' | 'PATCH',
+  body?: unknown,
+): Promise<T> {
   const res = await authedFetch(path, {
     method,
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: body === undefined ? undefined : JSON.stringify(body),
   })
   if (!res.ok) throw new ApiError(res.status, `${method} ${path} -> ${res.status}`)
   return res.json() as Promise<T>
@@ -155,6 +160,30 @@ export const fetchRawExport = (filter: RawMessagesFilter = {}) =>
 export const fetchRawLlmStats = () => get<RawLlmStats>('/raw_messages/llm_stats')
 // Every monitored channel, for the /raw channel filter dropdown.
 export const fetchRawSources = () => get<RawSource[]>('/raw_messages/sources')
+
+// --- Admin manual controls (see components/admin) — parser overrides. Every
+// endpoint is admin-gated server-side; the response mirrors the change, but the
+// authoritative update reaches the store via the WS broadcast the server emits.
+export const dismissThreat = (id: number) => send<Threat>(`/admin/threats/${id}/dismiss`, 'POST')
+export const restoreThreat = (id: number) => send<Threat>(`/admin/threats/${id}/restore`, 'POST')
+export const setThreatType = (id: number, target_type: TargetType) =>
+  send<Threat>(`/admin/threats/${id}`, 'PATCH', { target_type })
+export const dismissIncident = (id: number) =>
+  send<Incident>(`/admin/incidents/${id}/dismiss`, 'POST')
+export const restoreIncident = (id: number) =>
+  send<Incident>(`/admin/incidents/${id}/restore`, 'POST')
+export const dismissAlert = (id: number) => send<Alert>(`/admin/alerts/${id}/dismiss`, 'POST')
+export const restoreAlert = (id: number) => send<Alert>(`/admin/alerts/${id}/restore`, 'POST')
+export const deleteEvent = (id: number) => send<Threat>(`/admin/events/${id}`, 'DELETE')
+export const setEventDistrict = (id: number, districtId: number) =>
+  send<Threat>(`/admin/events/${id}`, 'PATCH', { district_id: districtId })
+
+export interface Dismissed {
+  threats: Threat[]
+  incidents: Incident[]
+  alerts: Alert[]
+}
+export const fetchDismissed = () => get<Dismissed>('/admin/dismissed')
 
 // --- Web Push (danger near home) — see lib/push.ts for the browser side. ---
 export interface PushConfig {

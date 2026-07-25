@@ -133,6 +133,7 @@ def incident_out(inc: Incident, sentinel_district_id: int | None) -> IncidentOut
         id=inc.id,
         started_at=inc.started_at,
         ended_at=inc.ended_at,
+        ended_reason=inc.ended_reason,
         target_type=inc.target_type,
         status="active" if inc.ended_at is None else "ended",
         track_count=track_count,

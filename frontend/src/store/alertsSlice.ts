@@ -16,5 +16,10 @@ export const createAlertsSlice: StateCreator<RadarState, [], [], AlertsSlice> = 
   alerts: [],
   setAlerts: (a) => set({ alerts: a }),
   upsertAlert: (alert) =>
-    set((s) => ({ alerts: [alert, ...s.alerts.filter((a) => a.id !== alert.id)] })),
+    set((s) => {
+      const rest = s.alerts.filter((a) => a.id !== alert.id)
+      // An admin-cancelled false alert is dropped entirely, so it never lingers
+      // as an active тривога or a recently-ended "відбій" banner.
+      return { alerts: alert.closed_reason === 'dismissed' ? rest : [alert, ...rest] }
+    }),
 })

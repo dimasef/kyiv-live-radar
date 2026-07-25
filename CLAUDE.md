@@ -186,15 +186,12 @@ file-based local dev session.
 ### Releasing (changelog is mandatory)
 
 **Every prod release MUST add a `CHANGELOG` entry** in
-`frontend/src/changelog.ts` — `APP_VERSION` is derived from the newest entry and
-shown in-app (Settings → version history at `/change-log`). Do not ship a
-user-visible change to prod without one. Each entry requires a `date`
-(`YYYY-MM-DD`, the release day) and a `kind` per `SEMVER_RULES`: `patch` =
-fix/tweak with no new capability (parser/gazetteer fixes, dedup, cosmetics),
-`minor` = new operator-visible capability, `major` = public/breaking (stays 0
-during the MVP). Bump the version accordingly, newest entry first. Write
-`changes` in Ukrainian, operator-facing (what they'll notice), not internal
-mechanics.
+`frontend/src/changelog.ts` (`APP_VERSION` derives from the newest entry, shown
+in-app at Settings → `/change-log`). The full release procedure — how to write
+and version the entry, the rule that the changelog must not leak admin/internal
+details to regular users, build verification, and the commit+push — lives in the
+**`/do-release` skill** (`.claude/skills/do-release/SKILL.md`). Run `/do-release`
+to cut a release; consult that skill before touching `changelog.ts` by hand.
 
 ### Working agreement — do NOT auto-commit or push
 
@@ -203,3 +200,6 @@ Make and verify changes locally (tests, `npm run build`, run the app), but do
 change locally first and then gives an explicit go-ahead ("пуш"/"комітимо")
 before anything is committed or pushed. Prepare the diff and stop there; wait for
 that signal.
+
+The **one exception** is the `/do-release` skill: invoking it IS the explicit
+go-ahead, so that skill (and only that skill) may commit and push on its own.

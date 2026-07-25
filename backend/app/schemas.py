@@ -111,6 +111,9 @@ class IncidentOut(BaseModel):
     id: int
     started_at: datetime
     ended_at: Optional[datetime] = None
+    # Why it ended — lets the client drop an admin-cancelled false positive
+    # ('dismissed') entirely instead of showing it as a recent attack.
+    ended_reason: Optional[str] = None
     target_type: str
     status: str  # 'active' | 'ended'
     # Aggregates over member threats (computed in serialize.py::incident_out).
@@ -393,6 +396,27 @@ class PushConfigOut(BaseModel):
 
     enabled: bool
     public_key: Optional[str] = None
+
+
+class ThreatTypeIn(BaseModel):
+    """PATCH /admin/threats/{id} — admin retype of a track's target."""
+
+    target_type: Literal["shahed", "jet_drone", "missile", "ballistic", "unknown"]
+
+
+class EventDistrictIn(BaseModel):
+    """PATCH /admin/events/{id} — admin fixes a mislocated sighting."""
+
+    district_id: int
+
+
+class DismissedOut(BaseModel):
+    """GET /admin/dismissed — recently admin-cancelled entities, for the
+    'Повернути' (restore) list in the admin panel."""
+
+    threats: list[ThreatOut] = []
+    incidents: list[IncidentOut] = []
+    alerts: list[AlertOut] = []
 
 
 class RegisterIn(BaseModel):

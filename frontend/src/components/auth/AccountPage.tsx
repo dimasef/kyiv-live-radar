@@ -1,6 +1,7 @@
 import { LogOut, ShieldCheck } from "lucide-react";
 
-import { navigate } from "@/router";
+import { isAdminRole } from "@/api";
+import { ADMIN_PATH, navigate } from "@/router";
 import { useRadar } from "@/store";
 
 const PROVIDER_LABEL: Record<string, string> = {
@@ -57,6 +58,15 @@ export default function AccountPage() {
             {roleBadge.label}
           </span>
         </div>
+
+        {isAdminRole(user.role) && (
+          <button
+            onClick={() => navigate(ADMIN_PATH)}
+            className="mt-4 flex items-center gap-2 rounded-lg border border-phosphor/25 bg-phosphor/[0.06] px-4 py-2 text-sm text-phosphor-soft hover:border-phosphor/40"
+          >
+            <ShieldCheck size={15} /> Відкрити адмінку
+          </button>
+        )}
 
         <div className="mt-6">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">

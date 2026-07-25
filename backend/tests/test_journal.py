@@ -12,15 +12,15 @@ from app.domain.journal import build_journal
 
 
 def _threat(created_at, *, target_type="shahed", status="tracking", kind="track",
-            scope="district", target_count=1):
+            scope="district", target_count=1, closed_reason=None):
     return SimpleNamespace(
         created_at=created_at, target_type=target_type, status=status,
-        kind=kind, scope=scope, target_count=target_count,
+        kind=kind, scope=scope, target_count=target_count, closed_reason=closed_reason,
     )
 
 
-def _incident(started_at):
-    return SimpleNamespace(started_at=started_at)
+def _incident(started_at, *, ended_reason=None):
+    return SimpleNamespace(started_at=started_at, ended_reason=ended_reason)
 
 
 def _alert(started_at, ended_at, *, scope="city", closed_reason="official"):

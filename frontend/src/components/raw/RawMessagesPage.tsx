@@ -53,10 +53,12 @@ export default function RawMessagesPage() {
   return <RawMessagesView />
 }
 
-/** Hidden debug route (/raw): every ingested message, including ones the
+/** The raw-message log itself (every ingested message, including ones the
  * parser suppressed or couldn't localize — distinct from the operator-facing
- * event feed, which only shows messages that became a live sighting. */
-function RawMessagesView() {
+ * event feed, which only shows messages that became a live sighting). Exported
+ * so the admin console can host it as its "Весь Фід" tab; it assumes the caller
+ * already gated on admin. */
+export function RawMessagesView() {
   const [searchInput, setSearchInput] = useState('')
   const [q, setQ] = useState('')
   const [outcome, setOutcome] = useState<RawOutcomeFilter | 'all'>('all')

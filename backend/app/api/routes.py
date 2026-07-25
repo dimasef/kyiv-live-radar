@@ -11,9 +11,12 @@ from sqlalchemy.orm import selectinload
 from ..auth.deps import get_optional_user, require_admin
 from ..config import settings
 from ..db import get_session
+from ..domain.alerts import dismiss_alert, restore_alert
 from ..domain.districts import citywide_district_id
 from ..domain.home_danger import raion_ids_for_zone
+from ..domain.incidents import dismiss_incident, recompute_incident_types, restore_incident
 from ..domain.journal import KYIV, build_journal
+from ..domain.lifecycle import close_track, reopen_track
 from ..models import (
     Alert,
     District,
@@ -31,7 +34,9 @@ from ..models import (
 from ..schemas import (
     AlertOut,
     AxisOut,
+    DismissedOut,
     DistrictOut,
+    EventDistrictIn,
     FeedEntryOut,
     IncidentOut,
     JournalOut,
@@ -46,7 +51,10 @@ from ..schemas import (
     RawSourceOut,
     ThreatEventOut,
     ThreatOut,
+    ThreatTypeIn,
 )
+from ..pipeline.broadcast import broadcast_results
+from ..pipeline.results import Broadcast
 from ..timeutil import within
 from .raw_query import apply_raw_filters, serialize_raw_rows
 from .serialize import alert_out as _alert_out
@@ -116,6 +124,10 @@ async def recent_events(
     live WebSocket traffic and empties on every reload)."""
     stmt = (
         select(ThreatEvent)
+        # Hide events of admin-dismissed tracks (is_distinct_from so open tracks,
+        # whose closed_reason is NULL, still pass — a plain != would drop them).
+        .join(Threat, ThreatEvent.threat_id == Threat.id)
+        .where(Threat.closed_reason.is_distinct_from("dismissed"))
         .options(
             selectinload(ThreatEvent.district),
             selectinload(ThreatEvent.source),
@@ -158,7 +170,11 @@ async def journal_days(
     incidents = list(await session.scalars(select(Incident)))
     alerts = list(await session.scalars(select(Alert).where(Alert.scope == "city")))
     district_events = (
-        await session.execute(select(ThreatEvent.event_time, ThreatEvent.district_id))
+        await session.execute(
+            select(ThreatEvent.event_time, ThreatEvent.district_id)
+            .join(Threat, ThreatEvent.threat_id == Threat.id)
+            .where(Threat.closed_reason.is_distinct_from("dismissed"))
+        )
     ).all()
     sentinel = await citywide_district_id(session)
 
@@ -476,3 +492,250 @@ async def threat_events(threat_id: int, session: AsyncSession = Depends(get_sess
         if exists is None:
             raise HTTPException(status_code=404, detail="threat not found")
     return [_event_out(ev) for ev in events]
+
+
+# ---------------------------------------------------------------------------
+# Admin manual controls (require_admin) — override parser mistakes in real time:
+# cancel a false-positive threat/attack/alert (soft, reversible), retype a
+# track, or fix/remove a sighting. Every action commits then broadcast_results
+# so all connected clients update immediately (a dismissed track drops off the
+# map, journal, and stats — see domain/lifecycle.py + domain/journal.py).
+# ---------------------------------------------------------------------------
+
+
+async def _threat_with_events(session, threat_id: int) -> Threat | None:
+    return await session.scalar(
+        select(Threat)
+        .where(Threat.id == threat_id)
+        .options(
+            selectinload(Threat.events).selectinload(ThreatEvent.district),
+            selectinload(Threat.events).selectinload(ThreatEvent.source),
+            selectinload(Threat.incident).selectinload(Incident.threats),
+        )
+    )
+
+
+@router.post("/admin/threats/{threat_id}/dismiss", response_model=ThreatOut)
+async def admin_dismiss_threat(
+    threat_id: int,
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    threat = await session.get(Threat, threat_id)
+    if threat is None:
+        raise HTTPException(status_code=404, detail="threat not found")
+    close_track(threat, utcnow(), "dismissed")
+    await session.commit()
+    await broadcast_results(session, [Broadcast("status", threat)])
+    return _threat_out(await _threat_with_events(session, threat_id))
+
+
+@router.post("/admin/threats/{threat_id}/restore", response_model=ThreatOut)
+async def admin_restore_threat(
+    threat_id: int,
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    threat = await session.get(Threat, threat_id)
+    if threat is None:
+        raise HTTPException(status_code=404, detail="threat not found")
+    reopen_track(threat)
+    await session.commit()
+    await broadcast_results(session, [Broadcast("status", threat)])
+    return _threat_out(await _threat_with_events(session, threat_id))
+
+
+@router.patch("/admin/threats/{threat_id}", response_model=ThreatOut)
+async def admin_retype_threat(
+    threat_id: int,
+    body: ThreatTypeIn,
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    threat = await _threat_with_events(session, threat_id)
+    if threat is None:
+        raise HTTPException(status_code=404, detail="threat not found")
+    threat.target_type = body.target_type
+    inc = threat.incident
+    if inc is not None:
+        recompute_incident_types(inc)
+    await session.commit()
+    results = [Broadcast("status", threat)]
+    if inc is not None:
+        results.append(Broadcast("attack", incident=inc))
+    await broadcast_results(session, results)
+    return _threat_out(await _threat_with_events(session, threat_id))
+
+
+@router.post("/admin/incidents/{incident_id}/dismiss", response_model=IncidentOut)
+async def admin_dismiss_incident(
+    incident_id: int,
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    inc = await session.scalar(
+        select(Incident)
+        .where(Incident.id == incident_id)
+        .options(selectinload(Incident.threats).selectinload(Threat.events))
+    )
+    if inc is None:
+        raise HTTPException(status_code=404, detail="incident not found")
+    dismiss_incident(inc, utcnow())
+    await session.commit()
+    results: list[Broadcast] = [Broadcast("attack", incident=inc)]
+    results += [Broadcast("status", t) for t in inc.threats]
+    await broadcast_results(session, results)
+    sentinel_id = await citywide_district_id(session)
+    return _incident_out(inc, sentinel_id)
+
+
+@router.post("/admin/incidents/{incident_id}/restore", response_model=IncidentOut)
+async def admin_restore_incident(
+    incident_id: int,
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    inc = await session.scalar(
+        select(Incident)
+        .where(Incident.id == incident_id)
+        .options(selectinload(Incident.threats).selectinload(Threat.events))
+    )
+    if inc is None:
+        raise HTTPException(status_code=404, detail="incident not found")
+    restore_incident(inc)
+    await session.commit()
+    results: list[Broadcast] = [Broadcast("attack", incident=inc)]
+    results += [Broadcast("status", t) for t in inc.threats]
+    await broadcast_results(session, results)
+    sentinel_id = await citywide_district_id(session)
+    return _incident_out(inc, sentinel_id)
+
+
+@router.post("/admin/alerts/{alert_id}/dismiss", response_model=AlertOut)
+async def admin_dismiss_alert(
+    alert_id: int,
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    alert = await session.get(Alert, alert_id)
+    if alert is None:
+        raise HTTPException(status_code=404, detail="alert not found")
+    dismiss_alert(alert, utcnow())
+    await session.commit()
+    await broadcast_results(session, [Broadcast("alert", alert=alert)])
+    return _alert_out(alert)
+
+
+@router.post("/admin/alerts/{alert_id}/restore", response_model=AlertOut)
+async def admin_restore_alert(
+    alert_id: int,
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    alert = await session.get(Alert, alert_id)
+    if alert is None:
+        raise HTTPException(status_code=404, detail="alert not found")
+    restore_alert(alert)
+    await session.commit()
+    await broadcast_results(session, [Broadcast("alert", alert=alert)])
+    return _alert_out(alert)
+
+
+@router.patch("/admin/events/{event_id}", response_model=ThreatOut)
+async def admin_move_event(
+    event_id: int,
+    body: EventDistrictIn,
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    """Reassign a sighting to a different district (fix a mislocation). The
+    threat's vector/geometry are derived from its events at serialization, so a
+    re-broadcast is all that's needed to update the map."""
+    event = await session.get(ThreatEvent, event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="event not found")
+    if await session.get(District, body.district_id) is None:
+        raise HTTPException(status_code=400, detail="district not found")
+    event.district_id = body.district_id
+    threat_id = event.threat_id
+    await session.commit()
+    threat = await _threat_with_events(session, threat_id)
+    await broadcast_results(session, [Broadcast("status", threat)])
+    return _threat_out(threat)
+
+
+@router.delete("/admin/events/{event_id}", response_model=ThreatOut)
+async def admin_delete_event(
+    event_id: int,
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    """Remove a wrongly-attributed sighting. If it was the track's last event,
+    the now-empty track is dismissed; otherwise the parent incident's type is
+    recomputed from what remains."""
+    event = await session.get(ThreatEvent, event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="event not found")
+    threat_id = event.threat_id
+    await session.delete(event)
+    await session.flush()
+    threat = await _threat_with_events(session, threat_id)
+    if threat is None:
+        await session.commit()
+        raise HTTPException(status_code=404, detail="threat not found")
+    if not threat.events and threat.closed_at is None:
+        close_track(threat, utcnow(), "dismissed")
+    inc = threat.incident
+    if inc is not None:
+        recompute_incident_types(inc)
+    await session.commit()
+    results: list[Broadcast] = [Broadcast("status", threat)]
+    if inc is not None:
+        results.append(Broadcast("attack", incident=inc))
+    await broadcast_results(session, results)
+    return _threat_out(await _threat_with_events(session, threat_id))
+
+
+@router.get("/admin/dismissed", response_model=DismissedOut)
+async def admin_dismissed(
+    limit: int = Query(30, ge=1, le=100),
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    """Recently admin-cancelled threats / incidents / alerts, for the restore
+    ('Повернути') list in the admin panel."""
+    threats = list(
+        await session.scalars(
+            select(Threat)
+            .where(Threat.closed_reason == "dismissed")
+            .options(
+                selectinload(Threat.events).selectinload(ThreatEvent.district),
+                selectinload(Threat.events).selectinload(ThreatEvent.source),
+            )
+            .order_by(Threat.closed_at.desc())
+            .limit(limit)
+        )
+    )
+    incidents = list(
+        await session.scalars(
+            select(Incident)
+            .where(Incident.ended_reason == "dismissed")
+            .options(selectinload(Incident.threats).selectinload(Threat.events))
+            .order_by(Incident.ended_at.desc())
+            .limit(limit)
+        )
+    )
+    alerts = list(
+        await session.scalars(
+            select(Alert)
+            .where(Alert.closed_reason == "dismissed")
+            .order_by(Alert.ended_at.desc())
+            .limit(limit)
+        )
+    )
+    sentinel_id = await citywide_district_id(session)
+    return DismissedOut(
+        threats=[_threat_out(t) for t in threats],
+        incidents=[_incident_out(inc, sentinel_id) for inc in incidents],
+        alerts=[_alert_out(a) for a in alerts],
+    )

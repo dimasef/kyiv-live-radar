@@ -29,6 +29,24 @@ class AlertSignal:
     alert_type: str = "air_raid"
 
 
+def dismiss_alert(alert: Alert, when: datetime) -> None:
+    """Admin cancel of a false-positive city alert: end it with reason
+    'dismissed' so it drops off the banner and out of the journal. Reversible
+    via `restore_alert`. Caller commits + broadcasts."""
+    alert.ended_at = when
+    alert.closed_reason = "dismissed"
+    log.info("alert %s dismissed (admin, scope=%s)", alert.id, alert.scope)
+
+
+def restore_alert(alert: Alert) -> None:
+    """Undo `dismiss_alert` — reopen the alert (clears the failsafe/dismissed
+    end so the banner comes back)."""
+    alert.ended_at = None
+    alert.ended_raw_id = None
+    alert.closed_reason = None
+    log.info("alert %s restored (admin, scope=%s)", alert.id, alert.scope)
+
+
 async def _find_open(session, scope: str) -> Alert | None:
     return await session.scalar(
         select(Alert).where(Alert.scope == scope, Alert.ended_at.is_(None))

@@ -8,6 +8,7 @@
     "journal": "Journal",
     "account": "Account",
     "raw": "Raw feed",
+    "admin": "Admin",
     "settings": "Settings"
   },
   "auth": {

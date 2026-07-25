@@ -36,6 +36,9 @@ CLOSED_REASON_TO_STATUS: dict[str, str] = {
     "all_clear": "lost",
     "stand_down": "lost",
     "stale": "lost",
+    # Admin manual cancel — its own status so a false positive never reads as a
+    # real 'lost'/'destroyed' target and is easy to exclude from stats/journal.
+    "dismissed": "dismissed",
 }
 
 

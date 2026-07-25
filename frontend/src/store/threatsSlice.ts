@@ -77,6 +77,17 @@ export const createThreatsSlice: StateCreator<RadarState, [], [], ThreatsSlice> 
       }))
     }
 
+    if (threat.status === 'dismissed') {
+      // Admin manually cancelled a false positive — remove it from the map
+      // immediately (no linger; it shouldn't have been there at all).
+      set((s) => {
+        const next = { ...s.threats }
+        delete next[threat.id]
+        return { threats: next }
+      })
+      return
+    }
+
     if (threat.closed_at && threat.status !== 'impact') {
       // Let the closed state show briefly, then drop it — but only if it's
       // still the same closed track (don't delete a threat that changed

@@ -81,6 +81,8 @@ def build_journal(
         return days.get(_kyiv_date(dt, tz))
 
     for inc in incidents:
+        if inc.ended_reason == "dismissed":
+            continue  # admin-cancelled false positive — never a real attack
         s = bucket(inc.started_at)
         if s is not None:
             s.attack_count += 1
@@ -89,6 +91,8 @@ def build_journal(
         s = bucket(th.created_at)
         if s is None:
             continue
+        if th.closed_reason == "dismissed":
+            continue  # admin-cancelled false positive — excluded from all tallies
         if th.scope == "city":
             # A citywide banner is not a discrete target — keep it out of the
             # track/target/type tallies (it would otherwise inflate every count).
@@ -120,6 +124,8 @@ def build_journal(
     for a in alerts:
         if a.scope != "city":
             continue
+        if a.closed_reason == "dismissed":
+            continue  # admin-cancelled false alert
         s = bucket(a.started_at)
         if s is None:
             continue

@@ -1,1 +1,1 @@
-export { default as RawMessagesPage } from './RawMessagesPage'
+export { default as RawMessagesPage, RawMessagesView } from './RawMessagesPage'

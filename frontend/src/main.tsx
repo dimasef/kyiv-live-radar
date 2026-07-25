@@ -2,13 +2,14 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 
 import App from './App'
+import { AdminPage } from './components/admin'
 import { AccountPage } from './components/auth'
 import { ChangelogPage } from './components/changelog'
 import { AppShell } from './components/chrome'
 import { ThreatJournalPage } from './components/journal'
-import { RawMessagesPage } from './components/raw'
 import {
   ACCOUNT_PATH,
+  ADMIN_PATH,
   CHANGELOG_PATH,
   RAW_MESSAGES_PATH,
   THREAT_JOURNAL_PATH,
@@ -47,8 +48,10 @@ function Root() {
       <ChangelogPage />
     ) : route === THREAT_JOURNAL_PATH ? (
       <ThreatJournalPage />
+    ) : route === ADMIN_PATH ? (
+      <AdminPage />
     ) : route === RAW_MESSAGES_PATH ? (
-      <RawMessagesPage />
+      <AdminPage initialTab="raw" />
     ) : route === ACCOUNT_PATH ? (
       <AccountPage />
     ) : (

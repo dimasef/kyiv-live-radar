@@ -32,14 +32,19 @@ export const createIncidentsSlice: StateCreator<RadarState, [], [], IncidentsSli
   setRecentIncidents: (i) => set({ recentIncidents: i }),
   focusIncident: (id) => set({ focusedIncidentId: id }),
   upsertIncident: (incident) =>
-    set((s) => ({
-      incidents:
-        incident.status === 'ended'
-          ? s.incidents.filter((i) => i.id !== incident.id)
-          : [incident, ...s.incidents.filter((i) => i.id !== incident.id)],
-      recentIncidents:
-        incident.status === 'ended'
-          ? [incident, ...s.recentIncidents.filter((i) => i.id !== incident.id)].slice(0, RECENT_CAP)
-          : s.recentIncidents,
-    })),
+    set((s) => {
+      const activeRest = s.incidents.filter((i) => i.id !== incident.id)
+      const recentRest = s.recentIncidents.filter((i) => i.id !== incident.id)
+      // An admin-cancelled false positive is not a real attack — drop it from
+      // both the active list AND the recent-attack summary cards.
+      if (incident.ended_reason === 'dismissed') {
+        return { incidents: activeRest, recentIncidents: recentRest }
+      }
+      return incident.status === 'ended'
+        ? {
+            incidents: activeRest,
+            recentIncidents: [incident, ...recentRest].slice(0, RECENT_CAP),
+          }
+        : { incidents: [incident, ...activeRest], recentIncidents: s.recentIncidents }
+    }),
 })

@@ -41,14 +41,18 @@ class District(Base):
 
 # Allowed enum-like values kept as plain strings for MVP simplicity.
 TARGET_TYPES = ("shahed", "jet_drone", "missile", "ballistic", "unknown")
-THREAT_STATUSES = ("unconfirmed", "tracking", "destroyed", "lost", "impact")
+# 'dismissed' = an admin manually cancelled a false-positive track (see
+# app/domain/lifecycle.py::close_track with reason 'dismissed'). Closed like any
+# other, but excluded from stats/journal so a parser mistake never counts as a
+# real target — reversible via reopen_track.
+THREAT_STATUSES = ("unconfirmed", "tracking", "destroyed", "lost", "impact", "dismissed")
 # 'track' = an inbound target being followed; 'impact' = a closed-on-creation
 # confirmed-strike marker. Split out of `status` (which conflates kind with
 # lifecycle) — see app/lifecycle.py.
 THREAT_KINDS = ("track", "impact")
 # Explicit reason a track closed, replacing `status='lost'`'s three overloaded
 # meanings (відбій / дорозвідка stand-down / silence timeout). NULL while open.
-CLOSED_REASONS = ("destroyed", "all_clear", "stand_down", "stale")
+CLOSED_REASONS = ("destroyed", "all_clear", "stand_down", "stale", "dismissed")
 # Where the structured event came from — critical for parser eval/debugging.
 # 'triage' = an async second-pass LLM verdict RESCUED a message the sync rules
 # path suppressed/couldn't localize (see app/pipeline/triage.py). Distinct from
@@ -76,11 +80,11 @@ ALERT_SCOPES = ("city", "oblast")
 # 'official' = a real відбій from the alert channel; 'failsafe' = the sweeper
 # force-closed an alert open past alert_failsafe_hours (dead Telethon session
 # ate the відбій, not a real day-long siren) — see app/alerts.py.
-ALERT_CLOSED_REASONS = ("official", "failsafe")
+ALERT_CLOSED_REASONS = ("official", "failsafe", "dismissed")
 # Why an Incident (attack) ended: a spotter's "Відбій" ('all_clear'), the
 # official city alert ending ('alert_end'), or the stale sweeper timing it out
 # ('stale'). NULL while active — see app/incidents.py.
-INCIDENT_ENDED_REASONS = ("all_clear", "alert_end", "stale")
+INCIDENT_ENDED_REASONS = ("all_clear", "alert_end", "stale", "dismissed")
 # User roles (app/auth/). 'admin' and 'admin_g' both get the service tools
 # (/raw, source management — see require_admin); 'user' gets personalization
 # only. 'admin' is derived from the env allowlists on every login; 'admin_g' is

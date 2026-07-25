@@ -24,9 +24,13 @@ export const MAP_PATH = '/'
 export const CHANGELOG_PATH = '/change-log'
 // Operator-facing calendar of past aerial-threat activity (linked from Settings).
 export const THREAT_JOURNAL_PATH = '/journal'
-// Hidden debug route (not linked from the UI) — every raw ingested message,
-// including ones the parser suppressed or couldn't localize. See /raw.
-// Now admin-only: the backend 403s a non-admin (see components/raw).
+// Admin console (replaces the standalone /raw tab in the header). Hosts the
+// manual parser-override controls plus the raw-message log as tabs. Admin-only:
+// the page gates on role and every /admin/* backend endpoint 403s non-admins.
+export const ADMIN_PATH = '/admin'
+// Raw ingested-message log — every message, including ones the parser suppressed
+// or couldn't localize. Now lives inside the admin console as a tab; this path
+// still resolves there (opens the log tab) for existing bookmarks/exports.
 export const RAW_MESSAGES_PATH = '/raw'
 // Signed-in user's account page (profile, linked providers, sign-out).
 export const ACCOUNT_PATH = '/account'
