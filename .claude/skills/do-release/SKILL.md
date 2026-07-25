@@ -99,6 +99,15 @@ Then push:
 git push origin main
 ```
 
+Note for the agent sandbox: `git push` needs network, so run it with the
+sandbox disabled. The `origin` remote is SSH (`git@github.com`) and the key
+(`~/.ssh/id_ed25519`, passphrase in the macOS keychain) auto-loads via the
+`github.com` block in `~/.ssh/config`. If the agent ever has no identities
+(`ssh-add -l` empty after a reboot), reload it headlessly with
+`ssh-add --apple-use-keychain ~/.ssh/id_ed25519 < /dev/null`. HTTPS via
+`git -c credential.helper='!gh auth git-credential' push https://github.com/dimasef/kyiv-live-radar.git main`
+remains a fallback.
+
 ## 5. Report
 
 Tell the maintainer: the new version, the `kind`, the one-line changelog, and

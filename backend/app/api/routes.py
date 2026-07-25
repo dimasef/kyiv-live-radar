@@ -12,6 +12,14 @@ from ..auth.deps import get_optional_user, require_admin
 from ..config import settings
 from ..db import get_session
 from ..domain.alerts import dismiss_alert, restore_alert
+from ..domain.corrections import (
+    parser_agrees,
+    record_false_positive_for_event,
+    record_false_positive_for_track,
+    record_relocate_for_event,
+    record_retype_for_track,
+    remove_false_positives_for_track,
+)
 from ..domain.districts import citywide_district_id
 from ..domain.home_danger import raion_ids_for_zone
 from ..domain.incidents import dismiss_incident, recompute_incident_types, restore_incident
@@ -20,8 +28,10 @@ from ..domain.lifecycle import close_track, reopen_track
 from ..models import (
     Alert,
     District,
+    GazetteerCandidate,
     Incident,
     Notice,
+    ParserCorrection,
     PushSubscription,
     RawMessage,
     Source,
@@ -34,9 +44,14 @@ from ..models import (
 from ..schemas import (
     AlertOut,
     AxisOut,
+    CorrectionOut,
+    CoverageGapOut,
     DismissedOut,
     DistrictOut,
     EventDistrictIn,
+    GazetteerCandidateIn,
+    GazetteerCandidateOut,
+    GazetteerCandidateStatusIn,
     FeedEntryOut,
     IncidentOut,
     JournalOut,
@@ -53,9 +68,11 @@ from ..schemas import (
     ThreatOut,
     ThreatTypeIn,
 )
+from ..feeds.common import build_matcher
 from ..pipeline.broadcast import broadcast_results
 from ..pipeline.results import Broadcast
 from ..timeutil import within
+from .coverage import find_coverage_gaps
 from .raw_query import apply_raw_filters, serialize_raw_rows
 from .serialize import alert_out as _alert_out
 from .serialize import axis_out as _axis_out
@@ -519,12 +536,13 @@ async def _threat_with_events(session, threat_id: int) -> Threat | None:
 async def admin_dismiss_threat(
     threat_id: int,
     session: AsyncSession = Depends(get_session),
-    _admin: User = Depends(require_admin),
+    admin: User = Depends(require_admin),
 ):
-    threat = await session.get(Threat, threat_id)
+    threat = await _threat_with_events(session, threat_id)
     if threat is None:
         raise HTTPException(status_code=404, detail="threat not found")
     close_track(threat, utcnow(), "dismissed")
+    await record_false_positive_for_track(session, threat, admin.id)
     await session.commit()
     await broadcast_results(session, [Broadcast("status", threat)])
     return _threat_out(await _threat_with_events(session, threat_id))
@@ -536,10 +554,11 @@ async def admin_restore_threat(
     session: AsyncSession = Depends(get_session),
     _admin: User = Depends(require_admin),
 ):
-    threat = await session.get(Threat, threat_id)
+    threat = await _threat_with_events(session, threat_id)
     if threat is None:
         raise HTTPException(status_code=404, detail="threat not found")
     reopen_track(threat)
+    await remove_false_positives_for_track(session, threat)
     await session.commit()
     await broadcast_results(session, [Broadcast("status", threat)])
     return _threat_out(await _threat_with_events(session, threat_id))
@@ -550,12 +569,13 @@ async def admin_retype_threat(
     threat_id: int,
     body: ThreatTypeIn,
     session: AsyncSession = Depends(get_session),
-    _admin: User = Depends(require_admin),
+    admin: User = Depends(require_admin),
 ):
     threat = await _threat_with_events(session, threat_id)
     if threat is None:
         raise HTTPException(status_code=404, detail="threat not found")
     threat.target_type = body.target_type
+    await record_retype_for_track(session, threat, body.target_type, admin.id)
     inc = threat.incident
     if inc is not None:
         recompute_incident_types(inc)
@@ -571,7 +591,7 @@ async def admin_retype_threat(
 async def admin_dismiss_incident(
     incident_id: int,
     session: AsyncSession = Depends(get_session),
-    _admin: User = Depends(require_admin),
+    admin: User = Depends(require_admin),
 ):
     inc = await session.scalar(
         select(Incident)
@@ -581,6 +601,8 @@ async def admin_dismiss_incident(
     if inc is None:
         raise HTTPException(status_code=404, detail="incident not found")
     dismiss_incident(inc, utcnow())
+    for t in inc.threats:
+        await record_false_positive_for_track(session, t, admin.id)
     await session.commit()
     results: list[Broadcast] = [Broadcast("attack", incident=inc)]
     results += [Broadcast("status", t) for t in inc.threats]
@@ -603,6 +625,8 @@ async def admin_restore_incident(
     if inc is None:
         raise HTTPException(status_code=404, detail="incident not found")
     restore_incident(inc)
+    for t in inc.threats:
+        await remove_false_positives_for_track(session, t)
     await session.commit()
     results: list[Broadcast] = [Broadcast("attack", incident=inc)]
     results += [Broadcast("status", t) for t in inc.threats]
@@ -646,7 +670,7 @@ async def admin_move_event(
     event_id: int,
     body: EventDistrictIn,
     session: AsyncSession = Depends(get_session),
-    _admin: User = Depends(require_admin),
+    admin: User = Depends(require_admin),
 ):
     """Reassign a sighting to a different district (fix a mislocation). The
     threat's vector/geometry are derived from its events at serialization, so a
@@ -654,8 +678,10 @@ async def admin_move_event(
     event = await session.get(ThreatEvent, event_id)
     if event is None:
         raise HTTPException(status_code=404, detail="event not found")
-    if await session.get(District, body.district_id) is None:
+    district = await session.get(District, body.district_id)
+    if district is None:
         raise HTTPException(status_code=400, detail="district not found")
+    await record_relocate_for_event(session, event, district, admin.id)
     event.district_id = body.district_id
     threat_id = event.threat_id
     await session.commit()
@@ -668,7 +694,7 @@ async def admin_move_event(
 async def admin_delete_event(
     event_id: int,
     session: AsyncSession = Depends(get_session),
-    _admin: User = Depends(require_admin),
+    admin: User = Depends(require_admin),
 ):
     """Remove a wrongly-attributed sighting. If it was the track's last event,
     the now-empty track is dismissed; otherwise the parent incident's type is
@@ -677,6 +703,8 @@ async def admin_delete_event(
     if event is None:
         raise HTTPException(status_code=404, detail="event not found")
     threat_id = event.threat_id
+    # Harvest before delete — the record needs the event's source linkage.
+    await record_false_positive_for_event(session, event, admin.id)
     await session.delete(event)
     await session.flush()
     threat = await _threat_with_events(session, threat_id)
@@ -739,3 +767,109 @@ async def admin_dismissed(
         incidents=[_incident_out(inc, sentinel_id) for inc in incidents],
         alerts=[_alert_out(a) for a in alerts],
     )
+
+
+# ---------------------------------------------------------------------------
+# Learning from corrections — turn admin actions + coverage gaps into accuracy:
+# surface the messages the parser couldn't localize (gazetteer gaps), let the
+# operator capture toponym candidates, and show whether the current parser has
+# retired each harvested correction. See app/domain/corrections.py + coverage.py.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/admin/coverage_gaps", response_model=list[CoverageGapOut])
+async def admin_coverage_gaps(
+    limit: int = Query(50, ge=1, le=200),
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    """Recent threat-flavored messages the parser couldn't pin to a district —
+    the coverage-gap queue (usually a missing gazetteer entry)."""
+    matcher = await build_matcher(session)
+    return await find_coverage_gaps(session, matcher, limit=limit)
+
+
+@router.post("/admin/gazetteer_candidates", response_model=GazetteerCandidateOut)
+async def admin_add_gazetteer_candidate(
+    body: GazetteerCandidateIn,
+    session: AsyncSession = Depends(get_session),
+    admin: User = Depends(require_admin),
+):
+    """Capture a toponym candidate from a gap — NOT a live gazetteer edit; that
+    stays a reviewed code step with a stem-collision sweep (CLAUDE.md)."""
+    text = ""
+    if body.raw_message_id is not None:
+        raw = await session.get(RawMessage, body.raw_message_id)
+        if raw is None:
+            raise HTTPException(status_code=400, detail="raw message not found")
+        text = raw.text
+    cand = GazetteerCandidate(
+        raw_message_id=body.raw_message_id,
+        text=text,
+        suggested_name=body.suggested_name,
+        note=body.note,
+        created_by_user_id=admin.id,
+    )
+    session.add(cand)
+    await session.commit()
+    return cand
+
+
+@router.get("/admin/gazetteer_candidates", response_model=list[GazetteerCandidateOut])
+async def admin_list_gazetteer_candidates(
+    status: Optional[str] = Query(None, description="Filter by status"),
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    stmt = select(GazetteerCandidate).order_by(GazetteerCandidate.created_at.desc())
+    if status is not None:
+        stmt = stmt.where(GazetteerCandidate.status == status)
+    return list(await session.scalars(stmt))
+
+
+@router.patch("/admin/gazetteer_candidates/{candidate_id}", response_model=GazetteerCandidateOut)
+async def admin_update_gazetteer_candidate(
+    candidate_id: int,
+    body: GazetteerCandidateStatusIn,
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    cand = await session.get(GazetteerCandidate, candidate_id)
+    if cand is None:
+        raise HTTPException(status_code=404, detail="candidate not found")
+    cand.status = body.status
+    await session.commit()
+    return cand
+
+
+@router.get("/admin/corrections", response_model=list[CorrectionOut])
+async def admin_corrections(
+    limit: int = Query(100, ge=1, le=500),
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    """Harvested corrections + whether the CURRENT parser already agrees — so
+    the operator sees which mistakes are retired vs still reproduced."""
+    matcher = await build_matcher(session)
+    id_to_en = {d.id: d.name_en for d in await session.scalars(select(District))}
+    rows = list(
+        await session.scalars(
+            select(ParserCorrection).order_by(ParserCorrection.created_at.desc()).limit(limit)
+        )
+    )
+    out = []
+    for c in rows:
+        agrees, _ = parser_agrees(c, matcher, id_to_en)
+        out.append(
+            CorrectionOut(
+                id=c.id,
+                raw_message_id=c.raw_message_id,
+                text=c.text,
+                kind=c.kind,
+                expected=c.expected or {},
+                origin=c.origin,
+                created_at=c.created_at,
+                resolved=agrees,
+            )
+        )
+    return out

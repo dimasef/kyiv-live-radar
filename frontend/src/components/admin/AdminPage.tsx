@@ -5,9 +5,11 @@ import { AuthModal } from '@/components/auth'
 import { RawMessagesView } from '@/components/raw'
 import { useRadar } from '@/store'
 
+import CorrectionsPanel from './CorrectionsPanel'
+import CoverageGapList from './CoverageGapList'
 import ManagementTab from './ManagementTab'
 
-type Tab = 'manage' | 'raw'
+type Tab = 'manage' | 'gaps' | 'corrections' | 'raw'
 
 /** Admin console (replaces the old standalone /raw tab). Gates on admin exactly
  * like the former RawMessagesPage did — the backend also enforces it (401/403),
@@ -52,9 +54,15 @@ export default function AdminPage({ initialTab = 'manage' }: { initialTab?: Tab 
       <div className="shrink-0 border-b border-white/[0.06] px-4 pt-6 pb-0">
         <div className="mx-auto max-w-3xl">
           <h1 className="font-display text-lg font-bold text-slate-100">Адмінка</h1>
-          <div className="mt-3 flex gap-1">
+          <div className="mt-3 flex flex-wrap gap-1">
             <TabButton active={tab === 'manage'} onClick={() => setTab('manage')}>
               Керування
+            </TabButton>
+            <TabButton active={tab === 'gaps'} onClick={() => setTab('gaps')}>
+              Прогалини
+            </TabButton>
+            <TabButton active={tab === 'corrections'} onClick={() => setTab('corrections')}>
+              Виправлення
             </TabButton>
             <TabButton active={tab === 'raw'} onClick={() => setTab('raw')}>
               Весь Фід
@@ -64,12 +72,14 @@ export default function AdminPage({ initialTab = 'manage' }: { initialTab?: Tab 
       </div>
 
       <div className="min-h-0 flex-1">
-        {tab === 'manage' ? (
-          <div className="h-full overflow-y-auto overscroll-contain">
-            <ManagementTab />
-          </div>
-        ) : (
+        {tab === 'raw' ? (
           <RawMessagesView />
+        ) : (
+          <div className="h-full overflow-y-auto overscroll-contain">
+            {tab === 'manage' && <ManagementTab />}
+            {tab === 'gaps' && <CoverageGapList />}
+            {tab === 'corrections' && <CorrectionsPanel />}
+          </div>
         )}
       </div>
     </div>

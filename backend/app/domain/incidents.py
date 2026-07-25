@@ -26,10 +26,6 @@ log = logging.getLogger("incidents")
 _SEVERITY = {"unknown": 0, "shahed": 1, "jet_drone": 2, "missile": 3, "ballistic": 4}
 
 
-def _more_severe(a: str, b: str) -> str:
-    return a if _SEVERITY.get(a, 0) >= _SEVERITY.get(b, 0) else b
-
-
 def recompute_incident_types(inc: Incident) -> None:
     """Rebuild `attack_types`/`target_type` from the incident's CURRENT member
     threats — needed after an admin retypes or removes a member track, where the
@@ -96,14 +92,19 @@ async def attach_to_incident(
         await session.commit()
         log.info("incident %s started (target_type=%s)", inc.id, inc.target_type)
     threat.incident_id = inc.id
-    inc.target_type = _more_severe(inc.target_type, threat.target_type)
-    if threat.target_type != "unknown" and threat.target_type not in inc.attack_types:
-        inc.attack_types = [*inc.attack_types, threat.target_type]
     if decoy:
         inc.decoy_mentions += 1
     if hypersonic:
         inc.has_hypersonic = True
     inc.last_activity_at = _later(inc.last_activity_at, when)
+    await session.commit()
+    # Rebuild target_type/attack_types from the CURRENT members instead of
+    # appending — so a track that upgraded its type mid-flight (missile ->
+    # ballistic, see ingest._upgrade_type) leaves ONE type, not both, and the
+    # incident no longer reads as a false 'combined' (the WORKFLOW.md /
+    # attack.py::classify known compromise).
+    await session.refresh(inc, ["threats"])
+    recompute_incident_types(inc)
     await session.commit()
     return inc
 

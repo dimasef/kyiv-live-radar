@@ -95,6 +95,16 @@ ADMIN_ROLES = ("admin", "admin_g")
 # Linked SSO providers on OAuthIdentity. Email+password is native on the User
 # row (password_hash), NOT an identity — so it's absent here.
 PROVIDERS = ("google", "telegram")
+# Admin corrections harvested from the /admin console into a labeled regression
+# dataset (app/domain/corrections.py). 'false_positive' = a dismissed track's
+# message shouldn't have localized; 'retype' = wrong target_type; 'relocate' =
+# wrong district. `origin` records which admin action produced it.
+CORRECTION_KINDS = ("false_positive", "retype", "relocate")
+CORRECTION_ORIGINS = ("dismiss", "retype_threat", "move_event")
+# Toponym candidates captured from the coverage-gap queue — NOT live gazetteer
+# edits (those stay a code-review step with a stem-collision sweep, see
+# CLAUDE.md). 'added' = a human later promoted it into app/gazetteer.py.
+GAZ_CANDIDATE_STATUSES = ("pending", "geocoded", "added", "rejected")
 
 
 class Source(Base):
@@ -540,3 +550,58 @@ class ThreatEvent(Base):
     threat: Mapped["Threat"] = relationship(back_populates="events")
     district: Mapped["District"] = relationship()
     source: Mapped[Optional["Source"]] = relationship()
+
+
+class ParserCorrection(Base):
+    """A labeled parser mistake, harvested from an admin action in the /admin
+    console (see app/domain/corrections.py). Feeds eval/corrections_eval.py — a
+    regression check that the CURRENT parser no longer reproduces the mistake.
+
+    `text` is a denormalized snapshot of the raw message so the dataset stays
+    self-contained/exportable even if the raw row is ever pruned. Unique on
+    (raw_message_id, kind) so re-dismissing the same message upserts, not dupes.
+    """
+
+    __tablename__ = "parser_corrections"
+    __table_args__ = (
+        UniqueConstraint("raw_message_id", "kind", name="uq_correction_raw_kind"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    raw_message_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("raw_messages.id", ondelete="SET NULL"), nullable=True
+    )
+    text: Mapped[str] = mapped_column(Text)
+    kind: Mapped[str] = mapped_column(String(20))  # see CORRECTION_KINDS
+    # What the parser SHOULD have produced: {} / {"suppressed": true} for
+    # false_positive, {"target_type": ...} for retype, {"district_id",
+    # "district_en"} for relocate.
+    expected: Mapped[dict] = mapped_column(JSON, default=dict)
+    origin: Mapped[str] = mapped_column(String(20))  # see CORRECTION_ORIGINS
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_by_user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+
+class GazetteerCandidate(Base):
+    """A toponym an admin flagged from the coverage-gap queue (a threat-flavored
+    message the parser couldn't localize). Deliberately NOT a live gazetteer
+    edit — adding to app/gazetteer.py stays a reviewed code step with a
+    stem-collision sweep (CLAUDE.md); this is just the captured candidate.
+    """
+
+    __tablename__ = "gazetteer_candidates"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    raw_message_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("raw_messages.id", ondelete="SET NULL"), nullable=True
+    )
+    text: Mapped[str] = mapped_column(Text)
+    suggested_name: Mapped[str] = mapped_column(String(200))
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(12), default="pending")  # see GAZ_CANDIDATE_STATUSES
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_by_user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )

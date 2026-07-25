@@ -65,6 +65,26 @@ async def test_single_family_classification(ctx):
     assert cls.label == "drone"
 
 
+async def test_upgrade_does_not_read_as_false_combined(ctx):
+    # A SINGLE target refined mid-flight (missile -> ballistic) must leave ONE
+    # type on the incident, not both — otherwise it falsely reads as 'combined'
+    # (the old append-only attack_types bug; now recomputed from members).
+    s, _m, _src = ctx
+    from app.domain.incidents import attach_to_incident
+
+    t = Threat(target_type="missile", status="tracking")
+    s.add(t)
+    await s.commit()
+    inc = await attach_to_incident(s, t, BASE)
+    assert set(inc.attack_types) == {"missile"}
+
+    t.target_type = "ballistic"
+    await s.commit()
+    inc = await attach_to_incident(s, t, BASE + timedelta(minutes=1))
+    assert set(inc.attack_types) == {"ballistic"}
+    assert classify(inc.attack_types, inc.decoy_mentions, inc.has_hypersonic).label == "ballistic"
+
+
 async def test_combined_classification_across_families(ctx):
     # A shahed track and a ballistic city-wide alert in the same incident
     # window is a genuinely combined raid, not just "ballistic".

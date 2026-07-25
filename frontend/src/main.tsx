@@ -1,12 +1,8 @@
-import React from 'react'
+import React, { Suspense, lazy } from 'react'
 import ReactDOM from 'react-dom/client'
 
 import App from './App'
-import { AdminPage } from './components/admin'
-import { AccountPage } from './components/auth'
-import { ChangelogPage } from './components/changelog'
 import { AppShell } from './components/chrome'
-import { ThreatJournalPage } from './components/journal'
 import {
   ACCOUNT_PATH,
   ADMIN_PATH,
@@ -15,6 +11,14 @@ import {
   THREAT_JOURNAL_PATH,
   useRoute,
 } from './router'
+
+// Secondary routes are lazy so the initial bundle is just the map (the critical
+// path). The admin console, journal, changelog data and account page each load
+// on demand — faster first paint, which matters most on a phone at night.
+const AdminPage = lazy(() => import('./components/admin/AdminPage'))
+const AccountPage = lazy(() => import('./components/auth/AccountPage'))
+const ChangelogPage = lazy(() => import('./components/changelog/ChangelogPage'))
+const ThreatJournalPage = lazy(() => import('./components/journal/ThreatJournalPage'))
 import { useRadar } from './store'
 import './i18n'
 import './index.css'
@@ -57,7 +61,19 @@ function Root() {
     ) : (
       <App />
     )
-  return <AppShell>{page}</AppShell>
+  return (
+    <AppShell>
+      <Suspense fallback={<RouteFallback />}>{page}</Suspense>
+    </AppShell>
+  )
+}
+
+function RouteFallback() {
+  return (
+    <div className="flex h-full items-center justify-center bg-ink-950 text-xs text-slate-500">
+      Завантаження…
+    </div>
+  )
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

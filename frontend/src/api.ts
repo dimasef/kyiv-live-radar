@@ -185,6 +185,51 @@ export interface Dismissed {
 }
 export const fetchDismissed = () => get<Dismissed>('/admin/dismissed')
 
+// --- Learning from corrections (admin) — coverage gaps + harvested labels. ---
+export interface CoverageGap {
+  raw_message_id: number
+  text: string
+  event_time: string
+  source_name: string | null
+  detected_target_type: TargetType
+  detected_status: string
+}
+export const fetchCoverageGaps = (limit = 50) =>
+  get<CoverageGap[]>(`/admin/coverage_gaps?limit=${limit}`)
+
+export interface GazetteerCandidate {
+  id: number
+  raw_message_id: number | null
+  text: string
+  suggested_name: string
+  note: string | null
+  status: 'pending' | 'geocoded' | 'added' | 'rejected'
+  created_at: string
+}
+export const addGazetteerCandidate = (rawMessageId: number, suggestedName: string, note?: string) =>
+  send<GazetteerCandidate>('/admin/gazetteer_candidates', 'POST', {
+    raw_message_id: rawMessageId,
+    suggested_name: suggestedName,
+    note: note ?? null,
+  })
+export const fetchGazetteerCandidates = (status?: string) =>
+  get<GazetteerCandidate[]>(`/admin/gazetteer_candidates${status ? `?status=${status}` : ''}`)
+export const updateGazetteerCandidate = (id: number, status: GazetteerCandidate['status']) =>
+  send<GazetteerCandidate>(`/admin/gazetteer_candidates/${id}`, 'PATCH', { status })
+
+export interface Correction {
+  id: number
+  raw_message_id: number | null
+  text: string
+  kind: 'false_positive' | 'retype' | 'relocate'
+  expected: Record<string, unknown>
+  origin: string
+  created_at: string
+  resolved: boolean
+}
+export const fetchCorrections = (limit = 100) =>
+  get<Correction[]>(`/admin/corrections?limit=${limit}`)
+
 // --- Web Push (danger near home) — see lib/push.ts for the browser side. ---
 export interface PushConfig {
   enabled: boolean

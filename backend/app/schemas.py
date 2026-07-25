@@ -419,6 +419,63 @@ class DismissedOut(BaseModel):
     alerts: list[AlertOut] = []
 
 
+class CoverageGapOut(BaseModel):
+    """GET /admin/coverage_gaps — a threat-flavored message the parser couldn't
+    localize (likely a missing gazetteer entry)."""
+
+    raw_message_id: int
+    text: str
+    event_time: datetime
+    source_name: Optional[str] = None
+    detected_target_type: str
+    detected_status: str
+
+    _tz_gap = field_validator("event_time", mode="before")(_as_utc)
+
+
+class GazetteerCandidateIn(BaseModel):
+    """POST /admin/gazetteer_candidates — flag a toponym from a coverage gap.
+    NOT a live gazetteer edit; just a captured candidate for later review."""
+
+    raw_message_id: Optional[int] = None
+    suggested_name: str = Field(min_length=1, max_length=200)
+    note: Optional[str] = None
+
+
+class GazetteerCandidateStatusIn(BaseModel):
+    status: Literal["pending", "geocoded", "added", "rejected"]
+
+
+class GazetteerCandidateOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    raw_message_id: Optional[int] = None
+    text: str
+    suggested_name: str
+    note: Optional[str] = None
+    status: str
+    created_at: datetime
+
+    _tz_cand = field_validator("created_at", mode="before")(_as_utc)
+
+
+class CorrectionOut(BaseModel):
+    """GET /admin/corrections — a harvested correction plus whether the CURRENT
+    parser already agrees (so the admin sees which mistakes are retired)."""
+
+    id: int
+    raw_message_id: Optional[int] = None
+    text: str
+    kind: str
+    expected: dict = {}
+    origin: str
+    created_at: datetime
+    resolved: bool  # current parser now matches the correction
+
+    _tz_corr = field_validator("created_at", mode="before")(_as_utc)
+
+
 class RegisterIn(BaseModel):
     """POST /auth/register — email+password signup."""
 
