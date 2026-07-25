@@ -16,7 +16,7 @@ from .feeds.simulator import run_simulator
 from .logging_setup import setup_logging
 from .migrate import upgrade_to_head
 from .observability import setup_observability
-from .seed import seed_districts, seed_sources
+from .seed import bootstrap_sources_from_env, seed_districts, seed_sources
 
 setup_logging()
 log = logging.getLogger("app")
@@ -27,7 +27,8 @@ async def lifespan(app: FastAPI):
     await upgrade_to_head()
     d = await seed_districts()
     s = await seed_sources()
-    log.info("db ready; seeded %d districts, %d sources", d, s)
+    b = await bootstrap_sources_from_env()
+    log.info("db ready; seeded %d districts, %d sources (+%d from env channels)", d, s, b)
 
     # One-off maintenance reprocess — runs BEFORE any feed source starts, so it
     # never races a live ingest. Rebuilds all tracks from raw_messages through
@@ -42,7 +43,7 @@ async def lifespan(app: FastAPI):
     # Feed source: real Telegram listener if configured, else a replay of real
     # captured messages if requested, else the synthetic text simulator.
     tasks: list[asyncio.Task] = []
-    if settings.telegram_enabled and settings.telegram_api_id and settings.telegram_channel_list:
+    if settings.telegram_enabled and settings.telegram_api_id:
         from .feeds.telegram import run_listener
 
         log.info("starting Telegram listener")

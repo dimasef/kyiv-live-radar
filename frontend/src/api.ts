@@ -230,6 +230,61 @@ export interface Correction {
 export const fetchCorrections = (limit = 100) =>
   get<Correction[]>(`/admin/corrections?limit=${limit}`)
 
+// --- Sources / channels management (admin) — the DB's active sources ARE the
+// live channel list; mutations here make the listener reconnect + re-subscribe.
+export interface SourceStats {
+  messages_total: number
+  messages_processed: number
+  events_produced: number
+  llm_fallback_rate: number | null
+  /** Share of the channel's messages we could place on the map (null for alert channels). */
+  coverage_rate: number | null
+  correction_rate: number | null
+  conflict_share: number | null
+  /** 0..100, informational only — does NOT feed fusion (trust_weight is inert). */
+  quality_score: number | null
+  last_message_at: string | null
+}
+export interface Source {
+  id: number
+  channel_key: string
+  name: string
+  subscribe_ref: string | null
+  role: 'spotter' | 'alert'
+  is_active: boolean
+  trust_weight: number
+  last_listener_error: string | null
+  created_at: string | null
+  stats: SourceStats
+}
+export interface SourceCreateBody {
+  subscribe_ref: string
+  name?: string
+  role?: 'spotter' | 'alert'
+  trust_weight?: number
+}
+export type SourcePatch = Partial<Pick<Source, 'name' | 'role' | 'trust_weight' | 'is_active'>>
+/** What a hard-delete removed — its blast radius, shown back to the operator. */
+export interface SourceDeleteResult {
+  name: string
+  raw_messages: number
+  events: number
+  notices: number
+  threats_deleted: number
+  incidents_deleted: number
+}
+export const fetchSources = () => get<Source[]>('/admin/sources')
+export const createSource = (body: SourceCreateBody) => send<Source>('/admin/sources', 'POST', body)
+export const updateSource = (id: number, patch: SourcePatch) =>
+  send<Source>(`/admin/sources/${id}`, 'PATCH', patch)
+export const activateSource = (id: number) =>
+  send<Source>(`/admin/sources/${id}/activate`, 'POST')
+export const deactivateSource = (id: number) =>
+  send<Source>(`/admin/sources/${id}/deactivate`, 'POST')
+/** HARD delete — removes the channel AND all its stored messages/events. */
+export const deleteSource = (id: number) =>
+  send<SourceDeleteResult>(`/admin/sources/${id}`, 'DELETE')
+
 // --- Admin reprocess (rebuild tracks from raw messages) — replaces the
 // REPROCESS_ON_BOOT env+restart footgun with a guarded, one-click apply. ---
 export interface ReprocessDay {

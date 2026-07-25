@@ -9,8 +9,9 @@ import CorrectionsPanel from './CorrectionsPanel'
 import CoverageGapList from './CoverageGapList'
 import ManagementTab from './ManagementTab'
 import ReprocessPanel from './ReprocessPanel'
+import SourcesPanel from './SourcesPanel'
 
-type Tab = 'manage' | 'gaps' | 'corrections' | 'reprocess' | 'raw'
+type Tab = 'manage' | 'sources' | 'gaps' | 'corrections' | 'reprocess' | 'raw'
 
 /** Admin console (replaces the old standalone /raw tab). Gates on admin exactly
  * like the former RawMessagesPage did — the backend also enforces it (401/403),
@@ -59,6 +60,9 @@ export default function AdminPage({ initialTab = 'manage' }: { initialTab?: Tab 
             <TabButton active={tab === 'manage'} onClick={() => setTab('manage')}>
               Керування
             </TabButton>
+            <TabButton active={tab === 'sources'} onClick={() => setTab('sources')}>
+              Джерела
+            </TabButton>
             <TabButton active={tab === 'gaps'} onClick={() => setTab('gaps')}>
               Прогалини
             </TabButton>
@@ -81,6 +85,7 @@ export default function AdminPage({ initialTab = 'manage' }: { initialTab?: Tab 
         ) : (
           <div className="h-full overflow-y-auto overscroll-contain">
             {tab === 'manage' && <ManagementTab />}
+            {tab === 'sources' && <SourcesPanel />}
             {tab === 'gaps' && <CoverageGapList />}
             {tab === 'corrections' && <CorrectionsPanel />}
             {tab === 'reprocess' && <ReprocessPanel />}

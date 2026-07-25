@@ -37,6 +37,66 @@ class SourceOut(BaseModel):
     trust_weight: float
 
 
+class SourceStatsOut(BaseModel):
+    """Per-source quality signals, computed on-demand (JOIN by source_id) over a
+    recent window — see app/api/source_stats.py. Rates are None when there's no
+    denominator (e.g. llm_fallback_rate before any row had llm_attempted set)."""
+
+    messages_total: int
+    messages_processed: int
+    events_produced: int
+    llm_fallback_rate: Optional[float]
+    coverage_rate: Optional[float]
+    correction_rate: Optional[float]
+    conflict_share: Optional[float]
+    quality_score: Optional[float]  # 0..100, informational (does NOT feed fusion)
+    last_message_at: Optional[datetime]
+
+
+class SourceAdminOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    channel_key: str
+    name: str
+    subscribe_ref: Optional[str]
+    role: str
+    is_active: bool
+    trust_weight: float
+    last_listener_error: Optional[str]
+    created_at: Optional[datetime]
+    stats: SourceStatsOut
+
+    _tz_source = field_validator("created_at", mode="before")(_as_utc)
+
+
+class SourceIn(BaseModel):
+    """Add (or reactivate) a channel from the admin console."""
+
+    subscribe_ref: str = Field(min_length=1, max_length=200)
+    name: Optional[str] = Field(default=None, max_length=120)
+    role: Literal["spotter", "alert"] = "spotter"
+    trust_weight: float = 1.0
+
+
+class SourceUpdateIn(BaseModel):
+    name: Optional[str] = Field(default=None, max_length=120)
+    role: Optional[Literal["spotter", "alert"]] = None
+    trust_weight: Optional[float] = None
+    is_active: Optional[bool] = None
+
+
+class SourceDeleteOut(BaseModel):
+    """What a hard-delete removed — surfaced so the admin sees the blast radius."""
+
+    name: str
+    raw_messages: int
+    events: int
+    notices: int
+    threats_deleted: int
+    incidents_deleted: int
+
+
 class ThreatEventOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

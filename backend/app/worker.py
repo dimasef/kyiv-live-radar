@@ -17,7 +17,7 @@ from .feeds.telegram import run_listener
 from .logging_setup import setup_logging
 from .migrate import upgrade_to_head
 from .observability import setup_logfire, setup_sentry
-from .seed import seed_districts, seed_sources
+from .seed import bootstrap_sources_from_env, seed_districts, seed_sources
 
 setup_logging()
 setup_sentry()
@@ -28,6 +28,7 @@ async def main() -> None:
     await upgrade_to_head()
     await seed_districts()
     await seed_sources()
+    await bootstrap_sources_from_env()
     await run_listener()
 
 

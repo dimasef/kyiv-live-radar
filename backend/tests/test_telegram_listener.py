@@ -52,11 +52,11 @@ async def test_run_listener_reconnects_with_backoff_after_crashes():
 
         sleeps = []
 
-        async def fake_sleep(seconds):
+        async def fake_wait(seconds):
             sleeps.append(seconds)
 
         with patch.object(tl, "_run_listener_once", new=fake_run_once), \
-             patch("app.feeds.telegram.asyncio.sleep", new=fake_sleep):
+             patch.object(tl, "_backoff_wait", new=fake_wait):
             with pytest.raises(asyncio.CancelledError):
                 await tl.run_listener()
 
@@ -89,11 +89,11 @@ async def test_run_listener_resets_backoff_after_a_real_connection():
 
         sleeps = []
 
-        async def fake_sleep(seconds):
+        async def fake_wait(seconds):
             sleeps.append(seconds)
 
         with patch.object(tl, "_run_listener_once", new=fake_run_once), \
-             patch("app.feeds.telegram.asyncio.sleep", new=fake_sleep):
+             patch.object(tl, "_backoff_wait", new=fake_wait):
             with pytest.raises(asyncio.CancelledError):
                 await tl.run_listener()
 
@@ -103,6 +103,23 @@ async def test_run_listener_resets_backoff_after_a_real_connection():
         assert sleeps == [5, 5]
     finally:
         settings.telegram_channels, settings.telegram_api_id = old_channels, old_api_id
+
+
+async def test_request_reload_sets_event_and_backoff_wait_wakes_early():
+    ev = tl._reload_signal()
+    ev.clear()
+    tl.request_listener_reload()
+    assert ev.is_set()
+    # A pending reload makes the backoff return promptly and clear the flag, so
+    # adding the first channel doesn't wait out a grown backoff.
+    await asyncio.wait_for(tl._backoff_wait(30), timeout=1.0)
+    assert not ev.is_set()
+
+
+async def test_backoff_wait_times_out_without_a_reload():
+    tl._reload_signal().clear()
+    await tl._backoff_wait(0.01)  # no reload -> just sleeps out the timeout
+    assert not tl._reload_signal().is_set()
 
 
 async def test_watchdog_reconnects_when_stream_goes_stale():

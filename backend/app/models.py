@@ -113,6 +113,13 @@ class Source(Base):
     Multi-source fusion cross-validates reports across sources. `trust_weight`
     lets known-reliable channels count for more; aggregator/repost channels get
     a low weight so echoing the same original doesn't inflate confidence.
+
+    The live Telethon listener subscribes to exactly the rows with
+    `is_active=True` (managed from the /admin console) — the DB, not the env
+    channel lists, is the source of truth for what's watched. `subscribe_ref`
+    is the raw handle/id/invite-link the listener resolves each channel by;
+    NULL falls back to `channel_key` (legacy rows, where for a public channel
+    channel_key == username).
     """
 
     __tablename__ = "sources"
@@ -125,6 +132,18 @@ class Source(Base):
     # 'spotter' | 'alert' — see SOURCE_ROLES. Determines which parser/ingest
     # path a channel's messages go through.
     role: Mapped[str] = mapped_column(String(10), default="spotter")
+    # Raw string the listener resolves this channel by (username without @, a
+    # numeric id, or a t.me/+ invite link). NULL -> resolve by channel_key.
+    subscribe_ref: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    # Last resolve/join error the listener hit for this channel, surfaced in the
+    # admin UI so a mistyped handle is visible; cleared to NULL on a good connect.
+    last_listener_error: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=utcnow
+    )
+    added_by_user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
 
 
 class Alert(Base):

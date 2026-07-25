@@ -65,7 +65,16 @@ async def _resolve_channel(client, raw: str):
         # Not a member yet: join via the invite, then use the resulting chat.
         upd = await client(functions.messages.ImportChatInviteRequest(invite))
         return upd.chats[0]
-    return await client.get_entity(raw)
+    entity = await client.get_entity(raw)
+    # Telethon only delivers live updates for channels the account is subscribed
+    # to, so a freshly-added public channel stays silent until we join. Joining
+    # is a read-only subscribe (not a post — spec §12) and is idempotent, so
+    # re-joining an already-monitored channel on reconnect is a harmless no-op.
+    try:
+        await client(functions.channels.JoinChannelRequest(entity))
+    except Exception:
+        pass  # already a member, or a non-joinable entity — the resolve still holds
+    return entity
 
 
 def _source_key(entity) -> str:
@@ -135,6 +144,70 @@ async def _ensure_sources(entities, entity_roles: dict[int, str]) -> tuple[dict[
             role_by_source[src.id] = src.role
         await s.commit()
         return id_map, role_by_source
+
+
+# Set by the /admin console (via request_listener_reload) to tell a running
+# listener its channel list changed — the listener breaks out of its update
+# stream, reconnects, and re-reads the active sources from the DB. Created lazily
+# and rebound per running loop: an asyncio.Event binds to the loop it's awaited
+# on, and prod runs one loop while tests spin a fresh loop each — a single
+# module-level Event would raise "attached to a different loop".
+_reload_event: asyncio.Event | None = None
+_reload_loop = None
+
+
+def _reload_signal() -> asyncio.Event:
+    global _reload_event, _reload_loop
+    loop = asyncio.get_running_loop()
+    if _reload_event is None or _reload_loop is not loop:
+        _reload_event = asyncio.Event()
+        _reload_loop = loop
+    return _reload_event
+
+
+def request_listener_reload() -> None:
+    """Signal the running listener to reconnect and re-read its channel list from
+    the DB (after add/remove/toggle of a Source in /admin). A harmless no-op when
+    no Telegram listener is running (replay/simulator mode, or telegram off)."""
+    if _reload_event is not None:
+        _reload_event.set()
+
+
+async def _backoff_wait(seconds: float) -> None:
+    """Wait out the reconnect backoff, but wake early if a reload is requested —
+    so adding the first channel while the (channel-less) listener is backing off
+    starts it promptly instead of after a grown backoff."""
+    ev = _reload_signal()
+    try:
+        await asyncio.wait_for(ev.wait(), timeout=seconds)
+        ev.clear()
+    except asyncio.TimeoutError:
+        pass
+
+
+async def _active_source_specs() -> list[tuple[int, str, str]]:
+    """(source_id, ref, role) for every is_active Source — the live channel list,
+    now DB-driven (not the env lists). `ref` is what Telethon resolves by:
+    subscribe_ref, or channel_key for legacy rows that never set it."""
+    async with SessionLocal() as s:
+        rows = await s.scalars(select(Source).where(Source.is_active.is_(True)))
+        return [(x.id, (x.subscribe_ref or x.channel_key), x.role) for x in rows]
+
+
+async def _mark_source_status(source_id: int, *, error: str | None, title: str | None = None) -> None:
+    """Persist the listener's resolve/join outcome onto the Source row so the
+    admin UI can show why a channel isn't delivering (mistyped handle, private,
+    etc.). Cleared to NULL on a good connect."""
+    async with SessionLocal() as s:
+        src = await s.get(Source, source_id)
+        if src is None:
+            return
+        src.last_listener_error = error
+        # Upgrade a placeholder name (the handle we were added with) to the real
+        # channel title, but never clobber an admin-edited display name.
+        if error is None and title and src.name in ("", src.channel_key, src.subscribe_ref):
+            src.name = title
+        await s.commit()
 
 
 async def _ingest_one(s, *, role: str, text: str, when, source_id, message_id,
@@ -238,26 +311,45 @@ async def _run_listener_once(backfill: bool, run_state: dict) -> None:
     try:
         await client.start()
 
+        from telethon import utils
+
         # One client watches both spotter and official-alert channels; each
         # message is routed by its Source.role (see _ingest_one) rather than
-        # needing two separate connections/sessions.
-        channel_specs = (
-            [(c, "spotter") for c in settings.telegram_channel_list]
-            + [(c, "alert") for c in settings.alert_channel_list]
-        )
+        # needing two separate connections/sessions. The channel list is now the
+        # DB's active sources (managed in /admin), not the env lists.
+        specs = await _active_source_specs()
+        if not specs:
+            # Safety net for a fresh deploy that hasn't bootstrapped the DB yet:
+            # fall back to the env lists so the listener still starts. source_id
+            # is None here -> _ensure_sources creates/finds the row on resolve.
+            specs = (
+                [(None, c, "spotter") for c in settings.telegram_channel_list]
+                + [(None, c, "alert") for c in settings.alert_channel_list]
+            )
         entities = []
         entity_roles: dict[int, str] = {}
-        for raw, role in channel_specs:
+        id_to_source: dict[int, int] = {}
+        source_role: dict[int, str] = {}
+        for source_id, ref, role in specs:
             try:
-                e = await _resolve_channel(client, raw)
-                entities.append(e)
-                entity_roles[e.id] = role
+                e = await _resolve_channel(client, ref)
             except Exception as ex:
-                log.error("could not resolve channel %r: %s", raw, ex)
+                log.error("could not resolve channel %r: %s", ref, ex)
+                if source_id is not None:
+                    await _mark_source_status(source_id, error=str(ex)[:300])
+                continue
+            if source_id is None:  # env-fallback path: ensure a Source row exists
+                sid_map, _ = await _ensure_sources([e], {e.id: role})
+                source_id = sid_map[e.id]
+            entities.append(e)
+            entity_roles[e.id] = role
+            id_to_source[e.id] = source_id
+            id_to_source[utils.get_peer_id(e)] = source_id  # marked id == event.chat_id
+            source_role[source_id] = role
+            await _mark_source_status(source_id, error=None, title=getattr(e, "title", None))
         if not entities:
             raise RuntimeError("no channels resolved")
 
-        id_to_source, source_role = await _ensure_sources(entities, entity_roles)
         matcher = await build_matcher()
 
         if backfill and settings.telegram_backfill:
@@ -304,8 +396,27 @@ async def _run_listener_once(backfill: bool, run_state: dict) -> None:
         # (connected but silent), it force-disconnects to break run_until_
         # disconnected and let the retry loop reconnect + re-backfill.
         watchdog = asyncio.create_task(_watchdog(client, connected_at))
+        # Run the update stream until EITHER it disconnects OR /admin requests a
+        # reload (channel added/removed/toggled). On reload we return normally so
+        # run_listener's loop reconnects and re-reads the DB channel list — same
+        # path as a clean disconnect, so backfill recovers any gap.
+        ev = _reload_signal()
+        ev.clear()  # drop any stale signal from before this connect
+        disconnected = asyncio.ensure_future(client.run_until_disconnected())
+        reload_wait = asyncio.ensure_future(ev.wait())
         try:
-            await client.run_until_disconnected()
+            done, pending = await asyncio.wait(
+                {disconnected, reload_wait}, return_when=asyncio.FIRST_COMPLETED
+            )
+            if reload_wait in done:
+                log.info("listener reload requested — reconnecting to re-read channels")
+                ev.clear()
+            for p in pending:
+                p.cancel()
+                try:
+                    await p
+                except asyncio.CancelledError:
+                    pass
         finally:
             watchdog.cancel()
             try:
@@ -318,9 +429,12 @@ async def _run_listener_once(backfill: bool, run_state: dict) -> None:
 
 
 async def run_listener() -> None:
-    has_channels = settings.telegram_channel_list or settings.alert_channel_list
-    if not has_channels or not settings.telegram_api_id:
-        log.warning("telegram listener not configured (channels/api_id missing)")
+    # The channel list is DB-driven now (active Sources, managed in /admin), so
+    # we no longer gate on env channels — only on credentials. With zero active
+    # channels _run_listener_once raises and the retry loop waits until some are
+    # added (and a reload signal, once the operator adds one, wakes it sooner).
+    if not settings.telegram_api_id:
+        log.warning("telegram listener not configured (api_id missing)")
         return
 
     backoff = _RECONNECT_INITIAL_SECONDS
@@ -343,6 +457,6 @@ async def run_listener() -> None:
         if run_state.get("reached_connected"):
             backoff = _RECONNECT_INITIAL_SECONDS  # was actually live — retry fast
         log.info("reconnecting telegram listener in %ss", backoff)
-        await asyncio.sleep(backoff)
+        await _backoff_wait(backoff)
         if not run_state.get("reached_connected"):
             backoff = min(backoff * 2, _RECONNECT_MAX_SECONDS)

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from sqlalchemy import func, select
 
+from .config import settings
 from .db import SessionLocal
 from .domain.geometry import centroid
 from .gazetteer import DISTRICTS, SOURCES
@@ -36,6 +37,36 @@ async def seed_sources() -> int:
         )
         await session.commit()
         return len(SOURCES)
+
+
+async def bootstrap_sources_from_env() -> int:
+    """Idempotently seed the env channel lists (TELEGRAM_CHANNELS / ALERT_CHANNELS)
+    into the sources table as active rows, so an existing deploy keeps watching the
+    same channels after subscription becomes DB-driven — no manual migration.
+
+    Runs on every startup; only inserts handles not already present (by channel_key
+    or subscribe_ref), so it never resurrects a channel the operator later removed
+    in /admin (removal = is_active=False, the row stays). After this one-time
+    bridge the DB is the source of truth and the env lists can be cleared."""
+    specs = (
+        [(h, "spotter") for h in settings.telegram_channel_list]
+        + [(h, "alert") for h in settings.alert_channel_list]
+    )
+    if not specs:
+        return 0
+    async with SessionLocal() as session:
+        rows = list(await session.scalars(select(Source)))
+        known = {r.channel_key for r in rows} | {r.subscribe_ref for r in rows if r.subscribe_ref}
+        added = 0
+        for handle, role in specs:
+            if handle in known:
+                continue
+            session.add(Source(channel_key=handle, name=handle, role=role,
+                               subscribe_ref=handle, is_active=True))
+            known.add(handle)
+            added += 1
+        await session.commit()
+        return added
 
 
 async def seed_districts() -> int:
