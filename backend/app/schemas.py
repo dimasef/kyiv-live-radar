@@ -476,6 +476,43 @@ class CorrectionOut(BaseModel):
     _tz_corr = field_validator("created_at", mode="before")(_as_utc)
 
 
+class ReprocessDayOut(BaseModel):
+    date: str
+    target_count: int
+    track_count: int
+
+
+class ReprocessSummaryOut(BaseModel):
+    """Snapshot used to diff a reprocess: totals + recent per-day target counts
+    (where the phantom-count inflation like the 23.07 '432 цілі' shows up)."""
+
+    tracks: int
+    events: int
+    incidents: int
+    days: list[ReprocessDayOut] = []
+
+
+class ReprocessPreviewOut(BaseModel):
+    """GET /admin/reprocess/preview — pre-flight scope, no mutation."""
+
+    raw_messages: int
+    current: ReprocessSummaryOut
+    attack_active: bool  # refuse-by-default guard: don't rebuild mid-attack
+
+
+class ReprocessApplyIn(BaseModel):
+    no_llm: bool = True  # match the boot path; True is fast + free
+    force: bool = False  # override the mid-attack guard
+
+
+class ReprocessResultOut(BaseModel):
+    """POST /admin/reprocess/apply — before/after diff + raw replay counts."""
+
+    before: ReprocessSummaryOut
+    after: ReprocessSummaryOut
+    result: dict
+
+
 class RegisterIn(BaseModel):
     """POST /auth/register — email+password signup."""
 

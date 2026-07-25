@@ -1,0 +1,84 @@
+import { AlertTriangle } from 'lucide-react'
+import { useEffect, useState } from 'react'
+
+import {
+  applyReprocess,
+  fetchReprocessPreview,
+  type ReprocessPreview,
+  type ReprocessResult,
+} from '@/api'
+
+import ReprocessDiff from './ReprocessDiff'
+
+/** Rebuild all tracks/incidents from stored raw messages through the current
+ * parser — the safe replacement for the REPROCESS_ON_BOOT env+restart dance.
+ * Shows the scope up front, warns if an attack is active, and reports a
+ * before/after diff. The apply runs server-side under the ingest lock. */
+export default function ReprocessPanel() {
+  const [preview, setPreview] = useState<ReprocessPreview | null>(null)
+  const [running, setRunning] = useState(false)
+  const [result, setResult] = useState<ReprocessResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const loadPreview = () => {
+    fetchReprocessPreview().then(setPreview).catch(() => setError('Не вдалося завантажити огляд'))
+  }
+  useEffect(loadPreview, [])
+
+  const run = async () => {
+    const attack = preview?.attack_active
+    const warn = attack
+      ? 'УВАГА: зараз активна атака — перебудова може порушити живий трекінг. Продовжити попри це?'
+      : 'Перебудувати всі треки зі збережених повідомлень? Поточні треки/інциденти буде замінено (raw-повідомлення збережуться). ~5% треків, яким потрібен LLM, не відновляться.'
+    if (!window.confirm(warn)) return
+    setRunning(true)
+    setError(null)
+    try {
+      setResult(await applyReprocess(attack ?? false))
+      loadPreview()
+    } catch {
+      setError('Перебудова не вдалася')
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  return (
+    <div className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-4">
+      <p className="text-xs text-slate-500">
+        Прогонить усі збережені повідомлення через поточний парсер і перебудовує треки — щоб
+        застосувати свіжі виправлення парсера до історії, без зміни змінних середовища та
+        перезапуску.
+      </p>
+
+      {preview && (
+        <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs text-slate-300">
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            <span>Повідомлень: <b className="font-mono">{preview.raw_messages}</b></span>
+            <span>Треків: <b className="font-mono">{preview.current.tracks}</b></span>
+            <span>Подій: <b className="font-mono">{preview.current.events}</b></span>
+            <span>Атак: <b className="font-mono">{preview.current.incidents}</b></span>
+          </div>
+        </div>
+      )}
+
+      {preview?.attack_active && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+          <AlertTriangle size={14} className="shrink-0" />
+          Зараз активна атака — перебудову краще відкласти.
+        </div>
+      )}
+
+      <button
+        onClick={run}
+        disabled={running || !preview}
+        className="self-start rounded-lg border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-300 hover:bg-rose-500/20 disabled:opacity-40"
+      >
+        {running ? 'Перебудова…' : 'Перебудувати треки'}
+      </button>
+
+      {error && <p className="text-xs text-rose-400">{error}</p>}
+      {result && <ReprocessDiff result={result} />}
+    </div>
+  )
+}

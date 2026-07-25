@@ -230,6 +230,33 @@ export interface Correction {
 export const fetchCorrections = (limit = 100) =>
   get<Correction[]>(`/admin/corrections?limit=${limit}`)
 
+// --- Admin reprocess (rebuild tracks from raw messages) — replaces the
+// REPROCESS_ON_BOOT env+restart footgun with a guarded, one-click apply. ---
+export interface ReprocessDay {
+  date: string
+  target_count: number
+  track_count: number
+}
+export interface ReprocessSummary {
+  tracks: number
+  events: number
+  incidents: number
+  days: ReprocessDay[]
+}
+export interface ReprocessPreview {
+  raw_messages: number
+  current: ReprocessSummary
+  attack_active: boolean
+}
+export interface ReprocessResult {
+  before: ReprocessSummary
+  after: ReprocessSummary
+  result: Record<string, unknown>
+}
+export const fetchReprocessPreview = () => get<ReprocessPreview>('/admin/reprocess/preview')
+export const applyReprocess = (force = false, noLlm = true) =>
+  send<ReprocessResult>('/admin/reprocess/apply', 'POST', { force, no_llm: noLlm })
+
 // --- Web Push (danger near home) — see lib/push.ts for the browser side. ---
 export interface PushConfig {
   enabled: boolean

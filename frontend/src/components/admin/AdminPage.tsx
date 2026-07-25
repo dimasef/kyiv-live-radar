@@ -8,8 +8,9 @@ import { useRadar } from '@/store'
 import CorrectionsPanel from './CorrectionsPanel'
 import CoverageGapList from './CoverageGapList'
 import ManagementTab from './ManagementTab'
+import ReprocessPanel from './ReprocessPanel'
 
-type Tab = 'manage' | 'gaps' | 'corrections' | 'raw'
+type Tab = 'manage' | 'gaps' | 'corrections' | 'reprocess' | 'raw'
 
 /** Admin console (replaces the old standalone /raw tab). Gates on admin exactly
  * like the former RawMessagesPage did — the backend also enforces it (401/403),
@@ -64,6 +65,9 @@ export default function AdminPage({ initialTab = 'manage' }: { initialTab?: Tab 
             <TabButton active={tab === 'corrections'} onClick={() => setTab('corrections')}>
               Виправлення
             </TabButton>
+            <TabButton active={tab === 'reprocess'} onClick={() => setTab('reprocess')}>
+              Перебудова
+            </TabButton>
             <TabButton active={tab === 'raw'} onClick={() => setTab('raw')}>
               Весь Фід
             </TabButton>
@@ -79,6 +83,7 @@ export default function AdminPage({ initialTab = 'manage' }: { initialTab?: Tab 
             {tab === 'manage' && <ManagementTab />}
             {tab === 'gaps' && <CoverageGapList />}
             {tab === 'corrections' && <CorrectionsPanel />}
+            {tab === 'reprocess' && <ReprocessPanel />}
           </div>
         )}
       </div>
