@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useRadar } from '../../store'
 import { TYPE_COLORS } from '../../theme'
-import { threatGlyphSvg } from '../../threatIcons'
+import { launcherGlyphSvg, threatGlyphSvg } from '../../threatIcons'
 import type { ThreatAxis } from '../../types'
 
 // The origin counts as "on screen" only once it's this many px inside the edge —
@@ -93,6 +93,13 @@ function AxisSourceMarker({
   visible: boolean
 }) {
   const corroborated = axis.status === 'corroborated'
+  // A ballistic axis's source IS a ground launcher (ОТРК), so the origin marker
+  // shows the launch glyph — never the falling-ballistic glyph, which belongs
+  // over the target, not the launch zone.
+  const glyph =
+    axis.target_type === 'ballistic'
+      ? launcherGlyphSvg({ color, size: 26 })
+      : threatGlyphSvg(axis.target_type, { color, size: 26 })
   return (
     <div className={WRAP} style={{ left: `${x}px`, top: `${y}px`, opacity: visible ? 1 : 0 }}>
       <div className="relative flex items-center justify-center">
@@ -107,7 +114,7 @@ function AxisSourceMarker({
         />
         <span
           style={{ filter: `drop-shadow(0 0 5px ${color})`, opacity: corroborated ? 1 : 0.55 }}
-          dangerouslySetInnerHTML={{ __html: threatGlyphSvg(axis.target_type, { color, size: 26 }) }}
+          dangerouslySetInnerHTML={{ __html: glyph }}
         />
       </div>
       <AxisLabel axis={axis} color={color} />

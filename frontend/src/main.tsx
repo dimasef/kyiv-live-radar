@@ -5,9 +5,8 @@ import App from './App'
 import { AppShell } from './components/chrome'
 import {
   ACCOUNT_PATH,
-  ADMIN_PATH,
   CHANGELOG_PATH,
-  RAW_MESSAGES_PATH,
+  isAdminRoute,
   THREAT_JOURNAL_PATH,
   useRoute,
 } from './router'
@@ -52,10 +51,8 @@ function Root() {
       <ChangelogPage />
     ) : route === THREAT_JOURNAL_PATH ? (
       <ThreatJournalPage />
-    ) : route === ADMIN_PATH ? (
+    ) : isAdminRoute(route) ? (
       <AdminPage />
-    ) : route === RAW_MESSAGES_PATH ? (
-      <AdminPage initialTab="raw" />
     ) : route === ACCOUNT_PATH ? (
       <AccountPage />
     ) : (

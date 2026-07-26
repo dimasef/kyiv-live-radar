@@ -52,7 +52,9 @@ ORIGINS: tuple[Origin, ...] = (
     Origin("kursk", "Курщина", "NE", 60, ("курськ", "курщин", "курс"), 51.73, 36.19),
     Origin("oryol", "Орловщина", "NE", 50, ("орел", "орл", "орловщин"), 52.97, 36.07),
     Origin("shatalovo", "Шаталове", "N", 12, ("шаталов",), 54.35, 32.53),
-    Origin("voronezh", "Воронежчина", "E", 72, ("воронеж", "воронезьк"), 51.66, 39.20),
+    # "воронєж" (є-spelling) appears in the real feed alongside "воронеж" — the
+    # stem matcher won't bridge є↔е, so both are listed explicitly.
+    Origin("voronezh", "Воронежчина", "E", 72, ("воронеж", "воронєж", "воронезьк"), 51.66, 39.20),
     Origin("millerovo", "Міллерово", "SE", 105, ("міллеров", "мілеров"), 48.92, 40.40),
     Origin("rostov", "Ростовщина", "SE", 115, ("ростов", "ростовщин"), 47.24, 39.71),
     Origin("engels", "Енгельс", "E", 85, ("енгельс",), 51.48, 46.12),
@@ -118,7 +120,7 @@ def match_origin(norm: str) -> Origin | None:
 # raise. An ORIGIN mention ("з Чернігівщини", heading toward us) is different —
 # that IS Kyiv-relevant. This is the same set the LLM system prompt is told to
 # return empty for.
-_OTHER_OBLAST = ("чернігівщин", "чернігів", "брянщин", "курщин", "ростов", "воронеж",
+_OTHER_OBLAST = ("чернігівщин", "чернігів", "брянщин", "курщин", "ростов", "воронеж", "воронєж",
                  "дніпропетровщин", "дніпро", "запоріжж", "миколаївщин", "сумщин",
                  "полтавщин", "харківщин", "харков", "білорус", "крим",
                  "житомирщин", "вінницьк", "черкащин", "одещин", "херсонщин")

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TYPE_COLORS } from '@/theme'
@@ -26,6 +27,8 @@ function Stat({ value, label }: { value: number | string; label: string }) {
  * count, so the head of the list is the day's hottest area). */
 export default function DayDetail({ day, districtName, locale }: Props) {
   const { t } = useTranslation()
+  // Reset on day switch happens for free: the wrapper is re-keyed by day.date.
+  const [showAllDistricts, setShowAllDistricts] = useState(false)
 
   if (!day) {
     return <div className="py-8 text-center text-xs text-slate-500">{t('journal.pickDay')}</div>
@@ -52,9 +55,10 @@ export default function DayDetail({ day, districtName, locale }: Props) {
         <p className="mt-3 text-xs text-slate-500">{t('journal.quietDay')}</p>
       ) : (
         <>
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <Stat value={day.attack_count} label={t('journal.attacks')} />
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            <Stat value={day.attack_count} label={t('journal.attackWaves')} />
             <Stat value={day.target_count + day.impact_count} label={t('journal.targets')} />
+            <Stat value={day.alert_count} label={t('journal.alerts')} />
           </div>
 
           {segTotal > 0 && (
@@ -100,13 +104,22 @@ export default function DayDetail({ day, districtName, locale }: Props) {
                   {day.district_count}
                 </span>
               </div>
-              <div
-                className="mt-1.5 text-[11px] leading-relaxed text-slate-500"
-                title={day.district_ids.map(districtName).join(', ')}
-              >
-                {day.district_ids.slice(0, 6).map(districtName).join(', ')}
-                {day.district_count > 6 ? '…' : ''}
+              <div className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
+                {(showAllDistricts ? day.district_ids : day.district_ids.slice(0, 6))
+                  .map(districtName)
+                  .join(', ')}
+                {!showAllDistricts && day.district_count > 6 ? '…' : ''}
               </div>
+              {day.district_count > 6 && (
+                <button
+                  onClick={() => setShowAllDistricts((v) => !v)}
+                  className="mt-1.5 text-[11px] text-slate-400 transition-colors hover:text-phosphor-soft"
+                >
+                  {showAllDistricts
+                    ? t('journal.collapse')
+                    : t('journal.showAll', { n: day.district_count - 6 })}
+                </button>
+              )}
             </div>
           )}
         </>

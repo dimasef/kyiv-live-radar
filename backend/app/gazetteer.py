@@ -217,6 +217,12 @@ DISTRICTS: list[dict] = [
      "aliases": ["клавдієво-тарасове"]},
     {"name_uk": "Іванків", "name_en": "Ivankiv", "lat": 50.933, "lon": 29.9043, "aliases": []},
     {"name_uk": "Пісківка", "name_en": "Piskivka", "lat": 50.6969, "lon": 29.5931, "aliases": []},
+    # West approach (Fastiv raion, on the Zhytomyr axis). Nominative stems to
+    # "бишів", but the oblique cases carry the і→е alternation (Бишева/Бишеві →
+    # stem "бишев"), so alias both — same pattern as Макарів's genitive aliases.
+    # Corpus-swept: every "биш…" hit is this toponym, zero collisions.
+    {"name_uk": "Бишів", "name_en": "Byshiv", "lat": 50.2666, "lon": 29.8869,
+     "aliases": ["бишева", "бишеві"]},
 
     # === In-city micro-neighborhoods/landmarks + a few more approach-corridor
     #     villages, found via eval/ground_truth_sessions.json (2026-07-09

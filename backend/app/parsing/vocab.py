@@ -21,8 +21,11 @@ import re
 # 07-18 mass attack a channel that mostly said "циркони" never refreshed its
 # type context and produced a night of "unknown" tracks, so it types here too
 # (the hypersonic INCIDENT flag stays separate, see _HYPERSONIC).
-_BALLISTIC = ("баліст", "іскандер", "кинджал", "с-400", "с400", "с-300", "с300",
-              "аеробаліст", "циркон", "гіперзвук")
+# "КН-23" — the North-Korean Iskander-class SRBM (quasi-ballistic, NOT hypersonic
+# in the Кинжал sense), so it types ballistic but does NOT join _HYPERSONIC. The
+# hyphen/no-hyphen spellings both appear in the feed ("КН-23", "КН23").
+_BALLISTIC = ("баліст", "іскандер", "кинджал", "кн-23", "кн23", "с-400", "с400",
+              "с-300", "с300", "аеробаліст", "циркон", "гіперзвук")
 # Cruise / guided-bomb / generic missile. Bare "ракет" is ambiguous (could be a
 # ballistic) but defaults here — only an explicit ballistic marker above
 # promotes a message to `ballistic`.

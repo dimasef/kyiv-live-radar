@@ -95,6 +95,27 @@ export function threatGlyphSvg(type: TargetType, opts: GlyphOpts = {}): string {
   )
 }
 
+/** ОТРК / пусковий майданчик — гліф для origin-маркера БАЛІСТИЧНОЇ осі: ракета
+ * зі стартовим факелом над лінією землі ("ось звідки пуск"). Балістику пускають з
+ * наземного комплексу (Іскандер/КН-23), тож launch-зона не повинна малюватись
+ * тим самим падаючим гліфом, що й ціль над містом. */
+export function launcherGlyphSvg(opts: { size?: number; color?: string } = {}): string {
+  const { size = 26 } = opts
+  const color = opts.color ?? TYPE_COLORS.ballistic
+  return (
+    `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="overflow:visible" xmlns="http://www.w3.org/2000/svg">` +
+    // стартовий факел (напівпрозорий, донизу)
+    `<path d="M10 12.2 L14 12.2 L12.7 15.5 L13.6 15.5 L12 19.2 L10.4 15.5 L11.3 15.5 Z" fill="${color}" opacity="0.6"/>` +
+    // ракета носом угору
+    `<path d="M12 2 C13.4 3.2 14 5 14 7 L14 12 L10 12 L10 7 C10 5 10.6 3.2 12 2 Z" fill="${color}" stroke="#000" stroke-width="0.7" stroke-linejoin="round"/>` +
+    // стабілізатори
+    `<path d="M10 9 L7.5 12 L10 12 Z M14 9 L16.5 12 L14 12 Z" fill="${color}" stroke="#000" stroke-width="0.7" stroke-linejoin="round"/>` +
+    // лінія землі / пускова платформа
+    `<line x1="5" y1="20.5" x2="19" y2="20.5" stroke="${color}" stroke-width="2" stroke-linecap="round"/>` +
+    `</svg>`
+  )
+}
+
 /** Крапка одиночної фіксації (директивний тип ще без вектора). */
 export function fixDotSvg(size = 26, color = TYPE_COLORS.unknown): string {
   return (

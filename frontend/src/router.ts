@@ -32,5 +32,29 @@ export const ADMIN_PATH = '/admin'
 // or couldn't localize. Now lives inside the admin console as a tab; this path
 // still resolves there (opens the log tab) for existing bookmarks/exports.
 export const RAW_MESSAGES_PATH = '/raw'
+
+// Admin console tabs, each its own route (/admin/<tab>) so a reload keeps the
+// open tab instead of snapping back to the first one. 'manage' is the bare
+// /admin route; 'raw' also answers the legacy /raw path (see adminTabFromPath).
+export const ADMIN_TABS = ['manage', 'sources', 'gaps', 'corrections', 'reprocess', 'raw'] as const
+export type AdminTab = (typeof ADMIN_TABS)[number]
+
+/** True for any admin route: /admin, /admin/<tab>, or the legacy /raw. */
+export function isAdminRoute(path: string): boolean {
+  return path === ADMIN_PATH || path.startsWith(`${ADMIN_PATH}/`) || path === RAW_MESSAGES_PATH
+}
+
+/** The URL for a given admin tab. 'manage' is the bare /admin. */
+export function adminTabPath(tab: AdminTab): string {
+  return tab === 'manage' ? ADMIN_PATH : `${ADMIN_PATH}/${tab}`
+}
+
+/** The admin tab a path selects; unknown sub-paths fall back to 'manage'. */
+export function adminTabFromPath(path: string): AdminTab {
+  if (path === RAW_MESSAGES_PATH) return 'raw'
+  if (path === ADMIN_PATH) return 'manage'
+  const seg = path.slice(ADMIN_PATH.length + 1)
+  return (ADMIN_TABS as readonly string[]).includes(seg) ? (seg as AdminTab) : 'manage'
+}
 // Signed-in user's account page (profile, linked providers, sign-out).
 export const ACCOUNT_PATH = '/account'

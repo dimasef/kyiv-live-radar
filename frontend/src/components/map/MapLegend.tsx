@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { safeGet, safeSet, STORAGE_KEYS } from '../../lib/storage'
 import { HOME_COLOR, MUTED_COLOR, TYPE_COLORS } from '../../theme'
-import { threatGlyphSvg } from '../../threatIcons'
+import { launcherGlyphSvg, threatGlyphSvg } from '../../threatIcons'
 import type { TargetType } from '../../types'
 
 function initialOpen(): boolean {
@@ -48,6 +48,10 @@ export default function MapLegend() {
       html: threatGlyphSvg(ty, { size: 16, color: TYPE_COLORS[ty] }),
       label: t(`target.${ty}`),
     })),
+    {
+      html: launcherGlyphSvg({ size: 16, color: TYPE_COLORS.ballistic }),
+      label: t('legend.launcher'),
+    },
     {
       html: threatGlyphSvg('unknown', { size: 16, state: 'impact', color: '#e2e8f0' }),
       label: t('legend.impact'),

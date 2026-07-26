@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { isAdminRole } from '@/api'
 import { AuthModal } from '@/components/auth'
 import { RawMessagesView } from '@/components/raw'
+import { adminTabFromPath, adminTabPath, navigate, useRoute } from '@/router'
 import { useRadar } from '@/store'
 
 import CorrectionsPanel from './CorrectionsPanel'
@@ -11,15 +12,14 @@ import ManagementTab from './ManagementTab'
 import ReprocessPanel from './ReprocessPanel'
 import SourcesPanel from './SourcesPanel'
 
-type Tab = 'manage' | 'sources' | 'gaps' | 'corrections' | 'reprocess' | 'raw'
-
 /** Admin console (replaces the old standalone /raw tab). Gates on admin exactly
  * like the former RawMessagesPage did — the backend also enforces it (401/403),
- * so this is UX only. Non-admins never mount the data views. */
-export default function AdminPage({ initialTab = 'manage' }: { initialTab?: Tab }) {
+ * so this is UX only. Non-admins never mount the data views. The open tab is
+ * driven by the URL (/admin/<tab>) so a reload keeps it instead of resetting. */
+export default function AdminPage() {
   const status = useRadar((s) => s.authStatus)
   const isAdmin = useRadar((s) => isAdminRole(s.user?.role))
-  const [tab, setTab] = useState<Tab>(initialTab)
+  const tab = adminTabFromPath(useRoute())
   const [loginOpen, setLoginOpen] = useState(false)
 
   if (status === 'unknown') {
@@ -57,22 +57,28 @@ export default function AdminPage({ initialTab = 'manage' }: { initialTab?: Tab 
         <div className="mx-auto max-w-3xl">
           <h1 className="font-display text-lg font-bold text-slate-100">Адмінка</h1>
           <div className="mt-3 flex flex-wrap gap-1">
-            <TabButton active={tab === 'manage'} onClick={() => setTab('manage')}>
+            <TabButton active={tab === 'manage'} onClick={() => navigate(adminTabPath('manage'))}>
               Керування
             </TabButton>
-            <TabButton active={tab === 'sources'} onClick={() => setTab('sources')}>
+            <TabButton active={tab === 'sources'} onClick={() => navigate(adminTabPath('sources'))}>
               Джерела
             </TabButton>
-            <TabButton active={tab === 'gaps'} onClick={() => setTab('gaps')}>
+            <TabButton active={tab === 'gaps'} onClick={() => navigate(adminTabPath('gaps'))}>
               Прогалини
             </TabButton>
-            <TabButton active={tab === 'corrections'} onClick={() => setTab('corrections')}>
+            <TabButton
+              active={tab === 'corrections'}
+              onClick={() => navigate(adminTabPath('corrections'))}
+            >
               Виправлення
             </TabButton>
-            <TabButton active={tab === 'reprocess'} onClick={() => setTab('reprocess')}>
+            <TabButton
+              active={tab === 'reprocess'}
+              onClick={() => navigate(adminTabPath('reprocess'))}
+            >
               Перебудова
             </TabButton>
-            <TabButton active={tab === 'raw'} onClick={() => setTab('raw')}>
+            <TabButton active={tab === 'raw'} onClick={() => navigate(adminTabPath('raw'))}>
               Весь Фід
             </TabButton>
           </div>

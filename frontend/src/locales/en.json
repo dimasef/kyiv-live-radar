@@ -88,7 +88,8 @@
     "clear": "All-clear",
     "conflict": "Sources disagree",
     "impact": "Incident",
-    "home": "Home"
+    "home": "Home",
+    "launcher": "Ballistic launch (OTRK)"
   },
   "log": {
     "title": "Event feed",
@@ -259,7 +260,10 @@
     "alerts": "Alerts",
     "noAlerts": "No air-raid alerts in Kyiv",
     "longest": "longest",
-    "districts": "Districts"
+    "districts": "Districts",
+    "attackWaves": "Attack waves",
+    "showAll": "+{{n}} more",
+    "collapse": "Collapse"
   },
   "banner": {
     "expand": "Expand",
