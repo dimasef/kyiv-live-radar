@@ -3,7 +3,7 @@ import { useMap, useMapEvents } from "react-leaflet";
 
 import { centerPinMode } from "../../lib/device";
 import { useRadar } from "../../store";
-import { KYIV_BOUNDS } from "./constants";
+import { INSPECT_MAX_ZOOM, INSPECT_ZOOM, KYIV_BOUNDS } from "./constants";
 import { trackPoints } from "./track";
 
 /** Keeps Leaflet's cached container size in sync with the real DOM box.
@@ -125,11 +125,13 @@ export function InspectController() {
     if (pts.length === 0) return;
     fittedId.current = inspected.id;
     if (pts.length === 1) {
-      map.flyTo([pts[0].lat, pts[0].lon], 13);
+      // Never zoom IN past INSPECT_ZOOM, but don't zoom the operator OUT if
+      // they're already closer — just recenter at their current zoom.
+      map.flyTo([pts[0].lat, pts[0].lon], Math.max(INSPECT_ZOOM, map.getZoom()));
     } else {
       map.flyToBounds(
         pts.map((p) => [p.lat, p.lon] as [number, number]),
-        { padding: [56, 56], maxZoom: 14 },
+        { padding: [56, 56], maxZoom: INSPECT_MAX_ZOOM },
       );
     }
   }, [inspected, liveThreats, map]);

@@ -1,0 +1,165 @@
+"""Per-pass ingest context (`IngestContext`) plus the pure helpers around target
+type: cross-message inheritance (`_note_and_inherit_type`) and the shared
+start/continue-a-track bits (`_new_track` / `_apply_update`)."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+
+from ...config import settings
+from ...domain.lifecycle import promote_track
+from ...models import RawMessage, Threat
+from ...parsing import ParseResult
+
+# Per-source "last stated target type" context for cross-message type
+# inheritance (see settings.type_inherit_window_minutes). Keyed by source_id ->
+# (target_type, when). In-memory and order-dependent, which is fine: ingestion
+# is serialized and every feed path (live, replay, reprocess) presents messages
+# in chronological order per source. A process restart simply drops the context
+# (a district event right after a restart falls back to "unknown" — harmless).
+# Rule-only: mutating an already-districted message's type never adds an LLM
+# call, since should_fallback short-circuits to False whenever districts exist.
+_recent_type: dict[int, tuple[str, datetime]] = {}
+
+
+def _note_and_inherit_type(parsed: ParseResult, source_id: int | None, when: datetime) -> None:
+    """Record this message's stated type, or inherit a recent one onto a
+    district-bearing message that stated none. Mutates `parsed.target_type`."""
+    if source_id is None:  # no channel identity (e.g. simulator) — no context
+        return
+    # Conversational/meta chatter mentions types without being about a live
+    # target — a donation post's "до останнього Шахеда та ракети", a recap, a
+    # quoted official — and on 07-18 such a mention poisoned a channel's
+    # context mid-salvo. These classes neither record nor consume a type.
+    if (parsed.promo or parsed.ad_action or parsed.political_quote
+            or parsed.civic_notice or parsed.eppo_marks or parsed.siren_only
+            or parsed.negated or parsed.summary or parsed.day_recap
+            or parsed.chatter):
+        return
+    if parsed.target_type != "unknown":
+        # "missile" is the generic parent of the specific "ballistic": during a
+        # ballistic salvo a spotter often drops a bare "3 ракети" between the
+        # toponym callouts, which must NOT downgrade a still-fresh ballistic
+        # context to generic missile. Any OTHER type (shahed/jet, or ballistic
+        # itself) is a real change and overwrites normally. Time is refreshed
+        # either way so the ongoing attack keeps the context alive.
+        prev = _recent_type.get(source_id)
+        if (
+            parsed.target_type == "missile"
+            and prev is not None
+            and prev[0] == "ballistic"
+            and _within_inherit_window(when, prev[1])
+        ):
+            _recent_type[source_id] = ("ballistic", when)
+        else:
+            _recent_type[source_id] = (parsed.target_type, when)
+        return
+    # Untyped: inherit only when the message is a real (localizable or
+    # city-wide) sighting — a bare "Троя" or "Ціль на місто!" between typed
+    # posts — AND a recent stated type exists for this same channel.
+    if not parsed.districts and not parsed.citywide:
+        return
+    recent = _recent_type.get(source_id)
+    if recent is None:
+        return
+    rtype, rwhen = recent
+    if _within_inherit_window(when, rwhen):
+        parsed.target_type = rtype
+
+
+def _within_inherit_window(a: datetime, b: datetime) -> bool:
+    """Whether `a` and `b` are within the type-inheritance window. Drops tzinfo
+    first so SQLite-naive and aware datetimes compare (all values are UTC)."""
+    an = a.replace(tzinfo=None) if a.tzinfo is not None else a
+    bn = b.replace(tzinfo=None) if b.tzinfo is not None else b
+    window = timedelta(minutes=settings.type_inherit_window_minutes)
+    return abs((an - bn).total_seconds()) <= window.total_seconds()
+
+
+def _upgrade_type(current: str, new: str) -> str:
+    """The target type a track should hold given a new event's stated type.
+
+    Upgrade `unknown` to any stated type; and within the missile family upgrade
+    the generic `missile` to the more specific, more severe `ballistic` (a bare
+    "8 ракет" followed by "8 балістичних С-400" is the SAME salvo, better
+    identified). Never cross families (a shahed track stays shahed even if a
+    missile event lands — that genuine disagreement is surfaced as a conflict by
+    fusion, not silently overwritten)."""
+    if current == "unknown":
+        return new
+    if {current, new} == {"missile", "ballistic"}:
+        return "ballistic"
+    return current
+
+
+def _threat_status_for(parsed: ParseResult) -> str:
+    if parsed.status == "unconfirmed":
+        return "unconfirmed"
+    return "tracking"
+
+
+def _new_track(parsed: ParseResult, when: datetime, **overrides) -> Threat:
+    """A fresh Threat from a parsed sighting. `overrides` set what differs per
+    handler — `scope="city"` for a city-wide alert, or a fixed `target_count=1`
+    for a multi-target enumeration (each district is one target; the stated group
+    size there is the whole-salvo total, not per-raion)."""
+    fields: dict = dict(
+        target_type=parsed.target_type,
+        status=_threat_status_for(parsed),
+        target_count=parsed.target_count or 1,
+        created_at=when,
+    )
+    fields.update(overrides)
+    return Threat(**fields)
+
+
+def _apply_update(parsed: ParseResult, track: Threat, *, promote: bool = True,
+                  grow_count: bool = True) -> None:
+    """Fold a new corroborating event into an existing track: upgrade the type
+    (unknown→stated, missile→ballistic), promote out of 'unconfirmed' on a
+    confirmed status, and grow the group count. `promote`/`grow_count` are turned
+    off for the paths that intentionally skip them — a terse pulse never promotes,
+    and a multi-target enumeration counts per district, not by the stated total."""
+    track.target_type = _upgrade_type(track.target_type, parsed.target_type)
+    if promote and parsed.status != "unconfirmed":
+        promote_track(track)
+    if grow_count and parsed.target_count and parsed.target_count > track.target_count:
+        track.target_count = parsed.target_count
+
+
+@dataclass
+class IngestContext:
+    """Groups the parameters every process_parsed handler needs — not a plugin
+    framework, just avoids re-threading nine positional args through each handler
+    signature."""
+
+    session: object
+    raw: RawMessage
+    parsed: ParseResult
+    decision_source: str
+    when: datetime
+    source_id: int | None
+    message_id: int | None
+    forwarded_from_id: int | None
+    forwarded_from_channel_id: int | None
+    reply_to_message_id: int | None
+    # Set only for a RESCUED message (async triage re-injecting a suppressed
+    # sighting): corroboration is then evaluated as-of this original time, not
+    # "now", so the rescue joins the track it actually corroborated at T0 rather
+    # than one that has since moved on. None on the live path (behavior unchanged).
+    as_of: datetime | None = None
+    # Operator-facing gist from an LLM verdict (inline-llm or rescued events) —
+    # stamped onto each ThreatEvent this message creates, for the feed headline.
+    # None for rule-only messages.
+    llm_summary: str | None = None
+    # True when parsed.target_type came from the open INCIDENT's dominant type
+    # (second-tier fallback), not the message/channel itself. The ballistic
+    # enumeration split must not trust it: on a mixed drone+ballistic night the
+    # incident reads "ballistic" and would wrongly split a meandering drone's
+    # «Троя/Воскресенка» enumeration.
+    type_from_incident: bool = False
+
+    async def done(self) -> None:
+        self.raw.processed = True
+        await self.session.commit()

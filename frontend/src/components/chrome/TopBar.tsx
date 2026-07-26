@@ -71,7 +71,9 @@ export default function TopBar() {
           the bar via the grid's 1fr side columns. */}
       <nav className="flex items-center gap-6 justify-self-center sm:gap-3">
         {dests.map((d) => {
-          const active = route === d.path
+          // Prefix-aware so nested routes (e.g. /admin/sources) keep their
+          // parent tab lit. MAP_PATH ('/') can't false-match — startsWith('//').
+          const active = route === d.path || route.startsWith(`${d.path}/`)
           const Icon = d.icon
           return (
             <button

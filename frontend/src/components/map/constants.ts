@@ -11,6 +11,11 @@ export const KYIV_BOUNDS: [[number, number], [number, number]] = [
   [50.59, 30.83],
 ];
 
+// Inspect fly-to zoom — kept modest so a lone sighting lands with district
+// context, not at street level. INSPECT_MAX_ZOOM caps flyToBounds for a short track.
+export const INSPECT_ZOOM = 11;
+export const INSPECT_MAX_ZOOM = 12;
+
 export const DISTRICT_STYLE = {
   color: "#64748b",
   weight: 1,

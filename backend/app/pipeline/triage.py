@@ -35,6 +35,7 @@ from ..domain.origins import ORIGIN_BY_KEY, ORIGIN_KEYS, SECTORS
 from ..feeds.common import build_matcher
 from ..models import Notice, RawMessage, ThreatEvent, utcnow
 from ..parsing.rules import ParseResult
+from .lock import _ingest_lock
 from .results import Broadcast
 
 log = logging.getLogger("triage")
@@ -193,8 +194,10 @@ async def _process_job(job: TriageJob) -> None:
         _invalidate_spend_cache()
 
     # Every DB mutation happens under the ingest lock on a fresh session, so a
-    # late verdict can never race a concurrently-arriving live message.
-    from .ingest import _ingest_lock  # lazy: avoids import cycle
+    # late verdict can never race a concurrently-arriving live message. The lock
+    # lives in the neutral pipeline.lock module (not ingest) so this import is
+    # top-level and cycle-free; process_rescued below stays lazy (that IS the
+    # inherent mutual-recursion edge).
     async with _ingest_lock:
         async with SessionLocal() as session:
             raw = await session.get(RawMessage, job.raw_id)
