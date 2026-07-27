@@ -70,7 +70,7 @@ def test_feed_health_true_when_connected_with_no_live_message_yet():
         settings.telegram_enabled = old
 
 
-def test_feed_health_true_within_the_warn_window():
+def test_feed_health_true_when_connected_and_recently_active():
     old = settings.telegram_enabled
     settings.telegram_enabled = True
     health._state["connected"] = True
@@ -81,12 +81,15 @@ def test_feed_health_true_within_the_warn_window():
         settings.telegram_enabled = old
 
 
-def test_feed_health_false_past_the_warn_window():
+def test_feed_health_true_when_connected_but_long_quiet():
+    # A calm sky: connected, but no spotter message for hours. This is NORMAL
+    # (channels only post during air raids), NOT a lost connection — must read
+    # healthy. A genuinely dead session shows up as connected=False instead.
     old = settings.telegram_enabled
     settings.telegram_enabled = True
     health._state["connected"] = True
-    health._state["last_message_at"] = NOW - timedelta(minutes=120)
+    health._state["last_message_at"] = NOW - timedelta(minutes=600)
     try:
-        assert health.feed_health(NOW, 90) is False
+        assert health.feed_health(NOW, 90) is True
     finally:
         settings.telegram_enabled = old

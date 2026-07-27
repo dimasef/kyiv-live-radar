@@ -5,10 +5,9 @@ serving stale data with no visible error) shows up in the API, not just logs.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from ..config import settings
-from ..timeutil import within
 
 _state: dict = {
     "connected": False,
@@ -22,19 +21,21 @@ def get_status() -> dict:
 
 
 def feed_health(now: datetime, warn_minutes: int) -> bool | None:
-    """Whether the live feed looks healthy — None when there's no real feed
-    to judge (Telegram not configured; simulator/replay modes have nothing
-    to monitor here). False when disconnected, or connected but silent for
-    longer than `warn_minutes`. `last_message_at` is only set by a LIVE
-    message (never by the startup backfill), so a freshly-connected session
-    with no live traffic yet reads as healthy rather than stale — only "was
-    receiving, then stopped" is evidence of a real problem. Shared by
-    GET /health (hydration) and sweeper.py (the periodic push on change).
+    """Whether the live feed's CONNECTION is up — None when there's no real feed
+    to judge (Telegram not configured; simulator/replay have nothing to monitor).
+
+    Deliberately NOT silence-based. Spotter channels are legitimately quiet for
+    hours between air raids, so "no messages lately" is a calm sky, not a fault —
+    the old `last_message_at` + warn-window check cried «Втрачено зʼєднання» on
+    every quiet night. A genuinely dead session surfaces as connected=False
+    instead: the listener resets that flag on any disconnect/exception, and the
+    watchdog force-reconnects a zombie ("connected" but silent) stream within
+    listener_watchdog_silence_minutes — flipping this False if it can't recover.
+
+    `now`/`warn_minutes` are unused now but kept in the signature (both callers
+    pass them) so a future soft "quiet for a long time" hint could reuse them
+    without another interface change. Shared by GET /health and sweeper.py.
     """
     if not settings.telegram_enabled:
         return None
-    if not _state["connected"]:
-        return False
-    if _state["last_message_at"] is None:
-        return True
-    return within(_state["last_message_at"], now, timedelta(minutes=warn_minutes))
+    return _state["connected"]
