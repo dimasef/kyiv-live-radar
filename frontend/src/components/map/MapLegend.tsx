@@ -3,7 +3,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { safeGet, safeSet, STORAGE_KEYS } from '../../lib/storage'
-import { HOME_COLOR, MUTED_COLOR, TYPE_COLORS } from '../../theme'
+import { useRadar } from '../../store'
+import { FRIEND_HOME_COLOR, HOME_COLOR, MUTED_COLOR, TYPE_COLORS } from '../../theme'
 import { launcherGlyphSvg, threatGlyphSvg } from '../../threatIcons'
 import type { TargetType } from '../../types'
 
@@ -30,10 +31,17 @@ function Swatch({ html }: { html: string }) {
 const homeSwatch = (color: string) =>
   `<svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 3 L21 11 L18 11 L18 20 L14 20 L14 14 L10 14 L10 20 L6 20 L6 11 L3 11 Z" fill="${color}" stroke="#000" stroke-width="0.7" stroke-linejoin="round"/></svg>`
 
+// The person silhouette matching FriendLayer's marker.
+const friendSwatch = (color: string) =>
+  `<svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="7" r="4" fill="${color}" stroke="#000" stroke-width="0.7"/><path d="M4 21 C4 15 8 13 12 13 C16 13 20 15 20 21 Z" fill="${color}" stroke="#000" stroke-width="0.7" stroke-linejoin="round"/></svg>`
+
 /** Collapsible legend floating over the map (bottom-left, above leaflet UI). */
 export default function MapLegend() {
   const { t } = useTranslation()
   const [open, setOpen] = useState(initialOpen)
+  const hasFriendHomes = useRadar((s) =>
+    s.friends.some((f) => f.home != null && !s.hiddenHomeIds.includes(f.id)),
+  )
 
   const toggle = () => {
     safeSet(STORAGE_KEYS.legendOpen, open ? '0' : '1')
@@ -61,6 +69,9 @@ export default function MapLegend() {
       label: t('legend.destroyed'),
     },
     { html: homeSwatch(HOME_COLOR), label: t('legend.home') },
+    ...(hasFriendHomes
+      ? [{ html: friendSwatch(FRIEND_HOME_COLOR), label: t('legend.friend') }]
+      : []),
   ]
 
   return (

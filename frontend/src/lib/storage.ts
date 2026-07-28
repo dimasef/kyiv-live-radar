@@ -13,6 +13,12 @@ export const STORAGE_KEYS = {
   geoAsked: 'klr-geo-asked',
   notify: 'klr-notify',
   notifyPrefs: 'klr-notify-prefs',
+  // Contact ids whose shared home the user has hidden on their OWN map (local
+  // preference only — the contact still shares it; see friendsSlice).
+  hiddenContactHomes: 'klr-contacts-hidden',
+  // Per-contact marker appearance {color, icon} the user picked, keyed by
+  // contact id — local labelling only (see friendsSlice.contactStyles).
+  contactStyles: 'klr-contacts-style',
   // The refresh token (the access token stays in memory only — see api.ts).
   authRefresh: 'klr-auth',
 } as const

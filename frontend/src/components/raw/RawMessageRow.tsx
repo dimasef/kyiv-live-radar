@@ -37,6 +37,15 @@ function EventChips({ item }: { item: RawMessage }) {
             <span className="opacity-70">
               T{e.threat_id}/M{e.event_id}
             </span>
+            {e.incident_id != null && <span className="text-slate-500">I{e.incident_id}</span>}
+            {e.corroboration_count != null && (
+              <span className="text-slate-500">
+                {e.corroboration_count} {t('log.corroboration')}
+              </span>
+            )}
+            {e.confidence != null && (
+              <span className="text-slate-500">{Math.round(e.confidence * 100)}%</span>
+            )}
           </span>
         )
       })}

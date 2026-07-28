@@ -3,11 +3,11 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useRadar } from '@/store'
-import { CorroborationLine, CountBadge, typeLabel } from '@/threatDisplay'
+import { CountBadge, typeLabel } from '@/threatDisplay'
 import { threatColor } from '@/theme'
 import type { FeedEntry } from '@/types'
 
-import { DevId, DevSource, EventTime, SourceBadge } from './badges'
+import { DevId, DevSource, EventTime } from './badges'
 import ClampText from './ClampText'
 import StatusChip from './StatusChip'
 import TypeGlyph from './TypeGlyph'
@@ -18,8 +18,6 @@ export default function ThreatCard({ event, threat }: FeedEntry) {
   const isSelected = useRadar((s) => s.inspectedThreat?.id === threat.id)
   const inspectThreat = useRadar((s) => s.inspectThreat)
   const clearInspection = useRadar((s) => s.clearInspection)
-  const focusIncident = useRadar((s) => s.focusIncident)
-  const focusedIncidentId = useRadar((s) => s.focusedIncidentId)
   const [rawOpen, setRawOpen] = useState(false)
 
   const color = threatColor(threat)
@@ -105,35 +103,14 @@ export default function ThreatCard({ event, threat }: FeedEntry) {
         </div>
       )}
 
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-        <SourceBadge name={event.source_name} t={t} />
-        {threat.incident_id != null && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              focusIncident(focusedIncidentId === threat.incident_id ? null : threat.incident_id)
-            }}
-            className="rounded px-1 py-px text-[10px] font-medium transition-colors"
-            style={{
-              color,
-              background: focusedIncidentId === threat.incident_id ? `${color}22` : 'transparent',
-              border: `1px solid ${color}44`,
-            }}
-          >
-            {t('log.attackChip', { n: threat.incident_id })}
-          </button>
-        )}
-        <CorroborationLine
-          threat={threat}
-          className="font-mono text-[10px] tabular-nums text-slate-500"
-        />
-        {threat.has_conflict && (
+      {threat.has_conflict && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="flex items-center gap-1 text-[10px] font-medium text-orange-400">
             <TriangleAlert size={10} className="flex-none" />
             {t('log.conflict')}
           </span>
-        )}
-      </div>
+        </div>
+      )}
     </li>
   )
 }

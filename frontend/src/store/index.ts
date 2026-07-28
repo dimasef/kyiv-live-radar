@@ -5,6 +5,7 @@ import { createAuthSlice } from './authSlice'
 import { createAxesSlice } from './axesSlice'
 import { createConnectionSlice } from './connectionSlice'
 import { createDistrictsSlice } from './districtsSlice'
+import { createFriendsSlice } from './friendsSlice'
 import { createHomeSlice } from './homeSlice'
 import { createIncidentsSlice } from './incidentsSlice'
 import { createNoticesSlice } from './noticesSlice'
@@ -28,6 +29,7 @@ export const useRadar = create<RadarState>()((...a) => ({
   ...createAlertsSlice(...a),
   ...createConnectionSlice(...a),
   ...createHomeSlice(...a),
+  ...createFriendsSlice(...a),
   ...createPwaSlice(...a),
   ...createPrefsSlice(...a),
   ...createNotifySlice(...a),

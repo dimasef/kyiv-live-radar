@@ -72,7 +72,7 @@ async function get<T>(path: string): Promise<T> {
 
 async function send<T>(
   path: string,
-  method: 'POST' | 'DELETE' | 'PATCH',
+  method: 'POST' | 'PUT' | 'DELETE' | 'PATCH',
   body?: unknown,
 ): Promise<T> {
   const res = await authedFetch(path, {
@@ -375,3 +375,59 @@ export const authRefreshToken = (refresh: string) =>
   authPost<{ access: string; token_type: string }>('/auth/refresh', { refresh })
 export const authMe = () => get<AuthUser>('/auth/me')
 export const authLogout = () => authPost<{ ok: boolean }>('/auth/logout', {})
+
+// --- Friends (contacts) + shareable home (see store/friendsSlice.ts) --------
+export interface HomePoint {
+  lat: number
+  lon: number
+}
+export interface FriendUserBrief {
+  id: number
+  email: string | null
+  display_name: string | null
+  avatar_url: string | null
+}
+/** An accepted friend; `home` is set only when they turned sharing on. */
+export interface Friend extends FriendUserBrief {
+  home: HomePoint | null
+}
+export interface FriendRequest {
+  id: number
+  direction: 'incoming' | 'outgoing'
+  user: FriendUserBrief
+  created_at: string
+}
+export interface FriendRequests {
+  incoming: FriendRequest[]
+  outgoing: FriendRequest[]
+}
+export interface MyHome {
+  home: HomePoint | null
+  share_home: boolean
+}
+export interface FriendAction {
+  status:
+    | 'requested'
+    | 'accepted'
+    | 'already_pending'
+    | 'already_friends'
+    | 'declined'
+    | 'removed'
+}
+
+export const fetchFriends = () => get<Friend[]>('/friends')
+export const fetchFriendRequests = () => get<FriendRequests>('/friends/requests')
+export const sendFriendRequest = (email: string) =>
+  send<FriendAction>('/friends/requests', 'POST', { email })
+export const acceptFriendRequest = (id: number) =>
+  send<FriendAction>(`/friends/requests/${id}/accept`, 'POST')
+export const declineFriendRequest = (id: number) =>
+  send<FriendAction>(`/friends/requests/${id}/decline`, 'POST')
+export const removeFriend = (userId: number) =>
+  send<FriendAction>(`/friends/${userId}`, 'DELETE')
+export const fetchMyHome = () => get<MyHome>('/me/home')
+export const putMyHome = (lat: number, lon: number, share: boolean) =>
+  send<MyHome>('/me/home', 'PUT', { lat, lon, share })
+export const patchHomeShare = (share: boolean) =>
+  send<MyHome>('/me/home/share', 'PATCH', { share })
+export const deleteMyHome = () => send<MyHome>('/me/home', 'DELETE')

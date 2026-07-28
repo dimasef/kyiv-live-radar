@@ -89,6 +89,7 @@
     "conflict": "Sources disagree",
     "impact": "Incident",
     "home": "Home",
+    "friend": "Contact's home",
     "launcher": "Ballistic launch (OTRK)"
   },
   "log": {
@@ -233,6 +234,38 @@
     "clear": "Reset",
     "district": "District",
     "km": "km"
+  },
+  "friends": {
+    "friend": "Contact",
+    "needHome": "Set your home first in settings.",
+    "shareHomeLabel": "Share home",
+    "shareHomeHint": "Contacts will see your home on the map",
+    "emailPlaceholder": "contact's email",
+    "add": "Add",
+    "incoming": "Incoming requests",
+    "outgoing": "Sent requests",
+    "list": "My contacts",
+    "empty": "No contacts yet",
+    "pending": "pending",
+    "accept": "Accept",
+    "decline": "Decline",
+    "cancel": "Cancel",
+    "remove": "Remove",
+    "removeConfirm": "Remove {{name}} from contacts? You'll no longer see each other's home on the map.",
+    "notSharing": "not sharing home",
+    "markerStyle": "Marker colour & icon",
+    "hideFromMap": "Hide home from my map",
+    "showOnMap": "Show home on my map",
+    "result": {
+      "requested": "Request sent",
+      "accepted": "Contact added",
+      "already_pending": "Request already sent",
+      "already_friends": "Already in contacts"
+    },
+    "error": {
+      "notFound": "No user found with that email",
+      "failed": "Could not send request"
+    }
   },
   "changelog": {
     "back": "Back to radar",

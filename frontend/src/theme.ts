@@ -12,6 +12,11 @@ export const STATUS_COLORS = {
  * legend's home swatch, and the feed's non-clear info-notice accent. */
 export const HOME_COLOR = '#38bdf8'
 
+/** A friend's shared-home marker (see FriendLayer). Pink-400 — distinct from
+ * own-home cyan and from every status/type hue in use; paired with a different
+ * (person) marker shape so the two homes never read as the same thing. */
+export const FRIEND_HOME_COLOR = '#f472b6'
+
 /** Home-circle accent while a threat concerns the home zone (lib/homeDanger.ts):
  * a track on course toward home reuses the conflict orange, a target near home
  * (or ballistic on the home raion) the confirmed red. */

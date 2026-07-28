@@ -435,6 +435,14 @@ class User(Base):
     display_name: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
     avatar_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True)
+    # Home location as a first-class user attribute (distinct from the per-device
+    # PushSubscription copy) so it can be shared with friends independently of any
+    # push subscription. Radius is NOT stored — friends see a marker only, and the
+    # owner's radius stays client-side/push. `share_home` gates all friend
+    # visibility: friendship alone never reveals a home.
+    home_lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    home_lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    share_home: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
@@ -445,6 +453,29 @@ class User(Base):
 
     identities: Mapped[list["OAuthIdentity"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class Friendship(Base):
+    """One directed friendship edge with a consent status. A `pending` row is an
+    outstanding request from `requester` to `addressee`; `accepted` means they are
+    friends (a single row represents the mutual relationship — queried from either
+    side). Reusing one edge (rather than two mirrored rows) keeps accept/remove a
+    single-row operation and the unique pair constraint prevents duplicates.
+    """
+
+    __tablename__ = "friendships"
+    __table_args__ = (
+        UniqueConstraint("requester_id", "addressee_id", name="uq_friendship_pair"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    requester_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    addressee_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    status: Mapped[str] = mapped_column(String(10), default="pending")  # 'pending' | 'accepted'
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    responded_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
 
 

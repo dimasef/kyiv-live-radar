@@ -3,6 +3,7 @@ import type { StateCreator } from 'zustand'
 import { resyncHomePush } from '@/lib/push'
 import { safeGet, safeRemove, safeSet, STORAGE_KEYS } from '@/lib/storage'
 
+import { resyncHomeShare } from './friendsSlice'
 import type { RadarState } from './types'
 
 export interface Home {
@@ -43,6 +44,10 @@ export const createHomeSlice: StateCreator<RadarState, [], [], HomeSlice> = (set
     // Keep the push subscription's server-side home zone in sync (no-op when
     // notifications are off) — the backend assesses danger against ITS copy.
     if (get().notifyStatus === 'on') void resyncHomePush(h, get().notifyPrefs).catch(() => {})
+    // Keep the friend-visible home in sync when the user shares it (the server
+    // copy is what friends fetch — see friendsSlice.resyncHomeShare).
+    if (get().authStatus === 'authed' && get().shareHome)
+      void resyncHomeShare(h).catch(() => {})
   },
   setHomeRadius: (radiusKm) => {
     const cur = get().home

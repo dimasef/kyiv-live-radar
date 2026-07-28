@@ -240,6 +240,12 @@ export interface RawEventLink {
   /** Target type stamped on this event ('shahed'|'ballistic'|...|'unknown'),
    * null for events ingested before it was recorded. */
   target_type: string | null
+  /** Fusion/track state of the OWNING threat — surfaced here because the public
+   * feed no longer shows it: the attack the track rolled into, its independent-
+   * source count, and its fused 0..1 confidence. Null when the threat is gone. */
+  incident_id: number | null
+  corroboration_count: number | null
+  confidence: number | null
 }
 
 /** One verbatim ingested message, INCLUDING ones the parser suppressed or

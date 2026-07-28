@@ -1,8 +1,11 @@
 import { LogOut, ShieldCheck } from "lucide-react";
+import type { ReactNode } from "react";
 
-import { isAdminRole } from "@/api";
+import { isAdminRole, type AuthUser } from "@/api";
 import { ADMIN_PATH, navigate } from "@/router";
 import { useRadar } from "@/store";
+
+import ContactsSection from "./ContactsSection";
 
 const PROVIDER_LABEL: Record<string, string> = {
   password: "Пошта + пароль",
@@ -10,8 +13,14 @@ const PROVIDER_LABEL: Record<string, string> = {
   telegram: "Telegram",
 };
 
-/** Signed-in user's account page: profile, linked sign-in methods, admin tools
- * link, and sign-out. */
+const ROLE_BADGE: Record<string, { label: string; cls: string; shield: boolean }> = {
+  admin_g: { label: "Дівчина Адміна", cls: "bg-pink-400/15 text-pink-300", shield: true },
+  admin: { label: "Адміністратор", cls: "bg-phosphor/15 text-phosphor-soft", shield: true },
+  user: { label: "Користувач", cls: "bg-white/5 text-slate-400", shield: false },
+};
+
+/** Signed-in user's account page: profile header, contacts, linked sign-in
+ * methods, admin tools link, and sign-out — one consistent section rhythm. */
 export default function AccountPage() {
   const user = useRadar((s) => s.user);
   const status = useRadar((s) => s.authStatus);
@@ -19,60 +28,49 @@ export default function AccountPage() {
 
   if (status !== "authed" || !user) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 bg-ink-950 text-slate-300">
-        <p className="text-sm text-slate-400">
-          {status === "unknown" ? "Завантаження…" : "Ви не увійшли."}
-        </p>
+      <div className="flex h-full items-center justify-center bg-ink-950 text-sm text-slate-400">
+        {status === "unknown" ? "Завантаження…" : "Ви не увійшли."}
       </div>
     );
   }
 
-  // 'admin_g' is a manual admin variant — same access as 'admin', shown pink.
-  const roleBadge =
-    user.role === "admin_g"
-      ? { label: "Дівчина Адміна", cls: "bg-pink-400/15 text-pink-300", shield: true }
-      : user.role === "admin"
-        ? { label: "Адміністратор", cls: "bg-phosphor/15 text-phosphor-soft", shield: true }
-        : { label: "Користувач", cls: "bg-white/5 text-slate-400", shield: false };
+  const role = ROLE_BADGE[user.role] ?? ROLE_BADGE.user;
+  const isAdmin = isAdminRole(user.role);
 
   return (
     <div className="h-full overflow-y-auto bg-ink-950 px-4 py-8 text-slate-200">
       <div className="mx-auto max-w-md">
-        <div className="flex items-center gap-3">
-          {user.avatar_url && (
-            <img src={user.avatar_url} alt="" className="h-14 w-14 rounded-full" />
-          )}
-          <div className="min-w-0">
+        <header className="flex items-center gap-4">
+          <Avatar user={user} />
+          <div className="min-w-0 flex-1">
             <h1 className="truncate font-display text-lg font-bold text-slate-100">
               {user.display_name || user.email || "Акаунт"}
             </h1>
             {user.email && <p className="truncate text-xs text-slate-500">{user.email}</p>}
+            <span
+              className={`mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${role.cls}`}
+            >
+              {role.shield && <ShieldCheck size={11} />}
+              {role.label}
+            </span>
           </div>
-        </div>
+        </header>
 
-        <div className="mt-4 flex items-center gap-2">
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${roleBadge.cls}`}
-          >
-            {roleBadge.shield && <ShieldCheck size={12} />}
-            {roleBadge.label}
-          </span>
-        </div>
-
-        {isAdminRole(user.role) && (
+        {isAdmin && (
           <button
             onClick={() => navigate(ADMIN_PATH)}
-            className="mt-4 flex items-center gap-2 rounded-lg border border-phosphor/25 bg-phosphor/[0.06] px-4 py-2 text-sm text-phosphor-soft hover:border-phosphor/40"
+            className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg border border-phosphor/25 bg-phosphor/[0.06] px-4 py-2 text-sm text-phosphor-soft transition-colors hover:border-phosphor/40"
           >
             <ShieldCheck size={15} /> Відкрити адмінку
           </button>
         )}
 
-        <div className="mt-6">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Способи входу
-          </h2>
-          <div className="mt-2 flex flex-wrap gap-2">
+        <Section title="Контакти">
+          <ContactsSection />
+        </Section>
+
+        <Section title="Способи входу">
+          <div className="flex flex-wrap gap-2">
             {user.providers.map((p) => (
               <span
                 key={p}
@@ -82,18 +80,42 @@ export default function AccountPage() {
               </span>
             ))}
           </div>
-        </div>
+        </Section>
 
         <button
           onClick={() => {
             logout();
             navigate("/");
           }}
-          className="mt-8 flex items-center gap-2 rounded-lg border border-red-400/25 bg-red-400/[0.05] px-4 py-2 text-sm text-red-300 hover:border-red-400/40"
+          className="mt-8 flex w-full items-center justify-center gap-2 rounded-lg border border-red-400/25 bg-red-400/[0.05] px-4 py-2 text-sm text-red-300 transition-colors hover:border-red-400/40"
         >
           <LogOut size={15} /> Вийти
         </button>
       </div>
     </div>
+  );
+}
+
+/** Avatar image, or a phosphor monogram fallback when the account has none. */
+function Avatar({ user }: { user: AuthUser }) {
+  if (user.avatar_url) {
+    return <img src={user.avatar_url} alt="" className="h-14 w-14 flex-none rounded-2xl object-cover" />;
+  }
+  const initial = (user.display_name || user.email || "?").trim().charAt(0).toUpperCase();
+  return (
+    <div className="flex h-14 w-14 flex-none items-center justify-center rounded-2xl bg-phosphor/10 text-xl font-bold text-phosphor-soft ring-1 ring-phosphor/20">
+      {initial}
+    </div>
+  );
+}
+
+/** Uniform profile section: an Unbounded uppercase title + a hairline rule,
+ * then its body — the single rhythm every block on the page shares. */
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="mt-8 border-t border-white/[0.06] pt-5">
+      <h2 className="panel-title mb-3">{title}</h2>
+      {children}
+    </section>
   );
 }

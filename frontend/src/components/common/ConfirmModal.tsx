@@ -11,18 +11,21 @@ const CONFIRM_BTN: Record<Tone, string> = {
   neutral: 'bg-white/15 text-slate-100 hover:bg-white/25',
 }
 
-/** In-app confirmation dialog replacing window.confirm for admin actions — a
- * portalled, theme-matched modal (mirrors AuthModal). Mounted only while asking;
- * confirm/cancel both close it. */
+/** In-app confirmation dialog replacing window.confirm — a portalled,
+ * theme-matched modal (mirrors AuthModal). Mounted only while asking;
+ * confirm/cancel both close it. `cancelLabel` defaults to Ukrainian for the
+ * admin call sites; i18n'd callers pass their own. */
 export default function ConfirmModal({
   message,
   confirmLabel,
+  cancelLabel = 'Скасувати',
   tone = 'neutral',
   onConfirm,
   onCancel,
 }: {
   message: string
   confirmLabel: string
+  cancelLabel?: string
   tone?: Tone
   onConfirm: () => void
   onCancel: () => void
@@ -53,7 +56,7 @@ export default function ConfirmModal({
             onClick={close}
             className="rounded-lg border border-white/15 px-3 py-1.5 text-sm font-medium text-slate-300 hover:bg-white/[0.06]"
           >
-            Скасувати
+            {cancelLabel}
           </button>
           <button
             onClick={confirm}

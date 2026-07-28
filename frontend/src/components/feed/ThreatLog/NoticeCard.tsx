@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { HOME_COLOR, STATUS_COLORS, TYPE_COLORS } from '@/theme'
 import type { Notice, NoticeKind } from '@/types'
 
-import { DevId, EventTime, SourceBadge } from './badges'
+import { DevId, EventTime } from './badges'
 import ClampText from './ClampText'
 
 /** Per-kind icon + accent colour. Rule notices (clear/summary) keep their
@@ -28,7 +28,6 @@ export default function NoticeCard({ notices }: { notices: Notice[] }) {
   const { t } = useTranslation()
   const head = notices[0]
   const { icon: Icon, color } = STYLE[head.kind as NoticeKind] ?? FALLBACK
-  const sources = Array.from(new Set(notices.map((n) => n.source_name).filter(Boolean)))
   const isAi = head.generated_by === 'llm'
 
   return (
@@ -69,13 +68,6 @@ export default function NoticeCard({ notices }: { notices: Notice[] }) {
         text={head.text}
         className="mt-0.5 break-words leading-snug text-slate-300"
       />
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-        {sources.length > 0 ? (
-          sources.map((name) => <SourceBadge key={name} name={name} t={t} />)
-        ) : (
-          <SourceBadge name={head.source_name} t={t} />
-        )}
-      </div>
     </li>
   )
 }

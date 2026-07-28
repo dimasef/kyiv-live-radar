@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import ConfirmModal from './ConfirmModal'
+import ConfirmModal from '@/components/common/ConfirmModal'
 
 type Tone = 'danger' | 'neutral' | 'accent' | 'warn'
 

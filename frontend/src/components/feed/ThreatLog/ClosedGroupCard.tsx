@@ -5,7 +5,7 @@ import { useRadar } from '@/store'
 import { STATUS_COLORS, threatColor } from '@/theme'
 import type { FeedEntry } from '@/types'
 
-import { DevId, DevSource, EventTime, SourceBadge } from './badges'
+import { DevId, DevSource, EventTime } from './badges'
 
 /** Several tracks closed by ONE real message ("дорозвідка" with no stated
  * type closes every open track at once) — one card, one clickable chip per
@@ -64,10 +64,6 @@ export default function ClosedGroupCard({ group }: { group: FeedEntry[] }) {
             </button>
           )
         })}
-      </div>
-
-      <div className="mt-1.5">
-        <SourceBadge name={head.event.source_name} t={t} />
       </div>
     </li>
   )

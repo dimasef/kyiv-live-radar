@@ -1,4 +1,3 @@
-import { RadioTower } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 export function EventTime({ iso }: { iso: string }) {
@@ -36,19 +35,6 @@ export function DevSource({ source }: { source: string }) {
   return (
     <span className="rounded bg-violet-400/15 px-1 py-0.5 font-mono text-[9px] font-semibold tracking-tight text-violet-300">
       LLM
-    </span>
-  )
-}
-
-export function SourceBadge({ name, t }: { name: string | null; t: (k: string) => string }) {
-  return (
-    <span
-      className={`flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] ${
-        name ? 'bg-white/[0.06] text-slate-300' : 'bg-white/[0.03] italic text-slate-500'
-      }`}
-    >
-      <RadioTower size={10} className="flex-none opacity-70" />
-      {name ?? t('log.unknownSource')}
     </span>
   )
 }

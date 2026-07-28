@@ -41,12 +41,14 @@ export const createAuthSlice: StateCreator<RadarState, [], [], AuthSlice> = (set
     setAccessToken(res.access)
     safeSet(STORAGE_KEYS.authRefresh, res.refresh)
     set({ user: res.user, authStatus: 'authed' })
+    void get().loadFriends().catch(() => {})
   }
 
   const clearSession = () => {
     setAccessToken(null)
     safeRemove(STORAGE_KEYS.authRefresh)
     set({ user: null, authStatus: 'anon' })
+    get().clearFriends()
   }
 
   // Registered once with api.ts: on a 401, mint a fresh access token from the
@@ -101,6 +103,7 @@ export const createAuthSlice: StateCreator<RadarState, [], [], AuthSlice> = (set
         const { access } = await authRefreshToken(refresh)
         setAccessToken(access)
         set({ user: await authMe(), authStatus: 'authed' })
+        void get().loadFriends().catch(() => {})
       } catch {
         clearSession()
       }

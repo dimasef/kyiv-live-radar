@@ -11,7 +11,7 @@ from typing import Optional
 from sqlalchemy import exists, or_, select
 
 from ..feeds.common import build_matcher
-from ..models import Notice, RawMessage, ThreatEvent
+from ..models import Notice, RawMessage, Threat, ThreatEvent
 from ..parsing.alert_parser import parse_alert_message
 from ..schemas import RawEventLinkOut, RawMessageOut
 from .raw_codes import parse_codes
@@ -111,6 +111,10 @@ async def serialize_raw_rows(session, rows: list[RawMessage]) -> list[RawMessage
     message_ids = [r.message_id for r in rows if r.message_id is not None]
     events_by_key: dict[tuple[int | None, int], list[tuple[int, int, str | None]]] = {}
     notice_by_key: dict[tuple[int | None, int], int] = {}
+    # threat_id -> (incident_id, corroboration_count, confidence) of the owning
+    # track, so each event chip in the admin /raw view can carry the fusion state
+    # the public feed dropped.
+    threat_state: dict[int, tuple[int | None, int, float]] = {}
     if message_ids:
         ev_rows = await session.execute(
             select(
@@ -129,6 +133,17 @@ async def serialize_raw_rows(session, rows: list[RawMessage]) -> list[RawMessage
         )
         for source_id, source_message_id, notice_id in n_rows:
             notice_by_key[(source_id, source_message_id)] = notice_id
+
+        threat_ids = {t for links in events_by_key.values() for t, _e, _tt in links}
+        if threat_ids:
+            t_rows = await session.execute(
+                select(
+                    Threat.id, Threat.incident_id,
+                    Threat.corroboration_count, Threat.confidence,
+                ).where(Threat.id.in_(threat_ids))
+            )
+            for tid, incident_id, corroboration, confidence in t_rows:
+                threat_state[tid] = (incident_id, corroboration, confidence)
 
     matcher = await build_matcher()
     items: list[RawMessageOut] = []
@@ -157,7 +172,14 @@ async def serialize_raw_rows(session, rows: list[RawMessage]) -> list[RawMessage
                 processed=r.processed,
                 outcome=row_outcome,
                 events=[
-                    RawEventLinkOut(threat_id=t, event_id=e, target_type=tt)
+                    RawEventLinkOut(
+                        threat_id=t,
+                        event_id=e,
+                        target_type=tt,
+                        incident_id=threat_state.get(t, (None, None, None))[0],
+                        corroboration_count=threat_state.get(t, (None, None, None))[1],
+                        confidence=threat_state.get(t, (None, None, None))[2],
+                    )
                     for t, e, tt in events
                 ],
                 notice_id=notice_id,

@@ -17,6 +17,7 @@ import CitywidePulse from "./CitywidePulse";
 import { KYIV_BOUNDS } from "./constants";
 import { HomeController, InspectController, ResizeHandler } from "./controllers";
 import DistrictLayer from "./DistrictLayer";
+import FriendLayer from "./FriendLayer";
 import HomePlacement from "./HomePlacement";
 import MapLegend from "./MapLegend";
 import ThreatLayer from "./ThreatLayer";
@@ -110,6 +111,9 @@ export default function MapView() {
             </Marker>
           </>
         )}
+
+        {/* Shared homes of friends (markers only — no radius, no danger). */}
+        <FriendLayer />
 
         {Object.values(threats).map((th) => (
           <ThreatLayer key={th.id} threat={th} highlighted={inspectedThreat?.id === th.id} />

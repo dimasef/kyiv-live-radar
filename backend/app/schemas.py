@@ -320,6 +320,14 @@ class RawEventLinkOut(BaseModel):
     # 'unknown'/None) — surfaced in /raw so an admin sees what type the message
     # was classified as, not just that it produced an event.
     target_type: Optional[str] = None
+    # Fusion/track state of the OWNING threat (not the single event) — the
+    # public feed no longer shows these, so the admin /raw view carries them
+    # instead: which attack the track rolled into, how many independent sources
+    # corroborate it, and its fused 0..1 confidence. None when the threat row
+    # is gone (event orphaned) or the track carries no incident.
+    incident_id: Optional[int] = None
+    corroboration_count: Optional[int] = None
+    confidence: Optional[float] = None
 
 
 class RawMessageOut(BaseModel):
@@ -644,6 +652,78 @@ class AccessTokenOut(BaseModel):
 
     access: str
     token_type: str = "bearer"
+
+
+# --- Friends (contacts) + shareable home ----------------------------------
+class HomePointOut(BaseModel):
+    """A friend's shared home coordinates — a map marker only (no radius)."""
+
+    lat: float
+    lon: float
+
+
+class FriendUserBrief(BaseModel):
+    """Minimal public identity of another user, for friend lists / requests."""
+
+    id: int
+    email: Optional[str] = None
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+
+class FriendOut(FriendUserBrief):
+    """An accepted friend. `home` is populated ONLY when that friend has both set
+    a home AND turned sharing on — otherwise null (they stay listed, no marker)."""
+
+    home: Optional[HomePointOut] = None
+
+
+class FriendRequestOut(BaseModel):
+    """One pending friend request, from the current user's point of view."""
+
+    id: int
+    direction: str  # 'incoming' (they asked me) | 'outgoing' (I asked them)
+    user: FriendUserBrief  # the OTHER party
+    created_at: datetime
+
+
+class FriendRequestsOut(BaseModel):
+    incoming: list[FriendRequestOut] = []
+    outgoing: list[FriendRequestOut] = []
+
+
+class SendFriendRequestIn(BaseModel):
+    """POST /friends/requests — address a friend request by their email."""
+
+    email: EmailStr
+
+
+class HomeShareIn(BaseModel):
+    """PUT /me/home — set/update home coordinates and the share flag together."""
+
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+    share: bool = True
+
+
+class ShareToggleIn(BaseModel):
+    """PATCH /me/home/share — flip sharing without touching coordinates."""
+
+    share: bool
+
+
+class MyHomeOut(BaseModel):
+    """GET /me/home — the current user's own stored home + share state."""
+
+    home: Optional[HomePointOut] = None
+    share_home: bool
+
+
+class FriendActionOut(BaseModel):
+    """Result of a friend-graph mutation. The client re-fetches the lists after,
+    so this only needs to say WHAT happened (used to phrase a toast)."""
+
+    status: str  # 'requested'|'accepted'|'already_pending'|'already_friends'|'removed'|'declined'
 
 
 class WSMessage(BaseModel):
