@@ -32,12 +32,22 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.19.0";
+const LATEST = "0.19.1";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "Контакти: сповіщення про запити",
+    date: "2026-07-28",
+    kind: "patch",
+    changes: [
+      "Запити в контакти та їх підтвердження тепер зʼявляються самі, без перезавантаження сторінки",
+      "На іконці профілю показується червона позначка з кількістю нових запитів у контакти",
+    ],
+  },
+  {
+    version: "0.19.0",
     title: "Контакти",
     date: "2026-07-28",
     kind: "minor",

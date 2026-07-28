@@ -12,7 +12,14 @@ export function registerLifecycleListeners() {
   if (registered) return
   registered = true
 
-  const onResume = () => resync()
+  const onResume = () => {
+    resync()
+    // Friend requests/acceptances have no live WS channel — refresh them when
+    // the user returns so an incoming request or a just-accepted contact shows
+    // up without a manual reload (awkward in the installed PWA).
+    const s = useRadar.getState()
+    if (s.authStatus === 'authed') void s.loadFriends().catch(() => {})
+  }
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') onResume()

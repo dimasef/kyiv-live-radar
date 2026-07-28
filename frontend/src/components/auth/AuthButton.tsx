@@ -20,22 +20,35 @@ export default function AuthButton() {
   const [open, setOpen] = useState(false)
   const status = useRadar((s) => s.authStatus)
   const user = useRadar((s) => s.user)
+  const requests = useRadar((s) => s.friendRequests)
 
   if (status === 'authed' && user) {
     const label = user.display_name || user.email || t('auth.account')
+    // Pending incoming contact requests → a red badge on the avatar, since
+    // there's no other notification surface for them (managed on /account).
+    const pending = requests.incoming.length
+    const badgeLabel = pending > 0 ? `${label} · ${t('friends.incoming')}: ${pending}` : label
     return (
-      <button
-        onClick={() => navigate(ACCOUNT_PATH)}
-        className={circle}
-        title={label}
-        aria-label={label}
-      >
-        {user.avatar_url ? (
-          <img src={user.avatar_url} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <UserRound size={16} className="flex-none" />
+      // Wrapper so the badge can escape the button's overflow-hidden clip.
+      <div className="relative flex-none">
+        <button
+          onClick={() => navigate(ACCOUNT_PATH)}
+          className={circle}
+          title={badgeLabel}
+          aria-label={badgeLabel}
+        >
+          {user.avatar_url ? (
+            <img src={user.avatar_url} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <UserRound size={16} className="flex-none" />
+          )}
+        </button>
+        {pending > 0 && (
+          <span className="pointer-events-none absolute -right-0.5 -top-0.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-none text-white ring-2 ring-ink-900">
+            {pending > 9 ? '9+' : pending}
+          </span>
         )}
-      </button>
+      </div>
     )
   }
 

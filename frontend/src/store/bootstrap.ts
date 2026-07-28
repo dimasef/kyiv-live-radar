@@ -69,6 +69,17 @@ export function bootstrapApp() {
   connectWS()
   registerLifecycleListeners()
 
+  // Poll the friend graph while signed in and foregrounded — friend requests /
+  // acceptances have no live WS channel, so this is what surfaces an incoming
+  // request (or a contact who just accepted) without a page reload. Resume
+  // events (lifecycle.ts) refresh on top of this when the tab regains focus.
+  setInterval(() => {
+    const s = useRadar.getState()
+    if (s.authStatus === 'authed' && document.visibilityState === 'visible') {
+      void s.loadFriends().catch(() => {})
+    }
+  }, 30_000)
+
   // Ask for the user's real location once, on the very first run — NOT every
   // time home is missing. Otherwise clearing home and reloading would silently
   // re-set it from an already-granted geolocation permission. The marker is
