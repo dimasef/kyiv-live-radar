@@ -154,6 +154,10 @@ async def test_dismiss_incident_cancels_member_tracks(client):
     await s.refresh(refreshed)
     assert refreshed.closed_reason == "dismissed"
 
+    # ...and it never hydrates an "Атаку завершено" summary card on reload.
+    recent_inc = (await c.get("/incidents/recent")).json()
+    assert inc.id not in {i["id"] for i in recent_inc}
+
     # Restore brings both back.
     r = await c.post(f"/admin/incidents/{inc.id}/restore", headers=headers)
     assert r.status_code == 200

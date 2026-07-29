@@ -56,10 +56,12 @@ def sent(monkeypatch):
     """Capture payloads instead of doing real web pushes."""
     captured: list[dict] = []
 
-    async def _fake_send(session, sub, payload):
+    async def _fake_send(session, sub, payload, ttl=300):
         captured.append(payload)
 
-    monkeypatch.setattr(home_push, "_send", _fake_send)
+    # home_push now calls the shared webpush.send_push (imported into its module
+    # namespace) — patch that bound name.
+    monkeypatch.setattr(home_push, "send_push", _fake_send)
     return captured
 
 
@@ -127,9 +129,9 @@ async def test_warning_then_danger_pushes_once_each(ctx, sent):
 
     # tag is stable per track, so escalation REPLACES the warning notification
     assert {p["tag"] for p in sent} == {f"klr-home-{t.id}"}
-    # level is encoded in the title: marker + «Увага:» phrasing per level
-    assert sent[0]["title"].startswith("⚠️ Увага:")
-    assert sent[1]["title"].startswith("‼️ Увага:")
+    # Type leads the title; level is encoded by the marker + phrasing.
+    assert sent[0]["title"].startswith("⚠️ ") and "прямує у ваш бік" in sent[0]["title"]
+    assert sent[1]["title"].startswith("‼️ ") and "поруч із домом" in sent[1]["title"]
 
 
 async def test_oscillation_within_cooldown_does_not_repush(ctx, sent):
@@ -214,9 +216,9 @@ async def test_ballistic_on_home_raion_goes_straight_to_danger(ctx, sent):
     await _add_event(s, t, raion, 0)
     await evaluate_home_danger(s, await _load_threat(s, t.id))
     assert [p["level"] for p in sent] == ["danger"]
-    # Ballistic body says «близько» with no km figure — a centroid distance
-    # next to «ціль поруч» reads as contradiction.
-    assert "близько" in sent[0]["body"]
+    # Type leads the title; ballistic carries NO km figure in the body (a
+    # centroid distance next to «поруч» reads as a contradiction) — just the raion.
+    assert "поруч із домом" in sent[0]["title"]
     assert "км" not in sent[0]["body"]
 
 

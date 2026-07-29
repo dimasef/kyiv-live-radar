@@ -253,7 +253,9 @@
     "remove": "Remove",
     "removeConfirm": "Remove {{name}} from contacts? You'll no longer see each other's home on the map.",
     "notSharing": "not sharing home",
-    "markerStyle": "Marker colour & icon",
+    "homeOnMap": "Home on my map",
+    "shownOnMap": "Shown on map",
+    "hiddenOnMap": "Hidden",
     "hideFromMap": "Hide home from my map",
     "showOnMap": "Show home on my map",
     "result": {

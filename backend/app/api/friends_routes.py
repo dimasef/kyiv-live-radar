@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth.deps import get_current_user
 from ..db import get_session
 from ..models import Friendship, User, utcnow
+from ..pipeline.contact_push import notify_contact_request, notify_request_accepted
 from ..schemas import (
     FriendActionOut,
     FriendOut,
@@ -167,10 +168,13 @@ async def send_request(
         edge.status = "accepted"
         edge.responded_at = utcnow()
         await session.commit()
+        # target is the ORIGINAL requester — tell them it's accepted.
+        await notify_request_accepted(session, target.id, user)
         return FriendActionOut(status="accepted")
 
     session.add(Friendship(requester_id=user.id, addressee_id=target.id, status="pending"))
     await session.commit()
+    await notify_contact_request(session, target.id, user)
     return FriendActionOut(status="requested")
 
 
@@ -187,6 +191,8 @@ async def accept_request(
     edge.status = "accepted"
     edge.responded_at = utcnow()
     await session.commit()
+    # Tell the original requester their request was accepted.
+    await notify_request_accepted(session, edge.requester_id, user)
     return FriendActionOut(status="accepted")
 
 

@@ -168,3 +168,47 @@ async def test_requires_auth(client):
     c = client
     assert (await c.get("/friends")).status_code == 401
     assert (await c.get("/me/home")).status_code == 401
+
+
+async def test_contact_requests_push_the_other_party(client, monkeypatch):
+    c = client
+    # Make push look configured and capture sends instead of hitting a service.
+    monkeypatch.setattr(settings, "vapid_public_key", "x")
+    monkeypatch.setattr(settings, "vapid_private_key", "y")
+    sent: list[tuple[int | None, dict]] = []
+
+    async def fake_send(session, sub, payload, ttl=300):
+        sent.append((sub.user_id, payload))
+
+    monkeypatch.setattr("app.pipeline.contact_push.send_push", fake_send)
+
+    a = await _register(c, "pa@x.com")
+    b = await _register(c, "pb@x.com")
+    # Both register a (dummy) push subscription, stamped with the owner by token.
+    for token, ep in ((a, "a"), (b, "b")):
+        r = await c.post(
+            "/push/subscribe",
+            headers=_auth(token),
+            json={
+                "subscription": {
+                    "endpoint": f"https://push.example/{ep}",
+                    "keys": {"p256dh": "k", "auth": "s"},
+                },
+                "home": None,
+            },
+        )
+        assert r.status_code == 200, r.text
+
+    # A requests B → B's subscription gets a contact-invite push.
+    sent.clear()
+    await c.post("/friends/requests", json={"email": "pb@x.com"}, headers=_auth(a))
+    assert len(sent) == 1
+    assert sent[0][1]["kind"] == "contact-invite"
+    assert "pa@x.com" in sent[0][1]["body"]
+
+    # B accepts → A (the original requester) gets a contact-accepted push.
+    req_id = (await c.get("/friends/requests", headers=_auth(b))).json()["incoming"][0]["id"]
+    sent.clear()
+    await c.post(f"/friends/requests/{req_id}/accept", headers=_auth(b))
+    assert len(sent) == 1
+    assert sent[0][1]["kind"] == "contact-accepted"

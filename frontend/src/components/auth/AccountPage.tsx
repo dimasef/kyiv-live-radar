@@ -1,7 +1,8 @@
 import { LogOut, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { isAdminRole, type AuthUser } from "@/api";
+import { isAdminRole } from "@/api";
+import Avatar from "@/components/common/Avatar";
 import { ADMIN_PATH, navigate } from "@/router";
 import { useRadar } from "@/store";
 
@@ -41,7 +42,11 @@ export default function AccountPage() {
     <div className="h-full overflow-y-auto bg-ink-950 px-4 py-8 text-slate-200">
       <div className="mx-auto max-w-md">
         <header className="flex items-center gap-4">
-          <Avatar user={user} />
+          <Avatar
+            name={user.display_name || user.email || "Акаунт"}
+            avatarUrl={user.avatar_url}
+            size={56}
+          />
           <div className="min-w-0 flex-1">
             <h1 className="truncate font-display text-lg font-bold text-slate-100">
               {user.display_name || user.email || "Акаунт"}
@@ -92,19 +97,6 @@ export default function AccountPage() {
           <LogOut size={15} /> Вийти
         </button>
       </div>
-    </div>
-  );
-}
-
-/** Avatar image, or a phosphor monogram fallback when the account has none. */
-function Avatar({ user }: { user: AuthUser }) {
-  if (user.avatar_url) {
-    return <img src={user.avatar_url} alt="" className="h-14 w-14 flex-none rounded-2xl object-cover" />;
-  }
-  const initial = (user.display_name || user.email || "?").trim().charAt(0).toUpperCase();
-  return (
-    <div className="flex h-14 w-14 flex-none items-center justify-center rounded-2xl bg-phosphor/10 text-xl font-bold text-phosphor-soft ring-1 ring-phosphor/20">
-      {initial}
     </div>
   );
 }

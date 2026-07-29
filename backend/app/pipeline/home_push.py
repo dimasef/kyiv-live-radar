@@ -15,8 +15,6 @@ minutes after the situation moved on.
 
 from __future__ import annotations
 
-import asyncio
-import json
 import logging
 from datetime import datetime, timedelta
 
@@ -28,10 +26,9 @@ from ..domain.geometry import haversine_km
 from ..domain.home_danger import DangerLevel, HomeZone, assess
 from ..models import PushSubscription, Threat, utcnow
 from ..timeutil import naive
+from .webpush import send_push
 
 log = logging.getLogger("home_push")
-
-PUSH_TTL_S = 300
 
 _TYPE_LABEL = {
     "shahed": "Шахед",
@@ -39,11 +36,6 @@ _TYPE_LABEL = {
     "missile": "Ракета",
     "ballistic": "Балістика",
     "unknown": "Ціль",
-}
-
-_TITLES = {
-    DangerLevel.WARNING: "⚠️ Увага: курс у бік вашої зони",
-    DangerLevel.DANGER: "‼️ Увага: ціль поруч із вашою зоною",
 }
 
 
@@ -105,7 +97,7 @@ async def evaluate_home_danger(session, threat: Threat) -> None:
             )
             if should_push:
                 payload = build_payload(level, threat, home)
-                await _send(session, sub, payload)
+                await send_push(session, sub, payload)
                 sub.last_push_at = utcnow()
                 sub.danger_state[key] = {
                     "level": int(level),
@@ -138,23 +130,31 @@ def _cooldown_passed(pushed_at_iso: str | None) -> bool:
 def build_payload(level: DangerLevel, threat: Threat, home: HomeZone) -> dict:
     head = _head_event(threat)
     label = _TYPE_LABEL.get(threat.target_type, _TYPE_LABEL["unknown"])
-    where = f" ({head.district.name_uk})" if head is not None else ""
+    # Type leads the TITLE so it reads at a glance on a lock screen — the body
+    # then carries only WHERE/how close.
+    title = (
+        f"⚠️ {label} прямує у ваш бік"
+        if level == DangerLevel.WARNING
+        else f"‼️ {label} поруч із домом"
+    )
+    where = head.district.name_uk if head is not None else None
     if threat.target_type == "ballistic":
         # No km figure for ballistic: the trigger is usually the raion callout,
-        # and a centroid distance next to «ціль поруч» reads as contradiction.
-        approx = " близько"
+        # and a centroid distance next to «поруч» reads as a contradiction.
+        loc = where or ""
     elif head is not None:
         km = round(haversine_km(head.district.lat, head.district.lon, home.lat, home.lon))
-        approx = f" ~{km} км від дому" if km > 0 else " у вашій зоні"
+        loc = f"~{km} км від дому ({where})" if km > 0 else f"у вашій зоні ({where})"
     else:
-        approx = ""
+        loc = ""
+    body = f"{loc}. " if loc else ""
     return {
         "kind": "home-danger",
         "level": "danger" if level == DangerLevel.DANGER else "warning",
         "threat_id": threat.id,
         "tag": f"klr-home-{threat.id}",
-        "title": _TITLES[level],
-        "body": f"{label}{approx}{where}. Волонтерські дані — не офіційна тривога.",
+        "title": title,
+        "body": f"{body}Волонтерські дані — не офіційна тривога.",
         "url": "/",
     }
 
@@ -184,13 +184,13 @@ async def _evaluate_citywide(session, threat: Threat) -> None:
             and _cooldown_passed(sub.danger_state.get("city_last_push"))
         ):
             label = _TYPE_LABEL.get(threat.target_type, _TYPE_LABEL["unknown"])
-            await _send(session, sub, {
+            await send_push(session, sub, {
                 "kind": "citywide",
                 "level": "danger",
                 "threat_id": threat.id,
                 "tag": f"klr-city-{threat.id}",
-                "title": f"‼️ Загроза по всьому місту: {label.lower()}",
-                "body": "Допоміжно: ціль на Київ без прив'язки до району. "
+                "title": f"‼️ {label} — загроза по всьому місту",
+                "body": "Ціль на Київ без прив'язки до району. "
                         "Волонтерські дані — не офіційна тривога.",
                 "url": "/",
             })
@@ -210,31 +210,3 @@ def _head_event(threat: Threat):
     # naive(): a live track mixes DB-loaded (naive) and just-added (aware)
     # event times — a raw max() across the two raises TypeError.
     return max(located, key=lambda ev: naive(ev.event_time)) if located else None
-
-
-async def _send(session, sub: PushSubscription, payload: dict) -> None:
-    from pywebpush import WebPushException, webpush  # deferred: optional at import time
-
-    try:
-        # webpush() is synchronous (requests under the hood) — never block the
-        # event loop with it.
-        await asyncio.to_thread(
-            webpush,
-            subscription_info={
-                "endpoint": sub.endpoint,
-                "keys": {"p256dh": sub.p256dh, "auth": sub.auth},
-            },
-            data=json.dumps(payload, ensure_ascii=False),
-            vapid_private_key=settings.vapid_private_key,
-            vapid_claims={"sub": settings.vapid_subject},
-            ttl=PUSH_TTL_S,
-        )
-    except WebPushException as e:
-        status = getattr(getattr(e, "response", None), "status_code", None)
-        if status in (404, 410):
-            # The push service says this endpoint is gone (browser unsubscribed
-            # or the registration expired) — drop the row.
-            log.info("push endpoint gone (%s), deleting subscription %s", status, sub.id)
-            await session.delete(sub)
-        else:
-            log.warning("web push failed (status=%s): %s", status, e)

@@ -417,6 +417,10 @@ async def recent_incidents(
     sentinel_id = await citywide_district_id(session)
     stmt = (
         select(Incident)
+        # Admin-dismissed attacks are false positives — never hydrate a summary
+        # card for them (the live WS path already drops them; this is the reload
+        # counterpart). is_distinct_from keeps active incidents (ended_reason NULL).
+        .where(Incident.ended_reason.is_distinct_from("dismissed"))
         .options(selectinload(Incident.threats).selectinload(Threat.events))
         .order_by(Incident.started_at.desc())
         .limit(limit)

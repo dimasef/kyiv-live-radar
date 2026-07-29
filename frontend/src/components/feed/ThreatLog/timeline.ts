@@ -113,7 +113,10 @@ export function buildTimeline(
       }),
     ),
     ...recentIncidents
-      .filter((inc) => inc.ended_at != null)
+      // An admin-dismissed attack is a false positive — no summary card, even
+      // if one lingers in the store (the store + /incidents/recent already drop
+      // these; this is a belt-and-braces guard).
+      .filter((inc) => inc.ended_at != null && inc.ended_reason !== 'dismissed')
       .map(
         (inc): TimelineItem => ({
           kind: 'incidentEnd',
