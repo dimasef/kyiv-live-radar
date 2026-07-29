@@ -726,6 +726,50 @@ class FriendActionOut(BaseModel):
     status: str  # 'requested'|'accepted'|'already_pending'|'already_friends'|'removed'|'declined'
 
 
+# --- Gamification (collectible card analysis) ------------------------------
+class AnalyzeIn(BaseModel):
+    """POST /analysis — analyse a target for a card."""
+
+    threat_id: int
+    kind: str  # 'track' | 'remains' — see models.ANALYSIS_KINDS
+
+
+class AnalyzeOut(BaseModel):
+    """A successful analysis: the card that dropped."""
+
+    threat_id: int
+    kind: str
+    card_id: int
+    created_at: datetime
+
+
+class ThreatAnalysisStateOut(BaseModel):
+    """GET /analysis/threat/{id} — which analyses this target has left, and which
+    (if any) the current user already claimed. Drives the inspect-badge button:
+    `*_taken` disables it globally, `mine.*` shows the card the user won."""
+
+    track_taken: bool
+    remains_taken: bool
+    mine_track: Optional[int] = None  # card_id the current user got, or null
+    mine_remains: Optional[int] = None
+
+
+class CardCountOut(BaseModel):
+    """One collected card + how many copies the user has."""
+
+    card_id: int
+    count: int
+    first_at: datetime
+
+
+class CollectionOut(BaseModel):
+    """GET /analysis/collection — the current user's whole card collection."""
+
+    cards: list[CardCountOut] = []
+    total_analyses: int
+    card_count: int  # size of the full deck, so the UI can show "collected N of M"
+
+
 class WSMessage(BaseModel):
     """Envelope broadcast over the WebSocket."""
 

@@ -191,6 +191,31 @@ body::after {
     transform: rotate(360deg);
   }
 }
+
+/* Collectible-card radar sweep + legendary rarity-dot pulse (see CardView). */
+@keyframes card-sweep {
+  0% {
+    transform: translateY(-130%);
+  }
+  100% {
+    transform: translateY(130%);
+  }
+}
+@keyframes card-legdot {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.card-sweep {
+  animation: card-sweep 4.6s linear infinite;
+}
+.card-legdot {
+  animation: card-legdot 2.4s ease-in-out infinite;
+}
 .radar {
   position: relative;
   border-radius: 9999px;
@@ -514,7 +539,9 @@ body::after {
   .home-danger-pulse,
   .track-inspect,
   .modal-backdrop,
-  .modal-card {
+  .modal-card,
+  .card-sweep,
+  .card-legdot {
     animation: none !important;
   }
   .sheet {

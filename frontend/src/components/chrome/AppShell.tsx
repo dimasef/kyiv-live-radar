@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
 
+import AnalysisLayer from '@/components/game/AnalysisLayer'
+
 import SettingsDrawer from './SettingsDrawer'
 import SplashScreen from './SplashScreen'
 import TopBar from './TopBar'
@@ -18,6 +20,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       <div className="relative min-h-0 flex-1">{children}</div>
       <SettingsDrawer />
       <UpdateToast />
+      <AnalysisLayer />
     </div>
   )
 }

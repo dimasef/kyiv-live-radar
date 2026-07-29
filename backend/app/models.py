@@ -655,3 +655,38 @@ class GazetteerCandidate(Base):
     created_by_user_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+
+
+# The two analyses a single target yields over its lifecycle (see gamification):
+# one while it's still being tracked, one on its debris after it's shot down.
+ANALYSIS_KINDS = ("track", "remains")
+
+
+class ThreatAnalysis(Base):
+    """One gamification "analysis" of a target — the ledger row that both awards
+    a collectible card and enforces the scarcity rule.
+
+    A target yields at most two analyses total (`ANALYSIS_KINDS`): a `track`
+    analysis while it flies and a `remains` analysis once destroyed. The
+    `UniqueConstraint(threat_id, kind)` makes each of those a *global*
+    first-writer-wins claim — the first user to finish analysing that
+    threat+kind takes the card; everyone else gets a 409. A user's whole card
+    collection is simply their rows here (no separate collection table), so
+    `card_id` is the awarded card (1..len(CARD_IDS)) picked uniformly at random.
+    """
+
+    __tablename__ = "threat_analyses"
+    __table_args__ = (
+        UniqueConstraint("threat_id", "kind", name="uq_analysis_threat_kind"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    threat_id: Mapped[int] = mapped_column(
+        ForeignKey("threats.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String(10))  # see ANALYSIS_KINDS
+    card_id: Mapped[int] = mapped_column()  # 1..len(CARD_IDS), the awarded card
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -21,6 +21,8 @@ export const STORAGE_KEYS = {
   contactStyles: 'klr-contacts-style',
   // The refresh token (the access token stays in memory only — see api.ts).
   authRefresh: 'klr-auth',
+  // Whether the opt-in "gamification" card-analysis layer is on (off by default).
+  gamification: 'klr-gamification',
 } as const
 
 /** Reads a localStorage value, swallowing errors (private-browsing/quota/etc.

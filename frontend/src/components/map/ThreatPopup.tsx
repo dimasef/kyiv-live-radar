@@ -2,12 +2,16 @@ import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { Popup } from "react-leaflet";
 
+import AnalyzeButton from "@/components/game/AnalyzeButton";
+import { useRadar } from "@/store";
+
 import { CorroborationLine, CountBadge, typeLabel } from "../../threatDisplay";
 import { threatColor } from "../../theme";
 import type { Threat } from "../../types";
 
 export default function ThreatPopup({ threat }: { threat: Threat }) {
   const { t } = useTranslation();
+  const gamification = useRadar((s) => s.gamification);
   const color = threatColor(threat);
   const label = typeLabel(threat, t);
   // The messages that produced this track — one per distinct source message
@@ -93,6 +97,17 @@ export default function ThreatPopup({ threat }: { threat: Threat }) {
                 <div style={{ fontSize: 11, lineHeight: 1.35, opacity: 0.9 }}>{ev.raw_text}</div>
               </div>
             ))}
+          </div>
+        )}
+        {gamification && (
+          <div
+            style={{
+              marginTop: 8,
+              paddingTop: 8,
+              borderTop: "1px solid rgba(255,255,255,0.1)",
+            }}
+          >
+            <AnalyzeButton threat={threat} />
           </div>
         )}
         {import.meta.env.DEV && (

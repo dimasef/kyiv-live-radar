@@ -431,3 +431,37 @@ export const putMyHome = (lat: number, lon: number, share: boolean) =>
 export const patchHomeShare = (share: boolean) =>
   send<MyHome>('/me/home/share', 'PATCH', { share })
 export const deleteMyHome = () => send<MyHome>('/me/home', 'DELETE')
+
+// --- Gamification (collectible card analysis, see store/gameSlice.ts) --------
+/** Which of a target's two analyses each covers — 'track' while it flies,
+ * 'remains' on its debris after it's shot down. */
+export type AnalysisKind = 'track' | 'remains'
+export interface AnalysisResult {
+  threat_id: number
+  kind: AnalysisKind
+  card_id: number
+  created_at: string
+}
+/** Global claim state for one target: whether each analysis is taken (by
+ * anyone), and the card the current user won (null if not them / not taken). */
+export interface ThreatAnalysisState {
+  track_taken: boolean
+  remains_taken: boolean
+  mine_track: number | null
+  mine_remains: number | null
+}
+export interface CardCount {
+  card_id: number
+  count: number
+  first_at: string
+}
+export interface Collection {
+  cards: CardCount[]
+  total_analyses: number
+  card_count: number
+}
+export const postAnalysis = (threatId: number, kind: AnalysisKind) =>
+  send<AnalysisResult>('/analysis', 'POST', { threat_id: threatId, kind })
+export const fetchThreatAnalysisState = (threatId: number) =>
+  get<ThreatAnalysisState>(`/analysis/threat/${threatId}`)
+export const fetchCollection = () => get<Collection>('/analysis/collection')

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { isAdminRole } from "@/api";
 import Avatar from "@/components/common/Avatar";
+import CardCollection from "@/components/game/CardCollection";
 import { ADMIN_PATH, navigate } from "@/router";
 import { useRadar } from "@/store";
 
@@ -26,6 +27,8 @@ export default function AccountPage() {
   const user = useRadar((s) => s.user);
   const status = useRadar((s) => s.authStatus);
   const logout = useRadar((s) => s.logout);
+  const gamification = useRadar((s) => s.gamification);
+  const hasCards = useRadar((s) => (s.collection?.total_analyses ?? 0) > 0);
 
   if (status !== "authed" || !user) {
     return (
@@ -40,7 +43,7 @@ export default function AccountPage() {
 
   return (
     <div className="h-full overflow-y-auto bg-ink-950 px-4 py-8 text-slate-200">
-      <div className="mx-auto max-w-md">
+      <div className="mx-auto max-w-md lg:max-w-2xl">
         <header className="flex items-center gap-4">
           <Avatar
             name={user.display_name || user.email || "Акаунт"}
@@ -68,6 +71,12 @@ export default function AccountPage() {
           >
             <ShieldCheck size={15} /> Відкрити адмінку
           </button>
+        )}
+
+        {(gamification || hasCards) && (
+          <Section title="Колекція">
+            <CardCollection />
+          </Section>
         )}
 
         <Section title="Контакти">

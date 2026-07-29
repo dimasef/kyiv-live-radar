@@ -44,6 +44,10 @@ export interface PrefsSlice {
   setFeedTextSize: (s: FeedTextSize) => void
   feedLimit: FeedLimit
   setFeedLimit: (n: FeedLimit) => void
+  /** Opt-in "gamification" card-analysis layer (off by default). Purely a UI
+   * preference — the map, alerts and threat logic never read it. */
+  gamification: boolean
+  setGamification: (on: boolean) => void
 }
 
 export const createPrefsSlice: StateCreator<RadarState, [], [], PrefsSlice> = (set) => ({
@@ -61,5 +65,10 @@ export const createPrefsSlice: StateCreator<RadarState, [], [], PrefsSlice> = (s
   setFeedLimit: (n) => {
     safeSet(STORAGE_KEYS.feedLimit, String(n))
     set({ feedLimit: n })
+  },
+  gamification: safeGet(STORAGE_KEYS.gamification) === '1',
+  setGamification: (on) => {
+    safeSet(STORAGE_KEYS.gamification, on ? '1' : '0')
+    set({ gamification: on })
   },
 })

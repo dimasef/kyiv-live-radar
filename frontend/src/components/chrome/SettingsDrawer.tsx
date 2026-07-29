@@ -7,6 +7,7 @@ import { useDismissTransition } from '@/lib/useDismissTransition'
 import { useRadar } from '@/store'
 
 import FeedSettings from './FeedSettings'
+import GamificationControl from './GamificationControl'
 import HomeControl from './HomeControl'
 import InstallControl from './InstallControl'
 import LanguageSwitcher from './LanguageSwitcher'
@@ -63,6 +64,7 @@ function DrawerBody({ onClose }: { onClose: () => void }) {
           <HomeControl />
           <NotifyControl />
           <FeedSettings />
+          <GamificationControl />
           <InstallControl />
           <VersionInfo />
         </div>

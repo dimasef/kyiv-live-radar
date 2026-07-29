@@ -174,6 +174,25 @@
       "lg": "Larger"
     }
   },
+  "game": {
+    "settingsTitle": "Gamification",
+    "settingsHint": "Experimental. Collectible cards after analysing targets — a small way to cope with the fear during raids. Does not affect the map, alerts or threats.",
+    "safetyConfirm": "Are you sure you're in a safe place? This is a way to distract yourself a little during a raid — never a reason to leave shelter or take your attention off your own safety.",
+    "safetyConfirmYes": "Yes, I'm safe",
+    "cancel": "Cancel",
+    "analyze": "Analyse",
+    "analyzeRemains": "Analyse debris",
+    "analyzing": "Analysing…",
+    "collected": "Verified",
+    "taken": "Already analysed",
+    "scanning": "Analysing target…",
+    "scanningRemains": "Analysing debris…",
+    "scanningHint": "This takes a few seconds",
+    "newCard": "New card",
+    "takenBody": "Someone else already analysed this target.",
+    "errorBody": "Could not finish the analysis. Please try again.",
+    "close": "Done"
+  },
   "install": {
     "title": "App",
     "action": "Install app",

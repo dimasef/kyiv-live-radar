@@ -4,6 +4,7 @@ import type { AxesSlice } from './axesSlice'
 import type { ConnectionSlice } from './connectionSlice'
 import type { DistrictsSlice } from './districtsSlice'
 import type { FriendsSlice } from './friendsSlice'
+import type { GameSlice } from './gameSlice'
 import type { HomeSlice } from './homeSlice'
 import type { IncidentsSlice } from './incidentsSlice'
 import type { NoticesSlice } from './noticesSlice'
@@ -23,6 +24,7 @@ export type RadarState = DistrictsSlice &
   ConnectionSlice &
   HomeSlice &
   FriendsSlice &
+  GameSlice &
   PwaSlice &
   PrefsSlice &
   NotifySlice &
