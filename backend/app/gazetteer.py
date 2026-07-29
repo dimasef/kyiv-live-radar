@@ -102,6 +102,18 @@ DISTRICTS: list[dict] = [
      "aliases": []},
     {"name_uk": "Видубичі", "name_en": "Vydubychi", "lat": 50.4147, "lon": 30.568,
      "aliases": []},
+    # Київська ТЕЦ-5 (Теличка, Голосіївський р-н, правий берег) — a named target.
+    # ONLY the numbered forms: a bare "тец" stem would wrongly capture the ТЕЦ-6
+    # mentions in the real corpus (a DIFFERENT plant on the left bank/Воскресенка).
+    # Hyphen is preserved by normalize(); "тец5" also covers the no-hyphen form,
+    # and тэц-* the Russian spelling. name_uk itself yields the "тец-5" stem.
+    {"name_uk": "ТЕЦ-5", "name_en": "TETs-5 (CHP-5)", "lat": 50.3942, "lon": 30.5684,
+     "aliases": ["тец-5", "тец5", "тэц-5", "тэц5"]},
+    # Київська ТЕЦ-6 (Деснянський р-н, лівий берег біля Воскресенки/Троєщини) —
+    # a DIFFERENT plant from ТЕЦ-5; the corpus names it ("ТЕЦ-6/Воскресенка").
+    # Numbered forms only, same reasoning as ТЕЦ-5.
+    {"name_uk": "ТЕЦ-6", "name_en": "TETs-6 (CHP-6)", "lat": 50.5312, "lon": 30.667,
+     "aliases": ["тец-6", "тец6", "тэц-6", "тэц6"]},
 
     # --- Approach-corridor localities (Kyiv oblast) — targets are tracked here
     #     as they head toward the city; coordinates are approximate. ---
@@ -276,6 +288,13 @@ DISTRICTS: list[dict] = [
     # found zero bad matches in the real corpus — revisit if that changes.
     {"name_uk": "Щасливе", "name_en": "Shchaslyve", "lat": 50.3782, "lon": 30.7913, "aliases": []},
     {"name_uk": "Згурівка", "name_en": "Zghurivka", "lat": 50.4951, "lon": 31.7692, "aliases": []},
+    # Трипільська ТЕС (Українка, Обухівський р-н — south of Kyiv, область) — a
+    # major, repeatedly-targeted station; the corpus names the DIRECTION ("у бік
+    # Трипілля"). The village of Трипілля is ~2 km away — same target cluster,
+    # so the "трипіл" stem covers both. Bare "тес" is NOT an alias (it collides
+    # with тест/тесля/… — a short, common substring); the "трипіл" stem is specific.
+    {"name_uk": "Трипільська ТЕС", "name_en": "Trypilska TES", "lat": 50.1333, "lon": 30.75,
+     "aliases": ["трипілля", "трипільська", "трипіл"]},
     # Kyiv Reservoir (north of the city near Vyshhorod) — real spotters say
     # just "водосховище" (bare word), never the full official name, hence the
     # alias. "водосховище" is generic (there are other reservoirs downstream
