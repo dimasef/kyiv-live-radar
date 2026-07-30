@@ -185,6 +185,7 @@
     "analyzing": "Analysing…",
     "collected": "Verified",
     "taken": "Already analysed",
+    "stale": "Stale debris",
     "scanning": "Analysing target…",
     "scanningRemains": "Analysing debris…",
     "scanningHint": "This takes a few seconds",

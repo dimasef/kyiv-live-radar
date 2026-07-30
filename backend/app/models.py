@@ -443,6 +443,9 @@ class User(Base):
     home_lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     home_lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     share_home: Mapped[bool] = mapped_column(default=False)
+    # Opt-in gamification (collectible-card analysis) — an account-bound setting
+    # so toggling it on one device carries to the user's others.
+    gamification: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow

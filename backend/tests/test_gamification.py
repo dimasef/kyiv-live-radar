@@ -174,6 +174,19 @@ async def test_stale_target_blocked(env):
     assert r.status_code == 409
 
 
+async def test_gamification_pref_persists_and_syncs(env):
+    c, s = env
+    auth = await _register(c, "a@x.com")
+    # Default off.
+    r = await c.get("/auth/me", headers=auth)
+    assert r.json()["gamification"] is False
+    # Enable → persisted → visible to any other session (e.g. another device).
+    r = await c.put("/me/gamification", json={"enabled": True}, headers=auth)
+    assert r.status_code == 200 and r.json()["enabled"] is True
+    r = await c.get("/auth/me", headers=auth)
+    assert r.json()["gamification"] is True
+
+
 async def test_requires_auth(env):
     c, s = env
     tid = await _new_threat(s)

@@ -636,6 +636,8 @@ class UserOut(BaseModel):
     role: str
     # Which sign-in methods are linked: 'password' + any of PROVIDERS.
     providers: list[str] = []
+    # Account-bound opt-in gamification toggle (synced across the user's devices).
+    gamification: bool = False
 
 
 class TokenPairOut(BaseModel):
@@ -768,6 +770,16 @@ class CollectionOut(BaseModel):
     cards: list[CardCountOut] = []
     total_analyses: int
     card_count: int  # size of the full deck, so the UI can show "collected N of M"
+
+
+class GamificationPrefIn(BaseModel):
+    """PUT /me/gamification — flip the account-bound gamification toggle."""
+
+    enabled: bool
+
+
+class GamificationPrefOut(BaseModel):
+    enabled: bool
 
 
 class WSMessage(BaseModel):

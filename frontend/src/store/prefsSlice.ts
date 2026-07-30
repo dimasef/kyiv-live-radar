@@ -1,5 +1,6 @@
 import type { StateCreator } from 'zustand'
 
+import { setGamificationPref } from '@/api'
 import { safeGet, safeSet, STORAGE_KEYS } from '@/lib/storage'
 
 import type { RadarState } from './types'
@@ -44,10 +45,15 @@ export interface PrefsSlice {
   setFeedTextSize: (s: FeedTextSize) => void
   feedLimit: FeedLimit
   setFeedLimit: (n: FeedLimit) => void
-  /** Opt-in "gamification" card-analysis layer (off by default). Purely a UI
-   * preference — the map, alerts and threat logic never read it. */
+  /** Opt-in "gamification" card-analysis layer (off by default). Account-bound:
+   * hydrated from the signed-in user on login (authSlice) and persisted to the
+   * server on change, so it syncs across the user's devices. The map, alerts and
+   * threat logic never read it. */
   gamification: boolean
+  /** Toggle + persist to the account. */
   setGamification: (on: boolean) => void
+  /** Set the local state only (used to hydrate from the user on login). */
+  hydrateGamification: (on: boolean) => void
 }
 
 export const createPrefsSlice: StateCreator<RadarState, [], [], PrefsSlice> = (set) => ({
@@ -66,9 +72,10 @@ export const createPrefsSlice: StateCreator<RadarState, [], [], PrefsSlice> = (s
     safeSet(STORAGE_KEYS.feedLimit, String(n))
     set({ feedLimit: n })
   },
-  gamification: safeGet(STORAGE_KEYS.gamification) === '1',
+  gamification: false,
   setGamification: (on) => {
-    safeSet(STORAGE_KEYS.gamification, on ? '1' : '0')
     set({ gamification: on })
+    void setGamificationPref(on).catch(() => {})
   },
+  hydrateGamification: (on) => set({ gamification: on }),
 })

@@ -32,12 +32,23 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.20.1";
+const LATEST = "0.21.0";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "Гейміфікація — колекційні картки",
+    date: "2026-07-30",
+    kind: "minor",
+    changes: [
+      "Нова опція «Гейміфікація» в налаштуваннях (за бажанням, вимкнена за замовчуванням): аналізуй цілі на карті й збирай колекційні картки — невеликий спосіб легше давати раду тривозі",
+      "Клікни ціль на карті й натисни «Аналіз» (поки вона в польоті) або «Аналіз рештків» (коли збита чи загублена) — за кілька секунд випадає одна з 10 карток",
+      "Зібрані картки зберігаються в акаунті й синхронізуються між пристроями; рідкісні трапляються рідше, а в розділі «Колекція» є правила та підказки",
+    ],
+  },
+  {
+    version: "0.20.1",
     title: "Більше об'єктів на карті",
     date: "2026-07-29",
     kind: "patch",

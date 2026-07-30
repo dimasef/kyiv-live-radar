@@ -338,7 +338,13 @@ export interface AuthUser {
   role: string
   /** Linked sign-in methods: 'password' + any of 'google' | 'telegram'. */
   providers: string[]
+  /** Account-bound opt-in gamification toggle (synced across the user's devices). */
+  gamification: boolean
 }
+
+/** Persist the account-bound gamification toggle (see prefsSlice/authSlice). */
+export const setGamificationPref = (enabled: boolean) =>
+  send<{ enabled: boolean }>('/me/gamification', 'PUT', { enabled })
 
 /** Roles that carry admin access (service tools / admin routes). Mirrors the
  * backend models.ADMIN_ROLES — 'admin_g' is a manual admin variant. */

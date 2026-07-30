@@ -99,16 +99,27 @@ function lastSeenMs(threat: Threat): number {
   return t
 }
 
+/** A real localized weapon target — the only kind the mechanic ever engages
+ * (excludes city-wide banners and unclassified rows). */
+export function isAnalysableTarget(threat: Threat): boolean {
+  return threat.scope === 'district' && ANALYSABLE_TYPES.has(threat.target_type)
+}
+
+/** True once a target hasn't been seen for over 12h — its debris is "stale". */
+export function isStale(threat: Threat): boolean {
+  return Date.now() - lastSeenMs(threat) > STALE_MS
+}
+
 /** Which analysis (if any) the current lifecycle state of a target offers —
  * mirrors backend app/domain/cards.eligible_kind_for so the button never
  * appears for something the server would reject. A live target (unconfirmed /
  * tracking) offers 'track'; a target that's off the board — shot down, lost, or
  * already impacted — offers 'remains' (analyse the debris). Stale (>12h) and
- * dismissed → none. */
+ * dismissed → none (a stale target shows an inert "stale debris" label instead,
+ * see AnalyzeButton). */
 export function analysisKindFor(threat: Threat): AnalysisKind | null {
-  if (threat.scope !== 'district') return null
-  if (!ANALYSABLE_TYPES.has(threat.target_type)) return null
-  if (Date.now() - lastSeenMs(threat) > STALE_MS) return null
+  if (!isAnalysableTarget(threat)) return null
+  if (isStale(threat)) return null
   if (threat.status === 'unconfirmed' || threat.status === 'tracking') return 'track'
   if (threat.status === 'destroyed' || threat.status === 'lost' || threat.status === 'impact')
     return 'remains'

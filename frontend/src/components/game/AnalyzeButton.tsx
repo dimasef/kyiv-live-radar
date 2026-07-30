@@ -1,8 +1,8 @@
-import { Check, Loader2, Microscope } from 'lucide-react'
+import { Check, Clock, Loader2, Microscope } from 'lucide-react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { analysisKindFor } from '@/lib/cards'
+import { analysisKindFor, isAnalysableTarget, isStale } from '@/lib/cards'
 import { useRadar } from '@/store'
 import type { Threat } from '@/types'
 
@@ -26,7 +26,20 @@ export default function AnalyzeButton({ threat }: { threat: Threat }) {
     if (authed && kind) void ensureThreatState(threat.id).catch(() => {})
   }, [authed, kind, threat.id, ensureThreatState])
 
-  if (!authed || !kind) return null
+  if (!authed) return null
+
+  // A real target that's simply too old shows an inert "stale debris" label
+  // rather than an actionable button (mirrors the backend's 12h cutoff).
+  if (!kind) {
+    if (isAnalysableTarget(threat) && isStale(threat)) {
+      return (
+        <span className="flex items-center gap-1 rounded-full bg-white/[0.04] px-2 py-1 text-[11px] text-slate-500">
+          <Clock size={12} /> {t('game.stale')}
+        </span>
+      )
+    }
+    return null
+  }
 
   const taken = kind === 'track' ? state?.track_taken : state?.remains_taken
   const mine = kind === 'track' ? state?.mine_track : state?.mine_remains

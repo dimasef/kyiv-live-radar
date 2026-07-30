@@ -28,6 +28,8 @@ from ..schemas import (
     AnalyzeOut,
     CardCountOut,
     CollectionOut,
+    GamificationPrefIn,
+    GamificationPrefOut,
     ThreatAnalysisStateOut,
 )
 
@@ -100,6 +102,18 @@ async def threat_analysis_state(
             if r.user_id == user.id:
                 state.mine_remains = r.card_id
     return state
+
+
+@gamification_router.put("/me/gamification", response_model=GamificationPrefOut)
+async def set_gamification_pref(
+    body: GamificationPrefIn,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """Persist the account-bound gamification toggle so it syncs across devices."""
+    user.gamification = body.enabled
+    await session.commit()
+    return GamificationPrefOut(enabled=user.gamification)
 
 
 @gamification_router.get("/analysis/collection", response_model=CollectionOut)

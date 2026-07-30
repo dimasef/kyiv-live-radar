@@ -62,6 +62,7 @@ async def _user_out(session: AsyncSession, user: User) -> UserOut:
         avatar_url=user.avatar_url,
         role=user.role,
         providers=providers,
+        gamification=user.gamification,
     )
 
 
