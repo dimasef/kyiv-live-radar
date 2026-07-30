@@ -18,10 +18,20 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import or_
+
 from ..auth.deps import get_current_user
 from ..db import get_session
 from ..domain.cards import CARD_COUNT, STALE_AFTER, draw_card, eligible_kind_for
-from ..models import ANALYSIS_KINDS, Threat, ThreatAnalysis, ThreatEvent, User, utcnow
+from ..models import (
+    ANALYSIS_KINDS,
+    Friendship,
+    Threat,
+    ThreatAnalysis,
+    ThreatEvent,
+    User,
+    utcnow,
+)
 from ..timeutil import within
 from ..schemas import (
     AnalyzeIn,
@@ -116,11 +126,7 @@ async def set_gamification_pref(
     return GamificationPrefOut(enabled=user.gamification)
 
 
-@gamification_router.get("/analysis/collection", response_model=CollectionOut)
-async def my_collection(
-    session: AsyncSession = Depends(get_session),
-    user: User = Depends(get_current_user),
-):
+async def _collection_for(session: AsyncSession, user_id: int) -> CollectionOut:
     rows = (
         await session.execute(
             select(
@@ -128,7 +134,7 @@ async def my_collection(
                 func.count().label("count"),
                 func.min(ThreatAnalysis.created_at).label("first_at"),
             )
-            .where(ThreatAnalysis.user_id == user.id)
+            .where(ThreatAnalysis.user_id == user_id)
             .group_by(ThreatAnalysis.card_id)
             .order_by(ThreatAnalysis.card_id)
         )
@@ -139,3 +145,37 @@ async def my_collection(
         total_analyses=sum(c.count for c in cards),
         card_count=CARD_COUNT,
     )
+
+
+async def _are_friends(session: AsyncSession, a: int, b: int) -> bool:
+    edge = await session.scalar(
+        select(Friendship).where(
+            Friendship.status == "accepted",
+            or_(
+                (Friendship.requester_id == a) & (Friendship.addressee_id == b),
+                (Friendship.requester_id == b) & (Friendship.addressee_id == a),
+            ),
+        )
+    )
+    return edge is not None
+
+
+@gamification_router.get("/analysis/collection", response_model=CollectionOut)
+async def my_collection(
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    return await _collection_for(session, user.id)
+
+
+@gamification_router.get("/collection/{user_id}", response_model=CollectionOut)
+async def friend_collection(
+    user_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """Another user's collection — visible only to that user themselves or an
+    accepted friend (collections aren't public)."""
+    if user_id != user.id and not await _are_friends(session, user.id, user_id):
+        raise HTTPException(status_code=403, detail="Колекція доступна лише друзям")
+    return await _collection_for(session, user_id)

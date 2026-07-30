@@ -471,3 +471,6 @@ export const postAnalysis = (threatId: number, kind: AnalysisKind) =>
 export const fetchThreatAnalysisState = (threatId: number) =>
   get<ThreatAnalysisState>(`/analysis/threat/${threatId}`)
 export const fetchCollection = () => get<Collection>('/analysis/collection')
+/** A friend's collection (server 403s if not you or an accepted friend). */
+export const fetchUserCollection = (userId: number) =>
+  get<Collection>(`/collection/${userId}`)

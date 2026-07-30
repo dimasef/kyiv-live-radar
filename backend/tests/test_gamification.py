@@ -187,6 +187,25 @@ async def test_gamification_pref_persists_and_syncs(env):
     assert r.json()["gamification"] is True
 
 
+async def test_friend_collection_gated(env):
+    c, s = env
+    a = await _register(c, "a@x.com")
+    b = await _register(c, "b@x.com")
+    # ids: a=1, b=2 (fresh DB, registration order).
+    # Not friends → B can't see A's collection.
+    r = await c.get("/collection/1", headers=b)
+    assert r.status_code == 403
+    # Your own via the id route always works.
+    r = await c.get("/collection/2", headers=b)
+    assert r.status_code == 200
+    # Become friends (A requests, B accepts) → B can now see A's collection.
+    await c.post("/friends/requests", json={"email": "b@x.com"}, headers=a)
+    reqs = (await c.get("/friends/requests", headers=b)).json()["incoming"]
+    await c.post(f"/friends/requests/{reqs[0]['id']}/accept", headers=b)
+    r = await c.get("/collection/1", headers=b)
+    assert r.status_code == 200 and "cards" in r.json()
+
+
 async def test_requires_auth(env):
     c, s = env
     tid = await _new_threat(s)

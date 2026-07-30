@@ -2,10 +2,11 @@ import { Radar } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
+import Overlay from '@/components/common/Overlay'
 import { cardById } from '@/lib/cards'
 import { useRadar } from '@/store'
 
-import CardView from './CardView'
+import CardModal from './CardModal'
 
 /** Global gamification overlays, mounted once in the app shell so they survive
  * route changes while a 3–10s analysis runs: the scanning overlay while it
@@ -24,9 +25,9 @@ export default function AnalysisLayer() {
 function ScanningOverlay() {
   const { t } = useTranslation()
   const kind = useRadar((s) => s.analyzing?.kind)
-  // Deliberately NOT a full opaque/blurred block: an analysis runs up to 10s and
-  // must never hide the air-alert banner. A light scrim keeps the map (and any
-  // alert) readable underneath while the scan animates.
+  // Deliberately NOT a full opaque/blurred block, and pointer-events-none: an
+  // analysis runs up to 10s and must never hide the air-alert banner. A light
+  // scrim keeps the map (and any alert) readable underneath while it animates.
   return createPortal(
     <div className="pointer-events-none fixed inset-0 z-[3000] flex flex-col items-center justify-center gap-5 bg-ink-950/45">
       <div className="relative flex h-28 w-28 items-center justify-center">
@@ -52,36 +53,25 @@ function ResultModal() {
   const dismiss = useRadar((s) => s.dismissReveal)
 
   const card = reveal ? cardById(reveal.cardId) : undefined
+  if (card) {
+    return <CardModal card={card} caption={t('game.newCard')} onClose={dismiss} />
+  }
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[3000] flex items-center justify-center bg-ink-950/80 p-6 backdrop-blur-sm"
-      onClick={dismiss}
+  // A lost race / error — a short message, no card.
+  return (
+    <Overlay
+      onClose={dismiss}
+      className="rise w-full max-w-xs rounded-2xl border border-white/10 bg-ink-900 p-5 text-center shadow-2xl"
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="rise w-full max-w-xs rounded-2xl border border-white/10 bg-ink-900 p-5 text-center shadow-2xl"
+      <p className="py-2 text-sm text-slate-300">
+        {claimError === 'taken' ? t('game.takenBody') : t('game.errorBody')}
+      </p>
+      <button
+        onClick={dismiss}
+        className="mt-3 w-full rounded-lg border border-phosphor/25 bg-phosphor/[0.08] px-4 py-2 text-sm text-phosphor-soft transition-colors hover:border-phosphor/40"
       >
-        {card ? (
-          <>
-            <p className="panel-title mb-3">{t('game.newCard')}</p>
-            <div className="flex justify-center">
-              <CardView card={card} animated showFlavor width={255} height={310} />
-            </div>
-          </>
-        ) : (
-          <p className="py-4 text-sm text-slate-300">
-            {claimError === 'taken' ? t('game.takenBody') : t('game.errorBody')}
-          </p>
-        )}
-        <button
-          onClick={dismiss}
-          className="mt-4 w-full rounded-lg border border-phosphor/25 bg-phosphor/[0.08] px-4 py-2 text-sm text-phosphor-soft transition-colors hover:border-phosphor/40"
-        >
-          {t('game.close')}
-        </button>
-      </div>
-    </div>,
-    document.body,
+        {t('game.close')}
+      </button>
+    </Overlay>
   )
 }

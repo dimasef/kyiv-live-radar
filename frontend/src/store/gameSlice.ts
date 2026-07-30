@@ -12,11 +12,14 @@ import {
 
 import type { RadarState } from './types'
 
-/** How long the "analysing…" animation runs before the card drops — a random
- * 3–10s, per the design (the suspense IS the point; keep it passive so the user
- * can put the phone down). */
+// The "analysing…" animation runs a random time in this window before the card
+// drops — the suspense IS the point; keep it passive so the user can put the
+// phone down. (Design: 3–10s.)
+const ANALYSIS_MIN_MS = 3000
+const ANALYSIS_MAX_MS = 10000
+
 function analysisDelayMs(): number {
-  return 3000 + Math.floor(Math.random() * 7001)
+  return ANALYSIS_MIN_MS + Math.floor(Math.random() * (ANALYSIS_MAX_MS - ANALYSIS_MIN_MS + 1))
 }
 
 export interface GameSlice {

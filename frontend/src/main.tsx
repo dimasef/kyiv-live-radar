@@ -7,6 +7,7 @@ import {
   ACCOUNT_PATH,
   CHANGELOG_PATH,
   isAdminRoute,
+  isCollectionRoute,
   THREAT_JOURNAL_PATH,
   useRoute,
 } from './router'
@@ -16,6 +17,7 @@ import {
 // on demand — faster first paint, which matters most on a phone at night.
 const AdminPage = lazy(() => import('./components/admin/AdminPage'))
 const AccountPage = lazy(() => import('./components/auth/AccountPage'))
+const CollectionPage = lazy(() => import('./components/game/CollectionPage'))
 const ChangelogPage = lazy(() => import('./components/changelog/ChangelogPage'))
 const ThreatJournalPage = lazy(() => import('./components/journal/ThreatJournalPage'))
 import { useRadar } from './store'
@@ -55,6 +57,8 @@ function Root() {
       <AdminPage />
     ) : route === ACCOUNT_PATH ? (
       <AccountPage />
+    ) : isCollectionRoute(route) ? (
+      <CollectionPage />
     ) : (
       <App />
     )

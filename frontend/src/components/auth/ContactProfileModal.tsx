@@ -1,4 +1,4 @@
-import { Trash2, X } from 'lucide-react'
+import { Layers, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
@@ -14,6 +14,7 @@ import {
   type ContactStyle,
 } from '@/lib/contactMarker'
 import { useDismissTransition } from '@/lib/useDismissTransition'
+import { collectionPath, navigate } from '@/router'
 import { useRadar } from '@/store'
 
 import MarkerGlyph from './MarkerGlyph'
@@ -38,6 +39,7 @@ export default function ContactProfileModal({
   const toggleHome = useRadar((s) => s.toggleContactHome)
   const setStyle = useRadar((s) => s.setContactStyle)
   const hidden = useRadar((s) => s.hiddenHomeIds.includes(contact.id))
+  const gamification = useRadar((s) => s.gamification)
   const style = contactStyleOf(useRadar((s) => s.contactStyles[contact.id]))
   const [asking, setAsking] = useState(false)
   const sharesHome = contact.home != null
@@ -98,9 +100,21 @@ export default function ContactProfileModal({
           )}
         </div>
 
+        {gamification && (
+          <button
+            onClick={() => {
+              navigate(collectionPath(contact.id))
+              close()
+            }}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-phosphor/25 bg-phosphor/[0.06] px-4 py-2 text-sm text-phosphor-soft transition-colors hover:border-phosphor/40"
+          >
+            <Layers size={15} /> Колекція карток
+          </button>
+        )}
+
         <button
           onClick={() => setAsking(true)}
-          className="mt-6 flex w-full items-center justify-center gap-2 rounded-lg border border-red-400/25 bg-red-400/[0.05] px-4 py-2 text-sm text-red-300 transition-colors hover:border-red-400/40"
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-red-400/25 bg-red-400/[0.05] px-4 py-2 text-sm text-red-300 transition-colors hover:border-red-400/40"
         >
           <Trash2 size={15} /> {t('friends.remove')}
         </button>

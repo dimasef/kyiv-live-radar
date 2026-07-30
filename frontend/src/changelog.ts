@@ -32,12 +32,24 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.21.0";
+const LATEST = "0.22.0";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "Колекція карток: більше, окрема сторінка, друзі",
+    date: "2026-07-30",
+    kind: "minor",
+    changes: [
+      "Колекція виросла до 22 карток із новими тирами рідкості — Епічні й найрідкісніша Вічна «Кінець Війни» (~1 на 1000 аналізів)",
+      "Окрема сторінка «Колекція» з фільтрами за рідкістю; тап по картці відкриває її з описом",
+      "Можна переглядати колекції друзів — із профілю контакта",
+      "Меню акаунта: тап по аватару відкриває опції (на телефоні — панель знизу), а профіль оновлено й показує прогрес колекції",
+    ],
+  },
+  {
+    version: "0.21.0",
     title: "Гейміфікація — колекційні картки",
     date: "2026-07-30",
     kind: "minor",

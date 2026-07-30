@@ -58,3 +58,24 @@ export function adminTabFromPath(path: string): AdminTab {
 }
 // Signed-in user's account page (profile, linked providers, sign-out).
 export const ACCOUNT_PATH = '/account'
+
+// Collectible-card collection. `/collection` shows your own; `/collection/<id>`
+// shows a friend's (server gates it to accepted friends).
+export const COLLECTION_PATH = '/collection'
+
+/** True for the collection route (own or a friend's). */
+export function isCollectionRoute(path: string): boolean {
+  return path === COLLECTION_PATH || path.startsWith(`${COLLECTION_PATH}/`)
+}
+
+/** The friend user id in `/collection/<id>`, or null for your own collection. */
+export function collectionUserId(path: string): number | null {
+  if (!path.startsWith(`${COLLECTION_PATH}/`)) return null
+  const id = Number(path.slice(COLLECTION_PATH.length + 1))
+  return Number.isInteger(id) && id > 0 ? id : null
+}
+
+/** URL for a user's collection ('own' = your own). */
+export function collectionPath(userId?: number): string {
+  return userId ? `${COLLECTION_PATH}/${userId}` : COLLECTION_PATH
+}

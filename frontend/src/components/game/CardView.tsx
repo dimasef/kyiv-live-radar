@@ -1,24 +1,24 @@
 import type { CSSProperties } from 'react'
 
+import { cardPlateHtml } from '@/lib/cardPlate'
 import { RARITY_STYLE, type CardDef } from '@/lib/cards'
 
-import CardGlyph from './CardGlyph'
-
 /** One collectible card, faithful to the Claude Design "Collectible Cards" mock:
- * a rarity-tinted frame with a radar glyph plate (scanline + ring + glyph).
+ * a rarity-tinted frame + the card's own 148px glyph plate (injected from
+ * cardGlyphs.ts). `locked` hides the identity entirely — no rarity, no title,
+ * an indeterminate "?" instead of the glyph. `count` shows a duplicate badge.
+ * `animated` runs the plate animations; `showFlavor` adds the description.
  *
- * `locked` keeps the frame but hides the identity entirely — no rarity, no
- * title, and an INDETERMINATE mark ("?") instead of the card's own glyph, so an
- * unearned card gives nothing away. `count` shows a duplicate badge when >1.
- * `animated` runs the radar sweep — ONLY the popped-up card animates; grid tiles
- * stay still. `showFlavor` adds the description line. `width`/`height` fix the
- * card size (the glyph plate flexes to fill) — used by the popped-up modal. */
+ * `variant`: 'tile' (grid) clamps title/flavor to a reserved height so every
+ * card matches; 'full' (the popped-up card, given a fixed `width`/`height`)
+ * flows naturally. */
 export default function CardView({
   card,
   locked = false,
   count = 0,
   animated = false,
   showFlavor = false,
+  variant = 'tile',
   width,
   height,
 }: {
@@ -27,6 +27,7 @@ export default function CardView({
   count?: number
   animated?: boolean
   showFlavor?: boolean
+  variant?: 'tile' | 'full'
   width?: number
   height?: number
 }) {
@@ -35,7 +36,8 @@ export default function CardView({
   const glow = locked ? 'transparent' : s.glow
   const tint = locked ? 'rgba(148,163,184,.04)' : s.tint
   const border = locked ? 'rgba(255,255,255,.06)' : s.border
-  const filled = height != null // plate flexes to fill a fixed-height card
+  const animatedDot = !locked && (card.rarity === 'legendary' || card.rarity === 'epic' || card.rarity === 'eternal')
+  const grid = variant === 'tile'
 
   const vars = { '--rc': rc, '--glow': glow, '--tint': tint, '--bd': border } as CSSProperties
 
@@ -53,22 +55,10 @@ export default function CardView({
           : `0 22px 46px -25px #000, 0 0 34px -15px ${s.glow}`,
       }}
     >
-      {count > 1 && (
-        <span
-          className="absolute right-2.5 top-2.5 z-10 rounded-full px-1.5 py-0.5 font-mono text-[10px] font-semibold text-ink-950"
-          style={{ background: s.rc }}
-        >
-          ×{count}
-        </span>
-      )}
-
       {/* Top rarity rule */}
       <div
         className="h-0.5 flex-none"
-        style={{
-          background: `linear-gradient(90deg,transparent,${rc},transparent)`,
-          opacity: locked ? 0.4 : s.topOpacity,
-        }}
+        style={{ background: `linear-gradient(90deg,transparent,${rc},transparent)`, opacity: locked ? 0.4 : s.topOpacity }}
       />
 
       {/* Header: card number + rarity pill */}
@@ -81,43 +71,50 @@ export default function CardView({
           style={{ borderColor: border, background: tint, color: rc }}
         >
           <i
-            className={`h-[5px] w-[5px] rounded-full ${!locked && card.rarity === 'legendary' ? 'card-legdot' : ''}`}
+            className={`h-[5px] w-[5px] rounded-full ${animatedDot ? 'card-legdot' : ''}`}
             style={{ background: rc, boxShadow: locked || card.rarity === 'common' ? 'none' : `0 0 7px ${rc}` }}
           />
           {locked ? '???' : s.label}
         </span>
       </div>
 
-      {/* Glyph plate */}
-      <div
-        className={`relative m-3.5 flex items-center justify-center overflow-hidden rounded-xl border border-white/[0.06] ${filled ? 'min-h-0 flex-1' : ''}`}
-        style={{
-          ...(filled ? {} : { height: 148 }),
-          background: `radial-gradient(120% 90% at 50% 30%, ${tint}, ${locked ? '#080b0f' : s.plateEnd} 72%)`,
-        }}
-      >
-        <div className="absolute inset-0 bg-[repeating-linear-gradient(0deg,rgba(255,255,255,.035)_0_1px,transparent_1px_4px)]" />
-        <div className="absolute h-[118px] w-[118px] rounded-full border border-white/5" />
-        {!locked && animated && (
-          <div
-            className="card-sweep absolute inset-x-0 h-11"
-            style={{ background: `linear-gradient(180deg,transparent,${rc},transparent)`, opacity: 0.1 }}
-          />
-        )}
-        {locked ? (
-          <span className="relative select-none font-mono text-6xl font-light text-slate-700">?</span>
-        ) : (
-          <CardGlyph id={card.id} size={70} />
-        )}
-      </div>
+      {/* Glyph plate — injected from the mock, or an indeterminate placeholder */}
+      {locked ? (
+        <div
+          className="relative m-3.5 flex flex-1 items-center justify-center overflow-hidden rounded-xl border border-white/[0.06]"
+          style={{ minHeight: 148, background: 'radial-gradient(120% 90% at 50% 30%, rgba(148,163,184,.04), #080b0f 72%)' }}
+        >
+          <div className="absolute inset-0 bg-[repeating-linear-gradient(0deg,rgba(255,255,255,.035)_0_1px,transparent_1px_4px)]" />
+          <div className="absolute h-[118px] w-[118px] rounded-full border border-white/5" />
+          <span className="relative select-none font-display text-6xl font-bold text-slate-700">?</span>
+        </div>
+      ) : (
+        <div
+          className="contents"
+          dangerouslySetInnerHTML={{ __html: cardPlateHtml(card.id, { animated, count }) }}
+        />
+      )}
 
-      {/* Title (+ flavor only in the popped-up view) */}
+      {/* Title + flavor. In the grid (no fixed height) both are clamped to a
+          reserved line count so every card is the exact same height, whatever the
+          name/description length. The popped-up card (fixed height) flows freely. */}
       <div className="flex-none px-4 pb-4 pt-0.5">
-        <h3 className="font-display text-base font-bold leading-tight text-slate-100">
+        <h3
+          className={`font-display text-base font-bold leading-tight text-slate-100 ${
+            grid ? 'line-clamp-2 min-h-[2.35em]' : ''
+          }`}
+        >
           {locked ? <span className="text-slate-600">???</span> : card.title}
         </h3>
-        {showFlavor && !locked && (
-          <p className="mt-1.5 text-[12.5px] leading-relaxed text-slate-400">{card.flavor}</p>
+        {showFlavor && (grid || !locked) && (
+          <p
+            className={`mt-1.5 text-[12.5px] leading-snug text-slate-400 ${
+              grid ? 'line-clamp-2 min-h-[2.6em]' : ''
+            }`}
+          >
+            {/* Locked cards keep the reserved space (equal height) but reveal nothing. */}
+            {locked ? '' : card.flavor}
+          </p>
         )}
       </div>
     </article>

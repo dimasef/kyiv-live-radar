@@ -22,11 +22,13 @@ STALE_AFTER = timedelta(hours=12)
 
 # Number of distinct collectible cards. MUST match the length of the frontend
 # catalog in frontend/src/lib/cards.ts.
-CARD_COUNT = 10
+CARD_COUNT = 22
 
-# Relative drop weight per rarity — higher = more likely. A common is 6× as
-# likely as a legendary. Target type never biases the drop; only card rarity.
-RARITY_WEIGHT = {"common": 6, "rare": 3, "legendary": 1}
+# Relative drop weight per rarity — higher = more likely. Target type never
+# biases the drop; only card rarity. Tuned so the weighted sum over the whole
+# deck is exactly 1000 (9×83 + 6×34 + 3×12 + 3×4 + 1×1), making 'eternal'
+# («Кінець Війни») a clean 1-in-1000 drop. MUST cover every rarity in CARD_RARITY.
+RARITY_WEIGHT = {"common": 83, "rare": 34, "legendary": 12, "epic": 4, "eternal": 1}
 
 # Each card's rarity, by id — MUST mirror the `rarity` field of the frontend
 # catalog (frontend/src/lib/cards.ts). Kept here so the weighted draw needs no
@@ -34,7 +36,10 @@ RARITY_WEIGHT = {"common": 6, "rare": 3, "legendary": 1}
 # id absent here falls back to 'common'.
 CARD_RARITY = {
     1: "common", 2: "legendary", 3: "rare", 4: "common", 5: "rare",
-    6: "common", 7: "legendary", 8: "rare", 9: "common", 10: "legendary",
+    6: "common", 7: "legendary", 8: "rare", 9: "rare", 10: "rare",
+    11: "epic", 12: "epic", 13: "epic", 14: "eternal", 15: "common",
+    16: "common", 17: "common", 18: "legendary", 19: "rare", 20: "common",
+    21: "common", 22: "common",
 }
 
 _CARD_IDS = list(range(1, CARD_COUNT + 1))

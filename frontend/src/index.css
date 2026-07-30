@@ -210,6 +210,17 @@ body::after {
     opacity: 1;
   }
 }
+@keyframes card-dawn {
+  0%,
+  100% {
+    opacity: 0.75;
+    transform: translateX(-50%) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.06);
+  }
+}
 .card-sweep {
   animation: card-sweep 4.6s linear infinite;
 }

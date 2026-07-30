@@ -6,6 +6,7 @@
   "nav": {
     "map": "Map",
     "journal": "Journal",
+    "collection": "Collection",
     "account": "Account",
     "raw": "Raw feed",
     "admin": "Admin",
