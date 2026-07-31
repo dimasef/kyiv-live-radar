@@ -11,6 +11,7 @@ import CardModal from '../CardModal'
 import CardGrid from './CardGrid'
 import RarityTabs, { type Tab } from './RarityTabs'
 import RulesModal from './RulesModal'
+import { useNewCards } from './useNewCards'
 
 /** Dedicated «Колекція» page with rarity tabs. Shows your own collection
  * (`/collection`) or a friend's (`/collection/<id>`, server-gated to friends). */
@@ -21,6 +22,7 @@ export default function CollectionPage() {
   const myCollection = useRadar((s) => s.collection)
   const loadCollection = useRadar((s) => s.loadCollection)
   const friends = useRadar((s) => s.friends)
+  const myUserId = useRadar((s) => s.user?.id ?? null)
 
   const [friendCol, setFriendCol] = useState<Collection | null>(null)
   const [denied, setDenied] = useState(false)
@@ -40,6 +42,12 @@ export default function CollectionPage() {
       void loadCollection().catch(() => {})
     }
   }, [friendId, authed, myCollection, loadCollection])
+
+  // Only your own freshly-obtained cards shimmer, and only the first time you
+  // open the collection after the drop (see useNewCards).
+  const isOwn = friendId == null
+  const ownedIds = isOwn ? (myCollection?.cards.map((c) => c.card_id) ?? []) : []
+  const newIds = useNewCards(myUserId, ownedIds, isOwn && myCollection != null)
 
   if (!authed) return <Centered>Ви не увійшли.</Centered>
   if (friendId != null && denied) return <Centered>Колекція доступна лише друзям.</Centered>
@@ -83,7 +91,7 @@ export default function CollectionPage() {
         </header>
 
         <RarityTabs tab={tab} onSelect={setTab} counts={counts} total={total} />
-        <CardGrid cards={visible} counts={counts} onSelect={setSelected} />
+        <CardGrid cards={visible} counts={counts} newIds={newIds} onSelect={setSelected} />
       </div>
 
       {selected && (

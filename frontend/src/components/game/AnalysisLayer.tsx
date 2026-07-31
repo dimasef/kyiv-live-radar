@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import Overlay from '@/components/common/Overlay'
 import { cardById } from '@/lib/cards'
+import { COLLECTION_PATH, navigate } from '@/router'
 import { useRadar } from '@/store'
 
 import CardModal from './CardModal'
@@ -53,8 +54,20 @@ function ResultModal() {
   const dismiss = useRadar((s) => s.dismissReveal)
 
   const card = reveal ? cardById(reveal.cardId) : undefined
-  if (card) {
-    return <CardModal card={card} caption={t('game.newCard')} onClose={dismiss} />
+  if (card && reveal) {
+    const toCollection = () => {
+      dismiss()
+      navigate(COLLECTION_PATH)
+    }
+    return (
+      <CardModal
+        card={card}
+        count={reveal.count}
+        caption={reveal.isNew ? t('game.newCard') : t('game.dupCard')}
+        action={{ label: t('game.toCollection'), onClick: toCollection }}
+        onClose={dismiss}
+      />
+    )
   }
 
   // A lost race / error — a short message, no card.

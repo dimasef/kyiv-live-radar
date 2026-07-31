@@ -32,12 +32,24 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.22.0";
+const LATEST = "0.22.1";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "Оновлені картки колекції",
+    date: "2026-07-31",
+    kind: "patch",
+    changes: [
+      "Оновлений дизайн колекційних карток; колода виросла до 28 — додалися нові картки й тепер вони відсортовані та пронумеровані за рідкістю",
+      "Ще не зібрані картки мають окремий вигляд «Не відкрито» у кольорі своєї рідкості",
+      "Нові картки при першому відкритті колекції підсвічуються переливом",
+      "Після аналізу видно, чи картка нова, чи така вже була, і можна одразу перейти до колекції",
+    ],
+  },
+  {
+    version: "0.22.0",
     title: "Колекція карток: більше, окрема сторінка, друзі",
     date: "2026-07-30",
     kind: "minor",

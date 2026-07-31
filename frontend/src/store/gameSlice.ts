@@ -29,8 +29,10 @@ export interface GameSlice {
   threatStates: Record<number, ThreatAnalysisState>
   /** The analysis currently running (drives the scanning overlay), or null. */
   analyzing: { threatId: number; kind: AnalysisKind } | null
-  /** A freshly-won card to show in the reveal modal, or null. */
-  reveal: { cardId: number; kind: AnalysisKind } | null
+  /** A freshly-won card to show in the reveal modal, or null. `isNew` is false
+   * when the user already owned a copy (a duplicate); `count` is the resulting
+   * total copies, so the reveal can badge and caption it accordingly. */
+  reveal: { cardId: number; kind: AnalysisKind; isNew: boolean; count: number } | null
   /** Why the last claim failed: 'taken' (someone won it first) or 'error'. */
   claimError: 'taken' | 'error' | null
 
@@ -73,7 +75,13 @@ export const createGameSlice: StateCreator<RadarState, [], [], GameSlice> = (set
 
     try {
       const res = await postAnalysis(threatId, kind)
-      set({ analyzing: null, reveal: { cardId: res.card_id, kind } })
+      // The collection here is still the pre-win snapshot (loadCollection below
+      // hasn't resolved), so it tells us whether this card was already owned.
+      const had = get().collection?.cards.find((c) => c.card_id === res.card_id)
+      set({
+        analyzing: null,
+        reveal: { cardId: res.card_id, kind, isNew: !had, count: (had?.count ?? 0) + 1 },
+      })
       void get().loadCollection().catch(() => {})
     } catch (e) {
       const taken = e instanceof ApiError && e.status === 409

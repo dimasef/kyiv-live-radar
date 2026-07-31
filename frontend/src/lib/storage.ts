@@ -23,6 +23,9 @@ export const STORAGE_KEYS = {
   authRefresh: 'klr-auth',
   // Whether the opt-in "gamification" card-analysis layer is on (off by default).
   gamification: 'klr-gamification',
+  // Card ids the user has already seen in their collection, keyed by user id
+  // ({ [userId]: number[] }) — drives the one-time "just obtained" shimmer.
+  seenCards: 'klr-seen-cards',
 } as const
 
 /** Reads a localStorage value, swallowing errors (private-browsing/quota/etc.

@@ -7,10 +7,13 @@ import CardView from '../CardView'
 export default function CardGrid({
   cards,
   counts,
+  newIds,
   onSelect,
 }: {
   cards: CardDef[]
   counts: Map<number, number>
+  /** Card ids that should play the one-time "just obtained" shimmer. */
+  newIds?: Set<number>
   onSelect: (card: CardDef) => void
 }) {
   return (
@@ -18,7 +21,9 @@ export default function CardGrid({
       {cards.map((card) => {
         const count = counts.get(card.id)
         const locked = count == null
-        const tile = <CardView card={card} locked={locked} count={count ?? 0} showFlavor />
+        const tile = (
+          <CardView card={card} locked={locked} count={count ?? 0} isNew={newIds?.has(card.id)} showFlavor />
+        )
         return locked ? (
           <div key={card.id}>{tile}</div>
         ) : (

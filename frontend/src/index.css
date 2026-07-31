@@ -213,12 +213,117 @@ body::after {
 @keyframes card-dawn {
   0%,
   100% {
-    opacity: 0.75;
+    opacity: 0.55;
     transform: translateX(-50%) scale(1);
   }
   50% {
+    opacity: 0.9;
+    transform: translateX(-50%) scale(1.05);
+  }
+}
+/* «Кінець Війни» (eternal) — the slow twin solar flares behind the glyph and
+   the pulsing frame glow. Applied on the popped-up card via CardView's
+   `animated` path (the eternalGlow on the article, the flares live in the
+   plate markup itself). */
+@keyframes card-solarFlare {
+  0% {
+    transform: translateX(-50%) rotate(0deg);
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateX(-50%) rotate(360deg);
+    opacity: 0.45;
+  }
+}
+@keyframes card-solarFlare2 {
+  0% {
+    transform: translateX(-50%) rotate(0deg);
+  }
+  100% {
+    transform: translateX(-50%) rotate(-360deg);
+  }
+}
+@keyframes card-eternalGlow {
+  0%,
+  100% {
+    box-shadow:
+      0 22px 46px -24px #000,
+      0 0 42px -14px rgba(239, 68, 68, 0.42),
+      0 0 78px -12px rgba(245, 197, 66, 0.16);
+  }
+  50% {
+    box-shadow:
+      0 22px 50px -22px #000,
+      0 0 66px -10px rgba(239, 68, 68, 0.62),
+      0 0 120px -6px rgba(245, 197, 66, 0.32);
+  }
+}
+/* A one-time iridescent shimmer sweep for cards the user has just obtained,
+   played the first time they open the collection after the drop (see
+   useNewCards + CardView). One pass, then it settles into the static frame. */
+@keyframes card-newShimmer {
+  0% {
+    transform: translateX(-140%) skewX(-18deg);
+    opacity: 0;
+  }
+  12% {
     opacity: 1;
-    transform: translateX(-50%) scale(1.06);
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(140%) skewX(-18deg);
+    opacity: 0;
+  }
+}
+@keyframes card-newPulse {
+  0%,
+  100% {
+    box-shadow:
+      0 22px 46px -25px #000,
+      0 0 0 1px var(--rc),
+      0 0 26px -6px var(--glow);
+  }
+  50% {
+    box-shadow:
+      0 22px 50px -22px #000,
+      0 0 0 1px var(--rc),
+      0 0 40px -2px var(--glow);
+  }
+}
+.card-new {
+  position: relative;
+  animation: card-newPulse 1.9s ease-in-out 2;
+}
+/* The travelling gloss band; sits above the card, clipped to its rounded frame.
+   `forwards` holds the final keyframe (off-screen, opacity 0) after the two
+   passes — without it the band would snap back to centred + fully opaque. */
+.card-new::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.14) 45%,
+    rgba(255, 255, 255, 0.42) 50%,
+    rgba(255, 255, 255, 0.14) 55%,
+    transparent 70%
+  );
+  animation: card-newShimmer 1.6s ease-in-out 2 forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-new,
+  .card-new::after {
+    animation: none;
   }
 }
 .card-sweep {
@@ -226,6 +331,10 @@ body::after {
 }
 .card-legdot {
   animation: card-legdot 2.4s ease-in-out infinite;
+}
+/* «Кінець Війни» frame glow — only on the popped-up (animated) card. */
+.card-eternal-anim {
+  animation: card-eternalGlow 4.6s ease-in-out infinite;
 }
 .radar {
   position: relative;

@@ -17,34 +17,43 @@ export interface CardDef {
   rarity: Rarity
 }
 
-/** The collectible deck (from the Claude Design "Collectible Cards" mock). `id`
- * MUST stay 1..N contiguous and in sync with the backend's CARD_COUNT
- * (app/domain/cards.py) — the server only stores the id. The per-card glyph
- * plate lives in cardGlyphs.ts, keyed by id. Rarity per id MUST match the
- * backend CARD_RARITY (drop weighting). Content is Ukrainian by design. */
+/** The collectible deck (from the Claude Design "Collectible Cards" v2 mock).
+ * `id` MUST stay 1..N contiguous and in sync with the backend's CARD_COUNT
+ * (app/domain/cards.py) — the server only stores the id. Cards are laid out in
+ * ascending rarity, and `id` equals the card's display № on the collection page
+ * (common 1–13, rare 14–20, legendary 21–24, epic 25–27, eternal 28). The
+ * per-card glyph plate lives in cardGlyphs.ts, keyed by id. Rarity per id MUST
+ * match the backend CARD_RARITY (drop weighting). Content is Ukrainian by
+ * design. */
 export const CARDS: CardDef[] = [
   { id: 1, rarity: 'common', title: "Тінь у небі", flavor: "Силует «шахеда» на тлі зірок. Чути — значить ще летить." },
-  { id: 2, rarity: 'legendary', title: "Крейсер Москва", flavor: "Сдавайтесь это русский военный корабль." },
-  { id: 3, rarity: 'rare', title: "Робота ППО", flavor: "Той звук, після якого стає легше дихати." },
-  { id: 4, rarity: 'common', title: "Уламки на світанку", flavor: "Те, що лишається від цілі, яка не долетіла." },
-  { id: 5, rarity: 'rare', title: "Відбій", flavor: "Найкраще слово ночі." },
-  { id: 6, rarity: 'common', title: "Нічна зміна", flavor: "Спотери, що не сплять, щоб ти міг заснути." },
-  { id: 7, rarity: 'legendary', title: "Ще 2-3 неділі", flavor: "Чесно? Да, Чесно!!!" },
-  { id: 8, rarity: 'rare', title: "Мобільна група", flavor: "Прожектор і кулемет проти дрона в темряві." },
-  { id: 9, rarity: 'rare', title: "Ешелон", flavor: "Коли їх «10х» і треба рахувати кожен." },
-  { id: 10, rarity: 'rare', title: "Чисте небо", flavor: "Рідкісна картка. Як і сам спокійний ранок." },
-  { id: 11, rarity: 'epic', title: "Патріот", flavor: "Ловить те, що вважали невловимим." },
-  { id: 12, rarity: 'epic', title: "F16", flavor: "Тепер небо охороняють і згори." },
-  { id: 13, rarity: 'epic', title: "Павутина", flavor: "Одне небо на всіх — і ніхто не сам." },
-  { id: 14, rarity: 'eternal', title: "Кінець Війни", flavor: "Коли звичайний день перетвориться в найкращий день в житті." },
-  { id: 15, rarity: 'common', title: "Сирена", flavor: "Звук, від якого прокидається все місто." },
-  { id: 16, rarity: 'common', title: "Дорозвідка", flavor: "Ще раз перевірити небо, перш ніж видихнути." },
-  { id: 17, rarity: 'common', title: "Гучно", flavor: "Коли чути навіть крізь навушники й закриті вікна." },
-  { id: 18, rarity: 'legendary', title: "Ізраїль за нас", flavor: "Треба допомагати Україні, а ви тільки пи*дите." },
-  { id: 19, rarity: 'rare', title: "Байрактар", flavor: "Найкращий пастух баранячих отар." },
-  { id: 20, rarity: 'common', title: "Бавовна", flavor: "Коли «десь щось» — а насправді все за планом." },
-  { id: 21, rarity: 'common', title: "2 стіни", flavor: "Правило, яке рятує життя під час обстрілу." },
-  { id: 22, rarity: 'common', title: "Пункт незламності", flavor: "Світло, тепло і чай, коли місто без струму." },
+  { id: 2, rarity: 'common', title: "Уламки", flavor: "Іноді уламки небезпечніші за цілі вироби." },
+  { id: 3, rarity: 'common', title: "Відбій", flavor: "Найкраще слово ночі." },
+  { id: 4, rarity: 'common', title: "Нічна зміна", flavor: "Спотери, що не сплять, щоб ти міг заснути." },
+  { id: 5, rarity: 'common', title: "Сирена", flavor: "Звук, від якого прокидається все місто." },
+  { id: 6, rarity: 'common', title: "Дорозвідка", flavor: "Ще раз перевірити небо, перш ніж видихнути." },
+  { id: 7, rarity: 'common', title: "Гучно", flavor: "Коли чути навіть крізь навушники й закриті вікна." },
+  { id: 8, rarity: 'common', title: "2 стіни", flavor: "Правило, яке рятує життя під час обстрілу." },
+  { id: 9, rarity: 'common', title: "Пункт незламності", flavor: "Світло, тепло і чай, коли місто без струму." },
+  { id: 10, rarity: 'common', title: "Фальш ціль", flavor: "Летить гучно, а всередині — порожньо." },
+  { id: 11, rarity: 'common', title: "Каб", flavor: "Сподіваюсь до нас таке не долетить." },
+  { id: 12, rarity: 'common', title: "Реактивний", flavor: "Воно як звичайне але трошки швидше." },
+  { id: 13, rarity: 'common', title: "Укриття", flavor: "Сьогодні знов не ночуємо вдома?" },
+  { id: 14, rarity: 'rare', title: "Робота ППО", flavor: "Те, на що ми покладаємо надії." },
+  { id: 15, rarity: 'rare', title: "Мобільна група", flavor: "Прожектор і кулемет проти дрона в темряві." },
+  { id: 16, rarity: 'rare', title: "Ешелон", flavor: "Коли їх «10х» і треба рахувати кожен." },
+  { id: 17, rarity: 'rare', title: "Байрактар", flavor: "Найкращий пастух баранячих отар." },
+  { id: 18, rarity: 'rare', title: "Бавовна", flavor: "Коли «десь щось» — а насправді все за планом." },
+  { id: 19, rarity: 'rare', title: "НПЗ", flavor: "Мені нравицця дивиться як воно горить." },
+  { id: 20, rarity: 'rare', title: "Wildberries", flavor: "Це лише ягідки..." },
+  { id: 21, rarity: 'legendary', title: "Крейсер Москва", flavor: "Сдавайтесь это русский военный корабль." },
+  { id: 22, rarity: 'legendary', title: "Ще 2-3 неділі", flavor: "Чесно? Да, Чесно!!!" },
+  { id: 23, rarity: 'legendary', title: "Карта для нападу", flavor: "«А я сейчас вам покажу, откуда на Беларусь готовилось нападение»." },
+  { id: 24, rarity: 'legendary', title: "Ізраїль за нас", flavor: "Треба допомагати Україні, а ви тільки пи*дите." },
+  { id: 25, rarity: 'epic', title: "Чорнобаївка", flavor: "Місце, звідки ворожа техніка вже не повертається." },
+  { id: 26, rarity: 'epic', title: "Павутина", flavor: "Коли до павучка потрапили великі метелики." },
+  { id: 27, rarity: 'epic', title: "Київ за 3 дня", flavor: "Не кажи гоп, поки не перескочиш." },
+  { id: 28, rarity: 'eternal', title: "Кінець Війни", flavor: "Коли звичайний день перетвориться в найкращий день в житті." },
 ]
 
 const BY_ID = new Map(CARDS.map((c) => [c.id, c]))
@@ -93,6 +102,17 @@ export const RARITY_STYLE: Record<Rarity, RarityStyle> = {
     topOpacity: 0.9, label: 'Вічна', plural: 'Вічні',
   },
 }
+
+/** The rarity accent as an "r, g, b" triplet, so callers can build `rgba(...)`
+ * at any alpha (the locked "Не відкрито" frame tints itself in the slot's
+ * rarity — see LockedCard). Derived once from each rarity's `rc` hex. */
+export const RARITY_RGB: Record<Rarity, string> = Object.fromEntries(
+  RARITIES.map((r) => {
+    const h = RARITY_STYLE[r].rc.replace('#', '')
+    const n = parseInt(h, 16)
+    return [r, `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`]
+  }),
+) as Record<Rarity, string>
 
 // --- Collection helpers (pure; shared by the collection page + account card) ---
 

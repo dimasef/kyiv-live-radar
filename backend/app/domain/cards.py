@@ -22,24 +22,29 @@ STALE_AFTER = timedelta(hours=12)
 
 # Number of distinct collectible cards. MUST match the length of the frontend
 # catalog in frontend/src/lib/cards.ts.
-CARD_COUNT = 22
+CARD_COUNT = 28
 
 # Relative drop weight per rarity — higher = more likely. Target type never
-# biases the drop; only card rarity. Tuned so the weighted sum over the whole
-# deck is exactly 1000 (9×83 + 6×34 + 3×12 + 3×4 + 1×1), making 'eternal'
-# («Кінець Війни») a clean 1-in-1000 drop. MUST cover every rarity in CARD_RARITY.
+# biases the drop; only card rarity. With the v2 deck (13 common / 7 rare /
+# 4 legendary / 3 epic / 1 eternal) the weighted sum is 1378
+# (13×83 + 7×34 + 4×12 + 3×4 + 1×1), so 'eternal' («Кінець Війни») is a ~1-in-
+# 1378 drop. MUST cover every rarity in CARD_RARITY.
 RARITY_WEIGHT = {"common": 83, "rare": 34, "legendary": 12, "epic": 4, "eternal": 1}
 
 # Each card's rarity, by id — MUST mirror the `rarity` field of the frontend
-# catalog (frontend/src/lib/cards.ts). Kept here so the weighted draw needs no
+# catalog (frontend/src/lib/cards.ts). Cards are laid out in ascending rarity
+# and `id` equals the display №. Kept here so the weighted draw needs no
 # per-card table on the frontend; the frontend still owns all art/copy. A card
 # id absent here falls back to 'common'.
 CARD_RARITY = {
-    1: "common", 2: "legendary", 3: "rare", 4: "common", 5: "rare",
-    6: "common", 7: "legendary", 8: "rare", 9: "rare", 10: "rare",
-    11: "epic", 12: "epic", 13: "epic", 14: "eternal", 15: "common",
-    16: "common", 17: "common", 18: "legendary", 19: "rare", 20: "common",
-    21: "common", 22: "common",
+    1: "common", 2: "common", 3: "common", 4: "common", 5: "common",
+    6: "common", 7: "common", 8: "common", 9: "common", 10: "common",
+    11: "common", 12: "common", 13: "common",
+    14: "rare", 15: "rare", 16: "rare", 17: "rare", 18: "rare",
+    19: "rare", 20: "rare",
+    21: "legendary", 22: "legendary", 23: "legendary", 24: "legendary",
+    25: "epic", 26: "epic", 27: "epic",
+    28: "eternal",
 }
 
 _CARD_IDS = list(range(1, CARD_COUNT + 1))

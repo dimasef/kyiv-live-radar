@@ -191,6 +191,8 @@
     "scanningRemains": "Analysing debris…",
     "scanningHint": "This takes a few seconds",
     "newCard": "New card",
+    "dupCard": "Already have it",
+    "toCollection": "To collection",
     "takenBody": "Someone else already analysed this target.",
     "errorBody": "Could not finish the analysis. Please try again.",
     "close": "Done"
