@@ -336,6 +336,31 @@ body::after {
 .card-eternal-anim {
   animation: card-eternalGlow 4.6s ease-in-out infinite;
 }
+/* Golden glow on the «Нова картка» reveal caption (a NEW card only — a
+   duplicate keeps the plain neutral caption). */
+@keyframes card-goldGlow {
+  0%,
+  100% {
+    text-shadow:
+      0 0 8px rgba(250, 204, 21, 0.45),
+      0 0 3px rgba(250, 204, 21, 0.7);
+  }
+  50% {
+    text-shadow:
+      0 0 16px rgba(250, 204, 21, 0.8),
+      0 0 6px rgba(250, 204, 21, 1);
+  }
+}
+.card-reveal-gold {
+  color: #facc15;
+  animation: card-goldGlow 1.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-reveal-gold {
+    animation: none;
+    text-shadow: 0 0 8px rgba(250, 204, 21, 0.6);
+  }
+}
 .radar {
   position: relative;
   border-radius: 9999px;

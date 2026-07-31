@@ -17,11 +17,11 @@ export interface CardDef {
   rarity: Rarity
 }
 
-/** The collectible deck (from the Claude Design "Collectible Cards" v2 mock).
+/** The collectible deck (from the Claude Design "Collectible Cards" v3 mock).
  * `id` MUST stay 1..N contiguous and in sync with the backend's CARD_COUNT
  * (app/domain/cards.py) — the server only stores the id. Cards are laid out in
  * ascending rarity, and `id` equals the card's display № on the collection page
- * (common 1–13, rare 14–20, legendary 21–24, epic 25–27, eternal 28). The
+ * (common 1–15, rare 16–23, legendary 24–28, epic 29–31, eternal 32). The
  * per-card glyph plate lives in cardGlyphs.ts, keyed by id. Rarity per id MUST
  * match the backend CARD_RARITY (drop weighting). Content is Ukrainian by
  * design. */
@@ -39,21 +39,25 @@ export const CARDS: CardDef[] = [
   { id: 11, rarity: 'common', title: "Каб", flavor: "Сподіваюсь до нас таке не долетить." },
   { id: 12, rarity: 'common', title: "Реактивний", flavor: "Воно як звичайне але трошки швидше." },
   { id: 13, rarity: 'common', title: "Укриття", flavor: "Сьогодні знов не ночуємо вдома?" },
-  { id: 14, rarity: 'rare', title: "Робота ППО", flavor: "Те, на що ми покладаємо надії." },
-  { id: 15, rarity: 'rare', title: "Мобільна група", flavor: "Прожектор і кулемет проти дрона в темряві." },
-  { id: 16, rarity: 'rare', title: "Ешелон", flavor: "Коли їх «10х» і треба рахувати кожен." },
-  { id: 17, rarity: 'rare', title: "Байрактар", flavor: "Найкращий пастух баранячих отар." },
-  { id: 18, rarity: 'rare', title: "Бавовна", flavor: "Коли «десь щось» — а насправді все за планом." },
-  { id: 19, rarity: 'rare', title: "НПЗ", flavor: "Мені нравицця дивиться як воно горить." },
-  { id: 20, rarity: 'rare', title: "Wildberries", flavor: "Це лише ягідки..." },
-  { id: 21, rarity: 'legendary', title: "Крейсер Москва", flavor: "Сдавайтесь это русский военный корабль." },
-  { id: 22, rarity: 'legendary', title: "Ще 2-3 неділі", flavor: "Чесно? Да, Чесно!!!" },
-  { id: 23, rarity: 'legendary', title: "Карта для нападу", flavor: "«А я сейчас вам покажу, откуда на Беларусь готовилось нападение»." },
-  { id: 24, rarity: 'legendary', title: "Ізраїль за нас", flavor: "Треба допомагати Україні, а ви тільки пи*дите." },
-  { id: 25, rarity: 'epic', title: "Чорнобаївка", flavor: "Місце, звідки ворожа техніка вже не повертається." },
-  { id: 26, rarity: 'epic', title: "Павутина", flavor: "Коли до павучка потрапили великі метелики." },
-  { id: 27, rarity: 'epic', title: "Київ за 3 дня", flavor: "Не кажи гоп, поки не перескочиш." },
-  { id: 28, rarity: 'eternal', title: "Кінець Війни", flavor: "Коли звичайний день перетвориться в найкращий день в житті." },
+  { id: 14, rarity: 'common', title: "Міг у повітрі", flavor: "Щоб тебе підняло да гепнуло!" },
+  { id: 15, rarity: 'common', title: "Конус Маха", flavor: "Летить і бахає, летить і багає." },
+  { id: 16, rarity: 'rare', title: "Робота ППО", flavor: "Те, на що ми покладаємо надії." },
+  { id: 17, rarity: 'rare', title: "Мобільна група", flavor: "Прожектор і кулемет проти дрона в темряві." },
+  { id: 18, rarity: 'rare', title: "Ешелон", flavor: "Коли їх «10х» і треба рахувати кожен." },
+  { id: 19, rarity: 'rare', title: "Байрактар", flavor: "Найкращий пастух баранячих отар." },
+  { id: 20, rarity: 'rare', title: "Бавовна", flavor: "Коли «десь щось» — а насправді все за планом." },
+  { id: 21, rarity: 'rare', title: "НПЗ", flavor: "Мені нравицця дивиться як воно горить." },
+  { id: 22, rarity: 'rare', title: "Wildberries", flavor: "Це лише ягідки..." },
+  { id: 23, rarity: 'rare', title: "Хаймарс", flavor: "Дайте два!" },
+  { id: 24, rarity: 'legendary', title: "Крейсер Москва", flavor: "Сдавайтесь это русский военный корабль." },
+  { id: 25, rarity: 'legendary', title: "Ще 2-3 неділі", flavor: "Чесно? Да, Чесно!!!" },
+  { id: 26, rarity: 'legendary', title: "Карта для нападу", flavor: "«А я сейчас вам покажу, откуда на Беларусь готовилось нападение»." },
+  { id: 27, rarity: 'legendary', title: "Ізраїль за нас", flavor: "Треба допомагати Україні, а ви тільки пи*дите." },
+  { id: 28, rarity: 'legendary', title: "Народний Спутник", flavor: "Ай сіі юю." },
+  { id: 29, rarity: 'epic', title: "Чорнобаївка", flavor: "Місце, звідки ворожа техніка вже не повертається." },
+  { id: 30, rarity: 'epic', title: "Павутина", flavor: "Коли до павучка потрапили великі метелики." },
+  { id: 31, rarity: 'epic', title: "Київ за 3 дня", flavor: "Не кажи гоп, поки не перескочиш." },
+  { id: 32, rarity: 'eternal', title: "Кінець Війни", flavor: "Коли звичайний день перетвориться в найкращий день в житті." },
 ]
 
 const BY_ID = new Map(CARDS.map((c) => [c.id, c]))

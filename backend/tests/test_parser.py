@@ -660,3 +660,34 @@ def test_blazing_verb_is_aftermath():
     assert not parse_message("Ракета здетонувала, що впала.", M).aftermath
     # A fresh strike report with a fire mention is still an impact.
     assert parse_message("В Дніпровському районі влучання по будівлі, палає дах", M).impact
+
+
+def test_recon_analysis_writeup_is_suppressed():
+    # An intelligence write-up about enemy scouting patterns names raions (the
+    # recon FOCUS, not sightings) and mentions "крилатих ракет" — left alone it
+    # raised phantom per-raion missile tracks AND seeded a false `missile` type
+    # that bled onto the incident's typeless callouts (07-31 incident 153).
+    r = parse_message(
+        "Ворог здійснив чергову серію розвідувальних заходів у нашому регіоні. "
+        "У фокусі противника опинилися Фастівський район, а також Вишгород. "
+        "Ймовірно, ці дії пов’язані з опрацюванням можливих маршрутів для "
+        "застосування БпЛА та крилатих ракет.",
+        M,
+    )
+    assert r.negated and not r.matched
+    assert not r.districts
+    # A terse real callout with the same weapon word must still be a live target.
+    assert parse_message("Крилаті ракети курсом на Київ", M).matched
+
+
+def test_southern_corridor_gazetteer_gaps():
+    # 2026-07-31 feed gaps — each was lost as "без району"/"не про загрозу".
+    assert BY_EN["Khodosivka"] in {h.district_id for h in parse_message("На Ходосівку", M).districts}
+    assert BY_EN["KonchaZaspa"] in {h.district_id for h in parse_message("Конча-Заспа шахед", M).districts}
+    assert BY_EN["Rohoziv"] in {h.district_id for h in parse_message("Рогозів район 🔴.", M).districts}
+    assert BY_EN["Pyrohiv"] in {h.district_id for h in parse_message("Шахед на Пирогів", M).districts}
+    assert BY_EN["Chapaivka"] in {h.district_id for h in parse_message("БпЛА на Чапаївку", M).districts}
+    assert BY_EN["VitaPoshtova"] in {h.district_id for h in parse_message("Ціль на Віта-Поштова", M).districts}
+    # Bare "Заспа"/"Віта" must NOT match (collide with заспокойтесь/вітаю).
+    assert not parse_message("Заспокойтесь, все тихо", M).districts
+    assert not parse_message("Вітаю всіх на каналі", M).districts

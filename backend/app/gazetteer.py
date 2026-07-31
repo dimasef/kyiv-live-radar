@@ -288,6 +288,32 @@ DISTRICTS: list[dict] = [
     # found zero bad matches in the real corpus — revisit if that changes.
     {"name_uk": "Щасливе", "name_en": "Shchaslyve", "lat": 50.3782, "lon": 30.7913, "aliases": []},
     {"name_uk": "Згурівка", "name_en": "Zghurivka", "lat": 50.4951, "lon": 31.7692, "aliases": []},
+    # Southern / SW approach-corridor villages — real 2026-07-31 feed gaps (a
+    # reactive-Shahed incursion named every one of these; each was lost as
+    # "без району" or "не про загрозу"). Coords via geocode_localities.py
+    # (Nominatim) unless noted.
+    {"name_uk": "Ходосівка", "name_en": "Khodosivka", "lat": 50.2728, "lon": 30.5221, "aliases": []},
+    # Конча-Заспа: keyed on the HYPHENATED compound only (stem "конча-засп").
+    # Bare "Заспа" is deliberately NOT an alias — its stem "засп" collides with
+    # "заспокойтесь/заспокоїти" (calm down), common here; and a different village
+    # "Заспа" ~45 km away breaks Nominatim (see the omitted-Заспа note above).
+    {"name_uk": "Конча-Заспа", "name_en": "KonchaZaspa", "lat": 50.3007, "lon": 30.5765, "aliases": []},
+    # "Рогозів" stem "рогоз" also matches the plant рогоза (cattail); the FP
+    # sweep of the real corpus found zero such uses — revisit if that changes
+    # (same treatment as Щасливе).
+    {"name_uk": "Рогозів", "name_en": "Rohoziv", "lat": 50.2339, "lon": 31.055, "aliases": []},
+    # "Пирогів" stem "пирог" collides with пироги/пиріг (pies); the corpus sweep
+    # found only the museum «Пирогів» (relevant), zero food mentions — Щасливе-
+    # class risk, revisit if that changes.
+    {"name_uk": "Пирогів", "name_en": "Pyrohiv", "lat": 50.3545, "lon": 30.5145, "aliases": []},
+    # Чапаївка (Holosiivskyi urochyshche near Пирогів). Point HAND-SET: Nominatim
+    # resolves the name to a homonym near Kryvyi Rih (~350 km) and a Kyiv-bounded
+    # query finds nothing — same "not reliably geocodable" class as Наливайківка.
+    # Stem "чапаївк" is specific, no collision.
+    {"name_uk": "Чапаївка", "name_en": "Chapaivka", "lat": 50.343, "lon": 30.522, "aliases": []},
+    # Віта-Поштова: hyphenated compound only (stem "віта-поштов"). Bare "Віта" is
+    # deliberately NOT an alias — its stem "віта" collides with вітаю/вітання.
+    {"name_uk": "Віта-Поштова", "name_en": "VitaPoshtova", "lat": 50.3197, "lon": 30.3809, "aliases": []},
     # Трипільська ТЕС (Українка, Обухівський р-н — south of Kyiv, область) — a
     # major, repeatedly-targeted station; the corpus names the DIRECTION ("у бік
     # Трипілля"). The village of Трипілля is ~2 km away — same target cluster,

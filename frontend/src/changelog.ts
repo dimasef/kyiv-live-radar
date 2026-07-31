@@ -32,12 +32,24 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.22.1";
+const LATEST = "0.22.2";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "Нові картки й точніша мапа",
+    date: "2026-08-01",
+    kind: "patch",
+    changes: [
+      "Колода поповнилася 4 новими картками — тепер їх 32",
+      "Виправлено відображення деяких карток на телефоні (НПЗ, Бавовна та інші)",
+      "Екран нової картки: золотий підпис «Нова картка» та кнопка «Закрити»",
+      "Більше населених пунктів довкола Києва на мапі — точніше розпізнавання місць у південному напрямку",
+    ],
+  },
+  {
+    version: "0.22.1",
     title: "Оновлені картки колекції",
     date: "2026-07-31",
     kind: "patch",

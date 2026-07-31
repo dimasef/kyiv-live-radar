@@ -74,3 +74,4 @@
 {"text": "Загроза по балістиці на цю ніч теж актуальна, реагуйте на тривоги", "target_type": "ballistic", "status": "active", "is_new_target": false, "districts": [], "negated": true}
 {"text": "На ніч знову червоний рівень по балістиці", "target_type": "ballistic", "status": "active", "is_new_target": false, "districts": [], "negated": true}
 {"text": "❗️Висока загроза балістичного обстрілу цієї ночі, реагуйте на тривоги", "target_type": "ballistic", "status": "active", "is_new_target": false, "districts": [], "negated": true}
+{"text": "Ворог здійснив чергову серію розвідувальних заходів у нашому регіоні. У фокусі противника опинилися Фастівський район, а також Вишгород і прилеглі населені пункти. Ймовірно, ці дії пов’язані з опрацюванням можливих маршрутів для застосування БпЛА та крилатих ракет.", "target_type": "missile", "status": "active", "is_new_target": false, "districts": [], "negated": true}

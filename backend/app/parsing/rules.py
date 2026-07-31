@@ -67,6 +67,7 @@ from .vocab import (
     _PREPOSITION_BEFORE_DISTRICT,
     _PULSE_WORD,
     _QUOTE_ATTRIBUTION_RE,
+    _RECON_ANALYSIS,
     _RETROSPECTIVE,
     _SHAHED,
     _SIREN_WORD,
@@ -92,6 +93,11 @@ def _has_conditional_hedge(norm: str) -> bool:
     if any(v in norm for v in _FORECAST_VERB) and any(w in norm for w in _THREAT_CONTEXT):
         return True
     if any(p in norm for p in _FORECAST_TIMEFRAME) and any(w in norm for w in _THREAT_CONTEXT):
+        return True
+    # Retrospective/forecast recon-analysis write-up (see _RECON_ANALYSIS) — the
+    # enemy-scouting register, not a live sighting; gated by a weapon word like
+    # the forecast rows so it can't swallow a terse real callout.
+    if any(p in norm for p in _RECON_ANALYSIS) and any(w in norm for w in _THREAT_CONTEXT):
         return True
     # Advisory / relayed-opinion preview of which raions MIGHT be hit — see
     # _ADVISORY_RELAY. The relay/warning phrases carry the class on their own;

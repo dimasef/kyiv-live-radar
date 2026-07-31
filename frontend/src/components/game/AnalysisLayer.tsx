@@ -64,7 +64,9 @@ function ResultModal() {
         card={card}
         count={reveal.count}
         caption={reveal.isNew ? t('game.newCard') : t('game.dupCard')}
+        captionGlow={reveal.isNew}
         action={{ label: t('game.toCollection'), onClick: toCollection }}
+        closeLabel={t('close')}
         onClose={dismiss}
       />
     )

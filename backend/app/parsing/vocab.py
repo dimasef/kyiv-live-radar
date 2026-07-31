@@ -368,6 +368,20 @@ _HEDGE_MODAL_RE = re.compile(r"(?:можуть бути|може бути)\s+(в
 _ADVISORY_RELAY = ("пишуть що", "пишуть, що", "інших джерелах", "є попередження про",
                    "за даними", "до застосування", "підвезенн", "маю інформац")
 
+# --- Retrospective / forecast RECON-ANALYSIS prose. An intelligence write-up
+# about enemy scouting patterns ("Ворог здійснив серію розвідувальних заходів…
+# у фокусі противника опинилися Фастівський район, Вишгород… ймовірно
+# опрацювання можливих маршрутів для БпЛА та крилатих ракет") — NOT a live
+# target callout. It names raions (the recon FOCUS, not sightings), so left
+# unsuppressed it raises phantom per-raion tracks AND its "крилатих ракет"
+# seeds a false `missile` type that then bleeds onto the incident's typeless
+# terse callouts via cross-message inheritance (07-31: incident 153). Gated by
+# a co-occurring weapon word in _has_conditional_hedge, same as _FORECAST_VERB;
+# every marker is 0-hit in the real spotter corpus — this analytical register
+# never appears in a live sighting. ---
+_RECON_ANALYSIS = ("у фокусі противник", "розвідувальних заход", "опрацюванн",
+                   "приділяє")
+
 # --- Siren-status announcement ("+ Бучанський район тривога", "Тривога у
 # Вишгородському районі"). This is a technical "the siren went off in this
 # district" notice — NOT a target sighting: it names a district but no target
