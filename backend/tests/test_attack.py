@@ -4,7 +4,7 @@ alert-end-ends-the-attack lifecycle (app/attack.py, app/incidents.py,
 app/alerts.py, ingest.py's alert-end branch).
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest_asyncio
 from sqlalchemy import select
@@ -17,7 +17,7 @@ from app.models import Alert, District, Incident, Source, Threat
 from app.parsing import DistrictMatcher
 from app.pipeline.ingest import ingest_alert_message, ingest_message
 
-BASE = datetime(2026, 7, 8, 12, 0, tzinfo=timezone.utc)
+BASE = datetime(2026, 7, 8, 12, 0, tzinfo=UTC)
 
 
 @pytest_asyncio.fixture

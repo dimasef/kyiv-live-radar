@@ -9,4 +9,4 @@ import asyncio
 # Serialize ingestion: concurrent inbound messages sharing one open track would
 # otherwise race (split tracks, wrong corroboration, SQLite "database is locked").
 # Single-instance MVP — one lock is enough; multi-instance would move to the DB.
-_ingest_lock = asyncio.Lock()
+ingest_lock = asyncio.Lock()

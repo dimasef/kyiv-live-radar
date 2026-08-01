@@ -336,6 +336,118 @@ body::after {
 .card-eternal-anim {
   animation: card-eternalGlow 4.6s ease-in-out infinite;
 }
+
+/* --- Per-rarity flourishes, single-card view only (see CardView `animated`).
+   Each rarity gets ONE signature effect so a card is recognisable from its
+   motion alone: rare/legendary a travelling border, epic electric arcs,
+   eternal the frame glow above. Common stays still on purpose — the contrast
+   is what makes the rarer ones read as rare. --- */
+
+/* Rare + legendary: a light source travelling around the frame. Drawn as a
+   1px gradient ring rather than a border so it can move: the two-layer mask
+   punches out the middle, leaving only the padding box painted. */
+@keyframes card-borderFlow {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+.card-flow-border {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    color-mix(in srgb, var(--rc) 12%, transparent),
+    var(--rc) 24%,
+    color-mix(in srgb, var(--rc) 45%, #fff) 40%,
+    var(--rc) 56%,
+    color-mix(in srgb, var(--rc) 12%, transparent) 82%
+  );
+  background-size: 200% 100%;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: card-borderFlow 4s linear infinite;
+}
+/* Rare: the glyph breathes and its halo brightens. Applied to the plate's own
+   icon (cardPlate.ts tags it) rather than as an overlay, so the motion reads as
+   the subject of the card moving, not a frame effect. */
+@keyframes card-rareIcon {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    filter: drop-shadow(0 0 7px var(--glow));
+  }
+  50% {
+    transform: translateY(-4px) scale(1.03);
+    filter: drop-shadow(0 0 15px var(--rc));
+  }
+}
+.card-rare-glyph {
+  animation: card-rareIcon 3.6s ease-in-out infinite;
+}
+
+/* Epic: three lightning arcs that flick independently. `linear` (not eased) —
+   the whole point is that the flashes are abrupt. */
+@keyframes card-arcFlick {
+  0%,
+  6%,
+  100% {
+    opacity: 0;
+  }
+  1.5% {
+    opacity: 0.95;
+  }
+  3% {
+    opacity: 0.2;
+  }
+  4.5% {
+    opacity: 0.8;
+  }
+}
+.card-arcs {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.card-arcs path {
+  animation: card-arcFlick 3.4s linear infinite;
+}
+/* Staggered so the three never flash together. */
+.card-arcs path:nth-child(2) {
+  animation-delay: 1.13s;
+}
+.card-arcs path:nth-child(3) {
+  animation-delay: 2.27s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-flow-border,
+  .card-rare-glyph,
+  .card-arcs path,
+  .card-eternal-anim {
+    animation: none;
+  }
+  /* The arcs are pure motion — with the flicker gone they'd sit on the card as
+     three static scratches, so hide them outright. */
+  .card-arcs {
+    display: none;
+  }
+}
 /* Golden glow on the «Нова картка» reveal caption (a NEW card only — a
    duplicate keeps the plain neutral caption). */
 @keyframes card-goldGlow {

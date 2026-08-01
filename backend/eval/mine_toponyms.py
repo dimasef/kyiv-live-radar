@@ -92,7 +92,7 @@ async def main() -> None:
             example.setdefault(key, t.splitlines()[0][:55])
 
     print(f"\n{len(texts)} messages | {missed} not localized by rules")
-    print(f"top unmatched toponym candidates:\n")
+    print("top unmatched toponym candidates:\n")
     for name, n in counter.most_common(40):
         print(f"  {n:3}  {name:20} | e.g. {example[name]}")
 

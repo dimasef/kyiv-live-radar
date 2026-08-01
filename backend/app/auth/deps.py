@@ -5,17 +5,19 @@ added — the raw CORS wrap in app/main.py and its OTel ordering are untouched.
 """
 from __future__ import annotations
 
-from typing import Optional
+from datetime import timedelta
 
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..config import settings
 from ..db import get_session
-from ..models import ADMIN_ROLES, User
+from ..domain.presence import needs_stamp
+from ..models import ADMIN_ROLES, User, utcnow
 from .security import AuthError, decode_access
 
 
-def _bearer_token(authorization: Optional[str]) -> Optional[str]:
+def _bearer_token(authorization: str | None) -> str | None:
     if not authorization:
         return None
     scheme, _, token = authorization.partition(" ")
@@ -24,7 +26,7 @@ def _bearer_token(authorization: Optional[str]) -> Optional[str]:
     return token.strip()
 
 
-async def _load_user_from_token(token: str, session: AsyncSession) -> Optional[User]:
+async def _load_user_from_token(token: str, session: AsyncSession) -> User | None:
     try:
         claims = decode_access(token)
     except AuthError:
@@ -39,8 +41,22 @@ async def _load_user_from_token(token: str, session: AsyncSession) -> Optional[U
     return user
 
 
+async def _stamp_last_seen(session: AsyncSession, user: User) -> None:
+    """Record that this user is active, at most once per throttle window.
+
+    Committed here rather than left for the route: most authenticated routes are
+    reads that never commit, and a pending dirty row would then be flushed at an
+    arbitrary later point (or rolled back with the route's own error).
+    """
+    now = utcnow()
+    if not needs_stamp(user.last_seen_at, now, timedelta(seconds=settings.presence_stamp_throttle_seconds)):
+        return
+    user.last_seen_at = now
+    await session.commit()
+
+
 async def get_current_user(
-    authorization: Optional[str] = Header(None),
+    authorization: str | None = Header(None),
     session: AsyncSession = Depends(get_session),
 ) -> User:
     """Require a valid access token → the active User, else 401."""
@@ -48,13 +64,14 @@ async def get_current_user(
     user = await _load_user_from_token(token, session) if token else None
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    await _stamp_last_seen(session, user)
     return user
 
 
 async def get_optional_user(
-    authorization: Optional[str] = Header(None),
+    authorization: str | None = Header(None),
     session: AsyncSession = Depends(get_session),
-) -> Optional[User]:
+) -> User | None:
     """Return the User when a valid token is present, else None (never raises).
     For endpoints that behave differently when logged in but stay public."""
     token = _bearer_token(authorization)

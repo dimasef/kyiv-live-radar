@@ -1,16 +1,26 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
+from typing import Literal, get_args
 
-from sqlalchemy import BigInteger, JSON, DateTime, Float, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class District(Base):
@@ -34,30 +44,43 @@ class District(Base):
     # Real OSM boundary (GeoJSON Polygon/MultiPolygon geometry) for the 10
     # administrative raions; SQL NULL for microdistricts/approach towns (points
     # only). none_as_null keeps Python None as SQL NULL so IS NOT NULL filters work.
-    boundary: Mapped[Optional[dict]] = mapped_column(
+    boundary: Mapped[dict | None] = mapped_column(
         JSON(none_as_null=True), nullable=True
     )
 
 
-# Allowed enum-like values kept as plain strings for MVP simplicity.
-TARGET_TYPES = ("shahed", "jet_drone", "missile", "ballistic", "unknown")
+# Allowed enum-like values. Each is declared ONCE as a `Literal` and the runtime
+# tuple is derived from it with `get_args` — never the other way round and never
+# both by hand. That makes the two impossible to drift apart, and it is what puts
+# a real union (not a bare `string`) into the OpenAPI schema, so the generated
+# frontend types narrow these fields too.
+TargetType = Literal["shahed", "jet_drone", "missile", "ballistic", "unknown"]
+TARGET_TYPES: tuple[TargetType, ...] = get_args(TargetType)
 # 'dismissed' = an admin manually cancelled a false-positive track (see
 # app/domain/lifecycle.py::close_track with reason 'dismissed'). Closed like any
 # other, but excluded from stats/journal so a parser mistake never counts as a
 # real target — reversible via reopen_track.
-THREAT_STATUSES = ("unconfirmed", "tracking", "destroyed", "lost", "impact", "dismissed")
+ThreatStatus = Literal["unconfirmed", "tracking", "destroyed", "lost", "impact", "dismissed"]
+THREAT_STATUSES: tuple[ThreatStatus, ...] = get_args(ThreatStatus)
 # 'track' = an inbound target being followed; 'impact' = a closed-on-creation
 # confirmed-strike marker. Split out of `status` (which conflates kind with
 # lifecycle) — see app/lifecycle.py.
-THREAT_KINDS = ("track", "impact")
+ThreatKind = Literal["track", "impact"]
+THREAT_KINDS: tuple[ThreatKind, ...] = get_args(ThreatKind)
+# A localized track over a raion, vs a city-wide "ціль на місто" that renders as
+# a banner rather than a map point.
+ThreatScope = Literal["district", "city"]
+THREAT_SCOPES: tuple[ThreatScope, ...] = get_args(ThreatScope)
 # Explicit reason a track closed, replacing `status='lost'`'s three overloaded
 # meanings (відбій / дорозвідка stand-down / silence timeout). NULL while open.
-CLOSED_REASONS = ("destroyed", "all_clear", "stand_down", "stale", "dismissed")
+ClosedReason = Literal["destroyed", "all_clear", "stand_down", "stale", "dismissed"]
+CLOSED_REASONS: tuple[ClosedReason, ...] = get_args(ClosedReason)
 # Where the structured event came from — critical for parser eval/debugging.
 # 'triage' = an async second-pass LLM verdict RESCUED a message the sync rules
 # path suppressed/couldn't localize (see app/pipeline/triage.py). Distinct from
 # 'llm' (the inline sync fallback that runs while ingest holds the lock).
-DECISION_SOURCES = ("rule", "llm", "sim", "triage")
+DecisionSource = Literal["rule", "llm", "sim", "triage"]
+DECISION_SOURCES: tuple[DecisionSource, ...] = get_args(DecisionSource)
 # Async-triage bookkeeping on a raw message (app/pipeline/triage.py). state =
 # where the message is in the triage queue's lifecycle; action = what routing
 # ultimately did with the verdict. Both NULL for messages never enqueued.
@@ -66,32 +89,43 @@ TRIAGE_ACTIONS = ("none", "suppress_confirmed", "notice", "axis", "rescue_candid
 # A directional threat axis' lifecycle (app/domain/axes.py). 'unverified' = one
 # source only; 'corroborated' = >= axis_min_sources independent sources agreed;
 # 'expired' = timed out of the live layer by the sweeper.
-AXIS_STATES = ("unverified", "corroborated", "expired")
+AxisState = Literal["unverified", "corroborated", "expired"]
+AXIS_STATES: tuple[AxisState, ...] = get_args(AxisState)
 # Who produced a Notice — a deterministic rule handler or an LLM triage verdict
 # (surfaced with an "AI · неперевірено" badge in the feed).
-NOTICE_GENERATORS = ("rule", "llm")
+NoticeGenerator = Literal["rule", "llm"]
+NOTICE_GENERATORS: tuple[NoticeGenerator, ...] = get_args(NoticeGenerator)
+# What a Notice is about — an all-clear, a retrospective attack summary, or one
+# of the three LLM-triage context notices.
+NoticeKind = Literal["clear", "summary", "directional", "forecast", "status"]
+NOTICE_KINDS: tuple[NoticeKind, ...] = get_args(NoticeKind)
 # 'spotter' = volunteer sighting channel, parsed by parser.py into
 # threats/tracks. 'alert' = official air-raid alert channel (@KyivCityOfficial
 # today), parsed by alert_parser.py into Alert rows — routed separately so an
 # official "Відбій…" never trips the spotter parser's all-clear and closes
 # tracks prematurely (see telegram_listener.py).
-SOURCE_ROLES = ("spotter", "alert")
-ALERT_SCOPES = ("city", "oblast")
+SourceRole = Literal["spotter", "alert"]
+SOURCE_ROLES: tuple[SourceRole, ...] = get_args(SourceRole)
+AlertScope = Literal["city", "oblast"]
+ALERT_SCOPES: tuple[AlertScope, ...] = get_args(AlertScope)
 # 'official' = a real відбій from the alert channel; 'failsafe' = the sweeper
 # force-closed an alert open past alert_failsafe_hours (dead Telethon session
 # ate the відбій, not a real day-long siren) — see app/alerts.py.
-ALERT_CLOSED_REASONS = ("official", "failsafe", "dismissed")
+AlertClosedReason = Literal["official", "failsafe", "dismissed"]
+ALERT_CLOSED_REASONS: tuple[AlertClosedReason, ...] = get_args(AlertClosedReason)
 # Why an Incident (attack) ended: a spotter's "Відбій" ('all_clear'), the
 # official city alert ending ('alert_end'), or the stale sweeper timing it out
 # ('stale'). NULL while active — see app/incidents.py.
-INCIDENT_ENDED_REASONS = ("all_clear", "alert_end", "stale", "dismissed")
+IncidentEndedReason = Literal["all_clear", "alert_end", "stale", "dismissed"]
+INCIDENT_ENDED_REASONS: tuple[IncidentEndedReason, ...] = get_args(IncidentEndedReason)
 # User roles (app/auth/). 'admin' and 'admin_g' both get the service tools
 # (/raw, source management — see require_admin); 'user' gets personalization
 # only. 'admin' is derived from the env allowlists on every login; 'admin_g' is
 # a manual DB-only role that role resolution preserves (never auto-assigned,
 # never overwritten — see auth/service.resolve_and_set_role).
-USER_ROLES = ("admin", "admin_g", "user")
-ADMIN_ROLES = ("admin", "admin_g")
+UserRole = Literal["admin", "admin_g", "user"]
+USER_ROLES: tuple[UserRole, ...] = get_args(UserRole)
+ADMIN_ROLES: tuple[UserRole, ...] = ("admin", "admin_g")
 # Linked SSO providers on OAuthIdentity. Email+password is native on the User
 # row (password_hash), NOT an identity — so it's absent here.
 PROVIDERS = ("google", "telegram")
@@ -99,12 +133,14 @@ PROVIDERS = ("google", "telegram")
 # dataset (app/domain/corrections.py). 'false_positive' = a dismissed track's
 # message shouldn't have localized; 'retype' = wrong target_type; 'relocate' =
 # wrong district. `origin` records which admin action produced it.
-CORRECTION_KINDS = ("false_positive", "retype", "relocate")
+CorrectionKind = Literal["false_positive", "retype", "relocate"]
+CORRECTION_KINDS: tuple[CorrectionKind, ...] = get_args(CorrectionKind)
 CORRECTION_ORIGINS = ("dismiss", "retype_threat", "move_event")
 # Toponym candidates captured from the coverage-gap queue — NOT live gazetteer
 # edits (those stay a code-review step with a stem-collision sweep, see
 # CLAUDE.md). 'added' = a human later promoted it into app/gazetteer.py.
-GAZ_CANDIDATE_STATUSES = ("pending", "geocoded", "added", "rejected")
+GazCandidateStatus = Literal["pending", "geocoded", "added", "rejected"]
+GAZ_CANDIDATE_STATUSES: tuple[GazCandidateStatus, ...] = get_args(GazCandidateStatus)
 
 
 class Source(Base):
@@ -134,14 +170,14 @@ class Source(Base):
     role: Mapped[str] = mapped_column(String(10), default="spotter")
     # Raw string the listener resolves this channel by (username without @, a
     # numeric id, or a t.me/+ invite link). NULL -> resolve by channel_key.
-    subscribe_ref: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    subscribe_ref: Mapped[str | None] = mapped_column(String(200), nullable=True)
     # Last resolve/join error the listener hit for this channel, surfaced in the
     # admin UI so a mistyped handle is visible; cleared to NULL on a good connect.
-    last_listener_error: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
-    created_at: Mapped[Optional[datetime]] = mapped_column(
+    last_listener_error: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, default=utcnow
     )
-    added_by_user_id: Mapped[Optional[int]] = mapped_column(
+    added_by_user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
 
@@ -155,24 +191,26 @@ class Alert(Base):
     """
 
     __tablename__ = "alerts"
+    # Alerts are always narrowed to a scope first, then ordered by start time.
+    __table_args__ = (Index("ix_alerts_scope_started_at", "scope", "started_at"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     scope: Mapped[str] = mapped_column(String(10))  # 'city' | 'oblast'
     alert_type: Mapped[str] = mapped_column(String(20), default="air_raid")
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    ended_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
+    ended_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
     )
     provider: Mapped[str] = mapped_column(String(20), default="telegram")
     # Provenance — which raw message started/ended this alert, for reprocess.
-    started_raw_id: Mapped[Optional[int]] = mapped_column(
+    started_raw_id: Mapped[int | None] = mapped_column(
         ForeignKey("raw_messages.id"), nullable=True
     )
-    ended_raw_id: Mapped[Optional[int]] = mapped_column(
+    ended_raw_id: Mapped[int | None] = mapped_column(
         ForeignKey("raw_messages.id"), nullable=True
     )
     # 'official' | 'failsafe' (see ALERT_CLOSED_REASONS); NULL while open.
-    closed_reason: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    closed_reason: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
 
 class RawMessage(Base):
@@ -190,26 +228,28 @@ class RawMessage(Base):
     __table_args__ = (UniqueConstraint("source_id", "message_id", name="uq_raw_message_source_msgid"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    source_id: Mapped[Optional[int]] = mapped_column(
+    source_id: Mapped[int | None] = mapped_column(
         ForeignKey("sources.id"), nullable=True
     )
-    source: Mapped[Optional["Source"]] = relationship()
+    source: Mapped[Source | None] = relationship()
     # Telegram id. BigInteger: Telegram peer/message ids are 64-bit and channel
     # ids (e.g. -1001754665396) overflow Postgres INTEGER (int32). SQLite stores
     # INTEGER as 64-bit so this only ever bit on prod Postgres.
-    message_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     text: Mapped[str] = mapped_column(Text, default="")
-    event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    forwarded_from_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    event_time: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, index=True
+    )
+    forwarded_from_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     # The ORIGIN channel's Telegram peer id, when this message is a repost —
     # `forwarded_from_id` alone is a message id, not globally unique across
     # channels; this disambiguates two different channels whose reposted
     # messages happen to share a numeric id. See fusion.py::_origin_keys.
-    forwarded_from_channel_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    forwarded_from_channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     # Telegram id of the message this one replies to (same channel). Channels like
     # «Місто Кия | Безпека» reply to the previous post about the SAME target, so the
     # reply chain identifies the track far better than time-proximity does.
-    reply_to_message_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    reply_to_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     processed: Mapped[bool] = mapped_column(default=False)
     # Whether the LLM fallback (parsing/llm.py) was actually CALLED for this
     # message — distinct from a ThreatEvent's decision_source=='llm' (which
@@ -218,28 +258,29 @@ class RawMessage(Base):
     # this column existed — genuinely unknown, not backfillable (unlike
     # Notice.source_message_id, re-deriving this from today's parser/rules
     # would reflect current logic, not what actually ran historically).
-    llm_attempted: Mapped[Optional[bool]] = mapped_column(nullable=True)
+    # Indexed: True on only ~5% of rows, and the /raw LLM filter selects on it.
+    llm_attempted: Mapped[bool | None] = mapped_column(nullable=True, index=True)
     # Token usage/cost for that call — set together with llm_attempted=True
     # whenever the API actually responded (see parsing/llm.py::llm_extract).
     # NULL when llm_attempted is False/NULL, or when the call never completed
     # (timeout/network/API error — nothing was billed).
-    llm_input_tokens: Mapped[Optional[int]] = mapped_column(nullable=True)
-    llm_output_tokens: Mapped[Optional[int]] = mapped_column(nullable=True)
-    llm_cost_usd: Mapped[Optional[float]] = mapped_column(nullable=True)
+    llm_input_tokens: Mapped[int | None] = mapped_column(nullable=True)
+    llm_output_tokens: Mapped[int | None] = mapped_column(nullable=True)
+    llm_cost_usd: Mapped[float | None] = mapped_column(nullable=True)
     # The full structured response the LLM fallback returned — district_ids plus
     # the triage fields (category/surface/summary/target_type/status/...). Stored
     # verbatim so LLM calls are auditable on /raw and so the Stage-3 context
     # layer can be tuned against real responses. NULL when the LLM wasn't called
     # or the call produced no usable JSON. COLLECTED-ONLY: nothing in the live
     # pipeline routes on the triage fields yet (see parsing/llm.py::llm_extract).
-    llm_response: Mapped[Optional[dict]] = mapped_column(
+    llm_response: Mapped[dict | None] = mapped_column(
         JSON(none_as_null=True), nullable=True
     )
     # Async LLM triage bookkeeping (see TRIAGE_STATES/TRIAGE_ACTIONS and
     # app/pipeline/triage.py). NULL for messages the triage engine never
     # enqueued (rules already localized them, or they were pure junk).
-    triage_state: Mapped[Optional[str]] = mapped_column(String(12), nullable=True)
-    triage_action: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    triage_state: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    triage_action: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
 
 class ThreatAxis(Base):
@@ -259,13 +300,13 @@ class ThreatAxis(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     # NULL while active; set when the sweeper expires the axis (TTL lapsed).
-    expires_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
     )
     target_type: Mapped[str] = mapped_column(String(20), default="unknown")
     # Curated origin key (origins.ORIGIN_KEYS) when a toponym was named, else NULL
     # (a bare directional "курсом з півночі" carries only a sector).
-    origin_key: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    origin_key: Mapped[str | None] = mapped_column(String(20), nullable=True)
     sector: Mapped[str] = mapped_column(String(4), default="N")  # compass octant
     status: Mapped[str] = mapped_column(String(12), default="unverified")
     corroboration_count: Mapped[int] = mapped_column(default=1)
@@ -287,24 +328,26 @@ class Notice(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    event_time: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, index=True
+    )
     # 'clear' | 'summary' (rule-emitted) | 'directional' | 'forecast' | 'status'
     # (LLM-triage-emitted context notices — see app/pipeline/triage.py).
     kind: Mapped[str] = mapped_column(String(20))
     text: Mapped[str] = mapped_column(Text, default="")
     target_type: Mapped[str] = mapped_column(String(20), default="unknown")
-    source_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("sources.id"), nullable=True
+    source_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sources.id"), nullable=True, index=True
     )
-    source: Mapped[Optional["Source"]] = relationship()
+    source: Mapped[Source | None] = relationship()
     # Original channel message id that produced this notice — same purpose as
     # ThreatEvent.source_message_id, so /raw_messages can trace a raw message
     # to the notice it became (NULL for notices created before this existed).
-    source_message_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    source_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     # Curated origin key (origins.ORIGIN_KEYS) for a directional notice — the
     # feed clusters same-origin callouts and can point to the matching axis. NULL
     # for non-directional notices.
-    origin: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    origin: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # 'rule' | 'llm' (see NOTICE_GENERATORS) — LLM-generated notices are shown as
     # unverified/AI in the feed. Defaults 'rule' so every historical notice reads
     # as authoritative, which they were.
@@ -321,19 +364,21 @@ class Incident(Base):
     __tablename__ = "incidents"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, index=True
+    )
     # Time of the most recent member activity — a new threat joins this incident
     # only while this is fresh; the stale sweeper ends the incident once it lapses.
     last_activity_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     # NULL while the attack is ongoing; set on all-clear or by the stale sweeper.
-    ended_at: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True), nullable=True
+    ended_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
     )
     # Explicit reason the attack ended (see INCIDENT_ENDED_REASONS); NULL while
     # active, and NULL for historical incidents that ended before this field
     # existed (not backfilled — the real reason isn't recoverable from stored
     # data, unlike Threat.closed_reason's status-derived backfill in Phase 1).
-    ended_reason: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    ended_reason: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # Most severe target type among members (ballistic > missile > jet > shahed).
     target_type: Mapped[str] = mapped_column(String(20), default="unknown")
     # Accumulated SET of non-'unknown' member target_types (see
@@ -346,7 +391,9 @@ class Incident(Base):
     # app/alerts.py adopts it once the alert fires). NULL = no alert observed
     # for this attack (alert channel not configured, or a genuinely silent/
     # unannounced incident).
-    alert_id: Mapped[Optional[int]] = mapped_column(ForeignKey("alerts.id"), nullable=True)
+    alert_id: Mapped[int | None] = mapped_column(
+        ForeignKey("alerts.id"), nullable=True, index=True
+    )
     # How many member messages used decoy/EW vocabulary (see parser.py
     # ParseResult.decoy) — a modifier count, not a replacement classification;
     # an attack can be combined AND partially imitation.
@@ -355,7 +402,7 @@ class Incident(Base):
     # — a flag on the attack, not a 6th target_type (see parser.py ParseResult.hypersonic).
     has_hypersonic: Mapped[bool] = mapped_column(default=False)
 
-    threats: Mapped[list["Threat"]] = relationship(back_populates="incident")
+    threats: Mapped[list[Threat]] = relationship(back_populates="incident")
 
 
 class Threat(Base):
@@ -366,13 +413,19 @@ class Threat(Base):
     """
 
     __tablename__ = "threats"
+    # /threats/active filters open tracks AND excludes admin-dismissed ones in
+    # the same query, so one composite serves both — and its leading column
+    # serves the plain closed_at lookups too.
+    __table_args__ = (Index("ix_threats_closed_at_reason", "closed_at", "closed_reason"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, index=True
+    )
     # The attack this track belongs to (Stage E grouping); NULL for pre-incident
     # data or a track not yet attached.
-    incident_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("incidents.id"), nullable=True
+    incident_id: Mapped[int | None] = mapped_column(
+        ForeignKey("incidents.id"), nullable=True, index=True
     )
     target_type: Mapped[str] = mapped_column(String(20), default="unknown")
     status: Mapped[str] = mapped_column(String(20), default="unconfirmed")
@@ -388,21 +441,21 @@ class Threat(Base):
     # Stated size of the group flying together ("2х" -> 2, "їх вже 3х" -> 3);
     # grows within the reply-chain as spotters revise it. 1 when unstated.
     target_count: Mapped[int] = mapped_column(default=1)
-    closed_at: Mapped[Optional[datetime]] = mapped_column(
+    closed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
     # Explicit reason the track closed (see CLOSED_REASONS) — NULL while open.
     # Replaces status='lost' overloading відбій/дорозвідка/silence-timeout
     # into one meaning; set only via app.domain.lifecycle.close_track().
-    closed_reason: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    closed_reason: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # --- Derived multi-source fusion signals ---
     corroboration_count: Mapped[int] = mapped_column(default=1)  # distinct independent sources
     has_conflict: Mapped[bool] = mapped_column(default=False)    # sources disagree
     confidence: Mapped[float] = mapped_column(Float, default=0.5)  # fused 0..1
 
-    incident: Mapped[Optional["Incident"]] = relationship(back_populates="threats")
+    incident: Mapped[Incident | None] = relationship(back_populates="threats")
 
-    events: Mapped[list["ThreatEvent"]] = relationship(
+    events: Mapped[list[ThreatEvent]] = relationship(
         back_populates="threat",
         order_by="ThreatEvent.event_time",
         cascade="all, delete-orphan",
@@ -424,37 +477,48 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     # Unique when present; NULL for a Telegram account with no email (SQLite &
     # Postgres both treat multiple NULLs as distinct, so many null-email rows coexist).
-    email: Mapped[Optional[str]] = mapped_column(String(320), unique=True, nullable=True)
+    email: Mapped[str | None] = mapped_column(String(320), unique=True, nullable=True)
     # True only when the provider vouched for the email (Google id_token). A
     # self-registered password account stays False — and an unverified email can
     # never resolve to admin (closes the "register as admin@… and self-promote" hole).
     email_verified: Mapped[bool] = mapped_column(default=False)
     # argon2 hash; NULL for OAuth/Telegram-only accounts (no local password).
-    password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     role: Mapped[str] = mapped_column(String(10), default="user")
-    display_name: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
-    avatar_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    display_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True)
     # Home location as a first-class user attribute (distinct from the per-device
     # PushSubscription copy) so it can be shared with friends independently of any
     # push subscription. Radius is NOT stored — friends see a marker only, and the
     # owner's radius stays client-side/push. `share_home` gates all friend
     # visibility: friendship alone never reveals a home.
-    home_lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    home_lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    home_lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    home_lon: Mapped[float | None] = mapped_column(Float, nullable=True)
     share_home: Mapped[bool] = mapped_column(default=False)
     # Opt-in gamification (collectible-card analysis) — an account-bound setting
     # so toggling it on one device carries to the user's others.
     gamification: Mapped[bool] = mapped_column(default=False)
+    # Last authenticated request, stamped by auth/deps.py (throttled). Drives the
+    # friend-list presence dot. NULL for accounts that predate the column, which
+    # reads as "never seen" — correct, not a special case.
+    last_seen_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Gates only the TIMESTAMP ("був о 03:40"), never the live online dot: an
+    # activity history is a different disclosure from "is in the app right now".
+    # Defaults ON (operator decision) — unlike `share_home`, which stays opt-in
+    # because a location is a sharper disclosure than a timestamp.
+    share_presence: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
-    last_login_at: Mapped[Optional[datetime]] = mapped_column(
+    last_login_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 
-    identities: Mapped[list["OAuthIdentity"]] = relationship(
+    identities: Mapped[list[OAuthIdentity]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 
@@ -473,11 +537,15 @@ class Friendship(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    # requester_id needs no index of its own — it leads uq_friendship_pair, whose
+    # implicit index already serves it; the addressee side is uncovered.
     requester_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
-    addressee_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    addressee_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     status: Mapped[str] = mapped_column(String(10), default="pending")  # 'pending' | 'accepted'
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    responded_at: Mapped[Optional[datetime]] = mapped_column(
+    responded_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 
@@ -494,17 +562,19 @@ class OAuthIdentity(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     provider: Mapped[str] = mapped_column(String(20))  # see PROVIDERS
     # Google `sub`; Telegram numeric id as a string.
     provider_user_id: Mapped[str] = mapped_column(String(255))
     # Provider-reported email snapshot at link time (audit only).
-    email: Mapped[Optional[str]] = mapped_column(String(320), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     # Last raw provider payload, for debugging a bad login.
-    raw_profile: Mapped[Optional[dict]] = mapped_column(JSON(none_as_null=True), nullable=True)
+    raw_profile: Mapped[dict | None] = mapped_column(JSON(none_as_null=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
-    user: Mapped["User"] = relationship(back_populates="identities")
+    user: Mapped[User] = relationship(back_populates="identities")
 
 
 class PushSubscription(Base):
@@ -522,15 +592,15 @@ class PushSubscription(Base):
     # The signed-in owner, when the device subscribed while logged in — lets a
     # user's home/push settings sync across their devices. NULL for anonymous
     # device subscriptions (fully backward-compatible; SET NULL on user delete).
-    user_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     # The push service URL — unique per browser+SW registration; upsert key.
     endpoint: Mapped[str] = mapped_column(Text, unique=True)
     p256dh: Mapped[str] = mapped_column(String(200))
     auth: Mapped[str] = mapped_column(String(100))
-    home_lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    home_lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    home_lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    home_lon: Mapped[float | None] = mapped_column(Float, nullable=True)
     home_radius_km: Mapped[float] = mapped_column(Float, default=3.0)
     # Every raion the home CIRCLE meaningfully overlaps (a zone on a boundary
     # sits in 2-3 raions), resolved at subscribe time
@@ -546,11 +616,11 @@ class PushSubscription(Base):
     # home_push._sub_prefs for the single normalization point.
     prefs: Mapped[dict] = mapped_column(JSON, default=dict)
     # Per-track danger bookkeeping so pushes fire on level ESCALATION only:
-    # {str(threat_id): {"level": int, "max_pushed": int, "pushed_at": iso|None}}.
+    # {str(threat_id): {"level": int, "max_pushed": int, "pushed_at": Optional[iso]}}.
     # In DB (not memory) so a Railway redeploy mid-attack doesn't re-push
     # everything. Keys are pruned when their track closes.
     danger_state: Mapped[dict] = mapped_column(JSON, default=dict)
-    last_push_at: Mapped[Optional[datetime]] = mapped_column(
+    last_push_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 
@@ -561,48 +631,54 @@ class ThreatEvent(Base):
     __tablename__ = "threat_events"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    threat_id: Mapped[int] = mapped_column(ForeignKey("threats.id", ondelete="CASCADE"))
+    threat_id: Mapped[int] = mapped_column(
+        ForeignKey("threats.id", ondelete="CASCADE"), index=True
+    )
     district_id: Mapped[int] = mapped_column(ForeignKey("districts.id"))
     raw_text: Mapped[str] = mapped_column(Text, default="")
-    source_message_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    source_message_id: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, index=True
+    )
     # Parent message id (same source) this sighting replied to — how it was grouped
     # onto its track. NULL for non-threaded posts (grouped by time-gap fallback).
-    reply_to_message_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
-    event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    reply_to_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    event_time: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, index=True
+    )
     confidence: Mapped[float] = mapped_column(Float, default=1.0)
     # 'rule' | 'llm' | 'sim' — how this structured event was produced.
     decision_source: Mapped[str] = mapped_column(String(10), default="rule")
     # Cached on-demand translation (i18n); source text stays in Ukrainian.
-    translated_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    translated_text: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # --- Multi-source attribution ---
-    source_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("sources.id"), nullable=True
+    source_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sources.id"), nullable=True, index=True
     )
     # If this message is a repost/forward, the ORIGINAL message id. Two events
     # sharing a forwarded_from_id are the SAME origin — they must not be counted
     # as independent corroboration.
-    forwarded_from_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    forwarded_from_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     # The ORIGIN channel's Telegram peer id for a repost — see the identical
     # field on RawMessage; carried onto the event so fusion can key on it.
-    forwarded_from_channel_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    forwarded_from_channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     # Per-event claimed target type; disagreement across sources => conflict.
-    event_target_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    event_target_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # Group size KNOWN AS OF this event — the track's running-max target_count at
     # the moment this event landed. The feed shows this (what was known then), not
     # the track's final count, so an early "Ціль на місто!" doesn't retroactively
     # display the ×3 that only a later "3 ракети" established. NULL for pre-column
     # events (the feed falls back to the track's current count for those).
-    event_target_count: Mapped[Optional[int]] = mapped_column(nullable=True)
+    event_target_count: Mapped[int | None] = mapped_column(nullable=True)
     # Short operator-facing gist from the LLM triage verdict (<=80 chars), when
     # the LLM saw this message — the feed shows it as the card headline with the
     # raw text collapsed beneath. NULL for rule-only events (the vast majority);
     # the feed falls back to raw_text.
-    llm_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    llm_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    threat: Mapped["Threat"] = relationship(back_populates="events")
-    district: Mapped["District"] = relationship()
-    source: Mapped[Optional["Source"]] = relationship()
+    threat: Mapped[Threat] = relationship(back_populates="events")
+    district: Mapped[District] = relationship()
+    source: Mapped[Source | None] = relationship()
 
 
 class ParserCorrection(Base):
@@ -621,7 +697,7 @@ class ParserCorrection(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    raw_message_id: Mapped[Optional[int]] = mapped_column(
+    raw_message_id: Mapped[int | None] = mapped_column(
         ForeignKey("raw_messages.id", ondelete="SET NULL"), nullable=True
     )
     text: Mapped[str] = mapped_column(Text)
@@ -632,7 +708,7 @@ class ParserCorrection(Base):
     expected: Mapped[dict] = mapped_column(JSON, default=dict)
     origin: Mapped[str] = mapped_column(String(20))  # see CORRECTION_ORIGINS
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    created_by_user_id: Mapped[Optional[int]] = mapped_column(
+    created_by_user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
 
@@ -647,22 +723,23 @@ class GazetteerCandidate(Base):
     __tablename__ = "gazetteer_candidates"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    raw_message_id: Mapped[Optional[int]] = mapped_column(
+    raw_message_id: Mapped[int | None] = mapped_column(
         ForeignKey("raw_messages.id", ondelete="SET NULL"), nullable=True
     )
     text: Mapped[str] = mapped_column(Text)
     suggested_name: Mapped[str] = mapped_column(String(200))
-    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(12), default="pending")  # see GAZ_CANDIDATE_STATUSES
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    created_by_user_id: Mapped[Optional[int]] = mapped_column(
+    created_by_user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
 
 
 # The two analyses a single target yields over its lifecycle (see gamification):
 # one while it's still being tracked, one on its debris after it's shot down.
-ANALYSIS_KINDS = ("track", "remains")
+AnalysisKind = Literal["track", "remains"]
+ANALYSIS_KINDS: tuple[AnalysisKind, ...] = get_args(AnalysisKind)
 
 
 class ThreatAnalysis(Base):

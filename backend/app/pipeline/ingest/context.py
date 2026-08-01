@@ -104,12 +104,12 @@ def _new_track(parsed: ParseResult, when: datetime, **overrides) -> Threat:
     handler — `scope="city"` for a city-wide alert, or a fixed `target_count=1`
     for a multi-target enumeration (each district is one target; the stated group
     size there is the whole-salvo total, not per-raion)."""
-    fields: dict = dict(
-        target_type=parsed.target_type,
-        status=_threat_status_for(parsed),
-        target_count=parsed.target_count or 1,
-        created_at=when,
-    )
+    fields: dict = {
+        "target_type": parsed.target_type,
+        "status": _threat_status_for(parsed),
+        "target_count": parsed.target_count or 1,
+        "created_at": when,
+    }
     fields.update(overrides)
     return Threat(**fields)
 

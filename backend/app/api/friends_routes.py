@@ -10,17 +10,21 @@ Privacy model:
   set `share_home=True` (a separate toggle) AND has coordinates.
 - Lookup is by exact email (the only unique human handle); a 404 on an unknown
   email is an accepted email-enumeration tradeoff, chosen deliberately.
+- The online dot IS visible to accepted friends unconditionally; only the
+  last-seen timestamp is gated, by `share_presence` (see domain/presence.py).
 """
 from __future__ import annotations
 
-from typing import Optional
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.deps import get_current_user
+from ..config import settings
 from ..db import get_session
+from ..domain.presence import presence_for
 from ..models import Friendship, User, utcnow
 from ..pipeline.contact_push import notify_contact_request, notify_request_accepted
 from ..schemas import (
@@ -32,6 +36,8 @@ from ..schemas import (
     HomePointOut,
     HomeShareIn,
     MyHomeOut,
+    PresencePrefIn,
+    PresencePrefOut,
     SendFriendRequestIn,
     ShareToggleIn,
 )
@@ -46,16 +52,24 @@ def _brief(u: User) -> FriendUserBrief:
 
 
 def _friend_out(u: User) -> FriendOut:
-    """A friend + their home, but only when they chose to share it."""
+    """A friend + their home and presence, each behind its own opt-in."""
     home = None
     if u.share_home and u.home_lat is not None and u.home_lon is not None:
         home = HomePointOut(lat=u.home_lat, lon=u.home_lon)
+    online, last_seen_at = presence_for(
+        last_seen_at=u.last_seen_at,
+        share_presence=u.share_presence,
+        now=utcnow(),
+        window=timedelta(seconds=settings.presence_online_seconds),
+    )
     return FriendOut(
         id=u.id,
         email=u.email,
         display_name=u.display_name,
         avatar_url=u.avatar_url,
         home=home,
+        online=online,
+        last_seen_at=last_seen_at,
     )
 
 
@@ -66,7 +80,7 @@ def _my_home_out(user: User) -> MyHomeOut:
     return MyHomeOut(home=home, share_home=user.share_home)
 
 
-async def _other(session: AsyncSession, edge: Friendship, me_id: int) -> Optional[User]:
+async def _other(session: AsyncSession, edge: Friendship, me_id: int) -> User | None:
     other_id = edge.addressee_id if edge.requester_id == me_id else edge.requester_id
     return await session.get(User, other_id)
 
@@ -276,3 +290,22 @@ async def delete_my_home(
     user.share_home = False
     await session.commit()
     return _my_home_out(user)
+
+
+@friends_router.get("/me/presence", response_model=PresencePrefOut)
+async def get_my_presence(user: User = Depends(get_current_user)):
+    return PresencePrefOut(share_presence=user.share_presence)
+
+
+@friends_router.put("/me/presence", response_model=PresencePrefOut)
+async def put_my_presence(
+    body: PresencePrefIn,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """Opt in/out of disclosing WHEN you were last active. Turning it off hides
+    the timestamp immediately; it does not stop `last_seen_at` being recorded,
+    since the online dot is derived from the same field."""
+    user.share_presence = body.share_presence
+    await session.commit()
+    return PresencePrefOut(share_presence=user.share_presence)

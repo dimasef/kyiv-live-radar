@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Small GeoJSON / spherical helpers (no shapely dependency)."""
+
+from __future__ import annotations
 
 import math
 

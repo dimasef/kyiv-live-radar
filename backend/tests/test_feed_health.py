@@ -2,14 +2,14 @@
 GET /health and the sweeper's periodic push on change.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from app.config import settings
 from app.feeds import health
 
-NOW = datetime(2026, 7, 8, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 7, 8, 12, 0, tzinfo=UTC)
 
 
 @pytest.fixture(autouse=True)

@@ -66,7 +66,7 @@ function ResultModal() {
         caption={reveal.isNew ? t('game.newCard') : t('game.dupCard')}
         captionGlow={reveal.isNew}
         action={{ label: t('game.toCollection'), onClick: toCollection }}
-        closeLabel={t('close')}
+        closeLabel={t('game.close')}
         onClose={dismiss}
       />
     )

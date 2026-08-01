@@ -15,7 +15,7 @@ weighting (single place to tweak) and derives it from these raw fields.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from ..models import TARGET_TYPES
@@ -27,7 +27,7 @@ KYIV = ZoneInfo("Europe/Kyiv")
 def _kyiv_date(dt: datetime, tz: ZoneInfo) -> date:
     """Naive-UTC (or aware) datetime -> its calendar date in `tz`."""
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return dt.astimezone(tz).date()
 
 
@@ -38,7 +38,7 @@ class DayStat:
     track_count: int = 0  # inbound tracks (excludes impacts and citywide banners)
     target_count: int = 0  # sum of stated group sizes over those tracks
     impact_count: int = 0  # confirmed strikes
-    type_counts: dict = field(default_factory=lambda: {t: 0 for t in TARGET_TYPES})
+    type_counts: dict = field(default_factory=lambda: dict.fromkeys(TARGET_TYPES, 0))
     alert_count: int = 0
     alert_seconds: int = 0  # Σ duration of complete city alerts
     longest_alert_seconds: int = 0

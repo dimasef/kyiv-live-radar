@@ -7,8 +7,10 @@ import {
   fetchFriendRequests,
   fetchFriends,
   fetchMyHome,
+  fetchMyPresence,
   patchHomeShare,
   putMyHome,
+  putMyPresence,
   removeFriend,
   sendFriendRequest,
   type Friend,
@@ -49,6 +51,9 @@ export interface FriendsSlice {
   friendRequests: FriendRequests
   /** Whether the current user shares their home with friends (server truth). */
   shareHome: boolean
+  /** Whether friends may see WHEN the user was last active. The online dot is
+   * NOT gated by this — see backend domain/presence.py. */
+  sharePresence: boolean
   /** Contact ids whose shared home the user has hidden on their OWN map — a
    * local view preference (the contact keeps sharing), persisted across reloads. */
   hiddenHomeIds: number[]
@@ -67,6 +72,10 @@ export interface FriendsSlice {
   /** Toggle home sharing. Turning on uploads the current local home coords so
    * friends actually have something to see; turning off just flips the flag. */
   setShareHome: (share: boolean) => Promise<void>
+  setSharePresence: (share: boolean) => Promise<void>
+  /** Seed from /auth/me so the switch never renders stale before the friend
+   * graph loads. */
+  hydrateSharePresence: (share: boolean) => void
   /** Show/hide one contact's shared home on the user's own map (local only). */
   toggleContactHome: (userId: number) => void
   /** Set one contact's marker colour + icon on the user's own map (local only). */
@@ -77,20 +86,27 @@ export const createFriendsSlice: StateCreator<RadarState, [], [], FriendsSlice> 
   friends: [],
   friendRequests: EMPTY_REQUESTS,
   shareHome: false,
+  sharePresence: true,
   hiddenHomeIds: loadHiddenHomeIds(),
   contactStyles: loadContactStyles(),
 
   loadFriends: async () => {
-    const [friends, requests, myHome] = await Promise.all([
+    const [friends, requests, myHome, presence] = await Promise.all([
       fetchFriends(),
       fetchFriendRequests(),
       fetchMyHome(),
+      fetchMyPresence(),
     ])
-    set({ friends, friendRequests: requests, shareHome: myHome.share_home })
+    set({
+      friends,
+      friendRequests: requests,
+      shareHome: myHome.share_home,
+      sharePresence: presence.share_presence,
+    })
   },
 
   clearFriends: () =>
-    set({ friends: [], friendRequests: EMPTY_REQUESTS, shareHome: false }),
+    set({ friends: [], friendRequests: EMPTY_REQUESTS, shareHome: false, sharePresence: true }),
 
   requestFriend: async (email) => {
     const action = await sendFriendRequest(email)
@@ -126,6 +142,13 @@ export const createFriendsSlice: StateCreator<RadarState, [], [], FriendsSlice> 
       await patchHomeShare(false)
     }
     set({ shareHome: share })
+  },
+
+  hydrateSharePresence: (share) => set({ sharePresence: share }),
+
+  setSharePresence: async (share) => {
+    await putMyPresence(share)
+    set({ sharePresence: share })
   },
 
   toggleContactHome: (userId) => {

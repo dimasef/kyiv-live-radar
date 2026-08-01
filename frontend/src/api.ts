@@ -18,6 +18,9 @@ import type {
   ThreatAxis,
   ThreatEvent,
 } from './types'
+import type { components } from './api-types'
+
+type Schemas = components['schemas']
 
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:8137'
 
@@ -178,34 +181,15 @@ export const deleteEvent = (id: number) => send<Threat>(`/admin/events/${id}`, '
 export const setEventDistrict = (id: number, districtId: number) =>
   send<Threat>(`/admin/events/${id}`, 'PATCH', { district_id: districtId })
 
-export interface Dismissed {
-  threats: Threat[]
-  incidents: Incident[]
-  alerts: Alert[]
-}
+export type Dismissed = Schemas['DismissedOut']
 export const fetchDismissed = () => get<Dismissed>('/admin/dismissed')
 
 // --- Learning from corrections (admin) — coverage gaps + harvested labels. ---
-export interface CoverageGap {
-  raw_message_id: number
-  text: string
-  event_time: string
-  source_name: string | null
-  detected_target_type: TargetType
-  detected_status: string
-}
+export type CoverageGap = Schemas['CoverageGapOut']
 export const fetchCoverageGaps = (limit = 50) =>
   get<CoverageGap[]>(`/admin/coverage_gaps?limit=${limit}`)
 
-export interface GazetteerCandidate {
-  id: number
-  raw_message_id: number | null
-  text: string
-  suggested_name: string
-  note: string | null
-  status: 'pending' | 'geocoded' | 'added' | 'rejected'
-  created_at: string
-}
+export type GazetteerCandidate = Schemas['GazetteerCandidateOut']
 export const addGazetteerCandidate = (rawMessageId: number, suggestedName: string, note?: string) =>
   send<GazetteerCandidate>('/admin/gazetteer_candidates', 'POST', {
     raw_message_id: rawMessageId,
@@ -217,46 +201,14 @@ export const fetchGazetteerCandidates = (status?: string) =>
 export const updateGazetteerCandidate = (id: number, status: GazetteerCandidate['status']) =>
   send<GazetteerCandidate>(`/admin/gazetteer_candidates/${id}`, 'PATCH', { status })
 
-export interface Correction {
-  id: number
-  raw_message_id: number | null
-  text: string
-  kind: 'false_positive' | 'retype' | 'relocate'
-  expected: Record<string, unknown>
-  origin: string
-  created_at: string
-  resolved: boolean
-}
+export type Correction = Schemas['CorrectionOut']
 export const fetchCorrections = (limit = 100) =>
   get<Correction[]>(`/admin/corrections?limit=${limit}`)
 
 // --- Sources / channels management (admin) — the DB's active sources ARE the
 // live channel list; mutations here make the listener reconnect + re-subscribe.
-export interface SourceStats {
-  messages_total: number
-  messages_processed: number
-  events_produced: number
-  llm_fallback_rate: number | null
-  /** Share of the channel's messages we could place on the map (null for alert channels). */
-  coverage_rate: number | null
-  correction_rate: number | null
-  conflict_share: number | null
-  /** 0..100, informational only — does NOT feed fusion (trust_weight is inert). */
-  quality_score: number | null
-  last_message_at: string | null
-}
-export interface Source {
-  id: number
-  channel_key: string
-  name: string
-  subscribe_ref: string | null
-  role: 'spotter' | 'alert'
-  is_active: boolean
-  trust_weight: number
-  last_listener_error: string | null
-  created_at: string | null
-  stats: SourceStats
-}
+export type SourceStats = Schemas['SourceStatsOut']
+export type Source = Schemas['SourceAdminOut']
 export interface SourceCreateBody {
   subscribe_ref: string
   name?: string
@@ -264,15 +216,7 @@ export interface SourceCreateBody {
   trust_weight?: number
 }
 export type SourcePatch = Partial<Pick<Source, 'name' | 'role' | 'trust_weight' | 'is_active'>>
-/** What a hard-delete removed — its blast radius, shown back to the operator. */
-export interface SourceDeleteResult {
-  name: string
-  raw_messages: number
-  events: number
-  notices: number
-  threats_deleted: number
-  incidents_deleted: number
-}
+export type SourceDeleteResult = Schemas['SourceDeleteOut']
 export const fetchSources = () => get<Source[]>('/admin/sources')
 export const createSource = (body: SourceCreateBody) => send<Source>('/admin/sources', 'POST', body)
 export const updateSource = (id: number, patch: SourcePatch) =>
@@ -287,38 +231,16 @@ export const deleteSource = (id: number) =>
 
 // --- Admin reprocess (rebuild tracks from raw messages) — replaces the
 // REPROCESS_ON_BOOT env+restart footgun with a guarded, one-click apply. ---
-export interface ReprocessDay {
-  date: string
-  target_count: number
-  track_count: number
-}
-export interface ReprocessSummary {
-  tracks: number
-  events: number
-  incidents: number
-  days: ReprocessDay[]
-}
-export interface ReprocessPreview {
-  raw_messages: number
-  current: ReprocessSummary
-  attack_active: boolean
-}
-export interface ReprocessResult {
-  before: ReprocessSummary
-  after: ReprocessSummary
-  result: Record<string, unknown>
-}
+export type ReprocessDay = Schemas['ReprocessDayOut']
+export type ReprocessSummary = Schemas['ReprocessSummaryOut']
+export type ReprocessPreview = Schemas['ReprocessPreviewOut']
+export type ReprocessResult = Schemas['ReprocessResultOut']
 export const fetchReprocessPreview = () => get<ReprocessPreview>('/admin/reprocess/preview')
 export const applyReprocess = (force = false, noLlm = true) =>
   send<ReprocessResult>('/admin/reprocess/apply', 'POST', { force, no_llm: noLlm })
 
 // --- Web Push (danger near home) — see lib/push.ts for the browser side. ---
-export interface PushConfig {
-  enabled: boolean
-  /** VAPID public key for pushManager.subscribe; fetched at runtime so a key
-   * rotation never needs a frontend rebuild. */
-  public_key: string | null
-}
+export type PushConfig = Schemas['PushConfigOut']
 export interface PushSubscribeBody {
   subscription: { endpoint: string; keys: { p256dh: string; auth: string } }
   home: { lat: number; lon: number; radius_km: number } | null
@@ -330,17 +252,7 @@ export const deletePushSubscribe = (endpoint: string) =>
   send<{ ok: boolean }>('/push/subscribe', 'DELETE', { endpoint })
 
 // --- Auth (see store/authSlice.ts + components/auth) -----------------------
-export interface AuthUser {
-  id: number
-  email: string | null
-  display_name: string | null
-  avatar_url: string | null
-  role: string
-  /** Linked sign-in methods: 'password' + any of 'google' | 'telegram'. */
-  providers: string[]
-  /** Account-bound opt-in gamification toggle (synced across the user's devices). */
-  gamification: boolean
-}
+export type AuthUser = Schemas['UserOut']
 
 /** Persist the account-bound gamification toggle (see prefsSlice/authSlice). */
 export const setGamificationPref = (enabled: boolean) =>
@@ -351,12 +263,7 @@ export const setGamificationPref = (enabled: boolean) =>
 export const ADMIN_ROLES = ['admin', 'admin_g']
 export const isAdminRole = (role?: string | null): boolean =>
   role != null && ADMIN_ROLES.includes(role)
-export interface TokenPair {
-  access: string
-  refresh: string
-  token_type: string
-  user: AuthUser
-}
+export type TokenPair = Schemas['TokenPairOut']
 /** The Telegram Login Widget payload (forwarded verbatim so the backend can
  * re-verify the HMAC over exactly the fields Telegram signed). */
 export interface TelegramAuthPayload {
@@ -383,43 +290,13 @@ export const authMe = () => get<AuthUser>('/auth/me')
 export const authLogout = () => authPost<{ ok: boolean }>('/auth/logout', {})
 
 // --- Friends (contacts) + shareable home (see store/friendsSlice.ts) --------
-export interface HomePoint {
-  lat: number
-  lon: number
-}
-export interface FriendUserBrief {
-  id: number
-  email: string | null
-  display_name: string | null
-  avatar_url: string | null
-}
-/** An accepted friend; `home` is set only when they turned sharing on. */
-export interface Friend extends FriendUserBrief {
-  home: HomePoint | null
-}
-export interface FriendRequest {
-  id: number
-  direction: 'incoming' | 'outgoing'
-  user: FriendUserBrief
-  created_at: string
-}
-export interface FriendRequests {
-  incoming: FriendRequest[]
-  outgoing: FriendRequest[]
-}
-export interface MyHome {
-  home: HomePoint | null
-  share_home: boolean
-}
-export interface FriendAction {
-  status:
-    | 'requested'
-    | 'accepted'
-    | 'already_pending'
-    | 'already_friends'
-    | 'declined'
-    | 'removed'
-}
+export type HomePoint = Schemas['HomePointOut']
+export type FriendUserBrief = Schemas['FriendUserBrief']
+export type Friend = Schemas['FriendOut']
+export type FriendRequest = Schemas['FriendRequestOut']
+export type FriendRequests = Schemas['FriendRequestsOut']
+export type MyHome = Schemas['MyHomeOut']
+export type FriendAction = Schemas['FriendActionOut']
 
 export const fetchFriends = () => get<Friend[]>('/friends')
 export const fetchFriendRequests = () => get<FriendRequests>('/friends/requests')
@@ -438,34 +315,19 @@ export const patchHomeShare = (share: boolean) =>
   send<MyHome>('/me/home/share', 'PATCH', { share })
 export const deleteMyHome = () => send<MyHome>('/me/home', 'DELETE')
 
+export type PresencePref = Schemas['PresencePrefOut']
+export const fetchMyPresence = () => get<PresencePref>('/me/presence')
+export const putMyPresence = (share_presence: boolean) =>
+  send<PresencePref>('/me/presence', 'PUT', { share_presence })
+
 // --- Gamification (collectible card analysis, see store/gameSlice.ts) --------
 /** Which of a target's two analyses each covers — 'track' while it flies,
  * 'remains' on its debris after it's shot down. */
 export type AnalysisKind = 'track' | 'remains'
-export interface AnalysisResult {
-  threat_id: number
-  kind: AnalysisKind
-  card_id: number
-  created_at: string
-}
-/** Global claim state for one target: whether each analysis is taken (by
- * anyone), and the card the current user won (null if not them / not taken). */
-export interface ThreatAnalysisState {
-  track_taken: boolean
-  remains_taken: boolean
-  mine_track: number | null
-  mine_remains: number | null
-}
-export interface CardCount {
-  card_id: number
-  count: number
-  first_at: string
-}
-export interface Collection {
-  cards: CardCount[]
-  total_analyses: number
-  card_count: number
-}
+export type AnalysisResult = Schemas['AnalyzeOut']
+export type ThreatAnalysisState = Schemas['ThreatAnalysisStateOut']
+export type CardCount = Schemas['CardCountOut']
+export type Collection = Schemas['CollectionOut']
 export const postAnalysis = (threatId: number, kind: AnalysisKind) =>
   send<AnalysisResult>('/analysis', 'POST', { threat_id: threatId, kind })
 export const fetchThreatAnalysisState = (threatId: number) =>

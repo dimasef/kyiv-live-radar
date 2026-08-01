@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 
@@ -181,7 +181,7 @@ async def _backoff_wait(seconds: float) -> None:
     try:
         await asyncio.wait_for(ev.wait(), timeout=seconds)
         ev.clear()
-    except asyncio.TimeoutError:
+    except TimeoutError:
         pass
 
 
@@ -285,7 +285,7 @@ async def _watchdog(client, connected_at: datetime) -> None:
         last_naive = last.replace(tzinfo=None) if last.tzinfo else last
         if last_naive <= connected_naive:  # not armed: no live message since this connect
             continue
-        if not within(last, datetime.now(timezone.utc), gap):
+        if not within(last, datetime.now(UTC), gap):
             log.warning(
                 "listener watchdog: no live message for >%d min while connected — "
                 "forcing reconnect (suspected zombie stream)",
@@ -360,7 +360,7 @@ async def _run_listener_once(backfill: bool, run_state: dict) -> None:
             # Health = feed LIVENESS, not pipeline success — stamp this before
             # any parsing/DB work so a message that later fails ingest still
             # counts as evidence the connection is alive.
-            _state["last_message_at"] = datetime.now(timezone.utc)
+            _state["last_message_at"] = datetime.now(UTC)
             text = event.message.message or ""
             if not text.strip():
                 return
@@ -388,7 +388,7 @@ async def _run_listener_once(backfill: bool, run_state: dict) -> None:
 
         titles = [getattr(e, "title", _source_key(e)) for e in entities]
         log.info("telegram listener connected; monitoring: %s", titles)
-        connected_at = datetime.now(timezone.utc)
+        connected_at = datetime.now(UTC)
         _state["connected"] = True
         _state["last_error"] = None
         run_state["reached_connected"] = True

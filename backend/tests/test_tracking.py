@@ -1,6 +1,6 @@
 """End-to-end ingest/tracking tests on a temp SQLite DB (no Telegram needed)."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest_asyncio
 from sqlalchemy import func, select
@@ -8,7 +8,16 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db import Base
 from app.gazetteer import DISTRICTS, SOURCES
-from app.models import District, Incident, Notice, RawMessage, Source, Threat, ThreatAxis, ThreatEvent
+from app.models import (
+    District,
+    Incident,
+    Notice,
+    RawMessage,
+    Source,
+    Threat,
+    ThreatAxis,
+    ThreatEvent,
+)
 from app.parsing import DistrictMatcher
 from app.pipeline.ingest import ingest_alert_message, ingest_message
 
@@ -32,7 +41,7 @@ async def ctx(tmp_path):
     await engine.dispose()
 
 
-BASE = datetime(2026, 7, 8, 12, 0, tzinfo=timezone.utc)
+BASE = datetime(2026, 7, 8, 12, 0, tzinfo=UTC)
 
 
 async def _count_threats(s):

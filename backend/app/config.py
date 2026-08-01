@@ -28,6 +28,21 @@ class Settings(BaseSettings):
                 return "postgresql+asyncpg://" + v[len(prefix):]
         return v
 
+    # Seconds after which a pooled DB connection is discarded and reopened.
+    # Railway's Postgres drops idle connections, and this app is idle for hours
+    # between attacks while holding the pool open — without a recycle shorter
+    # than the server's idle timeout, the first query after a quiet night hits a
+    # connection the server already hung up on.
+    db_pool_recycle_seconds: int = 1800
+
+    # A contact counts as online this long after their last authenticated
+    # request. Must stay comfortably above the frontend's 30s friend-poll, or an
+    # open tab would flicker offline between polls.
+    presence_online_seconds: int = 90
+    # Don't rewrite users.last_seen_at more often than this — otherwise every
+    # poll from every open tab is an UPDATE.
+    presence_stamp_throttle_seconds: int = 60
+
     # Comma-separated list of allowed CORS origins (the Vite dev server by default).
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 

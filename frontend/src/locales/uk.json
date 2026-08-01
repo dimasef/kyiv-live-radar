@@ -195,7 +195,8 @@
     "toCollection": "До колекції",
     "takenBody": "Цю ціль уже проаналізував хтось інший.",
     "errorBody": "Не вдалося завершити аналіз. Спробуйте ще раз.",
-    "close": "Готово"
+    "close": "Готово",
+    "checking": "Перевіряю…"
   },
   "install": {
     "title": "Застосунок",
@@ -328,7 +329,24 @@
     "collapse": "Згорнути"
   },
   "presence": {
-    "watching": "Стежать за радаром зараз"
+    "watching": "Стежать за радаром зараз",
+    "online": "у мережі",
+    "never": "давно не заходив",
+    "minutesAgo_zero": "щойно",
+    "minutesAgo_one": "{{count}} хв тому",
+    "minutesAgo_few": "{{count}} хв тому",
+    "minutesAgo_many": "{{count}} хв тому",
+    "minutesAgo_other": "{{count}} хв тому",
+    "daysAgo_one": "{{count}} день тому",
+    "daysAgo_few": "{{count}} дні тому",
+    "daysAgo_many": "{{count}} днів тому",
+    "daysAgo_other": "{{count}} днів тому",
+    "shareLabel": "Показувати, коли я був онлайн",
+    "shareHint": "Друзі бачать, що ти в мережі, завжди. Цей перемикач додає час останньої активності, коли тебе немає.",
+    "hoursAgo_one": "{{count}} год тому",
+    "hoursAgo_few": "{{count}} год тому",
+    "hoursAgo_many": "{{count}} год тому",
+    "hoursAgo_other": "{{count}} год тому"
   },
   "axis": {
     "unverified": "неперевірено",

@@ -61,8 +61,8 @@ def main() -> int:
     # Reported for visibility, not gated by THRESHOLDS — too few examples yet
     # for a hard pass/fail bar.
     OPTIONAL_FLAGS = ("decoy", "hypersonic", "negated")
-    opt_ok = {k: 0 for k in OPTIONAL_FLAGS}
-    opt_n = {k: 0 for k in OPTIONAL_FLAGS}
+    opt_ok = dict.fromkeys(OPTIONAL_FLAGS, 0)
+    opt_n = dict.fromkeys(OPTIONAL_FLAGS, 0)
 
     for ex in examples:
         res = parse_message(ex["text"], matcher)

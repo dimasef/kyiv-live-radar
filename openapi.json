@@ -1,0 +1,6586 @@
+{
+  "components": {
+    "schemas": {
+      "AccessTokenOut": {
+        "description": "POST /auth/refresh result — a fresh access token only.",
+        "properties": {
+          "access": {
+            "title": "Access",
+            "type": "string"
+          },
+          "token_type": {
+            "default": "bearer",
+            "title": "Token Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "access"
+        ],
+        "title": "AccessTokenOut",
+        "type": "object"
+      },
+      "AlertOut": {
+        "description": "An official air-raid alert window (тривога -> відбій).",
+        "properties": {
+          "alert_type": {
+            "title": "Alert Type",
+            "type": "string"
+          },
+          "closed_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "official",
+                  "failsafe",
+                  "dismissed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed Reason"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "city",
+              "oblast"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "scope",
+          "alert_type",
+          "started_at",
+          "provider"
+        ],
+        "title": "AlertOut",
+        "type": "object"
+      },
+      "AnalyzeIn": {
+        "description": "POST /analysis — analyse a target for a card.",
+        "properties": {
+          "kind": {
+            "enum": [
+              "track",
+              "remains"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "threat_id": {
+            "title": "Threat Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "threat_id",
+          "kind"
+        ],
+        "title": "AnalyzeIn",
+        "type": "object"
+      },
+      "AnalyzeOut": {
+        "description": "A successful analysis: the card that dropped.",
+        "properties": {
+          "card_id": {
+            "title": "Card Id",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "track",
+              "remains"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "threat_id": {
+            "title": "Threat Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "threat_id",
+          "kind",
+          "card_id",
+          "created_at"
+        ],
+        "title": "AnalyzeOut",
+        "type": "object"
+      },
+      "AxisOut": {
+        "description": "A directional threat axis for the map's screen-edge wedge layer. Bearing\nand origin display name are derived server-side from the curated origins\ntable (app/domain/origins.py) — the client just draws the wedge.",
+        "properties": {
+          "bearing_deg": {
+            "title": "Bearing Deg",
+            "type": "integer"
+          },
+          "corroboration_count": {
+            "default": 1,
+            "title": "Corroboration Count",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "last_seen_at": {
+            "format": "date-time",
+            "title": "Last Seen At",
+            "type": "string"
+          },
+          "origin_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Key"
+          },
+          "origin_lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Lat"
+          },
+          "origin_lon": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Lon"
+          },
+          "origin_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Name"
+          },
+          "sector": {
+            "title": "Sector",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "unverified",
+              "corroborated",
+              "expired"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "target_type": {
+            "enum": [
+              "shahed",
+              "jet_drone",
+              "missile",
+              "ballistic",
+              "unknown"
+            ],
+            "title": "Target Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sector",
+          "bearing_deg",
+          "target_type",
+          "status",
+          "created_at",
+          "last_seen_at"
+        ],
+        "title": "AxisOut",
+        "type": "object"
+      },
+      "BrowserSubscriptionIn": {
+        "description": "PushSubscription.toJSON() from the browser.",
+        "properties": {
+          "endpoint": {
+            "title": "Endpoint",
+            "type": "string"
+          },
+          "keys": {
+            "$ref": "#/components/schemas/PushKeysIn"
+          }
+        },
+        "required": [
+          "endpoint",
+          "keys"
+        ],
+        "title": "BrowserSubscriptionIn",
+        "type": "object"
+      },
+      "CardCountOut": {
+        "description": "One collected card + how many copies the user has.",
+        "properties": {
+          "card_id": {
+            "title": "Card Id",
+            "type": "integer"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "first_at": {
+            "format": "date-time",
+            "title": "First At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "card_id",
+          "count",
+          "first_at"
+        ],
+        "title": "CardCountOut",
+        "type": "object"
+      },
+      "CollectionOut": {
+        "description": "GET /analysis/collection — the current user's whole card collection.",
+        "properties": {
+          "card_count": {
+            "title": "Card Count",
+            "type": "integer"
+          },
+          "cards": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/CardCountOut"
+            },
+            "title": "Cards",
+            "type": "array"
+          },
+          "total_analyses": {
+            "title": "Total Analyses",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_analyses",
+          "card_count"
+        ],
+        "title": "CollectionOut",
+        "type": "object"
+      },
+      "CorrectionOut": {
+        "description": "GET /admin/corrections — a harvested correction plus whether the CURRENT\nparser already agrees (so the admin sees which mistakes are retired).",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "expected": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Expected",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "false_positive",
+              "retype",
+              "relocate"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "origin": {
+            "title": "Origin",
+            "type": "string"
+          },
+          "raw_message_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Message Id"
+          },
+          "resolved": {
+            "title": "Resolved",
+            "type": "boolean"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "kind",
+          "origin",
+          "created_at",
+          "resolved"
+        ],
+        "title": "CorrectionOut",
+        "type": "object"
+      },
+      "CoverageGapOut": {
+        "description": "GET /admin/coverage_gaps — a threat-flavored message the parser couldn't\nlocalize (likely a missing gazetteer entry).",
+        "properties": {
+          "detected_status": {
+            "title": "Detected Status",
+            "type": "string"
+          },
+          "detected_target_type": {
+            "enum": [
+              "shahed",
+              "jet_drone",
+              "missile",
+              "ballistic",
+              "unknown"
+            ],
+            "title": "Detected Target Type",
+            "type": "string"
+          },
+          "event_time": {
+            "format": "date-time",
+            "title": "Event Time",
+            "type": "string"
+          },
+          "raw_message_id": {
+            "title": "Raw Message Id",
+            "type": "integer"
+          },
+          "source_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Name"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "raw_message_id",
+          "text",
+          "event_time",
+          "detected_target_type",
+          "detected_status"
+        ],
+        "title": "CoverageGapOut",
+        "type": "object"
+      },
+      "DismissedOut": {
+        "description": "GET /admin/dismissed — recently admin-cancelled entities, for the\n'Повернути' (restore) list in the admin panel.",
+        "properties": {
+          "alerts": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AlertOut"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
+          "incidents": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/IncidentOut"
+            },
+            "title": "Incidents",
+            "type": "array"
+          },
+          "threats": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ThreatOut"
+            },
+            "title": "Threats",
+            "type": "array"
+          }
+        },
+        "title": "DismissedOut",
+        "type": "object"
+      },
+      "DistrictOut": {
+        "properties": {
+          "aliases": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Aliases",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "name_en": {
+            "title": "Name En",
+            "type": "string"
+          },
+          "name_uk": {
+            "title": "Name Uk",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name_uk",
+          "name_en",
+          "lat",
+          "lon"
+        ],
+        "title": "DistrictOut",
+        "type": "object"
+      },
+      "EventDistrictIn": {
+        "description": "PATCH /admin/events/{id} — admin fixes a mislocated sighting.",
+        "properties": {
+          "district_id": {
+            "title": "District Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "district_id"
+        ],
+        "title": "EventDistrictIn",
+        "type": "object"
+      },
+      "FeedEntryOut": {
+        "description": "One event feed row: the sighting plus its track's current derived state,\nfor the frontend event log to hydrate on page load (see /events/recent).",
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/ThreatEventOut"
+          },
+          "threat": {
+            "$ref": "#/components/schemas/ThreatOut"
+          }
+        },
+        "required": [
+          "event",
+          "threat"
+        ],
+        "title": "FeedEntryOut",
+        "type": "object"
+      },
+      "FriendActionOut": {
+        "description": "Result of a friend-graph mutation. The client re-fetches the lists after,\nso this only needs to say WHAT happened (used to phrase a toast).",
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "FriendActionOut",
+        "type": "object"
+      },
+      "FriendOut": {
+        "description": "An accepted friend. `home` is populated ONLY when that friend has both set\na home AND turned sharing on — otherwise null (they stay listed, no marker).",
+        "properties": {
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "home": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HomePointOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "online": {
+            "default": false,
+            "title": "Online",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "FriendOut",
+        "type": "object"
+      },
+      "FriendRequestOut": {
+        "description": "One pending friend request, from the current user's point of view.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "user": {
+            "$ref": "#/components/schemas/FriendUserBrief"
+          }
+        },
+        "required": [
+          "id",
+          "direction",
+          "user",
+          "created_at"
+        ],
+        "title": "FriendRequestOut",
+        "type": "object"
+      },
+      "FriendRequestsOut": {
+        "properties": {
+          "incoming": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/FriendRequestOut"
+            },
+            "title": "Incoming",
+            "type": "array"
+          },
+          "outgoing": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/FriendRequestOut"
+            },
+            "title": "Outgoing",
+            "type": "array"
+          }
+        },
+        "title": "FriendRequestsOut",
+        "type": "object"
+      },
+      "FriendUserBrief": {
+        "description": "Minimal public identity of another user, for friend lists / requests.",
+        "properties": {
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "FriendUserBrief",
+        "type": "object"
+      },
+      "GamificationPrefIn": {
+        "description": "PUT /me/gamification — flip the account-bound gamification toggle.",
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "GamificationPrefIn",
+        "type": "object"
+      },
+      "GamificationPrefOut": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "GamificationPrefOut",
+        "type": "object"
+      },
+      "GazetteerCandidateIn": {
+        "description": "POST /admin/gazetteer_candidates — flag a toponym from a coverage gap.\nNOT a live gazetteer edit; just a captured candidate for later review.",
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "raw_message_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Message Id"
+          },
+          "suggested_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Suggested Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "suggested_name"
+        ],
+        "title": "GazetteerCandidateIn",
+        "type": "object"
+      },
+      "GazetteerCandidateOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "raw_message_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Message Id"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "geocoded",
+              "added",
+              "rejected"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "suggested_name": {
+            "title": "Suggested Name",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "suggested_name",
+          "status",
+          "created_at"
+        ],
+        "title": "GazetteerCandidateOut",
+        "type": "object"
+      },
+      "GazetteerCandidateStatusIn": {
+        "properties": {
+          "status": {
+            "enum": [
+              "pending",
+              "geocoded",
+              "added",
+              "rejected"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "GazetteerCandidateStatusIn",
+        "type": "object"
+      },
+      "GoogleAuthIn": {
+        "description": "POST /auth/google — the id_token from Google Identity Services.",
+        "properties": {
+          "credential": {
+            "title": "Credential",
+            "type": "string"
+          }
+        },
+        "required": [
+          "credential"
+        ],
+        "title": "GoogleAuthIn",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HomePointOut": {
+        "description": "A friend's shared home coordinates — a map marker only (no radius).",
+        "properties": {
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          }
+        },
+        "required": [
+          "lat",
+          "lon"
+        ],
+        "title": "HomePointOut",
+        "type": "object"
+      },
+      "HomeShareIn": {
+        "description": "PUT /me/home — set/update home coordinates and the share flag together.",
+        "properties": {
+          "lat": {
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Lon",
+            "type": "number"
+          },
+          "share": {
+            "default": true,
+            "title": "Share",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "lat",
+          "lon"
+        ],
+        "title": "HomeShareIn",
+        "type": "object"
+      },
+      "HomeZoneIn": {
+        "description": "The home zone this subscription wants guarded (mirrors the client's\nlocalStorage home — see frontend store/homeSlice.ts).",
+        "properties": {
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "radius_km": {
+            "default": 3.0,
+            "title": "Radius Km",
+            "type": "number"
+          }
+        },
+        "required": [
+          "lat",
+          "lon"
+        ],
+        "title": "HomeZoneIn",
+        "type": "object"
+      },
+      "IncidentOut": {
+        "description": "A coordinated attack with counts aggregated from its member threats.",
+        "properties": {
+          "alert_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert Id"
+          },
+          "attack_types": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Attack Types",
+            "type": "array"
+          },
+          "citywide": {
+            "default": false,
+            "title": "Citywide",
+            "type": "boolean"
+          },
+          "classification": {
+            "default": "unknown",
+            "title": "Classification",
+            "type": "string"
+          },
+          "decoy_suspected": {
+            "default": false,
+            "title": "Decoy Suspected",
+            "type": "boolean"
+          },
+          "district_count": {
+            "default": 0,
+            "title": "District Count",
+            "type": "integer"
+          },
+          "district_ids": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "District Ids",
+            "type": "array"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "ended_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "all_clear",
+                  "alert_end",
+                  "stale",
+                  "dismissed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended Reason"
+          },
+          "has_hypersonic": {
+            "default": false,
+            "title": "Has Hypersonic",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "impact_count": {
+            "default": 0,
+            "title": "Impact Count",
+            "type": "integer"
+          },
+          "notable": {
+            "default": false,
+            "title": "Notable",
+            "type": "boolean"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "target_type": {
+            "enum": [
+              "shahed",
+              "jet_drone",
+              "missile",
+              "ballistic",
+              "unknown"
+            ],
+            "title": "Target Type",
+            "type": "string"
+          },
+          "track_count": {
+            "default": 0,
+            "title": "Track Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "started_at",
+          "target_type",
+          "status"
+        ],
+        "title": "IncidentOut",
+        "type": "object"
+      },
+      "JournalAlertWindowOut": {
+        "description": "One тривога→відбій window within a journal day. `seconds` stays 0 for an\nincomplete window (still open / failsafe-closed) so it can never be picked\nas the day's longest.",
+        "properties": {
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "incomplete": {
+            "default": false,
+            "title": "Incomplete",
+            "type": "boolean"
+          },
+          "seconds": {
+            "default": 0,
+            "title": "Seconds",
+            "type": "integer"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "started_at"
+        ],
+        "title": "JournalAlertWindowOut",
+        "type": "object"
+      },
+      "JournalDayOut": {
+        "description": "One calendar day of aggregated threat activity — see GET /journal/days.\nMirrors app/domain/journal.py::DayStat. The intensity score is derived on\nthe client from these fields (the frontend owns the weighting).",
+        "properties": {
+          "alert_count": {
+            "default": 0,
+            "title": "Alert Count",
+            "type": "integer"
+          },
+          "alert_incomplete": {
+            "default": false,
+            "title": "Alert Incomplete",
+            "type": "boolean"
+          },
+          "alert_seconds": {
+            "default": 0,
+            "title": "Alert Seconds",
+            "type": "integer"
+          },
+          "alert_windows": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/JournalAlertWindowOut"
+            },
+            "title": "Alert Windows",
+            "type": "array"
+          },
+          "attack_count": {
+            "default": 0,
+            "title": "Attack Count",
+            "type": "integer"
+          },
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "district_count": {
+            "default": 0,
+            "title": "District Count",
+            "type": "integer"
+          },
+          "district_ids": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "District Ids",
+            "type": "array"
+          },
+          "impact_count": {
+            "default": 0,
+            "title": "Impact Count",
+            "type": "integer"
+          },
+          "longest_alert_seconds": {
+            "default": 0,
+            "title": "Longest Alert Seconds",
+            "type": "integer"
+          },
+          "target_count": {
+            "default": 0,
+            "title": "Target Count",
+            "type": "integer"
+          },
+          "track_count": {
+            "default": 0,
+            "title": "Track Count",
+            "type": "integer"
+          },
+          "type_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "default": {},
+            "title": "Type Counts",
+            "type": "object"
+          }
+        },
+        "required": [
+          "date"
+        ],
+        "title": "JournalDayOut",
+        "type": "object"
+      },
+      "JournalOut": {
+        "description": "GET /journal/days — every day in [from_date, to_date] inclusive, with\nzero-activity days present (as empty stats) so the calendar renders gaps.",
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/JournalDayOut"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "from_date": {
+            "title": "From Date",
+            "type": "string"
+          },
+          "to_date": {
+            "title": "To Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from_date",
+          "to_date",
+          "days"
+        ],
+        "title": "JournalOut",
+        "type": "object"
+      },
+      "LoginIn": {
+        "description": "POST /auth/login.",
+        "properties": {
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "LoginIn",
+        "type": "object"
+      },
+      "MyHomeOut": {
+        "description": "GET /me/home — the current user's own stored home + share state.",
+        "properties": {
+          "home": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HomePointOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "share_home": {
+            "title": "Share Home",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "share_home"
+        ],
+        "title": "MyHomeOut",
+        "type": "object"
+      },
+      "NoticeOut": {
+        "description": "A non-threat feed notice (all-clear / attack summary) for the event log.",
+        "properties": {
+          "event_time": {
+            "format": "date-time",
+            "title": "Event Time",
+            "type": "string"
+          },
+          "generated_by": {
+            "default": "rule",
+            "enum": [
+              "rule",
+              "llm"
+            ],
+            "title": "Generated By",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "clear",
+              "summary",
+              "directional",
+              "forecast",
+              "status"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "source_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Name"
+          },
+          "target_type": {
+            "enum": [
+              "shahed",
+              "jet_drone",
+              "missile",
+              "ballistic",
+              "unknown"
+            ],
+            "title": "Target Type",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "text",
+          "target_type",
+          "event_time"
+        ],
+        "title": "NoticeOut",
+        "type": "object"
+      },
+      "PresencePrefIn": {
+        "description": "PUT /me/presence — opt in/out of showing friends WHEN you were last active.",
+        "properties": {
+          "share_presence": {
+            "title": "Share Presence",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "share_presence"
+        ],
+        "title": "PresencePrefIn",
+        "type": "object"
+      },
+      "PresencePrefOut": {
+        "properties": {
+          "share_presence": {
+            "title": "Share Presence",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "share_presence"
+        ],
+        "title": "PresencePrefOut",
+        "type": "object"
+      },
+      "PushConfigOut": {
+        "description": "GET /push/config — whether push is configured server-side, and the VAPID\npublic key the browser needs for pushManager.subscribe. Fetched at runtime\nso key rotation never requires a frontend rebuild.",
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "public_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Public Key"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "PushConfigOut",
+        "type": "object"
+      },
+      "PushKeysIn": {
+        "description": "The browser PushSubscription's encryption keys.",
+        "properties": {
+          "auth": {
+            "title": "Auth",
+            "type": "string"
+          },
+          "p256dh": {
+            "title": "P256Dh",
+            "type": "string"
+          }
+        },
+        "required": [
+          "p256dh",
+          "auth"
+        ],
+        "title": "PushKeysIn",
+        "type": "object"
+      },
+      "PushPrefsIn": {
+        "description": "Notification preferences (phase 1). Defaults reproduce the pre-0.10\nbehavior (warning floor, every type) plus the citywide push on.",
+        "properties": {
+          "citywide": {
+            "default": true,
+            "title": "Citywide",
+            "type": "boolean"
+          },
+          "min_level": {
+            "default": "warning",
+            "enum": [
+              "warning",
+              "danger"
+            ],
+            "title": "Min Level",
+            "type": "string"
+          },
+          "types": {
+            "default": [
+              "ballistic",
+              "missile",
+              "shahed",
+              "jet_drone"
+            ],
+            "items": {
+              "enum": [
+                "ballistic",
+                "missile",
+                "shahed",
+                "jet_drone"
+              ],
+              "type": "string"
+            },
+            "title": "Types",
+            "type": "array"
+          }
+        },
+        "title": "PushPrefsIn",
+        "type": "object"
+      },
+      "PushSubscribeIn": {
+        "description": "POST /push/subscribe body. Upsert by endpoint; re-POSTed on every home\nor prefs change so the server copy never goes stale.",
+        "properties": {
+          "home": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HomeZoneIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prefs": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PushPrefsIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "subscription": {
+            "$ref": "#/components/schemas/BrowserSubscriptionIn"
+          }
+        },
+        "required": [
+          "subscription"
+        ],
+        "title": "PushSubscribeIn",
+        "type": "object"
+      },
+      "PushUnsubscribeIn": {
+        "properties": {
+          "endpoint": {
+            "title": "Endpoint",
+            "type": "string"
+          }
+        },
+        "required": [
+          "endpoint"
+        ],
+        "title": "PushUnsubscribeIn",
+        "type": "object"
+      },
+      "RawCountOut": {
+        "description": "How many raw messages match the current /raw filter set.",
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count"
+        ],
+        "title": "RawCountOut",
+        "type": "object"
+      },
+      "RawEventLinkOut": {
+        "description": "One ThreatEvent a raw message produced — the same T{threat_id}/\nM{event_id} pair shown as a dev badge in the feed. A single raw message\ncan produce SEVERAL (e.g. an untyped \"дорозвідка\" closing multiple open\ntracks at once), hence a list on RawMessageOut rather than one pair.",
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "corroboration_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corroboration Count"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "integer"
+          },
+          "incident_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incident Id"
+          },
+          "target_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "shahed",
+                  "jet_drone",
+                  "missile",
+                  "ballistic",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Type"
+          },
+          "threat_id": {
+            "title": "Threat Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "threat_id",
+          "event_id"
+        ],
+        "title": "RawEventLinkOut",
+        "type": "object"
+      },
+      "RawExportOut": {
+        "description": "All raw messages matching the current filter (up to the export cap),\nfor offline analysis — see GET /raw_messages/export. `truncated` flags a\npartial export so it's never mistaken for the complete set.",
+        "properties": {
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/RawMessageOut"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "messages",
+          "truncated"
+        ],
+        "title": "RawExportOut",
+        "type": "object"
+      },
+      "RawLlmStatsOut": {
+        "description": "Aggregate LLM fallback usage across all raw messages — see\nGET /raw_messages/llm_stats.",
+        "properties": {
+          "calls": {
+            "title": "Calls",
+            "type": "integer"
+          },
+          "cost_usd": {
+            "title": "Cost Usd",
+            "type": "number"
+          },
+          "input_tokens": {
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "output_tokens": {
+            "title": "Output Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "calls",
+          "input_tokens",
+          "output_tokens",
+          "cost_usd"
+        ],
+        "title": "RawLlmStatsOut",
+        "type": "object"
+      },
+      "RawMessageOut": {
+        "description": "One verbatim ingested message plus a debug diagnosis of what the\npipeline did with it — see GET /raw_messages. `outcome`/`events`/\n`notice_id` are authoritative when a real ThreatEvent/Notice matched\n('подія'/'нотіс'); a best-effort re-derived label otherwise (see\napi/raw_diagnosis.py).",
+        "properties": {
+          "event_time": {
+            "format": "date-time",
+            "title": "Event Time",
+            "type": "string"
+          },
+          "events": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RawEventLinkOut"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "forwarded_from_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forwarded From Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "llm_attempted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Attempted"
+          },
+          "llm_cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Cost Usd"
+          },
+          "llm_input_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Input Tokens"
+          },
+          "llm_output_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Output Tokens"
+          },
+          "llm_response": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Response"
+          },
+          "message_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message Id"
+          },
+          "notice_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notice Id"
+          },
+          "outcome": {
+            "title": "Outcome",
+            "type": "string"
+          },
+          "processed": {
+            "title": "Processed",
+            "type": "boolean"
+          },
+          "reply_to_message_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply To Message Id"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "source_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Name"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "triage_action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Triage Action"
+          },
+          "triage_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Triage State"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "event_time",
+          "processed",
+          "outcome"
+        ],
+        "title": "RawMessageOut",
+        "type": "object"
+      },
+      "RawMessagesPage": {
+        "description": "Cursor-paginated page of raw messages, newest first.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RawMessageOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_before_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Before Id"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "RawMessagesPage",
+        "type": "object"
+      },
+      "RawSourceOut": {
+        "description": "One monitored channel, for the /raw channel filter dropdown.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "RawSourceOut",
+        "type": "object"
+      },
+      "RefreshIn": {
+        "description": "POST /auth/refresh — exchange a refresh token for a new access token.",
+        "properties": {
+          "refresh": {
+            "title": "Refresh",
+            "type": "string"
+          }
+        },
+        "required": [
+          "refresh"
+        ],
+        "title": "RefreshIn",
+        "type": "object"
+      },
+      "RegisterIn": {
+        "description": "POST /auth/register — email+password signup.",
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "RegisterIn",
+        "type": "object"
+      },
+      "ReprocessApplyIn": {
+        "properties": {
+          "force": {
+            "default": false,
+            "title": "Force",
+            "type": "boolean"
+          },
+          "no_llm": {
+            "default": true,
+            "title": "No Llm",
+            "type": "boolean"
+          }
+        },
+        "title": "ReprocessApplyIn",
+        "type": "object"
+      },
+      "ReprocessDayOut": {
+        "properties": {
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "target_count": {
+            "title": "Target Count",
+            "type": "integer"
+          },
+          "track_count": {
+            "title": "Track Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "target_count",
+          "track_count"
+        ],
+        "title": "ReprocessDayOut",
+        "type": "object"
+      },
+      "ReprocessPreviewOut": {
+        "description": "GET /admin/reprocess/preview — pre-flight scope, no mutation.",
+        "properties": {
+          "attack_active": {
+            "title": "Attack Active",
+            "type": "boolean"
+          },
+          "current": {
+            "$ref": "#/components/schemas/ReprocessSummaryOut"
+          },
+          "raw_messages": {
+            "title": "Raw Messages",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "raw_messages",
+          "current",
+          "attack_active"
+        ],
+        "title": "ReprocessPreviewOut",
+        "type": "object"
+      },
+      "ReprocessResultOut": {
+        "description": "POST /admin/reprocess/apply — before/after diff + raw replay counts.",
+        "properties": {
+          "after": {
+            "$ref": "#/components/schemas/ReprocessSummaryOut"
+          },
+          "before": {
+            "$ref": "#/components/schemas/ReprocessSummaryOut"
+          },
+          "result": {
+            "additionalProperties": true,
+            "title": "Result",
+            "type": "object"
+          }
+        },
+        "required": [
+          "before",
+          "after",
+          "result"
+        ],
+        "title": "ReprocessResultOut",
+        "type": "object"
+      },
+      "ReprocessSummaryOut": {
+        "description": "Snapshot used to diff a reprocess: totals + recent per-day target counts\n(where the phantom-count inflation like the 23.07 '432 цілі' shows up).",
+        "properties": {
+          "days": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ReprocessDayOut"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "events": {
+            "title": "Events",
+            "type": "integer"
+          },
+          "incidents": {
+            "title": "Incidents",
+            "type": "integer"
+          },
+          "tracks": {
+            "title": "Tracks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tracks",
+          "events",
+          "incidents"
+        ],
+        "title": "ReprocessSummaryOut",
+        "type": "object"
+      },
+      "SendFriendRequestIn": {
+        "description": "POST /friends/requests — address a friend request by their email.",
+        "properties": {
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "SendFriendRequestIn",
+        "type": "object"
+      },
+      "ShareToggleIn": {
+        "description": "PATCH /me/home/share — flip sharing without touching coordinates.",
+        "properties": {
+          "share": {
+            "title": "Share",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "share"
+        ],
+        "title": "ShareToggleIn",
+        "type": "object"
+      },
+      "SourceAdminOut": {
+        "properties": {
+          "channel_key": {
+            "title": "Channel Key",
+            "type": "string"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "last_listener_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Listener Error"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "spotter",
+              "alert"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/SourceStatsOut"
+          },
+          "subscribe_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subscribe Ref"
+          },
+          "trust_weight": {
+            "title": "Trust Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "channel_key",
+          "name",
+          "subscribe_ref",
+          "role",
+          "is_active",
+          "trust_weight",
+          "last_listener_error",
+          "created_at",
+          "stats"
+        ],
+        "title": "SourceAdminOut",
+        "type": "object"
+      },
+      "SourceDeleteOut": {
+        "description": "What a hard-delete removed — surfaced so the admin sees the blast radius.",
+        "properties": {
+          "events": {
+            "title": "Events",
+            "type": "integer"
+          },
+          "incidents_deleted": {
+            "title": "Incidents Deleted",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "notices": {
+            "title": "Notices",
+            "type": "integer"
+          },
+          "raw_messages": {
+            "title": "Raw Messages",
+            "type": "integer"
+          },
+          "threats_deleted": {
+            "title": "Threats Deleted",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "raw_messages",
+          "events",
+          "notices",
+          "threats_deleted",
+          "incidents_deleted"
+        ],
+        "title": "SourceDeleteOut",
+        "type": "object"
+      },
+      "SourceIn": {
+        "description": "Add (or reactivate) a channel from the admin console.",
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "role": {
+            "default": "spotter",
+            "enum": [
+              "spotter",
+              "alert"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "subscribe_ref": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Subscribe Ref",
+            "type": "string"
+          },
+          "trust_weight": {
+            "default": 1.0,
+            "title": "Trust Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "subscribe_ref"
+        ],
+        "title": "SourceIn",
+        "type": "object"
+      },
+      "SourceStatsOut": {
+        "description": "Per-source quality signals, computed on-demand (JOIN by source_id) over a\nrecent window — see app/api/source_stats.py. Rates are None when there's no\ndenominator (e.g. llm_fallback_rate before any row had llm_attempted set).",
+        "properties": {
+          "conflict_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conflict Share"
+          },
+          "correction_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correction Rate"
+          },
+          "coverage_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Rate"
+          },
+          "events_produced": {
+            "title": "Events Produced",
+            "type": "integer"
+          },
+          "last_message_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Message At"
+          },
+          "llm_fallback_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Fallback Rate"
+          },
+          "messages_processed": {
+            "title": "Messages Processed",
+            "type": "integer"
+          },
+          "messages_total": {
+            "title": "Messages Total",
+            "type": "integer"
+          },
+          "quality_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quality Score"
+          }
+        },
+        "required": [
+          "messages_total",
+          "messages_processed",
+          "events_produced",
+          "llm_fallback_rate",
+          "coverage_rate",
+          "correction_rate",
+          "conflict_share",
+          "quality_score",
+          "last_message_at"
+        ],
+        "title": "SourceStatsOut",
+        "type": "object"
+      },
+      "SourceUpdateIn": {
+        "properties": {
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "enum": [
+                  "spotter",
+                  "alert"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "trust_weight": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Weight"
+          }
+        },
+        "title": "SourceUpdateIn",
+        "type": "object"
+      },
+      "TelegramAuthIn": {
+        "additionalProperties": true,
+        "description": "POST /auth/telegram — the Telegram Login Widget payload. extra='allow'\nso any future widget field is preserved for the HMAC data-check-string\n(which must include EXACTLY the fields Telegram signed).",
+        "properties": {
+          "auth_date": {
+            "title": "Auth Date",
+            "type": "integer"
+          },
+          "first_name": {
+            "title": "First Name",
+            "type": "string"
+          },
+          "hash": {
+            "title": "Hash",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "last_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Name"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          }
+        },
+        "required": [
+          "id",
+          "first_name",
+          "auth_date",
+          "hash"
+        ],
+        "title": "TelegramAuthIn",
+        "type": "object"
+      },
+      "ThreatAnalysisStateOut": {
+        "description": "GET /analysis/threat/{id} — which analyses this target has left, and which\n(if any) the current user already claimed. Drives the inspect-badge button:\n`*_taken` disables it globally, `mine.*` shows the card the user won.",
+        "properties": {
+          "mine_remains": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mine Remains"
+          },
+          "mine_track": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mine Track"
+          },
+          "remains_taken": {
+            "title": "Remains Taken",
+            "type": "boolean"
+          },
+          "track_taken": {
+            "title": "Track Taken",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "track_taken",
+          "remains_taken"
+        ],
+        "title": "ThreatAnalysisStateOut",
+        "type": "object"
+      },
+      "ThreatEventOut": {
+        "properties": {
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "decision_source": {
+            "enum": [
+              "rule",
+              "llm",
+              "sim",
+              "triage"
+            ],
+            "title": "Decision Source",
+            "type": "string"
+          },
+          "district_id": {
+            "title": "District Id",
+            "type": "integer"
+          },
+          "event_target_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Target Count"
+          },
+          "event_target_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "shahed",
+                  "jet_drone",
+                  "missile",
+                  "ballistic",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Target Type"
+          },
+          "event_time": {
+            "format": "date-time",
+            "title": "Event Time",
+            "type": "string"
+          },
+          "forwarded_from_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forwarded From Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "llm_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Summary"
+          },
+          "lon": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lon"
+          },
+          "raw_text": {
+            "title": "Raw Text",
+            "type": "string"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "source_message_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Message Id"
+          },
+          "source_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Name"
+          },
+          "threat_id": {
+            "title": "Threat Id",
+            "type": "integer"
+          },
+          "translated_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Translated Text"
+          }
+        },
+        "required": [
+          "id",
+          "threat_id",
+          "district_id",
+          "raw_text",
+          "event_time",
+          "confidence",
+          "decision_source"
+        ],
+        "title": "ThreatEventOut",
+        "type": "object"
+      },
+      "ThreatOut": {
+        "properties": {
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "closed_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "destroyed",
+                  "all_clear",
+                  "stand_down",
+                  "stale",
+                  "dismissed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed Reason"
+          },
+          "confidence": {
+            "default": 0.5,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "corroboration_count": {
+            "default": 1,
+            "title": "Corroboration Count",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "events": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ThreatEventOut"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "has_conflict": {
+            "default": false,
+            "title": "Has Conflict",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "incident_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incident Id"
+          },
+          "kind": {
+            "default": "track",
+            "enum": [
+              "track",
+              "impact"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "scope": {
+            "default": "district",
+            "enum": [
+              "district",
+              "city"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "unconfirmed",
+              "tracking",
+              "destroyed",
+              "lost",
+              "impact",
+              "dismissed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "target_count": {
+            "default": 1,
+            "title": "Target Count",
+            "type": "integer"
+          },
+          "target_type": {
+            "enum": [
+              "shahed",
+              "jet_drone",
+              "missile",
+              "ballistic",
+              "unknown"
+            ],
+            "title": "Target Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "target_type",
+          "status"
+        ],
+        "title": "ThreatOut",
+        "type": "object"
+      },
+      "ThreatTypeIn": {
+        "description": "PATCH /admin/threats/{id} — admin retype of a track's target.",
+        "properties": {
+          "target_type": {
+            "enum": [
+              "shahed",
+              "jet_drone",
+              "missile",
+              "ballistic",
+              "unknown"
+            ],
+            "title": "Target Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target_type"
+        ],
+        "title": "ThreatTypeIn",
+        "type": "object"
+      },
+      "TokenPairOut": {
+        "description": "Access + refresh tokens plus the user they belong to.",
+        "properties": {
+          "access": {
+            "title": "Access",
+            "type": "string"
+          },
+          "refresh": {
+            "title": "Refresh",
+            "type": "string"
+          },
+          "token_type": {
+            "default": "bearer",
+            "title": "Token Type",
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserOut"
+          }
+        },
+        "required": [
+          "access",
+          "refresh",
+          "user"
+        ],
+        "title": "TokenPairOut",
+        "type": "object"
+      },
+      "UserOut": {
+        "description": "The authenticated user's public profile.",
+        "properties": {
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "gamification": {
+            "default": false,
+            "title": "Gamification",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "providers": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Providers",
+            "type": "array"
+          },
+          "role": {
+            "enum": [
+              "admin",
+              "admin_g",
+              "user"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "share_presence": {
+            "default": true,
+            "title": "Share Presence",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "role"
+        ],
+        "title": "UserOut",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Kyiv Aerial Threat Tracker (MVP)",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/admin/alerts/{alert_id}/dismiss": {
+      "post": {
+        "operationId": "admin_dismiss_alert_admin_alerts__alert_id__dismiss_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alert_id",
+            "required": true,
+            "schema": {
+              "title": "Alert Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Dismiss Alert"
+      }
+    },
+    "/admin/alerts/{alert_id}/restore": {
+      "post": {
+        "operationId": "admin_restore_alert_admin_alerts__alert_id__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alert_id",
+            "required": true,
+            "schema": {
+              "title": "Alert Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Restore Alert"
+      }
+    },
+    "/admin/corrections": {
+      "get": {
+        "description": "Harvested corrections + whether the CURRENT parser already agrees — so\nthe operator sees which mistakes are retired vs still reproduced.",
+        "operationId": "admin_corrections_admin_corrections_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CorrectionOut"
+                  },
+                  "title": "Response Admin Corrections Admin Corrections Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Corrections"
+      }
+    },
+    "/admin/coverage_gaps": {
+      "get": {
+        "description": "Recent threat-flavored messages the parser couldn't pin to a district —\nthe coverage-gap queue (usually a missing gazetteer entry).",
+        "operationId": "admin_coverage_gaps_admin_coverage_gaps_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CoverageGapOut"
+                  },
+                  "title": "Response Admin Coverage Gaps Admin Coverage Gaps Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Coverage Gaps"
+      }
+    },
+    "/admin/dismissed": {
+      "get": {
+        "description": "Recently admin-cancelled threats / incidents / alerts, for the restore\n('Повернути') list in the admin panel.",
+        "operationId": "admin_dismissed_admin_dismissed_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DismissedOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Dismissed"
+      }
+    },
+    "/admin/events/{event_id}": {
+      "delete": {
+        "description": "Remove a wrongly-attributed sighting. If it was the track's last event,\nthe now-empty track is dismissed; otherwise the parent incident's type is\nrecomputed from what remains.",
+        "operationId": "admin_delete_event_admin_events__event_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreatOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Delete Event"
+      },
+      "patch": {
+        "description": "Reassign a sighting to a different district (fix a mislocation). The\nthreat's vector/geometry are derived from its events at serialization, so a\nre-broadcast is all that's needed to update the map.",
+        "operationId": "admin_move_event_admin_events__event_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventDistrictIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreatOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Move Event"
+      }
+    },
+    "/admin/gazetteer_candidates": {
+      "get": {
+        "operationId": "admin_list_gazetteer_candidates_admin_gazetteer_candidates_get",
+        "parameters": [
+          {
+            "description": "Filter by status",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by status",
+              "title": "Status"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GazetteerCandidateOut"
+                  },
+                  "title": "Response Admin List Gazetteer Candidates Admin Gazetteer Candidates Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin List Gazetteer Candidates"
+      },
+      "post": {
+        "description": "Capture a toponym candidate from a gap — NOT a live gazetteer edit; that\nstays a reviewed code step with a stem-collision sweep (CLAUDE.md).",
+        "operationId": "admin_add_gazetteer_candidate_admin_gazetteer_candidates_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GazetteerCandidateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GazetteerCandidateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Add Gazetteer Candidate"
+      }
+    },
+    "/admin/gazetteer_candidates/{candidate_id}": {
+      "patch": {
+        "operationId": "admin_update_gazetteer_candidate_admin_gazetteer_candidates__candidate_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "title": "Candidate Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GazetteerCandidateStatusIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GazetteerCandidateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Update Gazetteer Candidate"
+      }
+    },
+    "/admin/incidents/{incident_id}/dismiss": {
+      "post": {
+        "operationId": "admin_dismiss_incident_admin_incidents__incident_id__dismiss_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Dismiss Incident"
+      }
+    },
+    "/admin/incidents/{incident_id}/restore": {
+      "post": {
+        "operationId": "admin_restore_incident_admin_incidents__incident_id__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Restore Incident"
+      }
+    },
+    "/admin/reprocess/apply": {
+      "post": {
+        "description": "Wipe + rebuild all tracks/incidents from raw_messages through the current\npipeline. Held under `ingest_lock` so the live listener can't ingest into a\nhalf-rebuilt DB (messages queue behind it and process after). Refuses while\nan attack is active unless `force`. raw_messages are preserved, so a\nreprocess is repeatable.",
+        "operationId": "admin_reprocess_apply_admin_reprocess_apply_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReprocessApplyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReprocessResultOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Reprocess Apply"
+      }
+    },
+    "/admin/reprocess/preview": {
+      "get": {
+        "description": "Pre-flight scope: how many raw messages will replay, the current counts\nthat will be rebuilt, and whether an attack is active (a reprocess would be\nill-timed). Read-only. Uses reprocess's own SessionLocal so it reads exactly\nthe DB the apply would rebuild.",
+        "operationId": "admin_reprocess_preview_admin_reprocess_preview_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReprocessPreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Reprocess Preview"
+      }
+    },
+    "/admin/sources": {
+      "get": {
+        "description": "Every source with its on-demand quality stats — active channels first,\nthen by name. Inactive rows are kept (removal is a soft deactivate) so the\noperator can re-enable or inspect a channel's history.",
+        "operationId": "admin_list_sources_admin_sources_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SourceAdminOut"
+                  },
+                  "title": "Response Admin List Sources Admin Sources Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin List Sources"
+      },
+      "post": {
+        "description": "Add (or reactivate) a channel and tell the listener to re-subscribe. Whether\nit actually starts delivering shows up as message counts / last_listener_error\non the next connect.",
+        "operationId": "admin_add_source_admin_sources_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceAdminOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Add Source"
+      }
+    },
+    "/admin/sources/{source_id}": {
+      "delete": {
+        "description": "HARD-delete a channel AND all of its stored data (raw_messages, notices,\nthreat_events), repairing the tracks/incidents it touched — irreversible,\nunlike deactivate. Refused while an attack is active (the graph surgery would\ndisrupt live tracking) unless `force`.",
+        "operationId": "admin_delete_source_admin_sources__source_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "title": "Source Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Delete even while an attack is active",
+            "in": "query",
+            "name": "force",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Delete even while an attack is active",
+              "title": "Force",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceDeleteOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Delete Source"
+      },
+      "patch": {
+        "description": "Edit a source's name / role / trust_weight / active flag. Only a change that\naffects what's watched (role or is_active) triggers a listener reload.",
+        "operationId": "admin_update_source_admin_sources__source_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "title": "Source Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceUpdateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceAdminOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Update Source"
+      }
+    },
+    "/admin/sources/{source_id}/activate": {
+      "post": {
+        "operationId": "admin_activate_source_admin_sources__source_id__activate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "title": "Source Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceAdminOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Activate Source"
+      }
+    },
+    "/admin/sources/{source_id}/deactivate": {
+      "post": {
+        "description": "Remove a channel from the live feed (soft — the row stays, since\nraw_messages/threat_events reference it and its history stays queryable).",
+        "operationId": "admin_deactivate_source_admin_sources__source_id__deactivate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "title": "Source Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceAdminOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Deactivate Source"
+      }
+    },
+    "/admin/threats/{threat_id}": {
+      "patch": {
+        "operationId": "admin_retype_threat_admin_threats__threat_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "threat_id",
+            "required": true,
+            "schema": {
+              "title": "Threat Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThreatTypeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreatOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Retype Threat"
+      }
+    },
+    "/admin/threats/{threat_id}/dismiss": {
+      "post": {
+        "operationId": "admin_dismiss_threat_admin_threats__threat_id__dismiss_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "threat_id",
+            "required": true,
+            "schema": {
+              "title": "Threat Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreatOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Dismiss Threat"
+      }
+    },
+    "/admin/threats/{threat_id}/restore": {
+      "post": {
+        "operationId": "admin_restore_threat_admin_threats__threat_id__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "threat_id",
+            "required": true,
+            "schema": {
+              "title": "Threat Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreatOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Restore Threat"
+      }
+    },
+    "/alerts/active": {
+      "get": {
+        "description": "Currently open official alert windows (usually 0 or 1 per scope —\ncity and oblast can be open independently).",
+        "operationId": "active_alerts_alerts_active_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AlertOut"
+                  },
+                  "title": "Response Active Alerts Alerts Active Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Active Alerts"
+      }
+    },
+    "/alerts/recent": {
+      "get": {
+        "operationId": "recent_alerts_alerts_recent_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AlertOut"
+                  },
+                  "title": "Response Recent Alerts Alerts Recent Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Recent Alerts"
+      }
+    },
+    "/analysis": {
+      "post": {
+        "operationId": "analyze_target_analysis_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyzeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyzeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Analyze Target",
+        "tags": [
+          "gamification"
+        ]
+      }
+    },
+    "/analysis/collection": {
+      "get": {
+        "operationId": "my_collection_analysis_collection_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "My Collection",
+        "tags": [
+          "gamification"
+        ]
+      }
+    },
+    "/analysis/threat/{threat_id}": {
+      "get": {
+        "operationId": "threat_analysis_state_analysis_threat__threat_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "threat_id",
+            "required": true,
+            "schema": {
+              "title": "Threat Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreatAnalysisStateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Threat Analysis State",
+        "tags": [
+          "gamification"
+        ]
+      }
+    },
+    "/auth/google": {
+      "post": {
+        "operationId": "google_login_auth_google_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleAuthIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenPairOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Google Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "operationId": "login_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenPairOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "description": "Stateless: the client discards its tokens. Endpoint exists for symmetry\nand a future server-side revocation hook.",
+        "operationId": "logout_auth_logout_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Logout",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "operationId": "me_auth_me_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Me",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "operationId": "refresh_auth_refresh_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessTokenOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Refresh",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "operationId": "register_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenPairOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/telegram": {
+      "post": {
+        "operationId": "telegram_login_auth_telegram_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelegramAuthIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenPairOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Telegram Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/axes/active": {
+      "get": {
+        "description": "Live directional threat axes (not yet expired), newest first — the map's\nscreen-edge wedge layer. Supplementary, volunteer-sourced; never the alert.",
+        "operationId": "active_axes_axes_active_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AxisOut"
+                  },
+                  "title": "Response Active Axes Axes Active Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Active Axes"
+      }
+    },
+    "/collection/{user_id}": {
+      "get": {
+        "description": "Another user's collection — visible only to that user themselves or an\naccepted friend (collections aren't public).",
+        "operationId": "friend_collection_collection__user_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Friend Collection",
+        "tags": [
+          "gamification"
+        ]
+      }
+    },
+    "/districts": {
+      "get": {
+        "operationId": "list_districts_districts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DistrictOut"
+                  },
+                  "title": "Response List Districts Districts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Districts"
+      }
+    },
+    "/districts/boundaries": {
+      "get": {
+        "description": "Real OSM boundary polygons for districts that have one (the 10 raions).",
+        "operationId": "district_boundaries_districts_boundaries_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "District Boundaries"
+      }
+    },
+    "/events/recent": {
+      "get": {
+        "description": "Most recent sightings across ALL tracks (open or closed), newest first —\nhydrates the frontend event feed on page load (it otherwise only grows from\nlive WebSocket traffic and empties on every reload).",
+        "operationId": "recent_events_events_recent_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 60,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FeedEntryOut"
+                  },
+                  "title": "Response Recent Events Events Recent Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Recent Events"
+      }
+    },
+    "/friends": {
+      "get": {
+        "operationId": "list_friends_friends_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FriendOut"
+                  },
+                  "title": "Response List Friends Friends Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Friends",
+        "tags": [
+          "friends"
+        ]
+      }
+    },
+    "/friends/requests": {
+      "get": {
+        "operationId": "list_requests_friends_requests_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FriendRequestsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Requests",
+        "tags": [
+          "friends"
+        ]
+      },
+      "post": {
+        "operationId": "send_request_friends_requests_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendFriendRequestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FriendActionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Send Request",
+        "tags": [
+          "friends"
+        ]
+      }
+    },
+    "/friends/requests/{request_id}/accept": {
+      "post": {
+        "operationId": "accept_request_friends_requests__request_id__accept_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "title": "Request Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FriendActionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Accept Request",
+        "tags": [
+          "friends"
+        ]
+      }
+    },
+    "/friends/requests/{request_id}/decline": {
+      "post": {
+        "operationId": "decline_request_friends_requests__request_id__decline_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "title": "Request Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FriendActionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Decline Request",
+        "tags": [
+          "friends"
+        ]
+      }
+    },
+    "/friends/{user_id}": {
+      "delete": {
+        "operationId": "remove_friend_friends__user_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FriendActionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Friend",
+        "tags": [
+          "friends"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/incidents/active": {
+      "get": {
+        "description": "Ongoing attacks (incidents not yet ended), each with counts aggregated\nover its member threats — the \"one attack\" rollup for the UI summary strip.",
+        "operationId": "active_incidents_incidents_active_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IncidentOut"
+                  },
+                  "title": "Response Active Incidents Incidents Active Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Active Incidents"
+      }
+    },
+    "/incidents/recent": {
+      "get": {
+        "description": "Most recent attacks (ended or active), newest first — hydrates the feed's\nattack-summary cards on load so an incident that ended before the client\nconnected still renders its rollup.",
+        "operationId": "recent_incidents_incidents_recent_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IncidentOut"
+                  },
+                  "title": "Response Recent Incidents Incidents Recent Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Recent Incidents"
+      }
+    },
+    "/journal/days": {
+      "get": {
+        "description": "Per-day threat activity for the journal calendar: attacks, targets,\ntarget-type mix, alert duration and districts touched, one row per day in\n[from, to] inclusive (zero-activity days included). Days are bucketed by\nEurope/Kyiv local date. The SQL only bounds the range; all bucketing happens\nin Python (see domain/journal.py) — no tz-fragile SQL date math.",
+        "operationId": "journal_days_journal_days_get",
+        "parameters": [
+          {
+            "description": "Start day (Kyiv), YYYY-MM-DD",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Start day (Kyiv), YYYY-MM-DD",
+              "title": "From"
+            }
+          },
+          {
+            "description": "End day (Kyiv), YYYY-MM-DD; defaults to today",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "End day (Kyiv), YYYY-MM-DD; defaults to today",
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JournalOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Journal Days"
+      }
+    },
+    "/me/gamification": {
+      "put": {
+        "description": "Persist the account-bound gamification toggle so it syncs across devices.",
+        "operationId": "set_gamification_pref_me_gamification_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GamificationPrefIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GamificationPrefOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Gamification Pref",
+        "tags": [
+          "gamification"
+        ]
+      }
+    },
+    "/me/home": {
+      "delete": {
+        "operationId": "delete_my_home_me_home_delete",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyHomeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete My Home",
+        "tags": [
+          "friends"
+        ]
+      },
+      "get": {
+        "operationId": "get_my_home_me_home_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyHomeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get My Home",
+        "tags": [
+          "friends"
+        ]
+      },
+      "put": {
+        "operationId": "put_my_home_me_home_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HomeShareIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyHomeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put My Home",
+        "tags": [
+          "friends"
+        ]
+      }
+    },
+    "/me/home/share": {
+      "patch": {
+        "operationId": "patch_home_share_me_home_share_patch",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShareToggleIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyHomeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch Home Share",
+        "tags": [
+          "friends"
+        ]
+      }
+    },
+    "/me/presence": {
+      "get": {
+        "operationId": "get_my_presence_me_presence_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresencePrefOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get My Presence",
+        "tags": [
+          "friends"
+        ]
+      },
+      "put": {
+        "description": "Opt in/out of disclosing WHEN you were last active. Turning it off hides\nthe timestamp immediately; it does not stop `last_seen_at` being recorded,\nsince the online dot is derived from the same field.",
+        "operationId": "put_my_presence_me_presence_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresencePrefIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresencePrefOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put My Presence",
+        "tags": [
+          "friends"
+        ]
+      }
+    },
+    "/notices/recent": {
+      "get": {
+        "description": "Recent non-threat notices (all-clears / attack summaries), newest first —\nthe frontend interleaves them into the event feed as info entries.",
+        "operationId": "recent_notices_notices_recent_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NoticeOut"
+                  },
+                  "title": "Response Recent Notices Notices Recent Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Recent Notices"
+      }
+    },
+    "/push/config": {
+      "get": {
+        "description": "Whether Web Push is configured server-side + the VAPID public key for\npushManager.subscribe. The frontend hides its notification control when\nenabled=false.",
+        "operationId": "push_config_push_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushConfigOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Push Config"
+      }
+    },
+    "/push/subscribe": {
+      "delete": {
+        "description": "Idempotent: deleting an unknown endpoint is a no-op success.",
+        "operationId": "push_unsubscribe_push_subscribe_delete",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushUnsubscribeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Push Unsubscribe"
+      },
+      "post": {
+        "description": "Register (or update — upsert by endpoint) a push subscription with its\nhome zone. Re-POSTed on every home change; moving home resets the per-track\ndanger bookkeeping so levels computed for the OLD location can't suppress\nfresh pushes for the new one. When the request carries a valid token, the\nsubscription is stamped with the owner so a user's devices can be linked.",
+        "operationId": "push_subscribe_push_subscribe_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushSubscribeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Push Subscribe"
+      }
+    },
+    "/raw_messages": {
+      "get": {
+        "description": "Every ingested message verbatim, INCLUDING ones the parser suppressed\nor couldn't localize — a debug view onto the pipeline, distinct from\n/events/recent (which only shows messages that became a live sighting).\nCursor-paginated (before_id) newest-first — raw_messages can run to tens\nof thousands of rows, too many to offset-paginate cheaply.",
+        "operationId": "raw_messages_raw_messages_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Return rows with id < this (cursor)",
+            "in": "query",
+            "name": "before_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Return rows with id < this (cursor)",
+              "title": "Before Id"
+            }
+          },
+          {
+            "description": "Substring search over message text, OR one/more T{id}/M{id}/N{id} codes (the same dev badges shown in the feed) to look up by exact match instead",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Substring search over message text, OR one/more T{id}/M{id}/N{id} codes (the same dev badges shown in the feed) to look up by exact match instead",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "'event' = became a sighting or notice; 'suppressed' = everything else",
+            "in": "query",
+            "name": "outcome",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "'event' = became a sighting or notice; 'suppressed' = everything else",
+              "title": "Outcome"
+            }
+          },
+          {
+            "description": "'yes'|'no' — whether the LLM fallback was called (NULL rows excluded)",
+            "in": "query",
+            "name": "llm",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "'yes'|'no' — whether the LLM fallback was called (NULL rows excluded)",
+              "title": "Llm"
+            }
+          },
+          {
+            "description": "Filter to one monitored channel",
+            "in": "query",
+            "name": "source_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter to one monitored channel",
+              "title": "Source Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RawMessagesPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Raw Messages"
+      }
+    },
+    "/raw_messages/count": {
+      "get": {
+        "description": "How many raw messages match the current filter set — powers the\n\"показано N з M\" counter on /raw without paging through everything.",
+        "operationId": "raw_messages_count_raw_messages_count_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "outcome",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Outcome"
+            }
+          },
+          {
+            "in": "query",
+            "name": "llm",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Llm"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RawCountOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Raw Messages Count"
+      }
+    },
+    "/raw_messages/export": {
+      "get": {
+        "description": "Every message matching the current filter (up to _RAW_EXPORT_CAP), for\noffline analysis. Returned oldest-first so the export reads as a sequence\nof events; the frontend wraps these in a JSON envelope with the human\nfilter description before download.",
+        "operationId": "raw_messages_export_raw_messages_export_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "outcome",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Outcome"
+            }
+          },
+          {
+            "in": "query",
+            "name": "llm",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Llm"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RawExportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Raw Messages Export"
+      }
+    },
+    "/raw_messages/llm_stats": {
+      "get": {
+        "description": "Aggregate LLM fallback usage across ALL raw messages — total calls,\ntokens, and cost, for the analytics strip on /raw. Unfiltered (ignores\nsearch/outcome filters) so it always reads as \"overall spend\", not\n\"spend within the current view\".",
+        "operationId": "raw_messages_llm_stats_raw_messages_llm_stats_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RawLlmStatsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Raw Messages Llm Stats"
+      }
+    },
+    "/raw_messages/sources": {
+      "get": {
+        "description": "Channels that actually have stored raw messages, for the /raw channel\nfilter dropdown. DB-driven now (subscription moved off the env lists), so it\nlists every source with data — active or not — instead of the env-configured\nset, which is empty once TELEGRAM_CHANNELS/ALERT_CHANNELS are cleared.",
+        "operationId": "raw_messages_sources_raw_messages_sources_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RawSourceOut"
+                  },
+                  "title": "Response Raw Messages Sources Raw Messages Sources Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Raw Messages Sources"
+      }
+    },
+    "/threats/active": {
+      "get": {
+        "description": "Tracks that are not yet closed (still tracking / unconfirmed), plus\nRECENT `impact` markers — those are closed-on-creation (a strike is terminal)\nbut persist on the map as confirmed-hit pins. Only impacts within\n`impact_map_ttl_hours` are returned, so strikes from days-old attacks don't\naccumulate on the live map (history/feed keep them regardless).",
+        "operationId": "active_threats_threats_active_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ThreatOut"
+                  },
+                  "title": "Response Active Threats Threats Active Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Active Threats"
+      }
+    },
+    "/threats/{threat_id}/events": {
+      "get": {
+        "operationId": "threat_events_threats__threat_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "threat_id",
+            "required": true,
+            "schema": {
+              "title": "Threat Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ThreatEventOut"
+                  },
+                  "title": "Response Threat Events Threats  Threat Id  Events Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Threat Events"
+      }
+    }
+  }
+}

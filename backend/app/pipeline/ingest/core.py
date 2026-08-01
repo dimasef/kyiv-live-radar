@@ -10,10 +10,10 @@ from datetime import datetime
 from sqlalchemy import select
 
 from ...domain.incidents import find_active_incident
-from ...observability import ingest_span, metrics
 from ...models import RawMessage
+from ...observability import ingest_span, metrics
 from ...parsing import DistrictHit, DistrictMatcher, LlmUsage, ParseResult
-from ..lock import _ingest_lock
+from ..lock import ingest_lock
 from ..results import Broadcast
 from .context import IngestContext, _note_and_inherit_type
 from .handlers import _dispatch, _handle_citywide, _handle_sighting, _ingest_outcome
@@ -22,7 +22,7 @@ from .resolve import _resolve
 
 async def ingest_message(session, **kwargs) -> list[Broadcast]:
     """Serialized entry point — see _ingest_locked for the pipeline."""
-    async with _ingest_lock:
+    async with ingest_lock:
         return await _ingest_locked(session, **kwargs)
 
 

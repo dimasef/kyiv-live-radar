@@ -4,7 +4,7 @@ public API so every existing `from app.pipeline.ingest import …` keeps working
 
 from __future__ import annotations
 
-from ..lock import _ingest_lock
+from ..lock import ingest_lock
 from .alert import ingest_alert_message, process_parsed_alert
 from .context import _note_and_inherit_type, _recent_type
 from .core import ingest_message, process_parsed, process_rescued
@@ -17,7 +17,7 @@ __all__ = [
     "process_parsed_alert",
     "process_rescued",
     "should_fallback",
-    "_ingest_lock",
+    "ingest_lock",
     "_note_and_inherit_type",
     "_recent_type",
 ]

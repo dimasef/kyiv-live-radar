@@ -5,8 +5,6 @@ insecure key). Each SSO route additionally 503s until ITS provider is set up.
 """
 from __future__ import annotations
 
-from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -63,6 +61,7 @@ async def _user_out(session: AsyncSession, user: User) -> UserOut:
         role=user.role,
         providers=providers,
         gamification=user.gamification,
+        share_presence=user.share_presence,
     )
 
 
@@ -113,7 +112,9 @@ async def refresh(body: RefreshIn, session: AsyncSession = Depends(get_session))
         claims = decode_refresh(body.refresh)
         user = await session.get(User, int(claims["sub"]))
     except (AuthError, KeyError, ValueError, TypeError):
-        raise HTTPException(status_code=401, detail="Invalid refresh token")
+        # `from None`: which of these the token tripped is a hint we don't hand
+        # to whoever is presenting it. Same for the other auth handlers below.
+        raise HTTPException(status_code=401, detail="Invalid refresh token") from None
     if user is None or not user.is_active:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
     # Re-resolve so an allowlist promotion/demotion reaches the new access token.
@@ -144,10 +145,10 @@ async def google_login(body: GoogleAuthIn, session: AsyncSession = Depends(get_s
     try:
         profile = await verify_google_id_token(body.credential, settings.google_client_id)
     except GoogleAuthError:
-        raise HTTPException(status_code=401, detail="Google verification failed")
+        raise HTTPException(status_code=401, detail="Google verification failed") from None
     if not profile["email_verified"]:
         raise HTTPException(status_code=401, detail="Google email is not verified")
-    email: Optional[str] = (profile.get("email") or "").lower() or None
+    email: str | None = (profile.get("email") or "").lower() or None
     user = await get_or_create_user_for_identity(
         session,
         provider="google",
@@ -173,7 +174,7 @@ async def telegram_login(body: TelegramAuthIn, session: AsyncSession = Depends(g
     try:
         verify_telegram_login(payload, received_hash, settings.telegram_login_bot_token)
     except TelegramAuthError:
-        raise HTTPException(status_code=401, detail="Telegram verification failed")
+        raise HTTPException(status_code=401, detail="Telegram verification failed") from None
     name = body.first_name + (f" {body.last_name}" if body.last_name else "")
     user = await get_or_create_user_for_identity(
         session,

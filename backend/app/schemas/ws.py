@@ -1,0 +1,27 @@
+"""The WebSocket broadcast envelope."""
+
+from __future__ import annotations
+
+from pydantic import BaseModel
+
+from .situation import AlertOut, AxisOut, IncidentOut, NoticeOut
+from .threats import ThreatEventOut, ThreatOut
+
+
+class WSMessage(BaseModel):
+    """Envelope broadcast over the WebSocket."""
+
+    # 'event'|'status'|'notice'|'alert'|'attack'|'axis'|'health'|'online'|'hello'|'ping'
+    # 'ping' carries no payload — a bare heartbeat frame (see pipeline/keepalive.py).
+    type: str
+    threat: ThreatOut | None = None
+    event: ThreatEventOut | None = None
+    notice: NoticeOut | None = None
+    alert: AlertOut | None = None
+    incident: IncidentOut | None = None
+    axis: AxisOut | None = None
+    # 'health' frame payload: whether the live Telegram feed looks healthy —
+    # see telegram_listener.py::feed_health.
+    feed_ok: bool | None = None
+    # 'online' frame payload: how many WS clients are currently connected.
+    online: int | None = None

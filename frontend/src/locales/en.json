@@ -195,7 +195,8 @@
     "toCollection": "To collection",
     "takenBody": "Someone else already analysed this target.",
     "errorBody": "Could not finish the analysis. Please try again.",
-    "close": "Done"
+    "close": "Done",
+    "checking": "Checking…"
   },
   "install": {
     "title": "App",
@@ -328,7 +329,18 @@
     "collapse": "Collapse"
   },
   "presence": {
-    "watching": "Watching the radar now"
+    "watching": "Watching the radar now",
+    "online": "online",
+    "never": "not seen recently",
+    "minutesAgo_zero": "just now",
+    "minutesAgo_one": "{{count}} min ago",
+    "minutesAgo_other": "{{count}} min ago",
+    "hoursAgo_one": "{{count}} hour ago",
+    "hoursAgo_other": "{{count}} hours ago",
+    "daysAgo_one": "{{count}} day ago",
+    "daysAgo_other": "{{count}} days ago",
+    "shareLabel": "Show when I was last online",
+    "shareHint": "Friends always see that you're online. This adds your last-active time when you're away."
   },
   "axis": {
     "unverified": "unverified",

@@ -1,4 +1,5 @@
 import { CARD_PLATES } from './cardGlyphs'
+import { cardById } from './cards'
 
 /** The mock's duplicate badge, its exact styling, driven by the real count.
  * Injected into the plate (which is `position:relative`) so it sits top-right of
@@ -16,11 +17,17 @@ function dupBadge(count: number): string {
  * - replaces the mock's baked-in demo "×N" badge with one driven by the real
  *   `count` (dropped when the user has a single copy), and
  * - freezes the plate animations unless `animated` — so a grid tile sits still
- *   and only the popped-up card sweeps/pulses (incl. the "Кінець Війни" dawn).
+ *   and only the popped-up card sweeps/pulses (incl. the "Кінець Війни" dawn), and
+ * - tags a RARE card's glyph so CSS can give it its signature pulse. Every plate
+ *   has exactly one `filter:drop-shadow(` element and it is always the glyph,
+ *   which is what makes this rewrite safe to do by pattern.
  * The `var(--rc)/--tint/--glow/--bd` it references are set by the host CardView. */
 export function cardPlateHtml(id: number, { animated, count }: { animated: boolean; count: number }): string {
   let html = (CARD_PLATES[id] ?? '').replace(/<span[^>]*>×\d+<\/span>/g, '')
   if (count > 1) html = html.replace(/(>)/, `$1${dupBadge(count)}`) // after the plate's opening tag
   if (!animated) html = html.replace(/animation:[^;"']*/g, 'animation:none')
+  if (animated && cardById(id)?.rarity === 'rare') {
+    html = html.replace(/(<(?:svg|img|div)\b)([^>]*filter:drop-shadow\()/, '$1 class="card-rare-glyph"$2')
+  }
   return html
 }

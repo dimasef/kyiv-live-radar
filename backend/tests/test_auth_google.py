@@ -2,12 +2,12 @@
 monkeypatched — never hits Google."""
 from __future__ import annotations
 
-import app.api.auth_routes as auth_routes
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+import app.api.auth_routes as auth_routes
 from app.config import settings
 from app.db import Base, get_session
 from app.main import app

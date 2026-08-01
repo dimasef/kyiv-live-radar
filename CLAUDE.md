@@ -19,10 +19,15 @@ before touching `app/parsing/rules.py` or `app/domain/tracking.py`.
 
 ```bash
 cd backend
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+# Name the version explicitly — a bare `python3` picks up macOS/Xcode's 3.9,
+# which silently diverges from `.python-version`/Railway. The code uses 3.11+
+# syntax that SQLAlchemy/Pydantic evaluate at RUNTIME (`X | None` in
+# `Mapped[...]`, `datetime.UTC`), so an older venv fails at import, not at lint.
+python3.11 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/uvicorn app.main:app --port 8137 --reload   # dev server
 
 .venv/bin/pytest tests/ -q                             # full suite
+.venv/bin/ruff check app tests eval scripts            # lint (config in pyproject.toml)
 .venv/bin/pytest tests/test_tracking.py -q              # one file
 .venv/bin/pytest tests/test_tracking.py::test_same_district_corroborates_into_one_track -q   # one test
 ```
@@ -46,6 +51,7 @@ Other eval/maintenance scripts (see each file's docstring for exact usage):
 - `eval/backfill_once.py` — clean one-shot Telegram backfill into a DB for analysis (stop the live listener first, it holds the session).
 - `scripts/reprocess_raw.py [--no-llm] [--limit N]` — replay ALL stored `raw_messages` through the CURRENT parser/gazetteer/tracking logic (e.g. after a parser fix) without re-fetching Telegram. **Destructive** (wipes `threats`/`threat_events`, not `raw_messages`) — stop the live backend first, test against a DB copy before running on the real one.
 - `scripts/geocode_localities.py` — batch-geocode new gazetteer candidates via Nominatim.
+- `scripts/dump_openapi.py` — write the OpenAPI schema to the repo-root `openapi.json` (see the type-contract section below).
 - `app/telegram_login.py` — one-time interactive Telegram login. Plain (file session, local dev) or `--string` (prints a `TELEGRAM_SESSION_STRING` for ephemeral hosts like Railway — nothing written to disk).
 
 ### Frontend (`frontend/`, React + TS + Vite)
@@ -54,7 +60,28 @@ Other eval/maintenance scripts (see each file's docstring for exact usage):
 cd frontend
 npm install
 npm run dev       # http://localhost:5173, reads VITE_API_URL / VITE_WS_URL from frontend/.env
-npm run build      # tsc -b && vite build — this IS the type-check step, no separate lint command
+npm run build      # tsc -b && vite build — this IS the type-check step
+npm run lint       # ESLint 9 flat config; react-hooks/exhaustive-deps is an error
+npm run test       # Vitest, pure-logic suites only (no DOM) — src/**/*.test.ts
+npm run gen:types  # regenerate src/api-types.ts from the repo-root openapi.json
+```
+
+### The frontend↔backend type contract
+
+`frontend/src/types.ts` no longer hand-mirrors the Pydantic models — it aliases
+generated types. **After changing any Pydantic schema, regenerate both ends**,
+or CI fails on the up-to-date checks:
+
+```bash
+cd backend  && .venv/bin/python scripts/dump_openapi.py   # -> repo-root openapi.json
+cd frontend && npm run gen:types                          # -> src/api-types.ts
+```
+
+Enum-like string fields must be a `Literal` for the generated types to narrow.
+Declare each one ONCE in `app/models.py` as `Foo = Literal[...]` and derive its
+runtime tuple with `FOOS = get_args(Foo)` — never write the two out separately.
+Only the WebSocket envelope and the two `response_model`-less routes are still
+typed by hand in `types.ts` (each says why).
 ```
 
 ## Architecture
@@ -109,6 +136,15 @@ Selected by env vars, mutually exclusive:
 1. `TELEGRAM_ENABLED=true` — real Telethon MTProto listener (`app/feeds/telegram.py`), reads-only, 3 configured channels (`TELEGRAM_CHANNELS`).
 2. `REPLAY_REAL_DATA=true` — replays 871 real captured messages (`app/data/real_sample_messages.jsonl`) through the real pipeline (`app/feeds/replay.py`), preserving original reply chains and timestamps, for demoing real tracks/vectors without Telegram credentials.
 3. `SIMULATOR_ENABLED=true` (default) — synthetic random routes through the real parser/tracker (`app/feeds/simulator.py`). Never reply-threads, so tracks never span 2+ districts — the map only ever shows dots, not vectors, in this mode.
+
+### HTTP layer (`app/api/`, `app/schemas/`)
+
+`api/routes.py` is only an assembler — it includes `api/public/` (unauthenticated
+reads, one module per domain area) and `api/admin/` (every route gated by
+`require_admin`). Helpers needed by more than one module live in `api/deps.py`.
+`app/schemas/` mirrors the same split, with `__init__.py` re-exporting every
+model so `from ..schemas import X` keeps working from anywhere. Add a new
+endpoint to the module that owns its area, not to `routes.py`.
 
 ### Gazetteer (`app/gazetteer.py`)
 

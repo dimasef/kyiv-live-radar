@@ -7,8 +7,6 @@ reads `is_active` sources from here; see feeds/telegram.py::_active_source_specs
 
 from __future__ import annotations
 
-from typing import Optional
-
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,10 +24,10 @@ async def upsert_source(
     session: AsyncSession,
     *,
     subscribe_ref: str,
-    name: Optional[str],
+    name: str | None,
     role: str,
-    trust_weight: Optional[float],
-    user_id: Optional[int],
+    trust_weight: float | None,
+    user_id: int | None,
 ) -> Source:
     """Add a channel, or reactivate/refresh an existing row with the same handle.
 
@@ -71,7 +69,7 @@ async def upsert_source(
     return src
 
 
-async def delete_source_cascade(session: AsyncSession, source_id: int) -> Optional[dict]:
+async def delete_source_cascade(session: AsyncSession, source_id: int) -> dict | None:
     """HARD-delete a channel and ALL of its stored data — raw_messages, notices,
     and threat_events — then repair the track graph it touched. Irreversible
     (unlike deactivate, which keeps the row + history). Returns a count summary,

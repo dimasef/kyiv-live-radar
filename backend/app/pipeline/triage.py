@@ -24,7 +24,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from sqlalchemy import func, select
 
@@ -35,7 +35,7 @@ from ..domain.origins import ORIGIN_BY_KEY, ORIGIN_KEYS, SECTORS
 from ..feeds.common import build_matcher
 from ..models import Notice, RawMessage, ThreatEvent, utcnow
 from ..parsing.rules import ParseResult
-from .lock import _ingest_lock
+from .lock import ingest_lock
 from .results import Broadcast
 
 log = logging.getLogger("triage")
@@ -198,7 +198,7 @@ async def _process_job(job: TriageJob) -> None:
     # lives in the neutral pipeline.lock module (not ingest) so this import is
     # top-level and cycle-free; process_rescued below stays lazy (that IS the
     # inherent mutual-recursion edge).
-    async with _ingest_lock:
+    async with ingest_lock:
         async with SessionLocal() as session:
             raw = await session.get(RawMessage, job.raw_id)
             if raw is None:

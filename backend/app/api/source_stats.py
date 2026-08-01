@@ -16,7 +16,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional
 
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,21 +36,21 @@ class SourceStats:
     messages_total: int = 0
     messages_processed: int = 0
     events_produced: int = 0
-    llm_fallback_rate: Optional[float] = None
+    llm_fallback_rate: float | None = None
     # Share of this channel's messages that got localized onto the map (a
     # threat_event). None for alert-role channels, which don't produce events.
-    coverage_rate: Optional[float] = None
-    correction_rate: Optional[float] = None
-    conflict_share: Optional[float] = None
-    quality_score: Optional[float] = None
-    last_message_at: Optional[datetime] = None
+    coverage_rate: float | None = None
+    correction_rate: float | None = None
+    conflict_share: float | None = None
+    quality_score: float | None = None
+    last_message_at: datetime | None = None
 
 
-def _ratio(numerator: int, denominator: int) -> Optional[float]:
+def _ratio(numerator: int, denominator: int) -> float | None:
     return (numerator / denominator) if denominator else None
 
 
-def _quality_score(s: SourceStats) -> Optional[float]:
+def _quality_score(s: SourceStats) -> float | None:
     """Weighted blend of the goodness components, renormalized over the ones that
     have a denominator (None components are dropped, not treated as 0)."""
     parts: list[tuple[float, float]] = []  # (weight, goodness 0..1)

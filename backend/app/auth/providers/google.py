@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Optional
 
 import httpx
 import jwt
@@ -41,7 +40,7 @@ async def _load_jwks(force: bool = False) -> dict[str, dict]:
     return _jwks
 
 
-async def _signing_key(kid: Optional[str]):
+async def _signing_key(kid: str | None):
     keys = await _load_jwks()
     jwk = keys.get(kid) if kid else None
     if jwk is None:  # possible key rotation — refetch once

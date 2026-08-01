@@ -1,6 +1,6 @@
 """Official alert-channel ingest — separate from the spotter pipeline because it
 needs none of the spotter context (district matcher, reply-threading, forward
-attribution: this channel never reply-threads or reposts). Shares `_ingest_lock`
+attribution: this channel never reply-threads or reposts). Shares `ingest_lock`
 with the spotter path so the two can never race on the raw-message dedup guard.
 """
 
@@ -15,7 +15,7 @@ from ...domain.incidents import end_active_incidents
 from ...domain.tracking import close_all_active
 from ...models import Notice, RawMessage
 from ...parsing.alert_parser import parse_alert_message
-from ..lock import _ingest_lock
+from ..lock import ingest_lock
 from ..results import Broadcast
 
 
@@ -27,10 +27,10 @@ async def ingest_alert_message(
     source_id: int | None = None,
     message_id: int | None = None,
 ) -> list[Broadcast]:
-    """Serialized entry point for the OFFICIAL alert channel. Shares `_ingest_lock`
+    """Serialized entry point for the OFFICIAL alert channel. Shares `ingest_lock`
     with the spotter path so the two can never race on the same raw-message dedup
     guard."""
-    async with _ingest_lock:
+    async with ingest_lock:
         return await _alert_ingest_locked(session, text=text, when=when,
                                           source_id=source_id, message_id=message_id)
 

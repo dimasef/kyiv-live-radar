@@ -5,7 +5,6 @@ ASGITransport (no server, no lifespan) with get_session overridden onto a temp
 SQLite DB.
 """
 
-from datetime import datetime, timezone
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient

@@ -5,14 +5,16 @@ gate. The listener-reload signal is patched to just record that it fired (there'
 no real Telethon listener in tests)."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-import app.api.routes as routes
+# The listener-reload hook is patched where it is USED, not where it is defined
+# (`feeds.telegram`) — this is the module whose namespace holds the imported name.
+import app.api.admin.sources as sources_routes
 from app.auth.security import encode_access
 from app.config import settings
 from app.db import Base, get_session
@@ -38,7 +40,7 @@ async def client(tmp_path, monkeypatch):
     Session = async_sessionmaker(engine, expire_on_commit=False)
 
     reloads = {"count": 0}
-    monkeypatch.setattr(routes, "request_listener_reload", lambda: reloads.__setitem__("count", reloads["count"] + 1))
+    monkeypatch.setattr(sources_routes, "request_listener_reload", lambda: reloads.__setitem__("count", reloads["count"] + 1))
 
     async def _override():
         async with Session() as s:
@@ -125,7 +127,7 @@ async def test_delete_wipes_channel_data_and_empty_track(client):
         sid = src.id
         # Closed incident — deleting a source is guarded against MID-attack, so
         # this must not look like a live attack.
-        inc = Incident(target_type="shahed", ended_at=datetime(2026, 7, 1, tzinfo=timezone.utc))
+        inc = Incident(target_type="shahed", ended_at=datetime(2026, 7, 1, tzinfo=UTC))
         s.add(inc)
         await s.commit()
         t = Threat(target_type="shahed", status="tracking", incident_id=inc.id)

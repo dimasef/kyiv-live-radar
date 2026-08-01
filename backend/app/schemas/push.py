@@ -1,0 +1,63 @@
+"""Web Push subscription + home-zone payloads."""
+
+from __future__ import annotations
+
+from typing import Literal
+
+from pydantic import BaseModel
+
+
+class PushKeysIn(BaseModel):
+    """The browser PushSubscription's encryption keys."""
+
+    p256dh: str
+    auth: str
+
+
+class BrowserSubscriptionIn(BaseModel):
+    """PushSubscription.toJSON() from the browser."""
+
+    endpoint: str
+    keys: PushKeysIn
+
+
+class HomeZoneIn(BaseModel):
+    """The home zone this subscription wants guarded (mirrors the client's
+    localStorage home — see frontend store/homeSlice.ts)."""
+
+    lat: float
+    lon: float
+    radius_km: float = 3.0
+
+
+class PushPrefsIn(BaseModel):
+    """Notification preferences (phase 1). Defaults reproduce the pre-0.10
+    behavior (warning floor, every type) plus the citywide push on."""
+
+    min_level: Literal["warning", "danger"] = "warning"
+    types: list[Literal["ballistic", "missile", "shahed", "jet_drone"]] = [
+        "ballistic", "missile", "shahed", "jet_drone",
+    ]
+    citywide: bool = True
+
+
+class PushSubscribeIn(BaseModel):
+    """POST /push/subscribe body. Upsert by endpoint; re-POSTed on every home
+    or prefs change so the server copy never goes stale."""
+
+    subscription: BrowserSubscriptionIn
+    home: HomeZoneIn | None = None
+    prefs: PushPrefsIn | None = None
+
+
+class PushUnsubscribeIn(BaseModel):
+    endpoint: str
+
+
+class PushConfigOut(BaseModel):
+    """GET /push/config — whether push is configured server-side, and the VAPID
+    public key the browser needs for pushManager.subscribe. Fetched at runtime
+    so key rotation never requires a frontend rebuild."""
+
+    enabled: bool
+    public_key: str | None = None

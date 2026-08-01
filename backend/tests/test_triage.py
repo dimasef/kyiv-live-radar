@@ -1,6 +1,6 @@
 """Async LLM triage: should_triage gating + route_verdict routing table."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest_asyncio
 from sqlalchemy import func, select
@@ -14,7 +14,7 @@ from app.parsing import DistrictMatcher, parse_message
 from app.pipeline.triage import TriageJob, route_verdict, should_triage
 from tests.conftest import make_verdict
 
-BASE = datetime(2026, 7, 16, 12, 0, tzinfo=timezone.utc)
+BASE = datetime(2026, 7, 16, 12, 0, tzinfo=UTC)
 
 
 @pytest_asyncio.fixture

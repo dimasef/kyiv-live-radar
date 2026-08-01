@@ -1,0 +1,180 @@
+"""Pydantic request/response models, one module per domain area.
+
+Re-exports every model at package level so the ~40 existing
+`from ..schemas import X` imports across the app keep working unchanged —
+the split is an internal reorganisation, not an API change.
+"""
+
+from __future__ import annotations
+
+from .admin import (
+    CorrectionOut,
+    CoverageGapOut,
+    DismissedOut,
+    EventDistrictIn,
+    GazetteerCandidateIn,
+    GazetteerCandidateOut,
+    GazetteerCandidateStatusIn,
+    ReprocessApplyIn,
+    ReprocessDayOut,
+    ReprocessPreviewOut,
+    ReprocessResultOut,
+    ReprocessSummaryOut,
+    ThreatTypeIn,
+)
+from .auth import (
+    AccessTokenOut,
+    GoogleAuthIn,
+    LoginIn,
+    RefreshIn,
+    RegisterIn,
+    TelegramAuthIn,
+    TokenPairOut,
+    UserOut,
+)
+from .base import _as_utc
+from .common import (
+    DistrictOut,
+    SourceAdminOut,
+    SourceDeleteOut,
+    SourceIn,
+    SourceOut,
+    SourceStatsOut,
+    SourceUpdateIn,
+)
+from .friends import (
+    FriendActionOut,
+    FriendOut,
+    FriendRequestOut,
+    FriendRequestsOut,
+    FriendUserBrief,
+    HomePointOut,
+    HomeShareIn,
+    MyHomeOut,
+    PresencePrefIn,
+    PresencePrefOut,
+    SendFriendRequestIn,
+    ShareToggleIn,
+)
+from .gamification import (
+    AnalyzeIn,
+    AnalyzeOut,
+    CardCountOut,
+    CollectionOut,
+    GamificationPrefIn,
+    GamificationPrefOut,
+    ThreatAnalysisStateOut,
+)
+from .journal import (
+    JournalAlertWindowOut,
+    JournalDayOut,
+    JournalOut,
+)
+from .push import (
+    BrowserSubscriptionIn,
+    HomeZoneIn,
+    PushConfigOut,
+    PushKeysIn,
+    PushPrefsIn,
+    PushSubscribeIn,
+    PushUnsubscribeIn,
+)
+from .raw import (
+    RawCountOut,
+    RawEventLinkOut,
+    RawExportOut,
+    RawLlmStatsOut,
+    RawMessageOut,
+    RawMessagesPage,
+    RawSourceOut,
+)
+from .situation import (
+    AlertOut,
+    AxisOut,
+    IncidentOut,
+    NoticeOut,
+)
+from .threats import (
+    FeedEntryOut,
+    ThreatEventOut,
+    ThreatOut,
+)
+from .ws import (
+    WSMessage,
+)
+
+__all__ = [
+    "PresencePrefIn",
+    "PresencePrefOut",
+    "_as_utc",
+    "AccessTokenOut",
+    "AlertOut",
+    "AnalyzeIn",
+    "AnalyzeOut",
+    "AxisOut",
+    "BrowserSubscriptionIn",
+    "CardCountOut",
+    "CollectionOut",
+    "CorrectionOut",
+    "CoverageGapOut",
+    "DismissedOut",
+    "DistrictOut",
+    "EventDistrictIn",
+    "FeedEntryOut",
+    "FriendActionOut",
+    "FriendOut",
+    "FriendRequestOut",
+    "FriendRequestsOut",
+    "FriendUserBrief",
+    "GamificationPrefIn",
+    "GamificationPrefOut",
+    "GazetteerCandidateIn",
+    "GazetteerCandidateOut",
+    "GazetteerCandidateStatusIn",
+    "GoogleAuthIn",
+    "HomePointOut",
+    "HomeShareIn",
+    "HomeZoneIn",
+    "IncidentOut",
+    "JournalAlertWindowOut",
+    "JournalDayOut",
+    "JournalOut",
+    "LoginIn",
+    "MyHomeOut",
+    "NoticeOut",
+    "PushConfigOut",
+    "PushKeysIn",
+    "PushPrefsIn",
+    "PushSubscribeIn",
+    "PushUnsubscribeIn",
+    "RawCountOut",
+    "RawEventLinkOut",
+    "RawExportOut",
+    "RawLlmStatsOut",
+    "RawMessageOut",
+    "RawMessagesPage",
+    "RawSourceOut",
+    "RefreshIn",
+    "RegisterIn",
+    "ReprocessApplyIn",
+    "ReprocessDayOut",
+    "ReprocessPreviewOut",
+    "ReprocessResultOut",
+    "ReprocessSummaryOut",
+    "SendFriendRequestIn",
+    "ShareToggleIn",
+    "SourceAdminOut",
+    "SourceDeleteOut",
+    "SourceIn",
+    "SourceOut",
+    "SourceStatsOut",
+    "SourceUpdateIn",
+    "TelegramAuthIn",
+    "ThreatAnalysisStateOut",
+    "ThreatEventOut",
+    "ThreatOut",
+    "ThreatTypeIn",
+    "TokenPairOut",
+    "UserOut",
+    "WSMessage",
+]

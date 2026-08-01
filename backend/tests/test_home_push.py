@@ -7,7 +7,7 @@ cooldown on oscillation, prune on close, drop dead endpoints.
 """
 
 import math
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 import pytest_asyncio
@@ -20,7 +20,7 @@ from app.models import District, PushSubscription, Threat, ThreatEvent
 from app.pipeline import home_push
 from app.pipeline.home_push import evaluate_home_danger
 
-BASE = datetime(2026, 7, 18, 12, 0, tzinfo=timezone.utc)
+BASE = datetime(2026, 7, 18, 12, 0, tzinfo=UTC)
 KM_PER_DEG_LAT = math.pi / 180 * 6371.0
 
 HOME_LAT, HOME_LON = 50.5, 30.5
@@ -178,7 +178,7 @@ async def test_reescalation_after_cooldown_repushes(ctx, sent):
     # clock is wall time, unlike the synthetic event times)
     state = dict(sub.danger_state)
     entry = dict(state[str(t.id)])
-    entry["pushed_at"] = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    entry["pushed_at"] = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
     state[str(t.id)] = entry
     sub.danger_state = state
     await s.commit()

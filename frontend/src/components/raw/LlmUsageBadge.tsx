@@ -5,9 +5,11 @@ export default function LlmUsageBadge({
   outputTokens,
   costUsd,
 }: {
-  inputTokens: number | null
-  outputTokens: number | null
-  costUsd: number | null
+  // `| undefined` as well as `| null`: these are optional in the generated API
+  // types (the server defaults them to None, so they aren't schema-required).
+  inputTokens: number | null | undefined
+  outputTokens: number | null | undefined
+  costUsd: number | null | undefined
 }) {
   const detail =
     inputTokens != null && outputTokens != null && costUsd != null

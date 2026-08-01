@@ -13,7 +13,7 @@ class Broadcast:
     type: str  # 'event' | 'status' | 'notice' | 'alert' | 'attack' | 'axis'
     threat: Threat | None = None
     event: ThreatEvent | None = None
-    notice: "Notice | None" = None
-    alert: "Alert | None" = None
-    incident: "Incident | None" = None
-    axis: "ThreatAxis | None" = None
+    notice: Notice | None = None
+    alert: Alert | None = None
+    incident: Incident | None = None
+    axis: ThreatAxis | None = None

@@ -5,7 +5,7 @@ we can drive `run_listener()`'s retry/backoff behavior deterministically.
 """
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -125,7 +125,7 @@ async def test_backoff_wait_times_out_without_a_reload():
 async def test_watchdog_reconnects_when_stream_goes_stale():
     """Was receiving, then the stream zombied: last_message_at is after this
     connection started but now older than the silence window -> force reconnect."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     connected_at = now - timedelta(hours=2)
     tl._state["last_message_at"] = now - timedelta(
         minutes=settings.listener_watchdog_silence_minutes + 15
@@ -143,7 +143,7 @@ async def test_watchdog_reconnects_when_stream_goes_stale():
 async def test_watchdog_ignores_a_connection_quiet_since_it_opened():
     """No live message since connect (last_message_at is None) is NOT evidence of
     a zombie — the watchdog must not fire (would churn on a genuinely quiet feed)."""
-    connected_at = datetime.now(timezone.utc)
+    connected_at = datetime.now(UTC)
     tl._state["last_message_at"] = None
     client = AsyncMock()
     ticks = {"n": 0}
@@ -163,7 +163,7 @@ async def test_watchdog_not_armed_when_last_message_predates_this_connection():
     """Anti-churn: right after a watchdog-forced reconnect that's still dead, the
     stale last_message_at predates the new connection -> stays unarmed, no
     reconnect-every-interval loop."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     connected_at = now
     tl._state["last_message_at"] = now - timedelta(hours=1)  # from a previous cycle
     client = AsyncMock()

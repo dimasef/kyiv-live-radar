@@ -5,8 +5,6 @@ account-linking and role rules live in exactly one place.
 """
 from __future__ import annotations
 
-from typing import Optional
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,7 +13,7 @@ from ..models import OAuthIdentity, User, utcnow
 from .security import encode_access, encode_refresh
 
 
-def role_for(verified_email: Optional[str], telegram_ids: list[int]) -> str:
+def role_for(verified_email: str | None, telegram_ids: list[int]) -> str:
     """Resolve a role from the env allowlists. An email only counts when it was
     VERIFIED by a provider — a self-registered password email is never trusted
     for admin. Telegram is matched by numeric id."""
@@ -62,11 +60,11 @@ async def get_or_create_user_for_identity(
     *,
     provider: str,
     provider_user_id: str,
-    email: Optional[str],
+    email: str | None,
     email_verified: bool,
-    display_name: Optional[str],
-    avatar_url: Optional[str],
-    raw_profile: Optional[dict],
+    display_name: str | None,
+    avatar_url: str | None,
+    raw_profile: dict | None,
 ) -> User:
     """Map an SSO identity to a User: existing identity → its user; else link to
     a user with the SAME verified email (account merge); else create a new user.
@@ -90,7 +88,7 @@ async def get_or_create_user_for_identity(
                 user.avatar_url = avatar_url
         return user
 
-    user: Optional[User] = None
+    user: User | None = None
     if email and email_verified:
         user = await session.scalar(select(User).where(User.email == email))
     if user is None:

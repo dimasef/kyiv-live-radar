@@ -27,6 +27,11 @@ export interface GameSlice {
   collection: Collection | null
   /** Per-target global claim state, cached as targets are inspected. */
   threatStates: Record<number, ThreatAnalysisState>
+  /** Targets whose claim state could NOT be fetched. Absence of an entry in
+   * `threatStates` means "not known yet" — the button shows a placeholder — so
+   * a failed fetch needs its own marker, or the placeholder would be permanent.
+   * Cleared on retry, so re-inspecting the target tries again. */
+  threatStateFailed: Record<number, true>
   /** The analysis currently running (drives the scanning overlay), or null. */
   analyzing: { threatId: number; kind: AnalysisKind } | null
   /** A freshly-won card to show in the reveal modal, or null. `isNew` is false
@@ -49,6 +54,7 @@ export interface GameSlice {
 export const createGameSlice: StateCreator<RadarState, [], [], GameSlice> = (set, get) => ({
   collection: null,
   threatStates: {},
+  threatStateFailed: {},
   analyzing: null,
   reveal: null,
   claimError: null,
@@ -58,12 +64,28 @@ export const createGameSlice: StateCreator<RadarState, [], [], GameSlice> = (set
   },
 
   clearGame: () =>
-    set({ collection: null, threatStates: {}, analyzing: null, reveal: null, claimError: null }),
+    set({
+      collection: null,
+      threatStates: {},
+      threatStateFailed: {},
+      analyzing: null,
+      reveal: null,
+      claimError: null,
+    }),
 
   ensureThreatState: async (threatId) => {
     if (get().threatStates[threatId]) return
-    const state = await fetchThreatAnalysisState(threatId)
-    set((s) => ({ threatStates: { ...s.threatStates, [threatId]: state } }))
+    set((s) => {
+      const { [threatId]: _dropped, ...rest } = s.threatStateFailed
+      return { threatStateFailed: rest }
+    })
+    try {
+      const state = await fetchThreatAnalysisState(threatId)
+      set((s) => ({ threatStates: { ...s.threatStates, [threatId]: state } }))
+    } catch (e) {
+      set((s) => ({ threatStateFailed: { ...s.threatStateFailed, [threatId]: true } }))
+      throw e
+    }
   },
 
   analyze: async (threatId, kind) => {

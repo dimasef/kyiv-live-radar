@@ -32,12 +32,26 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.22.2";
+const LATEST = "0.23.0";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "Хто з контактів онлайн, і живі картки",
+    date: "2026-08-01",
+    kind: "minor",
+    changes: [
+      "У списку контактів видно, хто зараз у мережі, а якщо ні — коли був онлайн востаннє",
+      "Час останньої активності показується друзям типово; його можна вимкнути перемикачем у розділі «Контакти» — те, що ви зараз у мережі, лишається видимим",
+      "Кожна рідкість колекційної картки має власну анімацію: картка оживає, коли відкрити її окремо",
+      "Виправлено: кнопка на екрані нової картки лишалася без перекладу",
+      "Виправлено: кнопка «Аналіз» більше не блимає активною перед тим, як показати, що ціль уже проаналізовано",
+      "Застосунок відкривається й оновлюється помітно швидше",
+    ],
+  },
+  {
+    version: "0.22.2",
     title: "Нові картки й точніша мапа",
     date: "2026-08-01",
     kind: "patch",

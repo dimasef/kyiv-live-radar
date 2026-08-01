@@ -6,8 +6,6 @@ the exported file silently misrepresent the on-screen view."""
 
 from __future__ import annotations
 
-from typing import Optional
-
 from sqlalchemy import exists, or_, select
 
 from ..feeds.common import build_matcher
@@ -31,10 +29,10 @@ def _alert_label(text: str) -> str:
 def apply_raw_filters(
     stmt,
     *,
-    q: Optional[str] = None,
-    outcome: Optional[str] = None,
-    llm: Optional[str] = None,
-    source_id: Optional[int] = None,
+    q: str | None = None,
+    outcome: str | None = None,
+    llm: str | None = None,
+    source_id: int | None = None,
 ):
     """Apply the /raw_messages filter set (channel, text/code search, outcome,
     LLM) to a select over RawMessage — pagination (before_id/limit) is the

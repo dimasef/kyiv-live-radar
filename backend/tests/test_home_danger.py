@@ -6,7 +6,7 @@ exact by construction rather than depending on real gazetteer coordinates.
 """
 
 import math
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest_asyncio
 from sqlalchemy import select
@@ -24,7 +24,7 @@ from app.domain.home_danger import (
 )
 from app.models import District, Threat, ThreatEvent
 
-BASE = datetime(2026, 7, 18, 12, 0, tzinfo=timezone.utc)
+BASE = datetime(2026, 7, 18, 12, 0, tzinfo=UTC)
 KM_PER_DEG_LAT = math.pi / 180 * 6371.0  # ~111.19
 
 HOME = HomeZone(lat=50.5, lon=30.5, radius_km=3.0)

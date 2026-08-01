@@ -13,7 +13,8 @@ export default function OutcomeBadge({
 }: {
   outcome: string
   events: RawEventLink[]
-  noticeId: number | null
+  // Optional in the generated API types (server-side default is None).
+  noticeId: number | null | undefined
 }) {
   const tone =
     events.length > 0

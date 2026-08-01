@@ -20,10 +20,10 @@ coarse, which is why the thresholds carry generous slack.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from enum import IntEnum
-from typing import Sequence
 
 from sqlalchemy import select
 

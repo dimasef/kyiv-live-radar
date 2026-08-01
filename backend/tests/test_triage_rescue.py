@@ -1,7 +1,7 @@
 """Rescue path (app/pipeline/triage._route_rescue + ingest.process_rescued) —
 the riskiest consumer, so every gate gets a test."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, timedelta
 
 import pytest_asyncio
 from sqlalchemy import func, select
@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.config import settings
 from app.db import Base
 from app.gazetteer import DISTRICTS, SOURCES
-from app.models import District, Source, Threat, ThreatEvent, RawMessage, utcnow
+from app.models import District, RawMessage, Source, Threat, ThreatEvent, utcnow
 from app.parsing import DistrictMatcher
 from app.pipeline.triage import TriageJob, route_verdict
 from tests.conftest import make_verdict
@@ -57,7 +57,7 @@ async def test_rescue_enabled_creates_track_at_original_time(ctx, monkeypatch):
     assert ev.decision_source == "triage"
     assert ev.district_id == did
     # Original timestamp, not "now".
-    assert abs((ev.event_time.replace(tzinfo=timezone.utc) - when).total_seconds()) < 1
+    assert abs((ev.event_time.replace(tzinfo=UTC) - when).total_seconds()) < 1
 
 
 async def test_clear_verdict_never_rescues(ctx, monkeypatch):

@@ -18,10 +18,10 @@ import { collectionPath, navigate } from '@/router'
 import { useRadar } from '@/store'
 
 import MarkerGlyph from './MarkerGlyph'
+import PresenceLine from './ContactsSection/PresenceLine'
+import { personLabel } from './ContactsSection/contactFormat'
 
-function personLabel(u: { display_name: string | null; email: string | null }): string {
-  return u.display_name || u.email || '—'
-}
+
 
 /** A contact's profile: avatar + identity, and — for a contact who shares a home
  * — the per-contact map controls (show/hide on my map, marker colour + icon) and
@@ -65,6 +65,7 @@ export default function ContactProfileModal({
                 {personLabel(contact)}
               </p>
               {contact.email && <p className="truncate text-xs text-slate-500">{contact.email}</p>}
+              <PresenceLine online={contact.online} lastSeenAt={contact.last_seen_at} />
             </div>
           </div>
           <button

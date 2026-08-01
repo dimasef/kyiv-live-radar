@@ -2,17 +2,24 @@
 over ASGITransport — mirrors tests/test_auth_api.py."""
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.config import settings
 from app.db import Base, get_session
 from app.main import app
+from app.models import User, utcnow
+from app.timeutil import naive
 
 
 @pytest_asyncio.fixture
-async def client(tmp_path, monkeypatch):
+async def env(tmp_path, monkeypatch):
+    """(client, session) — the session is the SAME one the app uses, so a test
+    can set up state the API has no endpoint for (e.g. an old last_seen_at)."""
     monkeypatch.setattr(settings, "auth_jwt_secret", "api-test-secret")
     engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
     async with engine.begin() as conn:
@@ -25,9 +32,14 @@ async def client(tmp_path, monkeypatch):
         app.dependency_overrides[get_session] = _override
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as c:
-            yield c
+            yield c, s
         app.dependency_overrides.clear()
     await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def client(env):
+    return env[0]
 
 
 async def _register(c: AsyncClient, email: str) -> str:
@@ -212,3 +224,72 @@ async def test_contact_requests_push_the_other_party(client, monkeypatch):
     await c.post(f"/friends/requests/{req_id}/accept", headers=_auth(b))
     assert len(sent) == 1
     assert sent[0][1]["kind"] == "contact-accepted"
+
+
+async def _age_out(session, email: str) -> None:
+    """Push a user's last_seen_at well outside the online window."""
+    u = await session.scalar(select(User).where(User.email == email))
+    u.last_seen_at = naive(utcnow()) - timedelta(hours=3)
+    await session.commit()
+
+
+async def _befriend(c: AsyncClient, a: str, b: str, b_email: str) -> None:
+    await c.post("/friends/requests", json={"email": b_email}, headers=_auth(a))
+    reqs = (await c.get("/friends/requests", headers=_auth(b))).json()
+    await c.post(f"/friends/requests/{reqs['incoming'][0]['id']}/accept", headers=_auth(b))
+
+
+async def test_friend_shows_online_without_any_opt_in(client):
+    """The chosen split: being in the app right now is visible to an accepted
+    friend; only the last-seen TIMESTAMP needs consent."""
+    c = client
+    a = await _register(c, "on-a@x.com")
+    b = await _register(c, "on-b@x.com")
+    await _befriend(c, a, b, "on-b@x.com")
+
+    # B just authenticated (registering + accepting stamped last_seen_at).
+    friend = (await c.get("/friends", headers=_auth(a))).json()[0]
+    assert friend["online"] is True
+    assert friend["last_seen_at"] is None  # never emitted while online
+
+
+async def test_last_seen_is_disclosed_by_default(env):
+    """share_presence defaults ON (operator decision), so an offline friend's
+    last-active time is visible without either side doing anything."""
+    c, session = env
+    a = await _register(c, "seen-a@x.com")
+    b = await _register(c, "seen-b@x.com")
+    await _befriend(c, a, b, "seen-b@x.com")
+    await _age_out(session, "seen-b@x.com")
+
+    friend = (await c.get("/friends", headers=_auth(a))).json()[0]
+    assert friend["online"] is False
+    assert friend["last_seen_at"] is not None
+
+
+async def test_opting_out_hides_the_timestamp_but_not_the_online_dot(env):
+    c, session = env
+    a = await _register(c, "opt-a@x.com")
+    b = await _register(c, "opt-b@x.com")
+    await _befriend(c, a, b, "opt-b@x.com")
+
+    r = await c.put("/me/presence", json={"share_presence": False}, headers=_auth(b))
+    assert r.status_code == 200 and r.json()["share_presence"] is False
+
+    # B's own request above re-stamped them, so they read as online right now —
+    # which the opt-out must NOT suppress.
+    friend = (await c.get("/friends", headers=_auth(a))).json()[0]
+    assert friend["online"] is True
+    assert friend["last_seen_at"] is None
+
+    await _age_out(session, "opt-b@x.com")
+    friend = (await c.get("/friends", headers=_auth(a))).json()[0]
+    assert friend["online"] is False
+    assert friend["last_seen_at"] is None  # still withheld once offline
+
+
+async def test_presence_is_not_disclosed_to_a_non_friend(client):
+    c = client
+    a = await _register(c, "stranger@x.com")
+    await _register(c, "private@x.com")
+    assert (await c.get("/friends", headers=_auth(a))).json() == []

@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# A new push to the same branch supersedes the previous run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          # The version Railway deploys — CI must run what prod runs, even while
+          # local dev venvs lag behind (see the ruff target-version note in
+          # backend/pyproject.toml).
+          python-version-file: backend/.python-version
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r requirements.txt ruff
+      - run: ruff check app tests eval scripts
+      - run: pytest tests -q
+      # The committed openapi.json is the contract the frontend types are built
+      # from. Regenerating it here turns "changed a schema, forgot to publish
+      # it" into a build failure instead of a runtime type mismatch.
+      - run: python scripts/dump_openapi.py
+      - name: openapi.json is up to date
+        run: git diff --exit-code ../openapi.json
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      # Same idea one step down the chain: api-types.ts must match the
+      # committed openapi.json.
+      - run: npm run gen:types
+      - name: api-types.ts is up to date
+        run: git diff --exit-code src/api-types.ts
+      - run: npm run lint
+      - run: npm run test
+      # `tsc -b && vite build` — this is also the only type-check step.
+      - run: npm run build

@@ -15,7 +15,7 @@ origin key; the frontend draws a screen-edge wedge along the bearing
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from sqlalchemy import select

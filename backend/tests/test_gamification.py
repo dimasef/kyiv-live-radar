@@ -3,12 +3,13 @@ ASGITransport — mirrors tests/test_friends.py. The shared test session is also
 handed to each test so it can insert Threat rows to analyse."""
 from __future__ import annotations
 
+import random
+from datetime import UTC
+
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-
-import random
 
 from app.config import settings
 from app.db import Base, get_session
@@ -164,11 +165,11 @@ async def test_city_scope_not_eligible(env):
 
 
 async def test_stale_target_blocked(env):
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     c, s = env
     auth = await _register(c, "a@x.com")
-    old = datetime.now(timezone.utc) - timedelta(hours=13)
+    old = datetime.now(UTC) - timedelta(hours=13)
     tid = await _new_threat(s, created_at=old)
     r = await c.post("/analysis", json={"threat_id": tid, "kind": "track"}, headers=auth)
     assert r.status_code == 409
@@ -218,4 +219,6 @@ async def test_bad_kind_rejected(env):
     auth = await _register(c, "a@x.com")
     tid = await _new_threat(s)
     r = await c.post("/analysis", json={"threat_id": tid, "kind": "nope"}, headers=auth)
-    assert r.status_code == 400
+    # 422, not 400: `kind` is a Literal on AnalyzeIn, so this is caught by
+    # request validation rather than by a hand-rolled check in the handler.
+    assert r.status_code == 422

@@ -42,6 +42,7 @@ export const createAuthSlice: StateCreator<RadarState, [], [], AuthSlice> = (set
     safeSet(STORAGE_KEYS.authRefresh, res.refresh)
     set({ user: res.user, authStatus: 'authed' })
     get().hydrateGamification(res.user.gamification)
+    get().hydrateSharePresence(res.user.share_presence)
     void get().loadFriends().catch(() => {})
     void get().loadCollection().catch(() => {})
   }
@@ -51,6 +52,7 @@ export const createAuthSlice: StateCreator<RadarState, [], [], AuthSlice> = (set
     safeRemove(STORAGE_KEYS.authRefresh)
     set({ user: null, authStatus: 'anon' })
     get().hydrateGamification(false)
+    get().hydrateSharePresence(true)
     get().clearFriends()
     get().clearGame()
   }
@@ -109,6 +111,7 @@ export const createAuthSlice: StateCreator<RadarState, [], [], AuthSlice> = (set
         const me = await authMe()
         set({ user: me, authStatus: 'authed' })
         get().hydrateGamification(me.gamification)
+        get().hydrateSharePresence(me.share_presence)
         void get().loadFriends().catch(() => {})
         void get().loadCollection().catch(() => {})
       } catch {

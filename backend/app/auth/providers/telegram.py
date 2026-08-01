@@ -34,6 +34,6 @@ def verify_telegram_login(
     try:
         auth_date = int(fields["auth_date"])
     except (KeyError, TypeError, ValueError):
-        raise TelegramAuthError("missing/invalid auth_date")
+        raise TelegramAuthError("missing/invalid auth_date") from None
     if time.time() - auth_date > max_age_s:
         raise TelegramAuthError("stale auth_date (possible replay)")

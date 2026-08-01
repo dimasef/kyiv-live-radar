@@ -6,7 +6,7 @@ replay) is covered by test_reprocess.py and exercised in prod/CLI; here we must
 not invoke it (it touches global migrate/seed and would hit the dev DB)."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -73,7 +73,7 @@ async def _seed_activity(Session, *, open_incident: bool = False) -> None:
         s.add(RawMessage(source_id=src.id, message_id=1, text="Шахед курс на Троєщину"))
         inc = Incident(
             target_type="shahed",
-            ended_at=None if open_incident else datetime(2026, 7, 1, tzinfo=timezone.utc),
+            ended_at=None if open_incident else datetime(2026, 7, 1, tzinfo=UTC),
         )
         s.add(inc)
         await s.commit()

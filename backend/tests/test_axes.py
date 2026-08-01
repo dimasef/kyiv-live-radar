@@ -1,8 +1,7 @@
 """Directional threat-axis fusion (app/domain/axes.py)."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-import pytest
 import pytest_asyncio
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -12,7 +11,7 @@ from app.db import Base
 from app.domain.axes import AxisSignal, apply_axis_signal, close_stale_axes
 from app.models import ThreatAxis
 
-BASE = datetime(2026, 7, 16, 12, 0, tzinfo=timezone.utc)
+BASE = datetime(2026, 7, 16, 12, 0, tzinfo=UTC)
 
 
 @pytest_asyncio.fixture

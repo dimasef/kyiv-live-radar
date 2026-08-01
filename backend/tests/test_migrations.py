@@ -14,6 +14,11 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 import app.migrate as migrate
 from app.config import settings
+from app.db import Base
+
+# Imported for the side effect only: importing the models module registers every
+# table (and its indexes) on Base.metadata, which the index check below reads.
+import app.models  # noqa: E402, F401  isort: skip
 
 
 @pytest_asyncio.fixture
@@ -38,6 +43,21 @@ async def _tables(engine) -> set[str]:
         return await conn.run_sync(_table_names)
 
 
+def _index_names(sync_conn) -> set[str]:
+    insp = inspect(sync_conn)
+    return {
+        ix["name"]
+        for table in insp.get_table_names()
+        for ix in insp.get_indexes(table)
+        if ix["name"]
+    }
+
+
+async def _indexes(engine) -> set[str]:
+    async with engine.connect() as conn:
+        return await conn.run_sync(_index_names)
+
+
 async def _version(engine) -> str:
     async with engine.connect() as conn:
         row = (await conn.exec_driver_sql("SELECT version_num FROM alembic_version")).first()
@@ -54,13 +74,24 @@ async def test_upgrade_empty_db_creates_schema_and_reaches_head(tmp_db):
             "threats", "threat_events", "threat_axes", "users", "oauth_identities",
             "parser_corrections", "gazetteer_candidates", "friendships",
             "threat_analyses", "alembic_version"} <= tables
-    assert await _version(tmp_db) == "0019"
+    assert await _version(tmp_db) == "0021"
+
+
+async def test_migrations_create_every_index_the_models_declare(tmp_db):
+    """Guards the drift that 0020 was written to close: an `index=True` added to
+    a model but never migrated (or an index migrated then dropped) leaves prod
+    doing sequential scans while every other test stays green."""
+    await migrate.upgrade_to_head()
+
+    declared = {ix.name for table in Base.metadata.tables.values() for ix in table.indexes}
+    assert declared, "models declare no indexes — the mirroring is gone"
+    assert declared <= await _indexes(tmp_db)
 
 
 async def test_upgrade_twice_is_a_noop(tmp_db):
     await migrate.upgrade_to_head()
     await migrate.upgrade_to_head()  # must not raise / re-apply anything
-    assert await _version(tmp_db) == "0019"
+    assert await _version(tmp_db) == "0021"
 
 
 async def test_preexisting_pre_alembic_db_is_stamped_and_backfilled(tmp_db):
@@ -86,7 +117,7 @@ async def test_preexisting_pre_alembic_db_is_stamped_and_backfilled(tmp_db):
 
     await migrate.upgrade_to_head()
 
-    assert await _version(tmp_db) == "0019"
+    assert await _version(tmp_db) == "0021"
     async with tmp_db.connect() as conn:
         rows = (
             await conn.exec_driver_sql(

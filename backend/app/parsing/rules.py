@@ -14,17 +14,6 @@ from dataclasses import dataclass, field
 
 from ..domain.origins import Origin, match_origin, target_elsewhere
 from .matcher import DistrictHit, DistrictMatcher, normalize
-
-
-@dataclass
-class LlmUsage:
-    """Token usage + cost for one LLM fallback call — recorded regardless of
-    whether the call recovered a usable district, since a call that found
-    nothing still spent the budget. See parsing/llm.py::llm_extract."""
-
-    input_tokens: int
-    output_tokens: int
-    cost_usd: float
 from .vocab import (
     _AD_ACTION,
     _AD_RECRUIT,
@@ -33,9 +22,9 @@ from .vocab import (
     _BALLISTIC,
     _BUZZ_CHATTER,
     _CARD_NUMBER_RE,
-    _CIVIC_NOTICE,
     _CITYWIDE_STRONG,
     _CITYWIDE_WEAK,
+    _CIVIC_NOTICE,
     _CLEAR,
     _CLEAR_ANTICIPATION,
     _CONDITIONAL_CONSEQUENCE,
@@ -79,6 +68,17 @@ from .vocab import (
     _UNCONFIRMED,
     _UNSCOPED_CLEAR_WORD,
 )
+
+
+@dataclass
+class LlmUsage:
+    """Token usage + cost for one LLM fallback call — recorded regardless of
+    whether the call recovered a usable district, since a call that found
+    nothing still spent the budget. See parsing/llm.py::llm_extract."""
+
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float
 
 
 def _has_conditional_hedge(norm: str) -> bool:

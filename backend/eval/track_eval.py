@@ -152,19 +152,19 @@ def main() -> int:
     print(f"  messages with no rule-parser event (recall gap, LLM was off): "
           f"{total_unmatched} / {total_keys}")
     print()
-    print(f"  SESSION PURITY (1 real target -> 1 pipeline track):")
+    print("  SESSION PURITY (1 real target -> 1 pipeline track):")
     print(f"    pure (correctly one track):   {n_pure} / {n_scored} "
           f"({100*n_pure/n_scored:.0f}%)" if n_scored else "    n/a")
     print(f"    split across multiple tracks: {n_split} / {n_scored} "
           f"({100*n_split/n_scored:.0f}%)" if n_scored else "    n/a")
     print()
-    print(f"  TRACK PURITY (1 pipeline track -> 1 real target, the mega-track check):")
+    print("  TRACK PURITY (1 pipeline track -> 1 real target, the mega-track check):")
     print(f"    pure (only one real target):     {n_tracks_pure} / {n_tracks} "
           f"({100*n_tracks_pure/n_tracks:.0f}%)" if n_tracks else "    n/a")
     print(f"    merged (2+ real targets in one):  {n_tracks_merged} / {n_tracks} "
           f"({100*n_tracks_merged/n_tracks:.0f}%)" if n_tracks else "    n/a")
     print()
-    print(f"  VECTOR ACCURACY (real movement sessions where the map would actually draw a line):")
+    print("  VECTOR ACCURACY (real movement sessions where the map would actually draw a line):")
     print(f"    {vector_would_draw} / {len(movement_sessions)} "
           f"({100*vector_would_draw/len(movement_sessions):.0f}%)" if movement_sessions else "    n/a")
 

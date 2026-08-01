@@ -3,7 +3,7 @@ and app/ingest.py::ingest_alert_message (alert-channel messages only ever
 create Alert rows — never a Threat or Notice, unlike the spotter pipeline).
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest_asyncio
 from sqlalchemy import func, select
@@ -14,7 +14,7 @@ from app.domain.alerts import AlertSignal, apply_alert_signal, close_stale_alert
 from app.models import Alert, Notice, RawMessage, Threat
 from app.pipeline.ingest import ingest_alert_message
 
-BASE = datetime(2026, 7, 8, 12, 0, tzinfo=timezone.utc)
+BASE = datetime(2026, 7, 8, 12, 0, tzinfo=UTC)
 
 
 @pytest_asyncio.fixture
@@ -49,7 +49,7 @@ async def test_double_start_is_a_noop(session):
     assert await _count(session, Alert) == 1
     await session.refresh(first)
     # SQLite round-trips datetimes tz-naive; compare wall-clock value only.
-    assert first.started_at.replace(tzinfo=timezone.utc) == BASE  # untouched by the redundant start
+    assert first.started_at.replace(tzinfo=UTC) == BASE  # untouched by the redundant start
 
 
 async def test_end_without_start_is_a_noop(session):

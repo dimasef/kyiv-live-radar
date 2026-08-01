@@ -14,17 +14,14 @@ duplicate card.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from sqlalchemy import or_
 
 from ..auth.deps import get_current_user
 from ..db import get_session
 from ..domain.cards import CARD_COUNT, STALE_AFTER, draw_card, eligible_kind_for
 from ..models import (
-    ANALYSIS_KINDS,
     Friendship,
     Threat,
     ThreatAnalysis,
@@ -32,7 +29,6 @@ from ..models import (
     User,
     utcnow,
 )
-from ..timeutil import within
 from ..schemas import (
     AnalyzeIn,
     AnalyzeOut,
@@ -42,6 +38,7 @@ from ..schemas import (
     GamificationPrefOut,
     ThreatAnalysisStateOut,
 )
+from ..timeutil import within
 
 gamification_router = APIRouter(tags=["gamification"])
 
@@ -52,9 +49,8 @@ async def analyze_target(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    if body.kind not in ANALYSIS_KINDS:
-        raise HTTPException(status_code=400, detail="Невідомий тип аналізу")
-
+    # No `kind` check here: AnalyzeIn.kind is a Literal, so an unknown value is
+    # rejected by request validation (422) before this handler runs.
     threat = await session.get(Threat, body.threat_id)
     if threat is None:
         raise HTTPException(status_code=404, detail="Ціль не знайдено")
@@ -80,7 +76,7 @@ async def analyze_target(
         # Lost the race — someone finished analysing this threat+kind first. The
         # UniqueConstraint(threat_id, kind) is doing exactly its job.
         await session.rollback()
-        raise HTTPException(status_code=409, detail="Цю ціль уже проаналізовано")
+        raise HTTPException(status_code=409, detail="Цю ціль уже проаналізовано") from None
 
     return AnalyzeOut(
         threat_id=row.threat_id,

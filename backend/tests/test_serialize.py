@@ -3,7 +3,7 @@ a new ThreatOut field is never silently dropped from the shallow (feed) path,
 since it's built by introspecting ThreatOut.model_fields rather than a
 hand-written list."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.api.serialize import threat_out, threat_out_shallow
 from app.models import Threat
@@ -18,7 +18,7 @@ def _threat() -> Threat:
         has_conflict=True, confidence=0.75,
     )
     th.id = 42
-    th.created_at = datetime(2026, 7, 11, 3, 52, tzinfo=timezone.utc)
+    th.created_at = datetime(2026, 7, 11, 3, 52, tzinfo=UTC)
     th.events = []
     return th
 

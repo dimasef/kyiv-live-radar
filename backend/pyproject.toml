@@ -1,3 +1,30 @@
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+# Must stay equal to .python-version (what Railway deploys and CI runs). Do not
+# raise it past the interpreter dev venvs actually use: the pyupgrade rules will
+# rewrite annotations into syntax that SQLAlchemy/Pydantic/FastAPI evaluate at
+# runtime, so a mismatch here fails at import, not at lint time.
+target-version = "py311"
+exclude = ["migrations/versions"]  # Alembic's generated header style is not ours
+
+[tool.ruff.lint]
+# Deliberately modest: this codebase already reads consistently, so the point is
+# to keep it that way and catch real mistakes — not to reformat it.
+#   E/W  pycodestyle   F  pyflakes      I  import order (already de-facto held)
+#   UP   pyupgrade     B  bugbear       C4 comprehensions
+select = ["E", "W", "F", "I", "UP", "B", "C4"]
+ignore = [
+    "E501",  # line length is the formatter's job; long prose comments are fine
+    "B008",  # FastAPI's `= Depends(...)` default is the framework's own idiom
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Re-export shims exist precisely to keep old import paths working.
+"app/pipeline/ingest/__init__.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]

@@ -41,9 +41,15 @@ export function useRawMessages(filters: RawMessageFilters) {
   const cursorRef = useRef<number | undefined>(undefined)
   const requestIdRef = useRef(0)
 
+  // Destructured so the memo depends on the filter VALUES, not the object's
+  // identity — the caller rebuilds `filters` every render, and keying on it
+  // would restart the whole query on each one. Rebuilding the object inside
+  // also means a newly added filter field fails to compile here rather than
+  // silently missing from the dependencies.
+  const { q, outcome, llm, sourceId } = filters
   const apiFilter = useMemo(
-    () => toApiFilter(filters),
-    [filters.q, filters.outcome, filters.llm, filters.sourceId],
+    () => toApiFilter({ q, outcome, llm, sourceId }),
+    [q, outcome, llm, sourceId],
   )
 
   const fetchPage = useCallback(

@@ -2,7 +2,7 @@
 destroyed-in-the-gap bug it helped surface (see tracking.py::find_open_track's
 `gap_minutes` param and ingest.py's destroyed branch)."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 import pytest_asyncio
@@ -10,13 +10,18 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db import Base
-from app.domain.lifecycle import CLOSED_REASON_TO_STATUS, TRACK_TRANSITIONS, close_track, promote_track
+from app.domain.lifecycle import (
+    CLOSED_REASON_TO_STATUS,
+    TRACK_TRANSITIONS,
+    close_track,
+    promote_track,
+)
 from app.gazetteer import DISTRICTS, SOURCES
-from app.models import CLOSED_REASONS, District, Source, Threat, THREAT_STATUSES
+from app.models import CLOSED_REASONS, THREAT_STATUSES, District, Source, Threat
 from app.parsing import DistrictMatcher
 from app.pipeline.ingest import ingest_message
 
-BASE = datetime(2026, 7, 8, 12, 0, tzinfo=timezone.utc)
+BASE = datetime(2026, 7, 8, 12, 0, tzinfo=UTC)
 
 
 # --- close_track / promote_track ---
