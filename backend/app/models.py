@@ -510,6 +510,15 @@ class User(Base):
     # marker, and how far you consider "near home" is not theirs to know.
     home_radius_km: Mapped[float | None] = mapped_column(Float, nullable=True)
     share_home: Mapped[bool] = mapped_column(default=False)
+    # How the OWNER's own home marker looks on their map — an id from the
+    # frontend's marker set plus a hex colour, NULL meaning "the default cyan
+    # house". Private like contact_prefs below: friends still label the marker
+    # themselves, so this never leaves the owner (absent from FriendOut).
+    home_icon: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    home_color: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # Whether that marker carries its coloured halo. NULL reads as "on", which
+    # is what every marker looked like before the halo was choosable.
+    home_glow: Mapped[bool | None] = mapped_column(nullable=True)
     # Private per-contact map labelling, keyed by the contact's user id:
     # {"7": {"color": "#c084fc", "icon": "star", "hidden": false}}. The contact
     # never sees any of it — `hidden` only removes their marker from THIS user's

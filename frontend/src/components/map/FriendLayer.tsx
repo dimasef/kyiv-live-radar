@@ -3,7 +3,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Marker, Tooltip, useMap, useMapEvents } from "react-leaflet";
 
-import { contactMarkerSvg, contactStyleOf } from "../../lib/contactMarker";
+import { contactMarkerSvg, contactStyleOf, type ContactStyle } from "../../lib/contactMarker";
+import { navigate, userPath } from "../../router";
 import { useRadar } from "../../store";
 import { spreadOverlapping, type Offsets, type PixelPoint } from "./spreadMarkers";
 
@@ -15,13 +16,14 @@ const OWN_HOME_ID = "me";
 // rebuild identical markers. The offset is part of the key because it lives in
 // iconAnchor — see below.
 const iconCache = new Map<string, L.DivIcon>();
-function markerIcon(icon: string, color: string, [dx, dy]: [number, number]): L.DivIcon {
-  const key = `${icon}|${color}|${dx},${dy}`;
+function markerIcon(style: ContactStyle, [dx, dy]: [number, number]): L.DivIcon {
+  const { icon, color, glow } = style;
+  const key = `${icon}|${color}|${glow}|${dx},${dy}`;
   let divIcon = iconCache.get(key);
   if (!divIcon) {
     divIcon = L.divIcon({
       className: "friend-marker",
-      html: contactMarkerSvg(icon, color, SIZE),
+      html: contactMarkerSvg(icon, color, SIZE, glow),
       iconSize: [SIZE, SIZE],
       // Leaflet draws the icon so that iconAnchor lands on the marker's latlng,
       // so pulling the anchor back by (dx, dy) pushes the DRAWING that far
@@ -73,13 +75,16 @@ export default function FriendLayer() {
   return (
     <>
       {visible.map((f) => {
-        const { icon, color } = contactStyleOf(contactStyles[f.id]);
+        const style = contactStyleOf(contactStyles[f.id]);
         const [dx, dy] = offsets.get(String(f.id)) ?? [0, 0];
         return (
           <Marker
             key={f.id}
             position={[f.home!.lat, f.home!.lon]}
-            icon={markerIcon(icon, color, [dx, dy])}
+            icon={markerIcon(style, [dx, dy])}
+            // A marker is the only place a contact appears outside the account
+            // page, so it's the natural way in to who they are.
+            eventHandlers={{ click: () => navigate(userPath(f.id)) }}
           >
             <Tooltip direction="top" offset={[dx, dy - 14]}>
               {f.display_name || f.email || t("friends.friend")}

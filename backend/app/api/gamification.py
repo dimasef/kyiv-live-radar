@@ -14,7 +14,7 @@ duplicate card.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,7 +22,6 @@ from ..auth.deps import get_current_user
 from ..db import get_session
 from ..domain.cards import CARD_COUNT, STALE_AFTER, draw_card, eligible_kind_for
 from ..models import (
-    Friendship,
     Threat,
     ThreatAnalysis,
     ThreatEvent,
@@ -39,6 +38,7 @@ from ..schemas import (
     ThreatAnalysisStateOut,
 )
 from ..timeutil import within
+from .deps import are_friends
 
 gamification_router = APIRouter(tags=["gamification"])
 
@@ -143,19 +143,6 @@ async def _collection_for(session: AsyncSession, user_id: int) -> CollectionOut:
     )
 
 
-async def _are_friends(session: AsyncSession, a: int, b: int) -> bool:
-    edge = await session.scalar(
-        select(Friendship).where(
-            Friendship.status == "accepted",
-            or_(
-                (Friendship.requester_id == a) & (Friendship.addressee_id == b),
-                (Friendship.requester_id == b) & (Friendship.addressee_id == a),
-            ),
-        )
-    )
-    return edge is not None
-
-
 @gamification_router.get("/analysis/collection", response_model=CollectionOut)
 async def my_collection(
     session: AsyncSession = Depends(get_session),
@@ -172,6 +159,6 @@ async def friend_collection(
 ):
     """Another user's collection — visible only to that user themselves or an
     accepted friend (collections aren't public)."""
-    if user_id != user.id and not await _are_friends(session, user.id, user_id):
+    if user_id != user.id and not await are_friends(session, user.id, user_id):
         raise HTTPException(status_code=403, detail="Колекція доступна лише друзям")
     return await _collection_for(session, user_id)

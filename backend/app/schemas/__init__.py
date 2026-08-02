@@ -53,9 +53,11 @@ from .friends import (
     FriendUserBrief,
     HomeIn,
     HomePointOut,
+    HomeStyleIn,
     MyHomeOut,
     PresencePrefIn,
     PresencePrefOut,
+    PublicUserBrief,
     SendFriendRequestIn,
     ShareToggleIn,
 )
@@ -111,6 +113,7 @@ from .ws import (
 __all__ = [
     "PresencePrefIn",
     "PresencePrefOut",
+    "PublicUserBrief",
     "_as_utc",
     "AccessTokenOut",
     "AlertOut",
@@ -141,6 +144,7 @@ __all__ = [
     "ContactPrefIn",
     "ContactPrefsOut",
     "HomeIn",
+    "HomeStyleIn",
     "HomeZoneIn",
     "IncidentOut",
     "JournalAlertWindowOut",

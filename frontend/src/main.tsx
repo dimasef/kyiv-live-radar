@@ -10,6 +10,7 @@ import {
   isCollectionRoute,
   THREAT_JOURNAL_PATH,
   useRoute,
+  userRouteId,
 } from './router'
 
 // Secondary routes are lazy so the initial bundle is just the map (the critical
@@ -17,6 +18,7 @@ import {
 // on demand — faster first paint, which matters most on a phone at night.
 const AdminPage = lazy(() => import('./components/admin/AdminPage'))
 const AccountPage = lazy(() => import('./components/auth/AccountPage'))
+const ContactPage = lazy(() => import('./components/auth/ContactPage'))
 const CollectionPage = lazy(() => import('./components/game/CollectionPage'))
 const ChangelogPage = lazy(() => import('./components/changelog/ChangelogPage'))
 const ThreatJournalPage = lazy(() => import('./components/journal/ThreatJournalPage'))
@@ -57,6 +59,8 @@ function Root() {
       <AdminPage />
     ) : route === ACCOUNT_PATH ? (
       <AccountPage />
+    ) : userRouteId(route) != null ? (
+      <ContactPage />
     ) : isCollectionRoute(route) ? (
       <CollectionPage />
     ) : (

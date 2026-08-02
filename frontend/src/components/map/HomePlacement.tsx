@@ -2,20 +2,18 @@ import type L from "leaflet";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
+import { contactMarkerSvg, homeStyleOf } from "../../lib/contactMarker";
 import { centerPinMode } from "../../lib/device";
 import { useRadar } from "../../store";
-import { HOME_COLOR } from "../../theme";
-
-// The same house silhouette as MapView's placed home marker, so the placement
-// preview matches exactly what lands on the map.
-const houseSvg = (size: number) =>
-  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="filter:drop-shadow(0 0 6px ${HOME_COLOR})">
-    <path d="M12 3 L21 11 L18 11 L18 20 L14 20 L14 14 L10 14 L10 20 L6 20 L6 11 L3 11 Z"
-      fill="${HOME_COLOR}" stroke="#0b0f14" stroke-width="1"/></svg>`;
 
 export default function HomePlacement({ map }: { map: L.Map | null }) {
   const { t } = useTranslation();
   const placingHome = useRadar((s) => s.placingHome);
+  // The marker the user actually picked, so the placement ghost is exactly what
+  // will land on the map.
+  const style = homeStyleOf(useRadar((s) => s.homeStyle));
+  const houseSvg = (size: number) =>
+    contactMarkerSvg(style.icon, style.color, size, style.glow);
   const setHome = useRadar((s) => s.setHome);
   const setPlacingHome = useRadar((s) => s.setPlacingHome);
   const ghostRef = useRef<HTMLDivElement>(null);

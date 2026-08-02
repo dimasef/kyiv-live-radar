@@ -19,12 +19,18 @@ export default function Overlay({
 }) {
   const { shown, close } = useDismissTransition(onClose)
 
+  // Captured at the window so this runs BEFORE anything listening in the bubble
+  // phase, and the event is then consumed: an overlay opened over another
+  // Escape-dismissable surface (the settings drawer) must close itself alone,
+  // not take that surface down with it.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close()
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      close()
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
   }, [close])
 
   return createPortal(

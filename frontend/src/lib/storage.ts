@@ -19,6 +19,10 @@ export const STORAGE_KEYS = {
   // Per-contact marker appearance {color, icon} the user picked, keyed by
   // contact id — local labelling only (see friendsSlice.contactStyles).
   contactStyles: 'klr-contacts-style',
+  // The user's own home-marker appearance {color, icon}. Account-bound (only a
+  // signed-in user can change it); this is the cache that paints the first
+  // frame before /me/home answers — see homeSlice.homeStyle.
+  homeStyle: 'klr-home-style',
   // The refresh token (the access token stays in memory only — see api.ts).
   authRefresh: 'klr-auth',
   // Card ids the user has already seen in their collection, keyed by user id

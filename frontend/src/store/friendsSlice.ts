@@ -19,7 +19,13 @@ import {
   type FriendAction,
   type FriendRequests,
 } from '@/api'
-import { DEFAULT_CONTACT_COLOR, DEFAULT_CONTACT_ICON, type ContactStyle } from '@/lib/contactMarker'
+import {
+  DEFAULT_CONTACT_COLOR,
+  DEFAULT_CONTACT_ICON,
+  DEFAULT_HOME_COLOR,
+  DEFAULT_HOME_ICON,
+  type ContactStyle,
+} from '@/lib/contactMarker'
 import { safeGet, safeRemove, safeSet, STORAGE_KEYS } from '@/lib/storage'
 
 import type { RadarState } from './types'
@@ -36,10 +42,17 @@ function splitContactPrefs(prefs: Record<string, Record<string, unknown>>) {
     const id = Number(key)
     if (!Number.isFinite(id) || !entry) continue
     if (entry.hidden === true) hidden.push(id)
-    if (typeof entry.color === 'string' || typeof entry.icon === 'string') {
+    if (
+      typeof entry.color === 'string' ||
+      typeof entry.icon === 'string' ||
+      typeof entry.glow === 'boolean'
+    ) {
       styles[id] = {
         color: typeof entry.color === 'string' ? entry.color : DEFAULT_CONTACT_COLOR,
         icon: typeof entry.icon === 'string' ? entry.icon : DEFAULT_CONTACT_ICON,
+        // Absent for anything saved before the halo was choosable — those keep
+        // the halo they were drawn with.
+        glow: entry.glow !== false,
       }
     }
   }
@@ -135,6 +148,19 @@ export const createFriendsSlice: StateCreator<RadarState, [], [], FriendsSlice> 
     safeSet(STORAGE_KEYS.contactStyles, JSON.stringify(styles))
     safeSet(STORAGE_KEYS.hiddenContactHomes, JSON.stringify(hidden))
 
+    // Own marker style: the account wins outright, unlike the home coordinates
+    // below. Picking an icon is one tap, so there's no local work to protect —
+    // and the account is the only place it can be changed from at all.
+    get().hydrateHomeStyle(
+      myHome.home_icon || myHome.home_color || myHome.home_glow === false
+        ? {
+            icon: myHome.home_icon ?? DEFAULT_HOME_ICON,
+            color: myHome.home_color ?? DEFAULT_HOME_COLOR,
+            glow: myHome.home_glow !== false,
+          }
+        : null,
+    )
+
     // Home merge: whatever is on THIS device wins and is pushed up, because
     // it's what the user is looking at right now. The account only fills an
     // empty client — which is the case this whole change exists for (opening
@@ -158,6 +184,8 @@ export const createFriendsSlice: StateCreator<RadarState, [], [], FriendsSlice> 
     // colours (and the ids wouldn't even mean the same people).
     safeRemove(STORAGE_KEYS.contactStyles)
     safeRemove(STORAGE_KEYS.hiddenContactHomes)
+    // Same reasoning for the user's own marker — it was that account's choice.
+    get().hydrateHomeStyle(null)
     set({
       friends: [],
       friendRequests: EMPTY_REQUESTS,

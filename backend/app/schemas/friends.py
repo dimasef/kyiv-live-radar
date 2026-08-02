@@ -23,6 +23,20 @@ class FriendUserBrief(BaseModel):
     avatar_url: str | None = None
 
 
+class PublicUserBrief(BaseModel):
+    """Someone seen through a CONTACT's contact list — a name and a picture, and
+    deliberately nothing else.
+
+    No email above all: the email is the handle you add a person by, so echoing
+    a friend-of-a-friend's would turn one accepted contact into a directory of
+    addressable strangers. No home and no presence either — those are disclosures
+    their owner grants to their own contacts, not transitively to yours."""
+
+    id: int
+    display_name: str | None = None
+    avatar_url: str | None = None
+
+
 class FriendOut(FriendUserBrief):
     """An accepted friend. `home` is populated ONLY when that friend has both set
     a home AND turned sharing on — otherwise null (they stay listed, no marker)."""
@@ -75,15 +89,34 @@ class ShareToggleIn(BaseModel):
     share: bool
 
 
+class HomeStyleIn(BaseModel):
+    """PATCH /me/home/style — how the owner's own marker looks on their map.
+
+    Same deal as ContactPrefIn below: the shape ids and palette live in the
+    frontend (`lib/markerIcons.ts`), so the server only bounds the size. Both
+    halves are written on every call — the picker always holds both — and a
+    null resets that half to the default marker."""
+
+    icon: str | None = Field(default=None, max_length=32)
+    color: str | None = Field(default=None, max_length=32)
+    glow: bool | None = None
+
+
 class MyHomeOut(BaseModel):
     """GET /me/home — the current user's own stored home + share state.
 
     `radius_km` sits here rather than on `HomePointOut` on purpose: that model
-    is also what FRIENDS receive, and the zone radius is the owner's alone."""
+    is also what FRIENDS receive, and the zone radius is the owner's alone. The
+    marker style is owner-only for the same reason — friends label the marker
+    themselves (see ContactPrefIn)."""
 
     home: HomePointOut | None = None
     radius_km: float | None = None
     share_home: bool
+    home_icon: str | None = None
+    home_color: str | None = None
+    # NULL means "never chosen" — the client reads that as a lit marker.
+    home_glow: bool | None = None
 
 
 class ContactPrefIn(BaseModel):
@@ -95,6 +128,7 @@ class ContactPrefIn(BaseModel):
 
     color: str | None = Field(default=None, max_length=32)
     icon: str | None = Field(default=None, max_length=32)
+    glow: bool | None = None
     hidden: bool | None = None
 
 

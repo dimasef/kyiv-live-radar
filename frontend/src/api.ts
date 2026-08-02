@@ -324,13 +324,25 @@ export const putMyHome = (lat: number, lon: number, radius_km: number) =>
   send<MyHome>('/me/home', 'PUT', { lat, lon, radius_km })
 export const patchHomeShare = (share: boolean) =>
   send<MyHome>('/me/home/share', 'PATCH', { share })
+/** How the owner's own marker is drawn. Both halves go every time — the server
+ * writes what it gets, so a null resets that half to the default marker. */
+export const patchHomeStyle = (icon: string | null, color: string | null, glow: boolean) =>
+  send<MyHome>('/me/home/style', 'PATCH', { icon, color, glow })
 export const deleteMyHome = () => send<MyHome>('/me/home', 'DELETE')
+
+/** Another user seen through a contact's contact list — name + picture only;
+ * the server withholds the email on purpose (see PublicUserBrief). */
+export type PublicUser = Schemas['PublicUserBrief']
+/** Who one of your contacts is connected to. 403s for anyone but their own
+ * accepted contacts. */
+export const fetchUserContacts = (userId: number) =>
+  get<PublicUser[]>(`/friends/${userId}/contacts`)
 
 export type ContactPrefs = Schemas['ContactPrefsOut']
 export const fetchContactPrefs = () => get<ContactPrefs>('/me/contact_prefs')
 export const putContactPref = (
   contactId: number,
-  pref: { color?: string; icon?: string; hidden?: boolean },
+  pref: { color?: string; icon?: string; glow?: boolean; hidden?: boolean },
 ) => send<ContactPrefs>(`/me/contact_prefs/${contactId}`, 'PUT', pref)
 
 export type PresencePref = Schemas['PresencePrefOut']

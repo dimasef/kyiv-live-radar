@@ -7,6 +7,7 @@ import { districtAt } from '../../lib/geo'
 import { MAP_PATH, navigate } from '../../router'
 import { useRadar } from '../../store'
 
+import HomeMarkerRow from './HomeMarkerRow'
 import ShareHomeToggle from './ShareHomeToggle'
 
 /** Request the browser geolocation and set it as home (origin 'geo'). */
@@ -134,6 +135,7 @@ export default function HomeControl() {
           {placingHome ? t('home.placing') : t('home.geoDenied')}
         </p>
       )}
+      <HomeMarkerRow />
       <ShareHomeToggle />
     </div>
   )

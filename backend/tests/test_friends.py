@@ -322,6 +322,106 @@ async def test_home_is_stored_for_a_user_who_shares_nothing(client):
     assert r.json()["home"] is None and r.json()["radius_km"] is None
 
 
+async def _accept(c, asker_headers, target_email, target_headers):
+    """Run one request/accept round so a test can build a contact graph."""
+    await c.post("/friends/requests", json={"email": target_email}, headers=asker_headers)
+    reqs = (await c.get("/friends/requests", headers=target_headers)).json()["incoming"]
+    await c.post(f"/friends/requests/{reqs[0]['id']}/accept", headers=target_headers)
+
+
+async def _user_id(session, email: str) -> int:
+    return (await session.scalar(select(User).where(User.email == email))).id
+
+
+async def test_a_contacts_contact_list_is_visible_to_their_contacts_without_emails(env):
+    """The contact profile page (/user/<id>) lists who that person knows — but a
+    friend-of-a-friend comes back as a name and a picture only. Publishing their
+    email would turn one accepted contact into a directory of addressable
+    strangers."""
+    c, session = env
+    a = await _register(c, "viewer@x.com")
+    b = await _register(c, "middle@x.com")
+    far = await _register(c, "faraway@x.com")
+
+    await _accept(c, _auth(a), "middle@x.com", _auth(b))
+    await _accept(c, _auth(b), "faraway@x.com", _auth(far))
+
+    b_id = await _user_id(session, "middle@x.com")
+    r = await c.get(f"/friends/{b_id}/contacts", headers=_auth(a))
+    assert r.status_code == 200
+    listed = r.json()
+    # Everyone B knows: the viewer themselves, and the one they don't.
+    assert len(listed) == 2
+    for entry in listed:
+        assert set(entry) == {"id", "display_name", "avatar_url"}
+
+
+async def test_a_strangers_contact_list_is_refused(env):
+    """One hop only: knowing someone who knows a person does not let you walk on
+    to that person's own list."""
+    c, session = env
+    a = await _register(c, "hopper@x.com")
+    await _register(c, "stranger@x.com")
+    stranger_id = await _user_id(session, "stranger@x.com")
+
+    r = await c.get(f"/friends/{stranger_id}/contacts", headers=_auth(a))
+    assert r.status_code == 403
+
+
+async def test_home_marker_style_survives_a_device_change_and_a_cleared_home(client):
+    """The style is why the setting needs an account at all — it has to read back
+    on the next device. Clearing the home keeps it: it says how you like the
+    marker drawn, not where you live."""
+    c = client
+    a = await _register(c, "styler@x.com")
+
+    # A brand-new account has chosen nothing; the client reads every NULL as the
+    # default marker, halo included.
+    fresh = (await c.get("/me/home", headers=_auth(a))).json()
+    assert fresh["home_icon"] is None and fresh["home_glow"] is None
+
+    r = await c.patch("/me/home/style",
+                      json={"icon": "hata", "color": "#c084fc", "glow": False},
+                      headers=_auth(a))
+    assert r.status_code == 200
+    assert (r.json()["home_icon"], r.json()["home_color"]) == ("hata", "#c084fc")
+    assert r.json()["home_glow"] is False
+
+    stored = (await c.get("/me/home", headers=_auth(a))).json()
+    assert stored["home_icon"] == "hata" and stored["home_glow"] is False
+
+    await c.put("/me/home", json={"lat": 50.45, "lon": 30.52, "radius_km": 3},
+                headers=_auth(a))
+    r = await c.delete("/me/home", headers=_auth(a))
+    assert r.json()["home"] is None
+    assert r.json()["home_icon"] == "hata"
+
+    # An explicit null is how the default marker comes back.
+    r = await c.patch("/me/home/style", json={"icon": None, "color": None, "glow": None},
+                      headers=_auth(a))
+    assert r.json()["home_icon"] is None and r.json()["home_color"] is None
+    assert r.json()["home_glow"] is None
+
+
+async def test_friends_never_learn_the_home_marker_style(client):
+    """It is the OWNER's label on their own map — a contact picks their own for
+    that same home (contact_prefs), so nothing about it belongs in FriendOut."""
+    c = client
+    a = await _register(c, "a10@x.com")
+    b = await _register(c, "b10@x.com")
+    await c.post("/friends/requests", json={"email": "b10@x.com"}, headers=_auth(a))
+    req_id = (await c.get("/friends/requests", headers=_auth(b))).json()["incoming"][0]["id"]
+    await c.post(f"/friends/requests/{req_id}/accept", headers=_auth(b))
+    await c.put("/me/home", json={"lat": 50.5, "lon": 30.6, "radius_km": 4}, headers=_auth(b))
+    await c.patch("/me/home/share", json={"share": True}, headers=_auth(b))
+    await c.patch("/me/home/style", json={"icon": "castle", "color": "#34d399"},
+                  headers=_auth(b))
+
+    friend = (await c.get("/friends", headers=_auth(a))).json()[0]
+    assert friend["home"] == {"lat": 50.5, "lon": 30.6}
+    assert "home_icon" not in friend and "home_color" not in friend
+
+
 async def test_friends_never_learn_the_zone_radius(client):
     """A contact gets a marker, not how wide the owner considers 'near home'."""
     c = client

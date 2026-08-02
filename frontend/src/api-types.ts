@@ -798,6 +798,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/friends/{user_id}/contacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Friend Contacts
+         * @description Who one of your contacts is connected to — their profile page (/user/<id>).
+         *
+         *     Gated to that person's own accepted contacts, and one hop only: it lists who
+         *     they know, it does not let you walk on from there (asking for a stranger's
+         *     contacts 403s, even if a contact of yours knows them). Each entry is a
+         *     PublicUserBrief — see that model for why the email is absent.
+         */
+        get: operations["list_friend_contacts_friends__user_id__contacts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -980,6 +1005,28 @@ export interface paths {
         head?: never;
         /** Patch Home Share */
         patch: operations["patch_home_share_me_home_share_patch"];
+        trace?: never;
+    };
+    "/me/home/style": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Home Style
+         * @description Set how the owner's own marker looks. Both halves are written every time
+         *     (the picker holds both), so a null resets that half to the default. Nothing
+         *     here reaches friends — they label the marker on their own map.
+         */
+        patch: operations["patch_home_style_me_home_style_patch"];
         trace?: never;
     };
     "/me/presence": {
@@ -1430,6 +1477,8 @@ export interface components {
         ContactPrefIn: {
             /** Color */
             color?: string | null;
+            /** Glow */
+            glow?: boolean | null;
             /** Hidden */
             hidden?: boolean | null;
             /** Icon */
@@ -1740,6 +1789,23 @@ export interface components {
             lon: number;
         };
         /**
+         * HomeStyleIn
+         * @description PATCH /me/home/style — how the owner's own marker looks on their map.
+         *
+         *     Same deal as ContactPrefIn below: the shape ids and palette live in the
+         *     frontend (`lib/markerIcons.ts`), so the server only bounds the size. Both
+         *     halves are written on every call — the picker always holds both — and a
+         *     null resets that half to the default marker.
+         */
+        HomeStyleIn: {
+            /** Color */
+            color?: string | null;
+            /** Glow */
+            glow?: boolean | null;
+            /** Icon */
+            icon?: string | null;
+        };
+        /**
          * HomeZoneIn
          * @description The home zone this subscription wants guarded (mirrors the client's
          *     localStorage home — see frontend store/homeSlice.ts).
@@ -1974,10 +2040,18 @@ export interface components {
          * @description GET /me/home — the current user's own stored home + share state.
          *
          *     `radius_km` sits here rather than on `HomePointOut` on purpose: that model
-         *     is also what FRIENDS receive, and the zone radius is the owner's alone.
+         *     is also what FRIENDS receive, and the zone radius is the owner's alone. The
+         *     marker style is owner-only for the same reason — friends label the marker
+         *     themselves (see ContactPrefIn).
          */
         MyHomeOut: {
             home?: components["schemas"]["HomePointOut"] | null;
+            /** Home Color */
+            home_color?: string | null;
+            /** Home Glow */
+            home_glow?: boolean | null;
+            /** Home Icon */
+            home_icon?: string | null;
             /** Radius Km */
             radius_km?: number | null;
             /** Share Home */
@@ -2032,6 +2106,24 @@ export interface components {
         PresencePrefOut: {
             /** Share Presence */
             share_presence: boolean;
+        };
+        /**
+         * PublicUserBrief
+         * @description Someone seen through a CONTACT's contact list — a name and a picture, and
+         *     deliberately nothing else.
+         *
+         *     No email above all: the email is the handle you add a person by, so echoing
+         *     a friend-of-a-friend's would turn one accepted contact into a directory of
+         *     addressable strangers. No home and no presence either — those are disclosures
+         *     their owner grants to their own contacts, not transitively to yours.
+         */
+        PublicUserBrief: {
+            /** Avatar Url */
+            avatar_url?: string | null;
+            /** Display Name */
+            display_name?: string | null;
+            /** Id */
+            id: number;
         };
         /**
          * PushConfigOut
@@ -4258,6 +4350,39 @@ export interface operations {
             };
         };
     };
+    list_friend_contacts_friends__user_id__contacts_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicUserBrief"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     health_health_get: {
         parameters: {
             query?: never;
@@ -4575,6 +4700,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ShareToggleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyHomeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_home_style_me_home_style_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HomeStyleIn"];
             };
         };
         responses: {

@@ -2,15 +2,33 @@
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ..models import (
     Alert,
+    Friendship,
     Incident,
     Threat,
     ThreatEvent,
 )
+
+
+async def are_friends(session: AsyncSession, a: int, b: int) -> bool:
+    """An accepted edge either way round. The gate on everything one user is
+    allowed to see about another — a collection, a contact list — so it lives
+    here rather than being re-implemented per router."""
+    edge = await session.scalar(
+        select(Friendship).where(
+            Friendship.status == "accepted",
+            or_(
+                (Friendship.requester_id == a) & (Friendship.addressee_id == b),
+                (Friendship.requester_id == b) & (Friendship.addressee_id == a),
+            ),
+        )
+    )
+    return edge is not None
 
 
 async def _threat_with_events(session, threat_id: int) -> Threat | None:

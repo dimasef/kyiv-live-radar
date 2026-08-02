@@ -9,9 +9,10 @@ import {
   Tooltip,
 } from "react-leaflet";
 
+import { contactMarkerSvg, homeStyleOf } from "../../lib/contactMarker";
 import { homeDanger } from "../../lib/homeDanger";
 import { useRadar } from "../../store";
-import { HOME_COLOR, HOME_DANGER_COLORS } from "../../theme";
+import { HOME_DANGER_COLORS } from "../../theme";
 import AxisLayer from "./AxisLayer";
 import CitywidePulse from "./CitywidePulse";
 import { KYIV_BOUNDS } from "./constants";
@@ -22,21 +23,22 @@ import HomePlacement from "./HomePlacement";
 import MapLegend from "./MapLegend";
 import ThreatLayer from "./ThreatLayer";
 
-// One icon per danger color (the house follows the circle: cyan -> orange ->
-// red); cached so a re-render doesn't rebuild an identical divIcon.
+const HOME_SIZE = 22;
+
+// One icon per (shape, colour) pair; cached so a re-render doesn't rebuild an
+// identical divIcon.
 const homeIconCache = new Map<string, L.DivIcon>();
-function homeIcon(color: string): L.DivIcon {
-  let icon = homeIconCache.get(color);
+function homeIcon(shape: string, color: string, glow: boolean): L.DivIcon {
+  const key = `${shape}|${color}|${glow}`;
+  let icon = homeIconCache.get(key);
   if (!icon) {
     icon = L.divIcon({
       className: "home-marker",
-      html: `<svg width="22" height="22" viewBox="0 0 24 24" style="filter:drop-shadow(0 0 6px ${color})">
-        <path d="M12 3 L21 11 L18 11 L18 20 L14 20 L14 14 L10 14 L10 20 L6 20 L6 11 L3 11 Z"
-          fill="${color}" stroke="#0b0f14" stroke-width="1"/></svg>`,
-      iconSize: [22, 22],
-      iconAnchor: [11, 11],
+      html: contactMarkerSvg(shape, color, HOME_SIZE, glow),
+      iconSize: [HOME_SIZE, HOME_SIZE],
+      iconAnchor: [HOME_SIZE / 2, HOME_SIZE / 2],
     });
-    homeIconCache.set(color, icon);
+    homeIconCache.set(key, icon);
   }
   return icon;
 }
@@ -46,6 +48,7 @@ export default function MapView() {
   const threats = useRadar((s) => s.threats);
   const boundaries = useRadar((s) => s.boundaries);
   const home = useRadar((s) => s.home);
+  const homeStyle = homeStyleOf(useRadar((s) => s.homeStyle));
   const placingHome = useRadar((s) => s.placingHome);
   const inspectedThreat = useRadar((s) => s.inspectedThreat);
   const [map, setMap] = useState<L.Map | null>(null);
@@ -56,7 +59,11 @@ export default function MapView() {
   const inspectedIsLive = inspectedThreat != null && inspectedThreat.id in threats;
 
   const danger = home ? homeDanger(threats, home, boundaries) : "none";
-  const homeCircleColor = danger === "none" ? HOME_COLOR : HOME_DANGER_COLORS[danger];
+  // The user's colour is theirs only while nothing is coming: an approaching
+  // threat repaints the marker orange/red, because that colour is a warning
+  // rather than decoration. The chosen SHAPE always survives — it says which
+  // marker is yours, which matters most when several are close together.
+  const homeCircleColor = danger === "none" ? homeStyle.color : HOME_DANGER_COLORS[danger];
 
   return (
     <div className="relative h-full w-full">
@@ -104,7 +111,10 @@ export default function MapView() {
                 className: danger === "danger" ? "home-danger-pulse" : undefined,
               }}
             />
-            <Marker position={[home.lat, home.lon]} icon={homeIcon(homeCircleColor)}>
+            <Marker
+              position={[home.lat, home.lon]}
+              icon={homeIcon(homeStyle.icon, homeCircleColor, homeStyle.glow)}
+            >
               <Tooltip direction="top" offset={[0, -18]}>
                 {t("legend.home")} · {home.lat.toFixed(4)}, {home.lon.toFixed(4)}
               </Tooltip>

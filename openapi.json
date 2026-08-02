@@ -348,6 +348,17 @@
             ],
             "title": "Color"
           },
+          "glow": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Glow"
+          },
           "hidden": {
             "anyOf": [
               {
@@ -1023,6 +1034,48 @@
         "title": "HomePointOut",
         "type": "object"
       },
+      "HomeStyleIn": {
+        "description": "PATCH /me/home/style — how the owner's own marker looks on their map.\n\nSame deal as ContactPrefIn below: the shape ids and palette live in the\nfrontend (`lib/markerIcons.ts`), so the server only bounds the size. Both\nhalves are written on every call — the picker always holds both — and a\nnull resets that half to the default marker.",
+        "properties": {
+          "color": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "glow": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Glow"
+          },
+          "icon": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon"
+          }
+        },
+        "title": "HomeStyleIn",
+        "type": "object"
+      },
       "HomeZoneIn": {
         "description": "The home zone this subscription wants guarded (mirrors the client's\nlocalStorage home — see frontend store/homeSlice.ts).",
         "properties": {
@@ -1380,7 +1433,7 @@
         "type": "object"
       },
       "MyHomeOut": {
-        "description": "GET /me/home — the current user's own stored home + share state.\n\n`radius_km` sits here rather than on `HomePointOut` on purpose: that model\nis also what FRIENDS receive, and the zone radius is the owner's alone.",
+        "description": "GET /me/home — the current user's own stored home + share state.\n\n`radius_km` sits here rather than on `HomePointOut` on purpose: that model\nis also what FRIENDS receive, and the zone radius is the owner's alone. The\nmarker style is owner-only for the same reason — friends label the marker\nthemselves (see ContactPrefIn).",
         "properties": {
           "home": {
             "anyOf": [
@@ -1391,6 +1444,39 @@
                 "type": "null"
               }
             ]
+          },
+          "home_color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Color"
+          },
+          "home_glow": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Glow"
+          },
+          "home_icon": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Icon"
           },
           "radius_km": {
             "anyOf": [
@@ -1530,6 +1616,42 @@
           "share_presence"
         ],
         "title": "PresencePrefOut",
+        "type": "object"
+      },
+      "PublicUserBrief": {
+        "description": "Someone seen through a CONTACT's contact list — a name and a picture, and\ndeliberately nothing else.\n\nNo email above all: the email is the handle you add a person by, so echoing\na friend-of-a-friend's would turn one accepted contact into a directory of\naddressable strangers. No home and no presence either — those are disclosures\ntheir owner grants to their own contacts, not transitively to yours.",
+        "properties": {
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "PublicUserBrief",
         "type": "object"
       },
       "PushConfigOut": {
@@ -5756,6 +5878,69 @@
         ]
       }
     },
+    "/friends/{user_id}/contacts": {
+      "get": {
+        "description": "Who one of your contacts is connected to — their profile page (/user/<id>).\n\nGated to that person's own accepted contacts, and one hop only: it lists who\nthey know, it does not let you walk on from there (asking for a stranger's\ncontacts 403s, even if a contact of yours knows them). Each entry is a\nPublicUserBrief — see that model for why the email is absent.",
+        "operationId": "list_friend_contacts_friends__user_id__contacts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PublicUserBrief"
+                  },
+                  "title": "Response List Friend Contacts Friends  User Id  Contacts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Friend Contacts",
+        "tags": [
+          "friends"
+        ]
+      }
+    },
     "/health": {
       "get": {
         "operationId": "health_health_get",
@@ -6295,6 +6480,66 @@
           }
         },
         "summary": "Patch Home Share",
+        "tags": [
+          "friends"
+        ]
+      }
+    },
+    "/me/home/style": {
+      "patch": {
+        "description": "Set how the owner's own marker looks. Both halves are written every time\n(the picker holds both), so a null resets that half to the default. Nothing\nhere reaches friends — they label the marker on their own map.",
+        "operationId": "patch_home_style_me_home_style_patch",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HomeStyleIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyHomeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch Home Style",
         "tags": [
           "friends"
         ]

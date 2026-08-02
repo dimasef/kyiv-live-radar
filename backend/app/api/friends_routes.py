@@ -37,12 +37,15 @@ from ..schemas import (
     FriendUserBrief,
     HomeIn,
     HomePointOut,
+    HomeStyleIn,
     MyHomeOut,
     PresencePrefIn,
     PresencePrefOut,
+    PublicUserBrief,
     SendFriendRequestIn,
     ShareToggleIn,
 )
+from .deps import are_friends
 
 friends_router = APIRouter(tags=["friends"])
 
@@ -79,7 +82,14 @@ def _my_home_out(user: User) -> MyHomeOut:
     home = None
     if user.home_lat is not None and user.home_lon is not None:
         home = HomePointOut(lat=user.home_lat, lon=user.home_lon)
-    return MyHomeOut(home=home, radius_km=user.home_radius_km, share_home=user.share_home)
+    return MyHomeOut(
+        home=home,
+        radius_km=user.home_radius_km,
+        share_home=user.share_home,
+        home_icon=user.home_icon,
+        home_color=user.home_color,
+        home_glow=user.home_glow,
+    )
 
 
 async def _other(session: AsyncSession, edge: Friendship, me_id: int) -> User | None:
@@ -107,6 +117,43 @@ async def list_friends(
         if other is not None:
             out.append(_friend_out(other))
     out.sort(key=lambda f: (f.display_name or f.email or "").lower())
+    return out
+
+
+@friends_router.get("/friends/{user_id}/contacts", response_model=list[PublicUserBrief])
+async def list_friend_contacts(
+    user_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """Who one of your contacts is connected to — their profile page (/user/<id>).
+
+    Gated to that person's own accepted contacts, and one hop only: it lists who
+    they know, it does not let you walk on from there (asking for a stranger's
+    contacts 403s, even if a contact of yours knows them). Each entry is a
+    PublicUserBrief — see that model for why the email is absent."""
+    if user_id != user.id and not await are_friends(session, user.id, user_id):
+        raise HTTPException(status_code=403, detail="Контакти доступні лише контактам")
+
+    edges = await session.scalars(
+        select(Friendship).where(
+            Friendship.status == "accepted",
+            or_(
+                Friendship.requester_id == user_id,
+                Friendship.addressee_id == user_id,
+            ),
+        )
+    )
+    out: list[PublicUserBrief] = []
+    for edge in edges:
+        other = await _other(session, edge, user_id)
+        if other is not None:
+            out.append(
+                PublicUserBrief(
+                    id=other.id, display_name=other.display_name, avatar_url=other.avatar_url
+                )
+            )
+    out.sort(key=lambda u: (u.display_name or "").lower())
     return out
 
 
@@ -286,6 +333,22 @@ async def patch_home_share(
     return _my_home_out(user)
 
 
+@friends_router.patch("/me/home/style", response_model=MyHomeOut)
+async def patch_home_style(
+    body: HomeStyleIn,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """Set how the owner's own marker looks. Both halves are written every time
+    (the picker holds both), so a null resets that half to the default. Nothing
+    here reaches friends — they label the marker on their own map."""
+    user.home_icon = body.icon
+    user.home_color = body.color
+    user.home_glow = body.glow
+    await session.commit()
+    return _my_home_out(user)
+
+
 @friends_router.delete("/me/home", response_model=MyHomeOut)
 async def delete_my_home(
     session: AsyncSession = Depends(get_session),
@@ -295,6 +358,8 @@ async def delete_my_home(
     user.home_lon = None
     user.home_radius_km = None
     user.share_home = False
+    # home_icon/home_color survive on purpose: they say how you like your marker
+    # drawn, not where you live, and re-placing a home shouldn't cost the choice.
     await session.commit()
     return _my_home_out(user)
 

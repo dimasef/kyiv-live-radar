@@ -256,7 +256,9 @@
     "radius": "Radius",
     "clear": "Reset",
     "district": "District",
-    "km": "km"
+    "km": "km",
+    "markerTitle": "My home on the map",
+    "markerPreviewHint": "This is how your marker looks on the map"
   },
   "friends": {
     "friend": "Contact",
@@ -373,5 +375,10 @@
     "save": "Save",
     "cancel": "Cancel",
     "namePlaceholder": "Your name"
+  },
+  "marker": {
+    "glow": "Marker glow",
+    "edit": "Change marker",
+    "contactPreviewHint": "This is how this contact's marker looks on your map"
   }
 }

@@ -79,3 +79,20 @@ export function collectionUserId(path: string): number | null {
 export function collectionPath(userId?: number): string {
   return userId ? `${COLLECTION_PATH}/${userId}` : COLLECTION_PATH
 }
+
+// A contact's profile page — who they are, their collection, who they know.
+// Everything on it is server-gated to that person's accepted contacts, so the
+// route only ever resolves to content for someone you're actually connected to.
+export const USER_PATH = '/user'
+
+/** The user id in `/user/<id>`, or null when the path isn't a user route. */
+export function userRouteId(path: string): number | null {
+  if (!path.startsWith(`${USER_PATH}/`)) return null
+  const id = Number(path.slice(USER_PATH.length + 1))
+  return Number.isInteger(id) && id > 0 ? id : null
+}
+
+/** URL for one user's profile page. */
+export function userPath(userId: number): string {
+  return `${USER_PATH}/${userId}`
+}
