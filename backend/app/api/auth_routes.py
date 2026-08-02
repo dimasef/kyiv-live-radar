@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..auth.avatar import AvatarError, validate_avatar_data_url
 from ..auth.deps import get_current_user
 from ..auth.providers.google import GoogleAuthError, verify_google_id_token
 from ..auth.providers.telegram import TelegramAuthError, verify_telegram_login
@@ -32,6 +33,7 @@ from ..schemas import (
     AccessTokenOut,
     GoogleAuthIn,
     LoginIn,
+    MeUpdateIn,
     RefreshIn,
     RegisterIn,
     TelegramAuthIn,
@@ -134,6 +136,30 @@ async def logout():
 async def me(
     user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)
 ):
+    return await _user_out(session, user)
+
+
+@router.patch("/me", response_model=UserOut)
+async def update_me(
+    body: MeUpdateIn,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Edit your own profile. Only the fields actually present in the request
+    are touched, so sending just an avatar can't blank a display name."""
+    fields = body.model_fields_set
+    if "display_name" in fields:
+        name = (body.display_name or "").strip()
+        user.display_name = name or None
+    if "avatar_url" in fields:
+        if body.avatar_url is None:
+            user.avatar_url = None
+        else:
+            try:
+                user.avatar_url = validate_avatar_data_url(body.avatar_url)
+            except AvatarError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+    await session.commit()
     return await _user_out(session, user)
 
 

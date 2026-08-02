@@ -23,9 +23,10 @@ export default function AttackSummaryCard({ incident }: { incident: Incident }) 
   const { t } = useTranslation();
   const color = HOME_COLOR;
   const label = t(`attack.classification.${incident.classification}`, incident.classification);
+  // Impacts are withheld from every live surface (see AttackSegment) — this
+  // card is part of the feed, so it reports targets and districts only.
   const stats = [
     incident.track_count > 0 && `${incident.track_count} ${t("incident.targets")}`,
-    incident.impact_count > 0 && `${incident.impact_count} ${t("incident.impacts")}`,
     incident.district_count > 0 && `${incident.district_count} ${t("incident.districts")}`,
   ].filter(Boolean) as string[];
 

@@ -1,5 +1,6 @@
 import type { StateCreator } from 'zustand'
 
+import { fetchPushPrefs } from '@/api'
 import { pushSupported, resyncHomePush, subscribeHomePush, unsubscribeHomePush } from '@/lib/push'
 import { safeGet, safeRemove, safeSet, STORAGE_KEYS } from '@/lib/storage'
 
@@ -45,17 +46,47 @@ function initialNotifyPrefs(): NotifyPrefs {
   }
 }
 
+/** Server wire shape -> UI prefs. The backend keeps an explicit type list; the
+ * UI collapses the two drone types into one toggle (see lib/push.ts::wirePrefs,
+ * the inverse of this). */
+function fromWirePrefs(wire: {
+  min_level?: string
+  types?: string[]
+  citywide?: boolean
+}): NotifyPrefs {
+  const types = wire.types ?? []
+  return {
+    minLevel: wire.min_level === 'danger' ? 'danger' : 'warning',
+    ballistic: types.includes('ballistic'),
+    missile: types.includes('missile'),
+    drone: types.includes('shahed') || types.includes('jet_drone'),
+    citywide: wire.citywide ?? true,
+  }
+}
+
 export interface NotifySlice {
   notifyStatus: NotifyStatus
   notifyPrefs: NotifyPrefs
   enableNotify: () => Promise<void>
   disableNotify: () => Promise<void>
   setNotifyPrefs: (patch: Partial<NotifyPrefs>) => void
+  /** Adopt the prefs from the account's last subscription — only ever called
+   * for a device that has none of its own (see bootstrap). */
+  hydrateNotifyPrefs: () => Promise<void>
 }
 
 export const createNotifySlice: StateCreator<RadarState, [], [], NotifySlice> = (set, get) => ({
   notifyStatus: initialNotifyStatus(),
   notifyPrefs: initialNotifyPrefs(),
+
+  hydrateNotifyPrefs: async () => {
+    // Never overwrite a choice made on THIS device — a saved key means the user
+    // already decided here, and the account copy is just the older sibling.
+    if (safeGet(STORAGE_KEYS.notifyPrefs)) return
+    const { prefs } = await fetchPushPrefs()
+    if (!prefs) return
+    set({ notifyPrefs: fromWirePrefs(prefs) })
+  },
 
   setNotifyPrefs: (patch) => {
     const next = { ...get().notifyPrefs, ...patch }

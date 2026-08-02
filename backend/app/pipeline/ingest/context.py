@@ -9,8 +9,9 @@ from datetime import datetime, timedelta
 
 from ...config import settings
 from ...domain.lifecycle import promote_track
-from ...models import RawMessage, Threat
+from ...models import RawMessage, Threat, utcnow
 from ...parsing import ParseResult
+from ...timeutil import naive
 
 # Per-source "last stated target type" context for cross-message type
 # inheritance (see settings.type_inherit_window_minutes). Keyed by source_id ->
@@ -21,6 +22,20 @@ from ...parsing import ParseResult
 # Rule-only: mutating an already-districted message's type never adds an LLM
 # call, since should_fallback short-circuits to False whenever districts exist.
 _recent_type: dict[int, tuple[str, datetime]] = {}
+
+
+def is_late(when: datetime) -> bool:
+    """True when a message reached us more than a stale-window after it was
+    posted — i.e. a reconnect backfill replaying history, not live traffic.
+
+    Anything such a message would OPEN is already dead on arrival: the sweeper
+    closes a track born outside that window on its next tick (the same
+    reasoning triage.py::route_verdict uses to drop a late rescue). What it
+    would CLOSE is still valid, which is why callers gate on the ACTION, not on
+    this alone. Shared by the spotter dispatch and the alert-channel ingest,
+    where an out-of-order start opened a phantom alert that hung for two hours
+    (2026-07-31, alert 39)."""
+    return (naive(utcnow()) - naive(when)).total_seconds() / 60.0 > settings.track_stale_minutes
 
 
 def _note_and_inherit_type(parsed: ParseResult, source_id: int | None, when: datetime) -> None:
@@ -159,6 +174,14 @@ class IngestContext:
     # incident reads "ballistic" and would wrongly split a meandering drone's
     # «Троя/Воскресенка» enumeration.
     type_from_incident: bool = False
+    # Whether this message's AGE may veto it (see handlers._dispatch). Only the
+    # live Telegram path sets it: replay and reprocess deliberately re-run old
+    # messages at their own timestamps, where every message is "old" and the
+    # gate would drop the entire corpus.
+    enforce_age: bool = False
+
+    def arrived_late(self) -> bool:
+        return self.enforce_age and is_late(self.when)
 
     async def done(self) -> None:
         self.raw.processed = True

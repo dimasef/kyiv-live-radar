@@ -1,4 +1,4 @@
-import { Crosshair, Flame, Ghost, MapPin } from 'lucide-react'
+import { Crosshair, Ghost, MapPin } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { threatGlyphSvg } from '../../threatIcons'
@@ -21,9 +21,11 @@ export default function AttackSegment({
       ? ` (${t('attack.hypersonic')})`
       : ''
 
+  // No impact count here on purpose — "2 влучання" mid-raid is the same
+  // damage report the map deliberately withholds. The journal has it once the
+  // alert is over (the server sends impact_count: 0 while it isn't).
   const counts = [
     { n: incident.track_count, Icon: Crosshair, title: t('incident.targets') },
-    { n: incident.impact_count, Icon: Flame, title: t('incident.impacts') },
     { n: incident.district_count, Icon: MapPin, title: t('incident.districts') },
   ].filter((c) => c.n > 0)
 

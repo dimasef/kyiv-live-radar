@@ -110,13 +110,13 @@ def test_multi_type_day_with_impacts_and_group_sizes():
 
 def test_districts_ordered_by_activity_and_sentinel_excluded():
     events = [
-        (datetime(2026, 7, 11, 1, 0), 5),
-        (datetime(2026, 7, 11, 2, 0), 8),
-        (datetime(2026, 7, 11, 3, 0), 8),   # 8 is the most active district
-        (datetime(2026, 7, 11, 4, 0), 8),
-        (datetime(2026, 7, 11, 5, 0), 5),
-        (datetime(2026, 7, 11, 6, 0), 3),
-        (datetime(2026, 7, 11, 7, 0), 99),  # citywide sentinel — excluded
+        (datetime(2026, 7, 11, 1, 0), 5, False),
+        (datetime(2026, 7, 11, 2, 0), 8, False),
+        (datetime(2026, 7, 11, 3, 0), 8, False),   # 8 is the most active district
+        (datetime(2026, 7, 11, 4, 0), 8, False),
+        (datetime(2026, 7, 11, 5, 0), 5, False),
+        (datetime(2026, 7, 11, 6, 0), 3, False),
+        (datetime(2026, 7, 11, 7, 0), 99, False),  # citywide sentinel — excluded
     ]
     by_date = _run(date(2026, 7, 11), date(2026, 7, 11),
                    district_events=events, sentinel_district_id=99)

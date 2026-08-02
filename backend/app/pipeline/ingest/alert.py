@@ -6,6 +6,7 @@ with the spotter path so the two can never race on the raw-message dedup guard.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 
 from sqlalchemy import select
@@ -17,6 +18,9 @@ from ...models import Notice, RawMessage
 from ...parsing.alert_parser import parse_alert_message
 from ..lock import ingest_lock
 from ..results import Broadcast
+from .context import is_late
+
+log = logging.getLogger("ingest")
 
 
 async def ingest_alert_message(
@@ -26,17 +30,20 @@ async def ingest_alert_message(
     when: datetime,
     source_id: int | None = None,
     message_id: int | None = None,
+    enforce_age: bool = False,
 ) -> list[Broadcast]:
     """Serialized entry point for the OFFICIAL alert channel. Shares `ingest_lock`
     with the spotter path so the two can never race on the same raw-message dedup
     guard."""
     async with ingest_lock:
         return await _alert_ingest_locked(session, text=text, when=when,
-                                          source_id=source_id, message_id=message_id)
+                                          source_id=source_id, message_id=message_id,
+                                          enforce_age=enforce_age)
 
 
 async def _alert_ingest_locked(
-    session, *, text: str, when: datetime, source_id: int | None, message_id: int | None
+    session, *, text: str, when: datetime, source_id: int | None, message_id: int | None,
+    enforce_age: bool = False,
 ) -> list[Broadcast]:
     # Deliberately NOT "raw storage first" here, unlike the spotter pipeline
     # (see ingest_message's docstring) — this channel's non-alert traffic is
@@ -59,11 +66,13 @@ async def _alert_ingest_locked(
     session.add(raw)
     await session.commit()
 
-    return await process_parsed_alert(session, raw=raw, text=text, when=when, source_id=source_id)
+    return await process_parsed_alert(session, raw=raw, text=text, when=when,
+                                      source_id=source_id, enforce_age=enforce_age)
 
 
 async def process_parsed_alert(
-    session, *, raw: RawMessage, text: str, when: datetime, source_id: int | None
+    session, *, raw: RawMessage, text: str, when: datetime, source_id: int | None,
+    enforce_age: bool = False,
 ) -> list[Broadcast]:
     """Parse -> apply an ALREADY-PERSISTED alert-channel raw message. Split
     out from `_alert_ingest_locked` so `reprocess.py` can replay stored
@@ -75,6 +84,19 @@ async def process_parsed_alert(
     parsed = parse_alert_message(text)
     raw.processed = True
     if parsed is None:
+        await session.commit()
+        return []
+
+    # A backfilled START that predates the відбій we already processed would
+    # open an alert nothing can ever close: on 2026-07-31 the відбій (06:53)
+    # was ingested BEFORE the 05:59 start it belonged to, so `apply_alert_signal`
+    # no-op'd the end and then opened a phantom alert that hung on the banner for
+    # two hours until an admin "dismissed" it — which recorded a REAL alert as a
+    # false positive and erased it from the journal. An END arriving late is the
+    # opposite case (it's how a reconnect recovers a missed відбій), so only
+    # 'start' is vetoed.
+    if enforce_age and parsed.action == "start" and is_late(when):
+        log.info("ignoring late alert start (raw %s, posted %s) — backfill replay", raw.id, when)
         await session.commit()
         return []
 

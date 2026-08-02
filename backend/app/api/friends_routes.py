@@ -28,13 +28,15 @@ from ..domain.presence import presence_for
 from ..models import Friendship, User, utcnow
 from ..pipeline.contact_push import notify_contact_request, notify_request_accepted
 from ..schemas import (
+    ContactPrefIn,
+    ContactPrefsOut,
     FriendActionOut,
     FriendOut,
     FriendRequestOut,
     FriendRequestsOut,
     FriendUserBrief,
+    HomeIn,
     HomePointOut,
-    HomeShareIn,
     MyHomeOut,
     PresencePrefIn,
     PresencePrefOut,
@@ -77,7 +79,7 @@ def _my_home_out(user: User) -> MyHomeOut:
     home = None
     if user.home_lat is not None and user.home_lon is not None:
         home = HomePointOut(lat=user.home_lat, lon=user.home_lon)
-    return MyHomeOut(home=home, share_home=user.share_home)
+    return MyHomeOut(home=home, radius_km=user.home_radius_km, share_home=user.share_home)
 
 
 async def _other(session: AsyncSession, edge: Friendship, me_id: int) -> User | None:
@@ -258,13 +260,17 @@ async def get_my_home(user: User = Depends(get_current_user)):
 
 @friends_router.put("/me/home", response_model=MyHomeOut)
 async def put_my_home(
-    body: HomeShareIn,
+    body: HomeIn,
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
+    """Store the home on the account. Sharing is untouched — every signed-in
+    user's home is saved so it follows them to another device, and whether
+    friends may see it stays a separate, explicit choice."""
     user.home_lat = body.lat
     user.home_lon = body.lon
-    user.share_home = body.share
+    if body.radius_km is not None:
+        user.home_radius_km = body.radius_km
     await session.commit()
     return _my_home_out(user)
 
@@ -287,6 +293,7 @@ async def delete_my_home(
 ):
     user.home_lat = None
     user.home_lon = None
+    user.home_radius_km = None
     user.share_home = False
     await session.commit()
     return _my_home_out(user)
@@ -309,3 +316,46 @@ async def put_my_presence(
     user.share_presence = body.share_presence
     await session.commit()
     return PresencePrefOut(share_presence=user.share_presence)
+
+
+# --- Private per-contact labelling -----------------------------------------
+# Colour, icon and "hide on my map", stored per contact. Entirely one-sided: the
+# contact is never told, and `hidden` doesn't stop them sharing — it only takes
+# their marker off THIS user's map. On the account rather than in localStorage
+# because re-picking these on every device is exactly the chore an account
+# should absorb (see migration 0023).
+
+# A cap so the blob can't grow without bound if ids are written for contacts that
+# no longer exist. Far above any plausible contact list.
+_MAX_CONTACT_PREFS = 200
+
+
+@friends_router.get("/me/contact_prefs", response_model=ContactPrefsOut)
+async def get_contact_prefs(user: User = Depends(get_current_user)):
+    return ContactPrefsOut(prefs=user.contact_prefs or {})
+
+
+@friends_router.put("/me/contact_prefs/{contact_id}", response_model=ContactPrefsOut)
+async def put_contact_pref(
+    contact_id: int,
+    body: ContactPrefIn,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """Merge one contact's preferences. Fields left unset are kept, so the
+    client can flip `hidden` without having to resend the colour it picked
+    three sessions ago."""
+    prefs = dict(user.contact_prefs or {})
+    key = str(contact_id)
+    entry = dict(prefs.get(key) or {})
+    for field, value in body.model_dump(exclude_none=True).items():
+        entry[field] = value
+    if not entry:
+        prefs.pop(key, None)
+    else:
+        if key not in prefs and len(prefs) >= _MAX_CONTACT_PREFS:
+            raise HTTPException(status_code=400, detail="Забагато збережених контактів")
+        prefs[key] = entry
+    user.contact_prefs = prefs
+    await session.commit()
+    return ContactPrefsOut(prefs=prefs)

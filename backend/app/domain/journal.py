@@ -64,12 +64,20 @@ def build_journal(
     district_events,
     sentinel_district_id: int | None = None,
     tz: ZoneInfo = KYIV,
+    hide_impacts_from: date | None = None,
 ) -> list[DayStat]:
     """Aggregate rows into one `DayStat` per day in [start, end] (inclusive).
 
-    `district_events` is an iterable of `(event_time, district_id)` pairs.
-    Rows outside the range are ignored (they bucket to a day not in the map).
-    An alert spanning midnight is attributed entirely to its start day.
+    `district_events` is an iterable of `(event_time, district_id, is_impact)`
+    triples. Rows outside the range are ignored (they bucket to a day not in
+    the map). An alert spanning midnight is attributed entirely to its start
+    day.
+
+    `hide_impacts_from` drops every impact contribution (count, type mix and
+    districts) for days on or after it — the caller passes today's date while
+    an air-raid alert is still open, so an ongoing raid's strike locations
+    aren't published live. Everything else about those days is reported
+    normally.
     """
     days: dict[date, DayStat] = {}
     d = start
@@ -80,6 +88,9 @@ def build_journal(
     def bucket(dt: datetime) -> DayStat | None:
         return days.get(_kyiv_date(dt, tz))
 
+    def impacts_hidden(day: date) -> bool:
+        return hide_impacts_from is not None and day >= hide_impacts_from
+
     for inc in incidents:
         if inc.ended_reason == "dismissed":
             continue  # admin-cancelled false positive — never a real attack
@@ -88,7 +99,8 @@ def build_journal(
             s.attack_count += 1
 
     for th in threats:
-        s = bucket(th.created_at)
+        day = _kyiv_date(th.created_at, tz)
+        s = days.get(day)
         if s is None:
             continue
         if th.closed_reason == "dismissed":
@@ -97,20 +109,25 @@ def build_journal(
             # A citywide banner is not a discrete target — keep it out of the
             # track/target/type tallies (it would otherwise inflate every count).
             continue
+        is_impact = th.status == "impact" or th.kind == "impact"
+        if is_impact and impacts_hidden(day):
+            continue  # raid still on — its strikes stay unpublished entirely
         tt = th.target_type if th.target_type in s.type_counts else "unknown"
         s.type_counts[tt] += 1
-        if th.status == "impact" or th.kind == "impact":
+        if is_impact:
             s.impact_count += 1
         else:
             s.track_count += 1
             s.target_count += th.target_count or 1
 
     districts_per_day: dict[date, dict[int, int]] = {}
-    for event_time, district_id in district_events:
+    for event_time, district_id, is_impact in district_events:
         if district_id == sentinel_district_id:
             continue
         key = _kyiv_date(event_time, tz)
         if key not in days:
+            continue
+        if is_impact and impacts_hidden(key):
             continue
         counts = districts_per_day.setdefault(key, {})
         counts[district_id] = counts.get(district_id, 0) + 1

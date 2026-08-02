@@ -110,11 +110,9 @@ class Settings(BaseSettings):
     # the SAME strike (two sources, one hit) — the later one corroborates the
     # first marker instead of stacking a second pin on the same point.
     impact_dedup_minutes: int = 20
-    # How long a confirmed-strike (impact) marker stays on the LIVE map. Impacts
-    # are closed-on-creation but persist as pins; without a cap they'd accumulate
-    # across days and clutter the map with strikes from old attacks. History/feed
-    # keep them regardless — this only bounds the live map layer.
-    impact_map_ttl_hours: int = 6
+    # (There is deliberately no "how long an impact stays on the live map"
+    # setting: impacts are never published live at all — see
+    # api/public/threats.py::active_threats.)
 
     # --- Fusion confidence (app/domain/fusion.py::compute_fusion) — deliberately
     #     simple skeleton weights, not empirically tuned against real multi-source

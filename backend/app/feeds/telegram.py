@@ -213,10 +213,17 @@ async def _mark_source_status(source_id: int, *, error: str | None, title: str |
 async def _ingest_one(s, *, role: str, text: str, when, source_id, message_id,
                       matcher=None, forwarded_from_id=None, forwarded_from_channel_id=None,
                       reply_to_message_id=None):
-    """Dispatch one message to the spotter or alert ingest pipeline by role."""
+    """Dispatch one message to the spotter or alert ingest pipeline by role.
+
+    `enforce_age=True` on the spotter path: this is the ONLY feed where a
+    message can arrive long after it was posted (a reconnect backfill replaying
+    history), so it's the only one where age should be able to veto opening new
+    state — see IngestContext.arrived_late. Live messages are seconds old and
+    pass it untouched."""
     if role == "alert":
         return await ingest_alert_message(
-            s, text=text, when=when, source_id=source_id, message_id=message_id
+            s, text=text, when=when, source_id=source_id, message_id=message_id,
+            enforce_age=True,
         )
     return await ingest_message(
         s, text=text, matcher=matcher, when=when,
@@ -224,6 +231,7 @@ async def _ingest_one(s, *, role: str, text: str, when, source_id, message_id,
         forwarded_from_id=forwarded_from_id,
         forwarded_from_channel_id=forwarded_from_channel_id,
         reply_to_message_id=reply_to_message_id,
+        enforce_age=True,
     )
 
 

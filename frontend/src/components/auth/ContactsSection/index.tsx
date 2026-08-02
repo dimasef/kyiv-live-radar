@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next'
 
-import Switch from '@/components/common/Switch'
 import { useRadar } from '@/store'
 
 import AddContactForm from './AddContactForm'
@@ -9,49 +8,19 @@ import IncomingRow from './IncomingRow'
 import OutgoingRow from './OutgoingRow'
 import SubList from './SubList'
 
-/** Contacts + shareable home — the profile page's "Контакти" section body.
- * AccountPage already gates on auth and supplies the section heading, so this
- * renders just the controls. */
+/** The profile page's "Контакти" section body: who you're connected to, and the
+ * requests either way. The two visibility switches that used to sit on top
+ * (share my home / show when I was last online) moved into the settings drawer
+ * — they're preferences, and the drawer is where every other preference lives.
+ * AccountPage gates on auth and supplies the heading, so this renders just the
+ * controls. */
 export default function ContactsSection() {
   const { t } = useTranslation()
-  const home = useRadar((s) => s.home)
   const friends = useRadar((s) => s.friends)
   const requests = useRadar((s) => s.friendRequests)
-  const shareHome = useRadar((s) => s.shareHome)
-  const setShareHome = useRadar((s) => s.setShareHome)
-  const sharePresence = useRadar((s) => s.sharePresence)
-  const setSharePresence = useRadar((s) => s.setSharePresence)
 
   return (
     <div className="space-y-4">
-      {/* Share-my-home switch (privacy gate) — a home must be set to be useful. */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[13px] text-slate-200">{t('friends.shareHomeLabel')}</p>
-          <p className="text-[11px] leading-snug text-slate-500">
-            {home ? t('friends.shareHomeHint') : t('friends.needHome')}
-          </p>
-        </div>
-        <Switch
-          checked={shareHome}
-          disabled={!home}
-          label={t('friends.shareHomeLabel')}
-          onChange={() => void setShareHome(!shareHome).catch(() => {})}
-        />
-      </div>
-
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[13px] text-slate-200">{t('presence.shareLabel')}</p>
-          <p className="text-[11px] leading-snug text-slate-500">{t('presence.shareHint')}</p>
-        </div>
-        <Switch
-          checked={sharePresence}
-          label={t('presence.shareLabel')}
-          onChange={() => void setSharePresence(!sharePresence).catch(() => {})}
-        />
-      </div>
-
       <AddContactForm />
 
       {requests.incoming.length > 0 && (

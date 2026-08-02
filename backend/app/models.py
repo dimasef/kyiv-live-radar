@@ -240,6 +240,14 @@ class RawMessage(Base):
     event_time: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, index=True
     )
+    # When WE stored it, as opposed to when Telegram says it was posted. Equal
+    # to `event_time` within a second on the live path; far behind it whenever a
+    # reconnect backfill replays history — which is exactly when tracks split
+    # and phantom incidents appear (see migration 0022). NULL for rows stored
+    # before this column existed: genuinely unknown, not backfillable.
+    ingested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=True
+    )
     forwarded_from_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     # The ORIGIN channel's Telegram peer id, when this message is a repost —
     # `forwarded_from_id` alone is a message id, not globally unique across
@@ -495,7 +503,18 @@ class User(Base):
     # visibility: friendship alone never reveals a home.
     home_lat: Mapped[float | None] = mapped_column(Float, nullable=True)
     home_lon: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # The owner's danger-zone radius. Stored here (not just in localStorage and
+    # the per-device push subscription) so a home survives opening the app on
+    # another device — the account is the source of truth, the client copy is a
+    # cache. Never leaves the server for anyone but the owner: friends get a
+    # marker, and how far you consider "near home" is not theirs to know.
+    home_radius_km: Mapped[float | None] = mapped_column(Float, nullable=True)
     share_home: Mapped[bool] = mapped_column(default=False)
+    # Private per-contact map labelling, keyed by the contact's user id:
+    # {"7": {"color": "#c084fc", "icon": "star", "hidden": false}}. The contact
+    # never sees any of it — `hidden` only removes their marker from THIS user's
+    # map, it does not stop them sharing.
+    contact_prefs: Mapped[dict] = mapped_column(JSON, default=dict)
     # Opt-in gamification (collectible-card analysis) — an account-bound setting
     # so toggling it on one device carries to the user's others.
     gamification: Mapped[bool] = mapped_column(default=False)

@@ -20,6 +20,7 @@ from app.models import (
 )
 from app.parsing import DistrictMatcher
 from app.pipeline.ingest import ingest_alert_message, ingest_message
+from app.pipeline.ingest.resolve import in_promo_thread
 
 
 @pytest_asyncio.fixture
@@ -821,6 +822,32 @@ async def test_pulse_without_active_city_alert_is_ignored(ctx):
     assert await _count_threats(s) == 0
 
 
+async def test_typed_pulse_opens_the_citywide_track_during_an_official_alert(ctx):
+    # Live 2026-08-01: "Циркон" arrived 24 s after the КМДА siren but 12 s
+    # BEFORE anything opened a city-wide track, so it fell through to "без
+    # району" and the earliest ballistic warning of the night was lost. With the
+    # official alert running, a TYPED pulse now raises the track itself.
+    s, m, src = ctx
+    await ingest_alert_message(s, text="‼️УВАГА! У Києві оголошена повітряна тривога!",
+                               when=BASE, source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Циркон", matcher=m, when=BASE + timedelta(seconds=25),
+                         source_id=src[0].id, message_id=2)
+    city = list(await s.scalars(select(Threat).where(Threat.scope == "city")))
+    assert len(city) == 1
+    assert city[0].target_type == "ballistic"
+
+
+async def test_untyped_pulse_does_not_open_a_citywide_track_on_its_own(ctx):
+    # The counterweight: a bare "Ціль!" is too thin to raise a city-wide banner
+    # just because the siren is on — only a stated type earns that.
+    s, m, src = ctx
+    await ingest_alert_message(s, text="‼️УВАГА! У Києві оголошена повітряна тривога!",
+                               when=BASE, source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Ціль!", matcher=m, when=BASE + timedelta(seconds=25),
+                         source_id=src[0].id, message_id=2)
+    assert await _count_threats(s) == 0
+
+
 async def test_pulse_corroborates_open_directional_axis(ctx):
     # "Загроза балістики з Брянська" raises a directional axis but NO city alert.
     # A following terse "Є вихід" is the launch that axis warned about — it must
@@ -1034,3 +1061,29 @@ async def test_movement_frame_stays_one_track(ctx):
     await ingest_message(s, text="Балістика проходить Троєщину, курсом через Оболонь",
                          matcher=m, when=BASE, source_id=src[0].id, message_id=1)
     assert await _count_threats(s) == 1
+
+
+async def test_reply_inside_a_donation_thread_is_kept_away_from_the_llm(ctx):
+    """Live 2026-08-01: a reply arguing about the fundraiser ("на перехоплення
+    ракет ми не можемо збирати") quotes enough threat vocabulary to look like an
+    unlocalized threat, and cost a full gazetteer-sized LLM call. The promo post
+    that started the thread is already suppressed — that verdict now carries
+    down its replies."""
+    s, m, src = ctx
+    await ingest_message(
+        s, text="❗️Банка на дрони-перехоплювачі знову відкрита\n\nДолучайтеся 👇\n"
+                "https://send.monobank.ua/jar/8mYjydzumw",
+        matcher=m, when=BASE, source_id=src[0].id, message_id=100)
+    await ingest_message(
+        s, text="Щоб ніч була тихою, закиньте ваші 20 гривень на збір.",
+        matcher=m, when=BASE + timedelta(minutes=1), source_id=src[0].id,
+        message_id=101, reply_to_message_id=100)
+
+    # Two levels below the promo post — the immediate parent isn't promo itself.
+    assert await in_promo_thread(s, src[0].id, 101, m)
+    # A reply to an ordinary sighting is untouched.
+    await ingest_message(s, text="2х БПЛА Троєщина", matcher=m,
+                         when=BASE + timedelta(minutes=2), source_id=src[0].id, message_id=102)
+    assert not await in_promo_thread(s, src[0].id, 102, m)
+    # An unknown parent ends the walk instead of guessing.
+    assert not await in_promo_thread(s, src[0].id, 999, m)

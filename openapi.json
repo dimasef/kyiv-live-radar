@@ -333,6 +333,64 @@
         "title": "CollectionOut",
         "type": "object"
       },
+      "ContactPrefIn": {
+        "description": "PUT /me/contact_prefs/{contact_id} — private labelling for one contact.\n\nThe palette and icon set live in the frontend (`lib/contactMarker.ts`);\nvalidating against a copy here would just guarantee the two drift, so the\nserver only bounds the shape.",
+        "properties": {
+          "color": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "hidden": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hidden"
+          },
+          "icon": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon"
+          }
+        },
+        "title": "ContactPrefIn",
+        "type": "object"
+      },
+      "ContactPrefsOut": {
+        "description": "GET /me/contact_prefs — every stored per-contact preference, keyed by the\ncontact's user id as a string (JSON object keys can't be integers).",
+        "properties": {
+          "prefs": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "default": {},
+            "title": "Prefs",
+            "type": "object"
+          }
+        },
+        "title": "ContactPrefsOut",
+        "type": "object"
+      },
       "CorrectionOut": {
         "description": "GET /admin/corrections — a harvested correction plus whether the CURRENT\nparser already agrees (so the admin sees which mistakes are retired).",
         "properties": {
@@ -910,6 +968,42 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HomeIn": {
+        "description": "PUT /me/home — store the owner's home so it follows the account.\n\nSharing is NOT set here: it's a separate decision with its own endpoint\n(PATCH /me/home/share). Keeping them apart is what lets the home be saved\nfor a user who shares nothing — the whole point of moving it onto the\naccount.",
+        "properties": {
+          "lat": {
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Lon",
+            "type": "number"
+          },
+          "radius_km": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Radius Km"
+          }
+        },
+        "required": [
+          "lat",
+          "lon"
+        ],
+        "title": "HomeIn",
+        "type": "object"
+      },
       "HomePointOut": {
         "description": "A friend's shared home coordinates — a map marker only (no radius).",
         "properties": {
@@ -927,34 +1021,6 @@
           "lon"
         ],
         "title": "HomePointOut",
-        "type": "object"
-      },
-      "HomeShareIn": {
-        "description": "PUT /me/home — set/update home coordinates and the share flag together.",
-        "properties": {
-          "lat": {
-            "maximum": 90.0,
-            "minimum": -90.0,
-            "title": "Lat",
-            "type": "number"
-          },
-          "lon": {
-            "maximum": 180.0,
-            "minimum": -180.0,
-            "title": "Lon",
-            "type": "number"
-          },
-          "share": {
-            "default": true,
-            "title": "Share",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "lat",
-          "lon"
-        ],
-        "title": "HomeShareIn",
         "type": "object"
       },
       "HomeZoneIn": {
@@ -1283,8 +1349,38 @@
         "title": "LoginIn",
         "type": "object"
       },
+      "MeUpdateIn": {
+        "description": "PATCH /auth/me — edit your own profile.\n\nBoth fields are tri-state: absent leaves the value alone, null clears it\n(removing an avatar falls back to the monogram), a value sets it. That's why\n`avatar_url` can't just be `str | None` with a default — the route inspects\n`model_fields_set` to tell \"not mentioned\" from \"explicitly cleared\".",
+        "properties": {
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "maxLength": 25,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          }
+        },
+        "title": "MeUpdateIn",
+        "type": "object"
+      },
       "MyHomeOut": {
-        "description": "GET /me/home — the current user's own stored home + share state.",
+        "description": "GET /me/home — the current user's own stored home + share state.\n\n`radius_km` sits here rather than on `HomePointOut` on purpose: that model\nis also what FRIENDS receive, and the zone radius is the owner's alone.",
         "properties": {
           "home": {
             "anyOf": [
@@ -1295,6 +1391,17 @@
                 "type": "null"
               }
             ]
+          },
+          "radius_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Radius Km"
           },
           "share_home": {
             "title": "Share Home",
@@ -1509,6 +1616,23 @@
         "title": "PushPrefsIn",
         "type": "object"
       },
+      "PushPrefsOut": {
+        "description": "GET /push/prefs — the notification preferences from this user's most\nrecently updated subscription, so a NEW device can start from the choices\nthey already made instead of the defaults.\n\nThe subscription itself stays per-device (a push endpoint belongs to one\nbrowser); only the preferences are worth carrying over. `prefs` is None when\nthe user has never subscribed anywhere.",
+        "properties": {
+          "prefs": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PushPrefsIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "PushPrefsOut",
+        "type": "object"
+      },
       "PushSubscribeIn": {
         "description": "POST /push/subscribe body. Upsert by endpoint; re-POSTed on every home\nor prefs change so the server copy never goes stale.",
         "properties": {
@@ -1594,6 +1718,39 @@
             ],
             "title": "Corroboration Count"
           },
+          "decision_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Source"
+          },
+          "district_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "District Id"
+          },
+          "district_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "District Name"
+          },
           "event_id": {
             "title": "Event Id",
             "type": "integer"
@@ -1627,9 +1784,31 @@
             ],
             "title": "Target Type"
           },
+          "threat_closed_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threat Closed Reason"
+          },
           "threat_id": {
             "title": "Threat Id",
             "type": "integer"
+          },
+          "threat_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threat Status"
           }
         },
         "required": [
@@ -1721,6 +1900,18 @@
             "title": "Id",
             "type": "integer"
           },
+          "ingested_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ingested At"
+          },
           "llm_attempted": {
             "anyOf": [
               {
@@ -1799,13 +1990,45 @@
             ],
             "title": "Notice Id"
           },
+          "notice_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notice Kind"
+          },
           "outcome": {
             "title": "Outcome",
             "type": "string"
           },
+          "parsed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RawParsedOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "processed": {
             "title": "Processed",
             "type": "boolean"
+          },
+          "reply_parent_raw_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply Parent Raw Id"
           },
           "reply_to_message_id": {
             "anyOf": [
@@ -1839,6 +2062,28 @@
               }
             ],
             "title": "Source Name"
+          },
+          "source_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Role"
+          },
+          "suppressed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suppressed By"
           },
           "text": {
             "title": "Text",
@@ -1903,6 +2148,100 @@
           "items"
         ],
         "title": "RawMessagesPage",
+        "type": "object"
+      },
+      "RawParsedOut": {
+        "description": "What the CURRENT rule parser makes of this message, re-run read-only.\n\nPresent on every row, including ones that produced nothing — that's the\npoint: \"не про загрозу\" alone never said whether the parser saw a target,\na place, or neither. Not a record of what ran at ingest time (see\napi/raw_diagnosis.py) — after a parser change this can disagree with the\nevents the row actually produced, which is itself the useful signal.",
+        "properties": {
+          "citywide": {
+            "default": false,
+            "title": "Citywide",
+            "type": "boolean"
+          },
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "directional": {
+            "default": false,
+            "title": "Directional",
+            "type": "boolean"
+          },
+          "district_ids": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "District Ids",
+            "type": "array"
+          },
+          "district_names": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "District Names",
+            "type": "array"
+          },
+          "impact": {
+            "default": false,
+            "title": "Impact",
+            "type": "boolean"
+          },
+          "matched": {
+            "title": "Matched",
+            "type": "boolean"
+          },
+          "origin_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Key"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "target_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Count"
+          },
+          "target_pulse": {
+            "default": false,
+            "title": "Target Pulse",
+            "type": "boolean"
+          },
+          "target_type": {
+            "enum": [
+              "shahed",
+              "jet_drone",
+              "missile",
+              "ballistic",
+              "unknown"
+            ],
+            "title": "Target Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target_type",
+          "status",
+          "confidence",
+          "matched"
+        ],
+        "title": "RawParsedOut",
         "type": "object"
       },
       "RawSourceOut": {
@@ -4733,6 +5072,64 @@
         "tags": [
           "auth"
         ]
+      },
+      "patch": {
+        "description": "Edit your own profile. Only the fields actually present in the request\nare touched, so sending just an avatar can't blank a display name.",
+        "operationId": "update_me_auth_me_patch",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeUpdateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Me",
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/auth/refresh": {
@@ -5512,6 +5909,124 @@
         "summary": "Journal Days"
       }
     },
+    "/me/contact_prefs": {
+      "get": {
+        "operationId": "get_contact_prefs_me_contact_prefs_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactPrefsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Contact Prefs",
+        "tags": [
+          "friends"
+        ]
+      }
+    },
+    "/me/contact_prefs/{contact_id}": {
+      "put": {
+        "description": "Merge one contact's preferences. Fields left unset are kept, so the\nclient can flip `hidden` without having to resend the colour it picked\nthree sessions ago.",
+        "operationId": "put_contact_pref_me_contact_prefs__contact_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contact_id",
+            "required": true,
+            "schema": {
+              "title": "Contact Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContactPrefIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactPrefsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Contact Pref",
+        "tags": [
+          "friends"
+        ]
+      }
+    },
     "/me/gamification": {
       "put": {
         "description": "Persist the account-bound gamification toggle so it syncs across devices.",
@@ -5668,6 +6183,7 @@
         ]
       },
       "put": {
+        "description": "Store the home on the account. Sharing is untouched — every signed-in\nuser's home is saved so it follows them to another device, and whether\nfriends may see it stays a separate, explicit choice.",
         "operationId": "put_my_home_me_home_put",
         "parameters": [
           {
@@ -5691,7 +6207,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/HomeShareIn"
+                "$ref": "#/components/schemas/HomeIn"
               }
             }
           },
@@ -5955,6 +6471,53 @@
           }
         },
         "summary": "Push Config"
+      }
+    },
+    "/push/prefs": {
+      "get": {
+        "description": "This user's last-used notification preferences, for seeding a new device.\nAnonymous callers get nothing — there's no account to carry them from.",
+        "operationId": "push_prefs_push_prefs_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushPrefsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Push Prefs"
       }
     },
     "/push/subscribe": {
@@ -6518,7 +7081,7 @@
     },
     "/threats/active": {
       "get": {
-        "description": "Tracks that are not yet closed (still tracking / unconfirmed), plus\nRECENT `impact` markers — those are closed-on-creation (a strike is terminal)\nbut persist on the map as confirmed-hit pins. Only impacts within\n`impact_map_ttl_hours` are returned, so strikes from days-old attacks don't\naccumulate on the live map (history/feed keep them regardless).",
+        "description": "Tracks that are not yet closed (still tracking / unconfirmed).\n\nImpact markers are deliberately NOT here even though they carry a location:\npublishing where a strike landed, while the attack is still running, is\nbattle-damage assessment for whoever launched it. They stay in the DB and\nsurface only in the journal, once the alert is over (see\napi/public/journal.py) — the same reason `incident_out` never publishes an\nimpact count and `broadcast.py` never fans one out.",
         "operationId": "active_threats_threats_active_get",
         "responses": {
           "200": {

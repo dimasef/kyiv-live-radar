@@ -72,6 +72,11 @@ async def broadcast_results(session, results: list[Broadcast]) -> None:
         threat = await _load_full(session, b.threat.id)
         if threat is None:
             continue
+        # Impact markers never reach a client live — see api/public/threats.py
+        # for why. Filtering here (rather than at each producer) means a new
+        # code path that broadcasts an impact can't reintroduce the leak.
+        if threat.kind == "impact":
+            continue
         ev_out = None
         if b.event is not None:
             match = next((e for e in threat.events if e.id == b.event.id), None)

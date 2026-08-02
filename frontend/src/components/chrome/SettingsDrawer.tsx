@@ -12,6 +12,7 @@ import HomeControl from './HomeControl'
 import InstallControl from './InstallControl'
 import LanguageSwitcher from './LanguageSwitcher'
 import NotifyControl from './NotifyControl'
+import PrivacyControl from './PrivacyControl'
 import VersionInfo from './VersionInfo'
 
 /** App settings, lifted out of the map's side panel into a slide-in drawer that
@@ -63,6 +64,7 @@ function DrawerBody({ onClose }: { onClose: () => void }) {
           </div>
           <HomeControl />
           <NotifyControl />
+          <PrivacyControl />
           <FeedSettings />
           <GamificationControl />
           <InstallControl />

@@ -120,3 +120,31 @@ async def test_push_config_reflects_vapid_keys(ctx, monkeypatch):
     monkeypatch.setattr(settings, "vapid_private_key", "priv")
     r = await client.get("/push/config")
     assert r.json() == {"enabled": True, "public_key": "pub"}
+
+
+async def test_push_prefs_carry_to_a_new_device(ctx, monkeypatch):
+    """A second device shouldn't start from the defaults when the account
+    already expressed a preference somewhere else. The SUBSCRIPTION stays
+    per-device (a push endpoint belongs to one browser) — only the prefs move.
+    """
+    monkeypatch.setattr(settings, "auth_jwt_secret", "push-prefs-secret")
+    client, _s = ctx
+    r = await client.post("/auth/register", json={"email": "p@x.com", "password": "password123"})
+    auth = {"Authorization": f"Bearer {r.json()['access']}"}
+
+    # Nothing subscribed yet → nothing to carry over.
+    assert (await client.get("/push/prefs", headers=auth)).json() == {"prefs": None}
+
+    await client.post("/push/subscribe", headers=auth, json={
+        "subscription": SUB,
+        "home": {"lat": 50.5, "lon": 30.5, "radius_km": 3},
+        "prefs": {"min_level": "danger", "types": ["ballistic"], "citywide": False},
+    })
+
+    prefs = (await client.get("/push/prefs", headers=auth)).json()["prefs"]
+    assert prefs["min_level"] == "danger"
+    assert prefs["types"] == ["ballistic"]
+    assert prefs["citywide"] is False
+
+    # Anonymous callers have no account to carry anything from.
+    assert (await client.get("/push/prefs")).json() == {"prefs": None}

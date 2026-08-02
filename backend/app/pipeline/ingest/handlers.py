@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import logging
 
+from sqlalchemy import select
+
 from ...config import settings
 from ...domain.axes import AxisSignal, apply_axis_signal, refresh_open_axis
 from ...domain.districts import citywide_district_id
@@ -27,7 +29,7 @@ from ...domain.tracking import (
     find_stood_down_track,
     find_track_by_reply,
 )
-from ...models import Notice, Threat, ThreatEvent
+from ...models import Alert, Notice, Threat, ThreatEvent
 from ...parsing import DistrictHit, ParseResult
 from ..results import Broadcast
 from .context import IngestContext, _apply_update, _new_track, _upgrade_type
@@ -193,6 +195,15 @@ async def _handle_target_pulse(ctx: IngestContext) -> list[Broadcast] | None:
         stood = await find_stood_down_citywide(session, when)
         if stood is not None:
             city = reopen_track(stood)
+    if city is None and parsed.target_type != "unknown" and await _city_alert_open(session):
+        # A TYPED pulse while the official siren is already sounding is the
+        # first — and for a hypersonic the only — warning we get. Live
+        # 2026-08-01: "Циркон" landed 24 s after the КМДА alert but 12 s before
+        # anything opened a city-wide track, so it fell through to "без району";
+        # the identical message 36 s later corroborated fine. Losing the
+        # earliest ballistic callout to a seconds-wide race is the opposite of
+        # what this handler is for, so a typed one opens the track itself.
+        return await _handle_citywide(ctx)
     did = await citywide_district_id(session) if city is not None else None
     if city is None or did is None:
         return await _pulse_corroborates_axis(ctx)
@@ -470,9 +481,41 @@ def _ingest_outcome(broadcasts: list[Broadcast]) -> str:
     return "dropped"
 
 
+async def _city_alert_open(session) -> bool:
+    """Whether the OFFICIAL city air-raid alert is currently running."""
+    return await session.scalar(
+        select(Alert.id).where(Alert.scope == "city", Alert.ended_at.is_(None))
+    ) is not None
+
+
+def _only_closes(parsed: ParseResult) -> bool:
+    """Whether this message can only ever CLOSE state, never open any.
+
+    A stand-down that also carries a live directional threat («Дорозвідка
+    триває, але триває загроза балістики з Брянщини») opens an axis, so it
+    doesn't qualify."""
+    if parsed.status in ("clear", "destroyed"):
+        return True
+    return parsed.lost_signal and not parsed.directional
+
+
 async def _dispatch(ctx: IngestContext) -> list[Broadcast]:
     """Route a parsed spotter message to its handler, in fixed precedence order."""
     parsed = ctx.parsed
+
+    # 0. Age veto. A reconnect backfill replays history, and a message that
+    #    reaches us a stale-window after it was posted must not OPEN anything:
+    #    live 2026-08-02, a 00:14 sighting was stored at ~00:28 (after its own
+    #    reply-child, which had therefore already started its own track), and
+    #    created a THIRD track plus a brand-new incident ~10s after the відбій —
+    #    a fresh attack card for an attack that was over. Closing messages are
+    #    deliberately still honoured: re-ingesting a missed "відбій" from the
+    #    gap is the whole point of backfilling after a reconnect.
+    if ctx.arrived_late() and not _only_closes(parsed):
+        log.info("dropping late message (raw %s): posted %s, nothing it opens can be live",
+                 ctx.raw.id, ctx.when)
+        await ctx.done()
+        return []
     # 2a. All-clear. An authoritative FULL "Відбій тривоги" (clear_scope=None,
     #     closes EVERY track) comes ONLY from the official alert channel
     #     (process_parsed_alert closes all tracks on its city end) — a spotter's

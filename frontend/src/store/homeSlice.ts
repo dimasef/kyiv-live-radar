@@ -31,6 +31,24 @@ export interface HomeSlice {
   setHome: (h: Home | null) => void
   setHomeRadius: (radiusKm: number) => void
   setPlacingHome: (v: boolean) => void
+  /** Adopt the account's stored home WITHOUT sending it back (see
+   * friendsSlice.loadFriends, which decides whether to call this). */
+  hydrateHome: (h: Home) => void
+}
+
+/** Persist locally and push to every server copy that cares. Placing a home is
+ * the most laborious thing in the app, so the account is the source of truth
+ * and localStorage is a cache for the next paint (and the only store an
+ * anonymous visitor gets). */
+function persistHome(get: () => RadarState, h: Home | null) {
+  if (h) safeSet(STORAGE_KEYS.home, JSON.stringify(h))
+  else safeRemove(STORAGE_KEYS.home)
+  // The push subscription keeps its OWN copy of the zone — the backend assesses
+  // danger against that one. No-op when notifications are off.
+  if (get().notifyStatus === 'on') void resyncHomePush(h, get().notifyPrefs).catch(() => {})
+  // The account copy is saved whether or not the home is shared: sharing is a
+  // visibility choice, not a reason to remember where you live.
+  if (get().authStatus === 'authed') void resyncHomeShare(h).catch(() => {})
 }
 
 export const createHomeSlice: StateCreator<RadarState, [], [], HomeSlice> = (set, get) => ({
@@ -38,24 +56,20 @@ export const createHomeSlice: StateCreator<RadarState, [], [], HomeSlice> = (set
   placingHome: false,
 
   setHome: (h) => {
-    if (h) safeSet(STORAGE_KEYS.home, JSON.stringify(h))
-    else safeRemove(STORAGE_KEYS.home)
     set({ home: h })
-    // Keep the push subscription's server-side home zone in sync (no-op when
-    // notifications are off) — the backend assesses danger against ITS copy.
-    if (get().notifyStatus === 'on') void resyncHomePush(h, get().notifyPrefs).catch(() => {})
-    // Keep the friend-visible home in sync when the user shares it (the server
-    // copy is what friends fetch — see friendsSlice.resyncHomeShare).
-    if (get().authStatus === 'authed' && get().shareHome)
-      void resyncHomeShare(h).catch(() => {})
+    persistHome(get, h)
   },
   setHomeRadius: (radiusKm) => {
     const cur = get().home
     if (!cur) return
     const next = { ...cur, radiusKm }
-    safeSet(STORAGE_KEYS.home, JSON.stringify(next))
     set({ home: next })
-    if (get().notifyStatus === 'on') void resyncHomePush(next, get().notifyPrefs).catch(() => {})
+    persistHome(get, next)
   },
   setPlacingHome: (v) => set({ placingHome: v }),
+
+  hydrateHome: (h) => {
+    safeSet(STORAGE_KEYS.home, JSON.stringify(h))
+    set({ home: h })
+  },
 })

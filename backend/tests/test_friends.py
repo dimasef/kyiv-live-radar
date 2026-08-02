@@ -133,8 +133,9 @@ async def test_home_share_gate(client):
     req_id = (await c.get("/friends/requests", headers=_auth(b))).json()["incoming"][0]["id"]
     await c.post(f"/friends/requests/{req_id}/accept", headers=_auth(b))
 
-    # B sets a home but does NOT share → A still sees no marker.
-    r = await c.put("/me/home", json={"lat": 50.45, "lon": 30.52, "share": False}, headers=_auth(b))
+    # B sets a home. Storing it never shares it — PUT /me/home doesn't take a
+    # share flag at all, so an unshared home is the default state.
+    r = await c.put("/me/home", json={"lat": 50.45, "lon": 30.52}, headers=_auth(b))
     assert r.status_code == 200 and r.json()["share_home"] is False
     r = await c.get("/friends", headers=_auth(a))
     assert r.json()[0]["home"] is None
@@ -293,3 +294,71 @@ async def test_presence_is_not_disclosed_to_a_non_friend(client):
     a = await _register(c, "stranger@x.com")
     await _register(c, "private@x.com")
     assert (await c.get("/friends", headers=_auth(a))).json() == []
+
+
+async def test_home_is_stored_for_a_user_who_shares_nothing(client):
+    """The point of moving home onto the account: it must survive opening the
+    app on another device even for someone with no contacts and no sharing."""
+    c = client
+    a = await _register(c, "solo@x.com")
+
+    r = await c.put("/me/home", json={"lat": 50.45, "lon": 30.52, "radius_km": 7},
+                    headers=_auth(a))
+    assert r.status_code == 200
+    body = r.json()
+    assert body["home"] == {"lat": 50.45, "lon": 30.52}
+    assert body["radius_km"] == 7
+    assert body["share_home"] is False  # untouched by storing coordinates
+
+    # A fresh client (a second device) reads it back whole.
+    assert (await c.get("/me/home", headers=_auth(a))).json() == body
+
+    # Toggling sharing never has to carry coordinates any more.
+    r = await c.patch("/me/home/share", json={"share": True}, headers=_auth(a))
+    assert r.json()["home"] == {"lat": 50.45, "lon": 30.52}
+
+    # Clearing wipes the radius too, so it can't reappear on the next device.
+    r = await c.delete("/me/home", headers=_auth(a))
+    assert r.json()["home"] is None and r.json()["radius_km"] is None
+
+
+async def test_friends_never_learn_the_zone_radius(client):
+    """A contact gets a marker, not how wide the owner considers 'near home'."""
+    c = client
+    a = await _register(c, "a9@x.com")
+    b = await _register(c, "b9@x.com")
+    await c.post("/friends/requests", json={"email": "b9@x.com"}, headers=_auth(a))
+    req_id = (await c.get("/friends/requests", headers=_auth(b))).json()["incoming"][0]["id"]
+    await c.post(f"/friends/requests/{req_id}/accept", headers=_auth(b))
+    await c.put("/me/home", json={"lat": 50.5, "lon": 30.6, "radius_km": 12}, headers=_auth(b))
+    await c.patch("/me/home/share", json={"share": True}, headers=_auth(b))
+
+    home = (await c.get("/friends", headers=_auth(a))).json()[0]["home"]
+    assert home == {"lat": 50.5, "lon": 30.6}
+    assert "radius_km" not in home
+
+
+async def test_contact_prefs_round_trip_and_merge(client):
+    c = client
+    a = await _register(c, "styler@x.com")
+
+    assert (await c.get("/me/contact_prefs", headers=_auth(a))).json() == {"prefs": {}}
+
+    r = await c.put("/me/contact_prefs/7", json={"color": "#c084fc", "icon": "star"},
+                    headers=_auth(a))
+    assert r.json()["prefs"]["7"] == {"color": "#c084fc", "icon": "star"}
+
+    # A later partial write merges instead of replacing — flipping "hide on my
+    # map" must not wipe the colour picked three sessions ago.
+    r = await c.put("/me/contact_prefs/7", json={"hidden": True}, headers=_auth(a))
+    assert r.json()["prefs"]["7"] == {"color": "#c084fc", "icon": "star", "hidden": True}
+
+    assert (await c.get("/me/contact_prefs", headers=_auth(a))).json()["prefs"]["7"]["hidden"]
+
+
+async def test_contact_prefs_are_private_to_their_owner(client):
+    c = client
+    a = await _register(c, "a10@x.com")
+    b = await _register(c, "b10@x.com")
+    await c.put("/me/contact_prefs/99", json={"color": "#fff"}, headers=_auth(a))
+    assert (await c.get("/me/contact_prefs", headers=_auth(b))).json() == {"prefs": {}}

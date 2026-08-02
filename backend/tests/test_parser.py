@@ -619,6 +619,17 @@ def test_zircon_types_as_ballistic():
     assert r.target_pulse  # terse callout corroborates an open city-wide alert
 
 
+def test_pulse_scoped_to_another_oblast_does_not_pulse():
+    # Live 2026-08-01: "Ціль на Сумщині" is exactly pulse-shaped (3 words,
+    # "ціль", no Kyiv district), so it corroborated the OPEN Kyiv city-wide
+    # track and pushed its confidence to 0.7 — a Sumy sighting on a Kyiv card.
+    for txt in ("Ціль на Сумщині", "Ціль Сумщина!", "Цілі на Чернігівщині"):
+        assert not parse_message(txt, M).target_pulse, txt
+    # An ORIGIN mention is the opposite case — that target is heading here.
+    assert parse_message("Ціль з Курщини", M).target_pulse
+    assert parse_message("Ціль!", M).target_pulse
+
+
 def test_negated_type_mention_does_not_type():
     # The real 07-18 aside that typed itself as shahed via "це не БПЛА" and
     # poisoned the channel context (the city-wide card spent 15 min as БПЛА).

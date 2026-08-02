@@ -7,6 +7,8 @@ import { districtAt } from '../../lib/geo'
 import { MAP_PATH, navigate } from '../../router'
 import { useRadar } from '../../store'
 
+import ShareHomeToggle from './ShareHomeToggle'
+
 /** Request the browser geolocation and set it as home (origin 'geo'). */
 export function requestGeolocation(onDenied?: () => void) {
   if (!('geolocation' in navigator)) {
@@ -132,6 +134,7 @@ export default function HomeControl() {
           {placingHome ? t('home.placing') : t('home.geoDenied')}
         </p>
       )}
+      <ShareHomeToggle />
     </div>
   )
 }

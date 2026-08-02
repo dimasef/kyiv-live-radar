@@ -56,12 +56,17 @@ class SendFriendRequestIn(BaseModel):
     email: EmailStr
 
 
-class HomeShareIn(BaseModel):
-    """PUT /me/home — set/update home coordinates and the share flag together."""
+class HomeIn(BaseModel):
+    """PUT /me/home — store the owner's home so it follows the account.
+
+    Sharing is NOT set here: it's a separate decision with its own endpoint
+    (PATCH /me/home/share). Keeping them apart is what lets the home be saved
+    for a user who shares nothing — the whole point of moving it onto the
+    account."""
 
     lat: float = Field(ge=-90, le=90)
     lon: float = Field(ge=-180, le=180)
-    share: bool = True
+    radius_km: float | None = Field(default=None, gt=0, le=100)
 
 
 class ShareToggleIn(BaseModel):
@@ -71,10 +76,33 @@ class ShareToggleIn(BaseModel):
 
 
 class MyHomeOut(BaseModel):
-    """GET /me/home — the current user's own stored home + share state."""
+    """GET /me/home — the current user's own stored home + share state.
+
+    `radius_km` sits here rather than on `HomePointOut` on purpose: that model
+    is also what FRIENDS receive, and the zone radius is the owner's alone."""
 
     home: HomePointOut | None = None
+    radius_km: float | None = None
     share_home: bool
+
+
+class ContactPrefIn(BaseModel):
+    """PUT /me/contact_prefs/{contact_id} — private labelling for one contact.
+
+    The palette and icon set live in the frontend (`lib/contactMarker.ts`);
+    validating against a copy here would just guarantee the two drift, so the
+    server only bounds the shape."""
+
+    color: str | None = Field(default=None, max_length=32)
+    icon: str | None = Field(default=None, max_length=32)
+    hidden: bool | None = None
+
+
+class ContactPrefsOut(BaseModel):
+    """GET /me/contact_prefs — every stored per-contact preference, keyed by the
+    contact's user id as a string (JSON object keys can't be integers)."""
+
+    prefs: dict[str, dict] = {}
 
 
 class FriendActionOut(BaseModel):

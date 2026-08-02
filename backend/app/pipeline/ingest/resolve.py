@@ -7,9 +7,22 @@ decide "the parser thinks this IS a localizable threat but found no district".
 
 from __future__ import annotations
 
+import logging
+
+from sqlalchemy import select
+
 from ...config import settings
 from ...domain.origins import target_elsewhere
+from ...models import RawMessage
 from ...parsing import DistrictMatcher, LlmUsage, ParseResult, normalize, parse_message
+
+log = logging.getLogger("ingest")
+
+# How far up a reply chain to look for the promo post that started the thread.
+# Real threads nest a couple of levels ("банка на перехоплювачі" -> "закиньте 20
+# грн" -> a reply arguing about it); past that the conversation has usually
+# drifted somewhere else and the ancestor stops being evidence.
+_PROMO_THREAD_DEPTH = 3
 
 
 def should_fallback(parsed: ParseResult) -> bool:
@@ -48,8 +61,41 @@ def should_fallback(parsed: ParseResult) -> bool:
     return parsed.target_type != "unknown" or parsed.status in ("confirmed", "unconfirmed")
 
 
+async def in_promo_thread(
+    session, source_id: int | None, reply_to_message_id: int | None, matcher: DistrictMatcher
+) -> bool:
+    """Whether this message is a reply inside a donation/ad thread.
+
+    Chatter under a fundraising post argues about the fundraiser, not about
+    what's in the sky — but it quotes enough threat vocabulary ("щоб менше
+    ворожого лайна літало", "на перехоплення ракет ми не можемо збирати") to
+    look like an unlocalized threat to `should_fallback`, and each one costs a
+    full LLM call with the whole gazetteer in the prompt (~$0.004). The promo
+    post itself is already suppressed; this extends that verdict down its own
+    thread. Only walks UP a bounded number of parents, and only over messages
+    we stored — an unknown parent ends the walk.
+    """
+    if source_id is None or reply_to_message_id is None:
+        return False
+    message_id = reply_to_message_id
+    for _ in range(_PROMO_THREAD_DEPTH):
+        parent = await session.scalar(
+            select(RawMessage).where(
+                RawMessage.source_id == source_id, RawMessage.message_id == message_id
+            )
+        )
+        if parent is None:
+            return False
+        if parse_message(parent.text or "", matcher).promo:
+            return True
+        if parent.reply_to_message_id is None:
+            return False
+        message_id = parent.reply_to_message_id
+    return False
+
+
 async def _resolve(
-    text: str, matcher: DistrictMatcher
+    text: str, matcher: DistrictMatcher, *, allow_llm: bool = True
 ) -> tuple[ParseResult, str, bool, LlmUsage | None, dict | None]:
     """Rule-based first; LLM fallback only when warranted and configured. The
     3rd return value is whether the LLM was actually CALLED — distinct from
@@ -61,7 +107,8 @@ async def _resolve(
     raw message for /raw audit regardless of whether its districts were used
     (see llm_extract)."""
     parsed = parse_message(text, matcher)
-    if settings.llm_fallback_enabled and settings.anthropic_api_key and should_fallback(parsed):
+    if (allow_llm and settings.llm_fallback_enabled and settings.anthropic_api_key
+            and should_fallback(parsed)):
         # Lazy: triage and ingest are mutually recursive (ingest enqueues to
         # triage; triage's rescue calls back into ingest), so this edge stays
         # in-function to avoid an import cycle.

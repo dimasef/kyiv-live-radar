@@ -1,18 +1,12 @@
-import { ChevronRight, ShieldCheck } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 import type { Collection } from "@/api";
-import Avatar from "@/components/common/Avatar";
 import { CARDS, RARITIES, RARITY_STYLE, collectionCounts, rarityBreakdown } from "@/lib/cards";
 import { COLLECTION_PATH, navigate } from "@/router";
 import { useRadar } from "@/store";
 
 import ContactsSection from "./ContactsSection";
-
-const ROLE_BADGE: Record<string, { label: string; cls: string; shield: boolean }> = {
-  admin_g: { label: "Дівчина Адміна", cls: "bg-pink-400/15 text-pink-300", shield: true },
-  admin: { label: "Адміністратор", cls: "bg-phosphor/15 text-phosphor-soft", shield: true },
-  user: { label: "Користувач", cls: "bg-white/5 text-slate-400", shield: false },
-};
+import IdentityCard from "./IdentityCard";
 
 /** Signed-in user's account page: an identity card, a collection summary and the
  * contact list — each in a consistent bordered card. Quick navigation and
@@ -32,31 +26,10 @@ export default function AccountPage() {
     );
   }
 
-  const role = ROLE_BADGE[user.role] ?? ROLE_BADGE.user;
-
   return (
     <div className="h-full overflow-y-auto bg-ink-950 px-4 py-8 text-slate-200">
       <div className="mx-auto max-w-md space-y-4 lg:max-w-2xl">
-        {/* Identity */}
-        <div className="flex items-center gap-4 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4">
-          <Avatar
-            name={user.display_name || user.email || "Акаунт"}
-            avatarUrl={user.avatar_url}
-            size={60}
-          />
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate font-display text-lg font-bold text-slate-100">
-              {user.display_name || user.email || "Акаунт"}
-            </h1>
-            {user.email && <p className="truncate text-xs text-slate-500">{user.email}</p>}
-            <span
-              className={`mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${role.cls}`}
-            >
-              {role.shield && <ShieldCheck size={11} />}
-              {role.label}
-            </span>
-          </div>
-        </div>
+        <IdentityCard user={user} />
 
         {(gamification || hasCards) && <CollectionCard collection={collection} />}
 

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 import { useDismissTransition } from '@/lib/useDismissTransition'
@@ -23,7 +24,9 @@ export default function ConfirmModal({
   onConfirm,
   onCancel,
 }: {
-  message: string
+  /** Plain text for most call sites; a node when the question needs to SHOW
+   * something (the avatar prompt previews what's being replaced). */
+  message: ReactNode
   confirmLabel: string
   cancelLabel?: string
   tone?: Tone
@@ -50,7 +53,7 @@ export default function ConfirmModal({
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="text-sm leading-relaxed text-slate-200">{message}</p>
+        <div className="text-sm leading-relaxed text-slate-200">{message}</div>
         <div className="mt-5 flex justify-end gap-2">
           <button
             onClick={close}

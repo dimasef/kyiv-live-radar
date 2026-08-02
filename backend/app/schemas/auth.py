@@ -15,6 +15,28 @@ class RegisterIn(BaseModel):
     display_name: str | None = Field(default=None, max_length=120)
 
 
+# What a user may type for themselves. Shorter than the column (and than what
+# Google can hand us at sign-in) because this name is rendered inline in contact
+# rows and map tooltips, where a long one just truncates. Existing longer names
+# from OAuth are left alone — the cap only governs edits made here.
+DISPLAY_NAME_MAX = 25
+
+
+class MeUpdateIn(BaseModel):
+    """PATCH /auth/me — edit your own profile.
+
+    Both fields are tri-state: absent leaves the value alone, null clears it
+    (removing an avatar falls back to the monogram), a value sets it. That's why
+    `avatar_url` can't just be `str | None` with a default — the route inspects
+    `model_fields_set` to tell "not mentioned" from "explicitly cleared".
+    """
+
+    display_name: str | None = Field(default=None, max_length=DISPLAY_NAME_MAX)
+    # Validated in the route (app/auth/avatar.py): only inline data: images,
+    # bounded in size, and their bytes must match the type they claim.
+    avatar_url: str | None = None
+
+
 class LoginIn(BaseModel):
     """POST /auth/login."""
 

@@ -245,7 +245,11 @@ export interface PushSubscribeBody {
   subscription: { endpoint: string; keys: { p256dh: string; auth: string } }
   home: { lat: number; lon: number; radius_km: number } | null
 }
+export type PushPrefsResult = Schemas['PushPrefsOut']
 export const fetchPushConfig = () => get<PushConfig>('/push/config')
+/** The prefs from this user's most recent subscription on ANY device — used to
+ * seed a new one instead of starting from defaults. */
+export const fetchPushPrefs = () => get<PushPrefsResult>('/push/prefs')
 export const postPushSubscribe = (body: PushSubscribeBody) =>
   send<{ ok: boolean }>('/push/subscribe', 'POST', body)
 export const deletePushSubscribe = (endpoint: string) =>
@@ -287,6 +291,10 @@ export const authTelegram = (payload: TelegramAuthPayload) =>
 export const authRefreshToken = (refresh: string) =>
   authPost<{ access: string; token_type: string }>('/auth/refresh', { refresh })
 export const authMe = () => get<AuthUser>('/auth/me')
+/** Edit your own profile. Fields left out are untouched; an explicit null
+ * clears one (an avatar of null falls back to the monogram). */
+export const patchMe = (patch: { display_name?: string | null; avatar_url?: string | null }) =>
+  send<AuthUser>('/auth/me', 'PATCH', patch)
 export const authLogout = () => authPost<{ ok: boolean }>('/auth/logout', {})
 
 // --- Friends (contacts) + shareable home (see store/friendsSlice.ts) --------
@@ -309,11 +317,21 @@ export const declineFriendRequest = (id: number) =>
 export const removeFriend = (userId: number) =>
   send<FriendAction>(`/friends/${userId}`, 'DELETE')
 export const fetchMyHome = () => get<MyHome>('/me/home')
-export const putMyHome = (lat: number, lon: number, share: boolean) =>
-  send<MyHome>('/me/home', 'PUT', { lat, lon, share })
+/** Store the home on the account. Sharing is a separate call on purpose — every
+ * signed-in user's home is saved so it follows them to another device, whether
+ * or not they let contacts see it. */
+export const putMyHome = (lat: number, lon: number, radius_km: number) =>
+  send<MyHome>('/me/home', 'PUT', { lat, lon, radius_km })
 export const patchHomeShare = (share: boolean) =>
   send<MyHome>('/me/home/share', 'PATCH', { share })
 export const deleteMyHome = () => send<MyHome>('/me/home', 'DELETE')
+
+export type ContactPrefs = Schemas['ContactPrefsOut']
+export const fetchContactPrefs = () => get<ContactPrefs>('/me/contact_prefs')
+export const putContactPref = (
+  contactId: number,
+  pref: { color?: string; icon?: string; hidden?: boolean },
+) => send<ContactPrefs>(`/me/contact_prefs/${contactId}`, 'PUT', pref)
 
 export type PresencePref = Schemas['PresencePrefOut']
 export const fetchMyPresence = () => get<PresencePref>('/me/presence')

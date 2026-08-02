@@ -61,10 +61,6 @@ export default function MapLegend() {
       label: t('legend.launcher'),
     },
     {
-      html: threatGlyphSvg('unknown', { size: 16, state: 'impact', color: '#e2e8f0' }),
-      label: t('legend.impact'),
-    },
-    {
       html: threatGlyphSvg('unknown', { size: 16, state: 'destroyed', color: MUTED_COLOR }),
       label: t('legend.destroyed'),
     },

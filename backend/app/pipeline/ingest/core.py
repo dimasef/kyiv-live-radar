@@ -17,7 +17,7 @@ from ..lock import ingest_lock
 from ..results import Broadcast
 from .context import IngestContext, _note_and_inherit_type
 from .handlers import _dispatch, _handle_citywide, _handle_sighting, _ingest_outcome
-from .resolve import _resolve
+from .resolve import _resolve, in_promo_thread
 
 
 async def ingest_message(session, **kwargs) -> list[Broadcast]:
@@ -37,6 +37,7 @@ async def _ingest_locked(
     forwarded_from_id: int | None = None,
     forwarded_from_channel_id: int | None = None,
     reply_to_message_id: int | None = None,
+    enforce_age: bool = False,
 ) -> list[Broadcast]:
     # 0. Idempotency guard: a real Telegram message_id is unique per channel.
     #    Re-ingesting one (repeated backfill on every restart was doing exactly
@@ -76,6 +77,7 @@ async def _ingest_locked(
         forwarded_from_id=forwarded_from_id,
         forwarded_from_channel_id=forwarded_from_channel_id,
         reply_to_message_id=reply_to_message_id,
+        enforce_age=enforce_age,
     )
 
 
@@ -112,7 +114,8 @@ async def _infer_incident_type(session, parsed: ParseResult, when: datetime) -> 
     return False
 
 
-async def _maybe_triage(ctx: IngestContext, triage: str, matcher: DistrictMatcher) -> list[Broadcast]:
+async def _maybe_triage(ctx: IngestContext, triage: str, matcher: DistrictMatcher,
+                        allow_llm: bool = True) -> list[Broadcast]:
     """Hand this message to the second-pass triage engine. 'live' enqueues a
     qualifying district-less/suppressed-but-threat-flavored message (reusing any
     inline LLM verdict — no second API call); 'replay' routes the STORED verdict
@@ -126,7 +129,12 @@ async def _maybe_triage(ctx: IngestContext, triage: str, matcher: DistrictMatche
     if triage == "live":
         from ..triage import TriageJob, enqueue_job, should_triage
 
-        if should_triage(ctx.parsed, ctx.decision_source, raw.llm_response):
+        # The triage engine is where most of the LLM spend actually happens (it
+        # picks up the suppressed-but-threat-flavored classes the inline
+        # fallback never sees), so the promo-thread veto has to reach it too —
+        # gating only `_resolve` would have left the donation-thread arguments
+        # billing exactly as before.
+        if allow_llm and should_triage(ctx.parsed, ctx.decision_source, raw.llm_response):
             job = TriageJob(
                 raw_id=raw.id, text=ctx.parsed.raw_text, when=ctx.when, source_id=ctx.source_id,
                 message_id=ctx.message_id, reply_to_message_id=ctx.reply_to_message_id,
@@ -154,6 +162,7 @@ async def process_parsed(
     forwarded_from_channel_id: int | None = None,
     reply_to_message_id: int | None,
     triage: str = "live",
+    enforce_age: bool = False,
 ) -> list[Broadcast]:
     """Parse -> track -> fuse an ALREADY-PERSISTED raw message.
 
@@ -168,6 +177,11 @@ async def process_parsed(
         queue), so a reprocess deterministically reproduces what triage did, at
         each message's natural chronological position (see reprocess.py).
       * 'off'    — no triage at all.
+
+    `enforce_age` lets a message's age veto anything it would OPEN (see
+    IngestContext.arrived_late). Off by default so reprocess/replay — which
+    legitimately re-run an entire old corpus — behave exactly as before; the
+    live Telegram feed turns it on.
     """
     # One custom span per pass, parent to the auto-instrumented SQL/LLM child
     # spans. It carries the domain facts auto-instrumentation can't see —
@@ -176,7 +190,10 @@ async def process_parsed(
     # from the LLM" by attribute filter, not log-text parsing. Dormant (no-op)
     # until observability is set up, so reprocess/eval/tests are unaffected.
     with ingest_span("ingest_message") as span:
-        parsed, decision_source, llm_attempted, llm_usage, llm_response = await _resolve(text, matcher)
+        allow_llm = not await in_promo_thread(session, source_id, reply_to_message_id, matcher)
+        parsed, decision_source, llm_attempted, llm_usage, llm_response = await _resolve(
+            text, matcher, allow_llm=allow_llm
+        )
         _apply_llm_to_raw(raw, llm_attempted, llm_usage, llm_response)
 
         # Cross-message type inheritance: record this message's stated type, or
@@ -201,9 +218,10 @@ async def process_parsed(
             llm_summary=(llm_response.get("summary") or None
                          if llm_response is not None and decision_source == "llm" else None),
             type_from_incident=type_from_incident,
+            enforce_age=enforce_age,
         )
 
-        triage_extra = await _maybe_triage(ctx, triage, matcher)
+        triage_extra = await _maybe_triage(ctx, triage, matcher, allow_llm)
 
         result = await _dispatch(ctx)
         broadcasts = result + triage_extra

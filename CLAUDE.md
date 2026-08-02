@@ -229,6 +229,19 @@ details to regular users, build verification, and the commit+push — lives in t
 **`/do-release` skill** (`.claude/skills/do-release/SKILL.md`). Run `/do-release`
 to cut a release; consult that skill before touching `changelog.ts` by hand.
 
+### Analyzing a night of real messages
+
+Feed accuracy work starts from an export, not from reading code: Адмінка → Весь
+фід → Експорт produces the JSON, and the **`/analyze-feed` skill**
+(`.claude/skills/analyze-feed/SKILL.md`) turns it into ranked findings and fixes.
+Its `scripts/feed_report.py` does the mechanical pass (outcome histogram, LLM
+spend split between the inline and triage paths, out-of-order ingestion, broken
+reply chains, track fan-out) with plain `python3` and no venv;
+`references/failure-taxonomy.md` maps each failure shape to the code that owns
+it, and records the choices that must NOT be "fixed" (ballistics have no vector,
+impact locations are never published live, a spotter's відбій doesn't close
+everything).
+
 ### Working agreement — do NOT auto-commit or push
 
 Make and verify changes locally (tests, `npm run build`, run the app), but do

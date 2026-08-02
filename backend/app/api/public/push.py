@@ -16,6 +16,8 @@ from ...models import (
 )
 from ...schemas import (
     PushConfigOut,
+    PushPrefsIn,
+    PushPrefsOut,
     PushSubscribeIn,
     PushUnsubscribeIn,
 )
@@ -31,6 +33,25 @@ async def push_config():
     if not settings.push_configured:
         return PushConfigOut(enabled=False)
     return PushConfigOut(enabled=True, public_key=settings.vapid_public_key)
+
+
+@router.get("/push/prefs", response_model=PushPrefsOut)
+async def push_prefs(
+    session: AsyncSession = Depends(get_session),
+    user: User | None = Depends(get_optional_user),
+):
+    """This user's last-used notification preferences, for seeding a new device.
+    Anonymous callers get nothing — there's no account to carry them from."""
+    if user is None:
+        return PushPrefsOut()
+    row = await session.scalar(
+        select(PushSubscription)
+        .where(PushSubscription.user_id == user.id)
+        .order_by(PushSubscription.updated_at.desc())
+    )
+    if row is None or not row.prefs:
+        return PushPrefsOut()
+    return PushPrefsOut(prefs=PushPrefsIn(**row.prefs))
 
 
 @router.post("/push/subscribe")

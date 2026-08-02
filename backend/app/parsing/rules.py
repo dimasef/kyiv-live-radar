@@ -503,7 +503,13 @@ def _target_pulse(districts, citywide: bool, status: str, norm: str, aftermath: 
     length cap keeps out longer sentences (which are usually status prose,
     e.g. "Наразі повторні цілі відсутні…"), and all the suppressor flags are
     excluded so a negated/recap line never pulses. ingest.py only ACTS on this
-    when a city-wide alert is already open — alone it's too terse to localize."""
+    when a city-wide alert is already open — alone it's too terse to localize.
+
+    A pulse scoped to ANOTHER oblast is not ours: "Ціль на Сумщині" fits the
+    shape exactly (3 words, "ціль"), and since acting on a pulse corroborates
+    the open KYIV city alert, it added a Sumy sighting to a Kyiv track and
+    bumped its confidence (live 2026-08-01, T2445). Same guard `_lost_signal`
+    already applies to "Чисто!"."""
     return (
         not districts
         and not citywide
@@ -513,6 +519,7 @@ def _target_pulse(districts, citywide: bool, status: str, norm: str, aftermath: 
                  or eppo_marks)
         and len(norm.split()) <= 3
         and any(any(p in w for p in _PULSE_WORD) for w in norm.split())
+        and not target_elsewhere(norm)
     )
 
 

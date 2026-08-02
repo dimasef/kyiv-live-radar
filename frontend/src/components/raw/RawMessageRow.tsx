@@ -34,6 +34,7 @@ function EventChips({ item }: { item: RawMessage }) {
             {e.target_type && (
               <span className="text-slate-300">{t(`target.${e.target_type}`)}</span>
             )}
+            {e.district_name && <span className="text-slate-300">{e.district_name}</span>}
             <span className="opacity-70">
               T{e.threat_id}/M{e.event_id}
             </span>

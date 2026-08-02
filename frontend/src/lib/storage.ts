@@ -21,8 +21,6 @@ export const STORAGE_KEYS = {
   contactStyles: 'klr-contacts-style',
   // The refresh token (the access token stays in memory only — see api.ts).
   authRefresh: 'klr-auth',
-  // Whether the opt-in "gamification" card-analysis layer is on (off by default).
-  gamification: 'klr-gamification',
   // Card ids the user has already seen in their collection, keyed by user id
   // ({ [userId]: number[] }) — drives the one-time "just obtained" shimmer.
   seenCards: 'klr-seen-cards',

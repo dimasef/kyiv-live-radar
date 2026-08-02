@@ -27,7 +27,7 @@ export default function ActiveIncidentList() {
             >
               <span className="font-mono text-slate-300">Атака #{inc.id}</span>
               <span className="text-slate-500">
-                {t(`target.${inc.target_type}`)} · {inc.track_count} тр. · {inc.impact_count} уд.
+                {t(`target.${inc.target_type}`)} · {inc.track_count} тр.
               </span>
               <div className="ml-auto">
                 <AdminActionButton

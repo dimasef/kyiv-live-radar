@@ -64,8 +64,13 @@ def notice_out(n: Notice) -> NoticeOut:
 
 
 def _incident_district_ids(inc: Incident, sentinel_district_id: int | None) -> list[int]:
+    """Districts this attack was SEEN over. Impact markers are skipped: a
+    district that only ever appears because something landed there would
+    otherwise leak the strike location this endpoint is supposed to withhold."""
     seen: list[int] = []
     for th in inc.threats:
+        if th.kind == "impact":
+            continue
         for ev in th.events:
             if ev.district_id != sentinel_district_id and ev.district_id not in seen:
                 seen.append(ev.district_id)
@@ -119,7 +124,8 @@ def incident_out(inc: Incident, sentinel_district_id: int | None) -> IncidentOut
     for th in inc.threats:
         if th.status == "impact":
             impact_count += 1
-        elif th.scope == "city":
+            continue  # excluded from the published district set, see below
+        if th.scope == "city":
             citywide = True
         else:
             track_count += 1
@@ -137,7 +143,12 @@ def incident_out(inc: Incident, sentinel_district_id: int | None) -> IncidentOut
         target_type=inc.target_type,
         status="active" if inc.ended_at is None else "ended",
         track_count=track_count,
-        impact_count=impact_count,
+        # Always 0 on the wire. `impact_count` still drives `notable` (a hit is
+        # a strong signal the attack deserves a banner) but the NUMBER is never
+        # published — "2 влучання" during a raid tells the attacker how they
+        # did just as plainly as a map pin would. The journal reports it once
+        # the alert is over.
+        impact_count=0,
         citywide=citywide,
         district_count=len(districts),
         district_ids=_incident_district_ids(inc, sentinel_district_id),

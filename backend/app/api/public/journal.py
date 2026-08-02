@@ -80,7 +80,11 @@ async def journal_days(
     )
     district_events = (
         await session.execute(
-            select(ThreatEvent.event_time, ThreatEvent.district_id)
+            select(
+                ThreatEvent.event_time,
+                ThreatEvent.district_id,
+                Threat.kind == "impact",
+            )
             .join(Threat, ThreatEvent.threat_id == Threat.id)
             .where(
                 Threat.closed_reason.is_distinct_from("dismissed"),
@@ -90,6 +94,13 @@ async def journal_days(
         )
     ).all()
     sentinel = await citywide_district_id(session)
+    # Where a strike landed is history, not live situational awareness: while
+    # the city alert is still on, today's impacts stay out of the journal too
+    # (they're already off the map, the feed and the banner). They appear on
+    # the next load once the відбій lands.
+    alert_open = await session.scalar(
+        select(Alert.id).where(Alert.scope == "city", Alert.ended_at.is_(None))
+    )
 
     stats = build_journal(
         start,
@@ -99,6 +110,7 @@ async def journal_days(
         alerts=alerts,
         district_events=district_events,
         sentinel_district_id=sentinel,
+        hide_impacts_from=today if alert_open is not None else None,
     )
     return JournalOut(
         from_date=start.isoformat(),

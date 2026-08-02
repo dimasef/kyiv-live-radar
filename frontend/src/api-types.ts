@@ -552,7 +552,12 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update Me
+         * @description Edit your own profile. Only the fields actually present in the request
+         *     are touched, so sending just an avatar can't blank a display name.
+         */
+        patch: operations["update_me_auth_me_patch"];
         trace?: never;
     };
     "/auth/refresh": {
@@ -877,6 +882,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/contact_prefs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Contact Prefs */
+        get: operations["get_contact_prefs_me_contact_prefs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/contact_prefs/{contact_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Contact Pref
+         * @description Merge one contact's preferences. Fields left unset are kept, so the
+         *     client can flip `hidden` without having to resend the colour it picked
+         *     three sessions ago.
+         */
+        put: operations["put_contact_pref_me_contact_prefs__contact_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/gamification": {
         parameters: {
             query?: never;
@@ -906,7 +950,12 @@ export interface paths {
         };
         /** Get My Home */
         get: operations["get_my_home_me_home_get"];
-        /** Put My Home */
+        /**
+         * Put My Home
+         * @description Store the home on the account. Sharing is untouched — every signed-in
+         *     user's home is saved so it follows them to another device, and whether
+         *     friends may see it stays a separate, explicit choice.
+         */
         put: operations["put_my_home_me_home_put"];
         post?: never;
         /** Delete My Home */
@@ -991,6 +1040,27 @@ export interface paths {
          *     enabled=false.
          */
         get: operations["push_config_push_config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/push/prefs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Push Prefs
+         * @description This user's last-used notification preferences, for seeding a new device.
+         *     Anonymous callers get nothing — there's no account to carry them from.
+         */
+        get: operations["push_prefs_push_prefs_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1150,11 +1220,14 @@ export interface paths {
         };
         /**
          * Active Threats
-         * @description Tracks that are not yet closed (still tracking / unconfirmed), plus
-         *     RECENT `impact` markers — those are closed-on-creation (a strike is terminal)
-         *     but persist on the map as confirmed-hit pins. Only impacts within
-         *     `impact_map_ttl_hours` are returned, so strikes from days-old attacks don't
-         *     accumulate on the live map (history/feed keep them regardless).
+         * @description Tracks that are not yet closed (still tracking / unconfirmed).
+         *
+         *     Impact markers are deliberately NOT here even though they carry a location:
+         *     publishing where a strike landed, while the attack is still running, is
+         *     battle-damage assessment for whoever launched it. They stay in the DB and
+         *     surface only in the journal, once the alert is over (see
+         *     api/public/journal.py) — the same reason `incident_out` never publishes an
+         *     impact count and `broadcast.py` never fans one out.
          */
         get: operations["active_threats_threats_active_get"];
         put?: never;
@@ -1345,6 +1418,38 @@ export interface components {
             cards: components["schemas"]["CardCountOut"][];
             /** Total Analyses */
             total_analyses: number;
+        };
+        /**
+         * ContactPrefIn
+         * @description PUT /me/contact_prefs/{contact_id} — private labelling for one contact.
+         *
+         *     The palette and icon set live in the frontend (`lib/contactMarker.ts`);
+         *     validating against a copy here would just guarantee the two drift, so the
+         *     server only bounds the shape.
+         */
+        ContactPrefIn: {
+            /** Color */
+            color?: string | null;
+            /** Hidden */
+            hidden?: boolean | null;
+            /** Icon */
+            icon?: string | null;
+        };
+        /**
+         * ContactPrefsOut
+         * @description GET /me/contact_prefs — every stored per-contact preference, keyed by the
+         *     contact's user id as a string (JSON object keys can't be integers).
+         */
+        ContactPrefsOut: {
+            /**
+             * Prefs
+             * @default {}
+             */
+            prefs: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
         };
         /**
          * CorrectionOut
@@ -1608,6 +1713,23 @@ export interface components {
             detail?: components["schemas"]["ValidationError"][];
         };
         /**
+         * HomeIn
+         * @description PUT /me/home — store the owner's home so it follows the account.
+         *
+         *     Sharing is NOT set here: it's a separate decision with its own endpoint
+         *     (PATCH /me/home/share). Keeping them apart is what lets the home be saved
+         *     for a user who shares nothing — the whole point of moving it onto the
+         *     account.
+         */
+        HomeIn: {
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /** Radius Km */
+            radius_km?: number | null;
+        };
+        /**
          * HomePointOut
          * @description A friend's shared home coordinates — a map marker only (no radius).
          */
@@ -1616,21 +1738,6 @@ export interface components {
             lat: number;
             /** Lon */
             lon: number;
-        };
-        /**
-         * HomeShareIn
-         * @description PUT /me/home — set/update home coordinates and the share flag together.
-         */
-        HomeShareIn: {
-            /** Lat */
-            lat: number;
-            /** Lon */
-            lon: number;
-            /**
-             * Share
-             * @default true
-             */
-            share: boolean;
         };
         /**
          * HomeZoneIn
@@ -1848,11 +1955,31 @@ export interface components {
             password: string;
         };
         /**
+         * MeUpdateIn
+         * @description PATCH /auth/me — edit your own profile.
+         *
+         *     Both fields are tri-state: absent leaves the value alone, null clears it
+         *     (removing an avatar falls back to the monogram), a value sets it. That's why
+         *     `avatar_url` can't just be `str | None` with a default — the route inspects
+         *     `model_fields_set` to tell "not mentioned" from "explicitly cleared".
+         */
+        MeUpdateIn: {
+            /** Avatar Url */
+            avatar_url?: string | null;
+            /** Display Name */
+            display_name?: string | null;
+        };
+        /**
          * MyHomeOut
          * @description GET /me/home — the current user's own stored home + share state.
+         *
+         *     `radius_km` sits here rather than on `HomePointOut` on purpose: that model
+         *     is also what FRIENDS receive, and the zone radius is the owner's alone.
          */
         MyHomeOut: {
             home?: components["schemas"]["HomePointOut"] | null;
+            /** Radius Km */
+            radius_km?: number | null;
             /** Share Home */
             share_home: boolean;
         };
@@ -1957,6 +2084,19 @@ export interface components {
             types: ("ballistic" | "missile" | "shahed" | "jet_drone")[];
         };
         /**
+         * PushPrefsOut
+         * @description GET /push/prefs — the notification preferences from this user's most
+         *     recently updated subscription, so a NEW device can start from the choices
+         *     they already made instead of the defaults.
+         *
+         *     The subscription itself stays per-device (a push endpoint belongs to one
+         *     browser); only the preferences are worth carrying over. `prefs` is None when
+         *     the user has never subscribed anywhere.
+         */
+        PushPrefsOut: {
+            prefs?: components["schemas"]["PushPrefsIn"] | null;
+        };
+        /**
          * PushSubscribeIn
          * @description POST /push/subscribe body. Upsert by endpoint; re-POSTed on every home
          *     or prefs change so the server copy never goes stale.
@@ -1991,14 +2131,24 @@ export interface components {
             confidence?: number | null;
             /** Corroboration Count */
             corroboration_count?: number | null;
+            /** Decision Source */
+            decision_source?: string | null;
+            /** District Id */
+            district_id?: number | null;
+            /** District Name */
+            district_name?: string | null;
             /** Event Id */
             event_id: number;
             /** Incident Id */
             incident_id?: number | null;
             /** Target Type */
             target_type?: ("shahed" | "jet_drone" | "missile" | "ballistic" | "unknown") | null;
+            /** Threat Closed Reason */
+            threat_closed_reason?: string | null;
             /** Threat Id */
             threat_id: number;
+            /** Threat Status */
+            threat_status?: string | null;
         };
         /**
          * RawExportOut
@@ -2050,6 +2200,8 @@ export interface components {
             forwarded_from_id?: number | null;
             /** Id */
             id: number;
+            /** Ingested At */
+            ingested_at?: string | null;
             /** Llm Attempted */
             llm_attempted?: boolean | null;
             /** Llm Cost Usd */
@@ -2066,16 +2218,25 @@ export interface components {
             message_id?: number | null;
             /** Notice Id */
             notice_id?: number | null;
+            /** Notice Kind */
+            notice_kind?: string | null;
             /** Outcome */
             outcome: string;
+            parsed?: components["schemas"]["RawParsedOut"] | null;
             /** Processed */
             processed: boolean;
+            /** Reply Parent Raw Id */
+            reply_parent_raw_id?: number | null;
             /** Reply To Message Id */
             reply_to_message_id?: number | null;
             /** Source Id */
             source_id?: number | null;
             /** Source Name */
             source_name?: string | null;
+            /** Source Role */
+            source_role?: string | null;
+            /** Suppressed By */
+            suppressed_by?: string | null;
             /** Text */
             text: string;
             /** Triage Action */
@@ -2092,6 +2253,63 @@ export interface components {
             items: components["schemas"]["RawMessageOut"][];
             /** Next Before Id */
             next_before_id?: number | null;
+        };
+        /**
+         * RawParsedOut
+         * @description What the CURRENT rule parser makes of this message, re-run read-only.
+         *
+         *     Present on every row, including ones that produced nothing — that's the
+         *     point: "не про загрозу" alone never said whether the parser saw a target,
+         *     a place, or neither. Not a record of what ran at ingest time (see
+         *     api/raw_diagnosis.py) — after a parser change this can disagree with the
+         *     events the row actually produced, which is itself the useful signal.
+         */
+        RawParsedOut: {
+            /**
+             * Citywide
+             * @default false
+             */
+            citywide: boolean;
+            /** Confidence */
+            confidence: number;
+            /**
+             * Directional
+             * @default false
+             */
+            directional: boolean;
+            /**
+             * District Ids
+             * @default []
+             */
+            district_ids: number[];
+            /**
+             * District Names
+             * @default []
+             */
+            district_names: string[];
+            /**
+             * Impact
+             * @default false
+             */
+            impact: boolean;
+            /** Matched */
+            matched: boolean;
+            /** Origin Key */
+            origin_key?: string | null;
+            /** Status */
+            status: string;
+            /** Target Count */
+            target_count?: number | null;
+            /**
+             * Target Pulse
+             * @default false
+             */
+            target_pulse: boolean;
+            /**
+             * Target Type
+             * @enum {string}
+             */
+            target_type: "shahed" | "jet_drone" | "missile" | "ballistic" | "unknown";
         };
         /**
          * RawSourceOut
@@ -3586,6 +3804,41 @@ export interface operations {
             };
         };
     };
+    update_me_auth_me_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MeUpdateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     refresh_auth_refresh_post: {
         parameters: {
             query?: never;
@@ -4110,6 +4363,74 @@ export interface operations {
             };
         };
     };
+    get_contact_prefs_me_contact_prefs_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactPrefsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_contact_pref_me_contact_prefs__contact_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                contact_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContactPrefIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactPrefsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     set_gamification_pref_me_gamification_put: {
         parameters: {
             query?: never;
@@ -4187,7 +4508,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["HomeShareIn"];
+                "application/json": components["schemas"]["HomeIn"];
             };
         };
         responses: {
@@ -4390,6 +4711,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PushConfigOut"];
+                };
+            };
+        };
+    };
+    push_prefs_push_prefs_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushPrefsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

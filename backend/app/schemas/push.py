@@ -61,3 +61,15 @@ class PushConfigOut(BaseModel):
 
     enabled: bool
     public_key: str | None = None
+
+
+class PushPrefsOut(BaseModel):
+    """GET /push/prefs — the notification preferences from this user's most
+    recently updated subscription, so a NEW device can start from the choices
+    they already made instead of the defaults.
+
+    The subscription itself stays per-device (a push endpoint belongs to one
+    browser); only the preferences are worth carrying over. `prefs` is None when
+    the user has never subscribed anywhere."""
+
+    prefs: PushPrefsIn | None = None

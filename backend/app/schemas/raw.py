@@ -10,6 +10,30 @@ from ..models import TargetType
 from .base import _as_utc
 
 
+class RawParsedOut(BaseModel):
+    """What the CURRENT rule parser makes of this message, re-run read-only.
+
+    Present on every row, including ones that produced nothing — that's the
+    point: "не про загрозу" alone never said whether the parser saw a target,
+    a place, or neither. Not a record of what ran at ingest time (see
+    api/raw_diagnosis.py) — after a parser change this can disagree with the
+    events the row actually produced, which is itself the useful signal.
+    """
+
+    target_type: TargetType
+    status: str
+    target_count: int | None = None
+    confidence: float
+    matched: bool
+    district_ids: list[int] = []
+    district_names: list[str] = []
+    citywide: bool = False
+    directional: bool = False
+    target_pulse: bool = False
+    impact: bool = False
+    origin_key: str | None = None
+
+
 class RawEventLinkOut(BaseModel):
     """One ThreatEvent a raw message produced — the same T{threat_id}/
     M{event_id} pair shown as a dev badge in the feed. A single raw message
@@ -18,6 +42,13 @@ class RawEventLinkOut(BaseModel):
 
     threat_id: int
     event_id: int
+    # WHERE this event landed. Without it an export shows that a message became
+    # a sighting but not on which district — the single most-missed field when
+    # reading a feed dump (2026-08-02).
+    district_id: int | None = None
+    district_name: str | None = None
+    # 'rule' | 'llm' — which layer produced the district.
+    decision_source: str | None = None
     # The target type stamped on this event ('shahed'|'ballistic'|... or
     # 'unknown'/None) — surfaced in /raw so an admin sees what type the message
     # was classified as, not just that it produced an event.
@@ -30,6 +61,10 @@ class RawEventLinkOut(BaseModel):
     incident_id: int | None = None
     corroboration_count: int | None = None
     confidence: float | None = None
+    # Owning track's lifecycle, so a dump shows whether this event OPENED a
+    # track that is still flying or merely closed one.
+    threat_status: str | None = None
+    threat_closed_reason: str | None = None
 
 
 class RawMessageOut(BaseModel):
@@ -42,15 +77,32 @@ class RawMessageOut(BaseModel):
     id: int
     source_id: int | None = None
     source_name: str | None = None
+    source_role: str | None = None
     message_id: int | None = None
     text: str
     event_time: datetime
+    # When the row was STORED. `ingested_at - event_time` is the backfill lag:
+    # a large gap means this message was replayed long after it was posted, and
+    # a row whose lag exceeds its own reply-parent's is a broken reply chain
+    # (see migration 0022). NULL for rows predating the column.
+    ingested_at: datetime | None = None
     forwarded_from_id: int | None = None
     reply_to_message_id: int | None = None
+    # The raw_messages.id of `reply_to_message_id` in the SAME channel, or None
+    # when we never stored the parent. None on a reply is the smoking gun for a
+    # chain that couldn't thread — the parser had no track to attach to.
+    reply_parent_raw_id: int | None = None
     processed: bool
     outcome: str
+    # Machine name of the rule that decided the outcome ('aftermath', 'promo',
+    # 'target_pulse', 'no_district', …), None when the message became a real
+    # event/notice or nothing in particular fired. Pairs with `outcome`, which
+    # is the human label for the same decision.
+    suppressed_by: str | None = None
+    parsed: RawParsedOut | None = None
     events: list[RawEventLinkOut] = []
     notice_id: int | None = None
+    notice_kind: str | None = None
     # Whether the LLM fallback was called for this message — None for rows
     # ingested before this was tracked (genuinely unknown, not "no").
     llm_attempted: bool | None = None

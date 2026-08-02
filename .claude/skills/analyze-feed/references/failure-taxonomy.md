@@ -1,0 +1,126 @@
+# Known failure classes and where each one lives
+
+Read this when a finding needs a home in the code. It is a map, not a rulebook —
+a new failure that fits none of these is the interesting kind.
+
+`WORKFLOW.md` (repo root, Ukrainian) is the full pipeline walkthrough with the
+maintained weak-point list. Read it before touching `app/parsing/rules.py` or
+`app/domain/tracking.py`.
+
+## Table of contents
+
+- [False positives — something surfaced that shouldn't have](#false-positives)
+- [False negatives — something real was dropped](#false-negatives)
+- [Tracking — right sightings, wrong grouping](#tracking)
+- [Ingestion order — the message arrived late](#ingestion-order)
+- [LLM spend](#llm-spend)
+- [Things that look like bugs but are decisions](#things-that-look-like-bugs-but-are-decisions)
+
+---
+
+## False positives
+
+The parser is a curated word-list machine, not NLP. Nearly every FP is a missing
+entry in one of the message-level suppression filters in `app/parsing/rules.py`,
+and the fix is usually one phrase plus one test.
+
+| Shape | Where | Real example |
+|---|---|---|
+| Aftermath/casualty news read as a live target | `_aftermath` | "У Шевченківському районі часткове руйнування" |
+| Donation/ad post | `_promo`, `_ad_action` | "Банка на дрони-перехоплювачі" |
+| Civic/transport news naming a place | `_civic_notice` | "змінять маршрути тролейбусів" |
+| Negation | `_negated` | "це не БПЛА", "більше не фіксується" |
+| Day recap / attack tally read as live | `_day_recap`, `_summary` | "загалом було до 35 ракет" |
+| Terse pulse attaching to the wrong thing | `_target_pulse` | "Ціль на Сумщині" joined a KYIV track (fixed: it now checks `target_elsewhere`) |
+| Other oblast as the TARGET | `domain/origins.py::target_elsewhere` | "Ціль на Дніпро" — note "з Курщини" is an ORIGIN and must still pass |
+| News on the alert channel read as a siren | `parsing/alert_parser.py::_START_RE` | a metro news post quoting "оголошення повітряної тривоги" opened a real alert |
+| Gazetteer stem collision | `app/gazetteer.py` | "Остер" matched "остерігайтеся" |
+
+Adding a gazetteer entry is the one change that always needs a corpus sweep
+first — a short stem can match an unrelated common word. `app/gazetteer.py`
+documents the ones already rejected for this reason.
+
+## False negatives
+
+Harder to see, because nothing appears anywhere. Find them by reading the
+`## Silent messages` section of the report (`--texts`) rather than by counting.
+
+- **Type stated without a place.** "Циркон", "обидва реактивні" — carries type
+  information for tracks already open, currently dropped unless a citywide
+  track exists to corroborate (`handlers.py::_handle_target_pulse`).
+- **Missing gazetteer coverage.** The single biggest lever on accuracy, far
+  ahead of the LLM. `eval/mine_toponyms.py` finds candidates; the admin console
+  has a «Прогалини» tab fed by the same gate.
+- **Impact/explosion cues.** "Гучно", "Падають" — deliberately unmapped, see the
+  decisions section below.
+
+## Tracking
+
+`app/domain/tracking.py` is the most failure-prone layer. Priority order:
+reply-threading, then same-district corroboration inside
+`corroboration_window_minutes`, then a new track. Both the window and the
+match-latest-only behaviour were tuned empirically against
+`eval/track_eval.py` — treat them as measurements, not guesses.
+
+- **Split**: one real target became several tracks. Usually a broken reply chain
+  (see below) or a channel that never uses replies.
+- **Merge**: several targets in one track. The failure mode the current design
+  exists to prevent; regressions show up as `TRACK PURITY` falling.
+- **Type churn** inside one track (the report lists these) comes from
+  `context.py::_note_and_inherit_type` (per-channel, 5 min) and
+  `core.py::_infer_incident_type` (incident-level). Fusion surfaces genuine
+  disagreement as a conflict rather than silently overwriting.
+
+Never change grouping without running `eval/track_eval.py` before and after and
+quoting both numbers.
+
+## Ingestion order
+
+Telegram replays history on every reconnect, so a message can be stored long
+after it was posted. Two live incidents came from acting on those as fresh:
+
+- a 00:14 sighting stored at ~00:28 opened a third track and a **new incident
+  ten seconds after the all-clear**;
+- a відбій ingested before the alert start it belonged to left a phantom alert
+  hanging for two hours.
+
+The guard is `IngestContext.arrived_late()` plus `_only_closes()` in
+`handlers.py::_dispatch`, and the `start`-only veto in `ingest/alert.py`. It is
+opt-in (`enforce_age`) because reprocess and the replay feed legitimately re-run
+whole old corpora. A late message may still CLOSE things — recovering a missed
+відбій is why backfill exists at all.
+
+## LLM spend
+
+Two independent paths, and a fix aimed at the wrong one changes nothing:
+
+- **inline fallback** — `ingest/resolve.py::should_fallback`, runs during
+  ingest, only for a threat-flavoured message with no district;
+- **async triage** — `pipeline/triage.py::should_triage`, picks up the
+  *suppressed* classes (negated, aftermath, day_recap…) for a second look.
+
+A row with a `triage_state` came through triage. The report splits them.
+
+Each call ships the whole gazetteer enum (~3.5k input tokens, ~$0.004), so the
+question for a wasted call is always "could a deterministic rule have known
+this for free?" — e.g. `resolve.py::in_promo_thread` vetoes replies inside a
+fundraising thread by walking up the reply chain.
+
+## Things that look like bugs but are decisions
+
+Proposing to "fix" these is worse than useless — they were decided deliberately
+and at least one was decided after a live failure.
+
+- **Ballistics have no vector.** A ballistic descends on its own trajectory;
+  several toponyms seconds apart are several targets, not one path. The
+  enumeration split in `_handle_sighting` is ballistic-only for exactly this
+  reason, and `ThreatLayer.tsx` refuses to draw a line for `kind='impact'`.
+- **Impact locations are never published live.** Showing where strikes landed,
+  while the raid is on, is damage assessment for whoever launched it. Impacts
+  are withheld from the map, the feed, the banner and today's journal until the
+  alert ends. See `tests/test_impact_privacy.py`.
+- **A spotter's full "відбій" does not close everything.** Only the official
+  channel can; a spotter's informal all-clear is premature often enough that it
+  once closed a live attack. Type-scoped stand-downs are kept.
+- **The app never replaces the official air-raid alert.** Nothing in an analysis
+  should push it toward being an authoritative warning system.

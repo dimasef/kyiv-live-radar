@@ -44,7 +44,7 @@ async def _reprocess_summary(s) -> dict:
     alerts = list(await s.scalars(select(Alert).where(Alert.scope == "city")))
     district_events = (
         await s.execute(
-            select(ThreatEvent.event_time, ThreatEvent.district_id)
+            select(ThreatEvent.event_time, ThreatEvent.district_id, Threat.kind == "impact")
             .join(Threat, ThreatEvent.threat_id == Threat.id)
             .where(Threat.closed_reason.is_distinct_from("dismissed"))
         )
