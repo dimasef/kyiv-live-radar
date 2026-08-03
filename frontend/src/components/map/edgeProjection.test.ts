@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { VIEW_MARGIN_PX, edgePercent, isWellInsideView } from './edgeProjection'
+import { VIEW_MARGIN_PX, edgePercent, isWellInsideView, screenBearing } from './edgeProjection'
 
 // Per-field, not toEqual: the trig lands cardinals on 7.000000000000001.
 function expectAt(actual: { left: number; top: number }, left: number, top: number) {
@@ -64,5 +64,23 @@ describe('isWellInsideView', () => {
 
   it('rejects the off-screen sentinel used for coordinate-less axes', () => {
     expect(isWellInsideView(-9999, -9999, size)).toBe(false)
+  })
+})
+
+describe('screenBearing', () => {
+  it('reads screen deltas as compass degrees, north being up', () => {
+    expect(screenBearing(0, -10)).toBe(0) // straight up
+    expect(screenBearing(10, 0)).toBe(90) // right
+    expect(screenBearing(0, 10)).toBe(180) // down
+    expect(screenBearing(-10, 0)).toBe(-90) // left
+  })
+
+  it('agrees with edgePercent about which side of the box to sit on', () => {
+    // Home off the right edge -> the pointer belongs on the right edge.
+    const right = edgePercent(screenBearing(500, 0))
+    expect(right.left).toBeGreaterThan(50)
+    // ...and above -> the top.
+    const up = edgePercent(screenBearing(0, -500))
+    expect(up.top).toBeLessThan(50)
   })
 })

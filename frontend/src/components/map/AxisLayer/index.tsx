@@ -5,9 +5,9 @@ import { useRadar } from '@/store'
 import { TYPE_COLORS } from '@/theme'
 import type { ThreatAxis } from '@/types'
 
+import { isWellInsideView } from '../edgeProjection'
 import AxisSourceMarker from './AxisSourceMarker'
 import AxisWedge from './AxisWedge'
-import { isWellInsideView } from './edgeProjection'
 
 /** One axis, rendered viewport-aware: a source marker at the origin's real
  * location once the operator has zoomed out enough to see it, otherwise the

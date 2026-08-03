@@ -2,10 +2,8 @@ import { ChevronDown, Layers } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { contactMarkerSvg, homeStyleOf } from '../../lib/contactMarker'
 import { safeGet, safeSet, STORAGE_KEYS } from '../../lib/storage'
-import { useRadar } from '../../store'
-import { FRIEND_HOME_COLOR, MUTED_COLOR, TYPE_COLORS } from '../../theme'
+import { MUTED_COLOR, TYPE_COLORS } from '../../theme'
 import { launcherGlyphSvg, threatGlyphSvg } from '../../threatIcons'
 import type { TargetType } from '../../types'
 
@@ -27,19 +25,10 @@ function Swatch({ html }: { html: string }) {
   )
 }
 
-// The friend row stands for every contact marker at once, so it stays on the
-// default silhouette rather than picking one contact's chosen shape. The home
-// row does follow the user's own pick — there is only ever one of those.
-const friendSwatch = (color: string) => contactMarkerSvg('person', color, 16)
-
 /** Collapsible legend floating over the map (bottom-left, above leaflet UI). */
 export default function MapLegend() {
   const { t } = useTranslation()
   const [open, setOpen] = useState(initialOpen)
-  const hasFriendHomes = useRadar((s) =>
-    s.friends.some((f) => f.home != null && !s.hiddenHomeIds.includes(f.id)),
-  )
-  const homeStyle = homeStyleOf(useRadar((s) => s.homeStyle))
 
   const toggle = () => {
     safeSet(STORAGE_KEYS.legendOpen, open ? '0' : '1')
@@ -47,7 +36,9 @@ export default function MapLegend() {
   }
 
   // Type rows (colour = type, glyph = shape) + state rows (burst = hit, grey =
-  // shot-down/lost) + home.
+  // shot-down/lost). Homes are deliberately absent: the user picked their own
+  // marker and labelled every contact's, so a legend entry explains nothing they
+  // don't already know by looking.
   const types: TargetType[] = ['shahed', 'jet_drone', 'missile', 'ballistic']
   const rows: { html: string; label: string }[] = [
     ...types.map((ty) => ({
@@ -62,10 +53,6 @@ export default function MapLegend() {
       html: threatGlyphSvg('unknown', { size: 16, state: 'destroyed', color: MUTED_COLOR }),
       label: t('legend.destroyed'),
     },
-    { html: contactMarkerSvg(homeStyle.icon, homeStyle.color, 16, homeStyle.glow), label: t('legend.home') },
-    ...(hasFriendHomes
-      ? [{ html: friendSwatch(FRIEND_HOME_COLOR), label: t('legend.friend') }]
-      : []),
   ]
 
   return (

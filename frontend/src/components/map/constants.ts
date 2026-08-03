@@ -11,6 +11,24 @@ export const KYIV_BOUNDS: [[number, number], [number, number]] = [
   [50.59, 30.83],
 ];
 
+// How far out the map may be zoomed — wide enough to put Kyiv in a European
+// context (where a raid came from), which is the only reason to leave the city
+// at all. At this level a 390px phone spans ≈2400 km and a 1440px desktop
+// ≈9000 km, so Europe fits on either.
+//
+// One step further is the actual floor worth having: at zoom 3 the whole world
+// is 2048px wide, so any screen wider than that starts repeating copies of it
+// side by side — a map of three Kyivs helps nobody.
+export const MIN_ZOOM = 4;
+
+// One world, not the endless carousel Leaflet pans by default. Latitude stops
+// at 85.05° because that is where Web Mercator itself ends — the poles are at
+// infinity in this projection, so there is nothing beyond it to show.
+export const WORLD_BOUNDS: [[number, number], [number, number]] = [
+  [-85.05, -180],
+  [85.05, 180],
+];
+
 // Inspect fly-to zoom — kept modest so a lone sighting lands with district
 // context, not at street level. INSPECT_MAX_ZOOM caps flyToBounds for a short track.
 export const INSPECT_ZOOM = 11;

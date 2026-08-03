@@ -178,3 +178,22 @@ async def test_watchdog_not_armed_when_last_message_predates_this_connection():
         with pytest.raises(asyncio.CancelledError):
             await tl._watchdog(client, connected_at)
     client.disconnect.assert_not_called()
+
+
+def test_a_source_with_no_known_id_adopts_whatever_it_resolves():
+    """How the identity is learned: the first clean resolve pins the row."""
+    assert tl.identity_mismatch(None, 777, "kyiv_nebo") is None
+
+
+def test_a_pinned_source_accepts_its_own_channel():
+    assert tl.identity_mismatch(777, 777, "kyiv_nebo") is None
+
+
+def test_a_pinned_source_refuses_a_handle_that_moved_to_another_channel():
+    """The 2026-08-03 case: @KievRadar renamed itself, freeing the handle. A
+    Telegram username is reusable, so resolving purely by handle could hand the
+    feed to whoever claims it next — carrying the trust weight of the spotter it
+    displaced. A row that knows its id refuses anything else."""
+    err = tl.identity_mismatch(777, 999, "KievRadar")
+    assert err is not None
+    assert "777" in err and "999" in err and "KievRadar" in err

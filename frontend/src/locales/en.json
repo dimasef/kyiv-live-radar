@@ -88,7 +88,6 @@
     "clear": "All-clear",
     "conflict": "Sources disagree",
     "home": "Home",
-    "friend": "Contact's home",
     "launcher": "Ballistic launch (OTRK)"
   },
   "log": {
@@ -258,7 +257,8 @@
     "district": "District",
     "km": "km",
     "markerTitle": "My home on the map",
-    "markerPreviewHint": "This is how your marker looks on the map"
+    "markerPreviewHint": "This is how your marker looks on the map",
+    "backToHome": "Back to my home"
   },
   "friends": {
     "friend": "Contact",

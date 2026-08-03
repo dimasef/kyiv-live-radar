@@ -185,16 +185,48 @@ async def _backoff_wait(seconds: float) -> None:
         pass
 
 
-async def _active_source_specs() -> list[tuple[int, str, str]]:
-    """(source_id, ref, role) for every is_active Source — the live channel list,
-    now DB-driven (not the env lists). `ref` is what Telethon resolves by:
-    subscribe_ref, or channel_key for legacy rows that never set it."""
+async def _active_source_specs() -> list[tuple[int, str, str, int | None]]:
+    """(source_id, ref, role, known_channel_id) for every is_active Source — the
+    live channel list, now DB-driven (not the env lists). `ref` is what Telethon
+    resolves by: subscribe_ref, or channel_key for legacy rows that never set it.
+    `known_channel_id` is the identity that resolve must produce — see
+    identity_mismatch."""
     async with SessionLocal() as s:
         rows = await s.scalars(select(Source).where(Source.is_active.is_(True)))
-        return [(x.id, (x.subscribe_ref or x.channel_key), x.role) for x in rows]
+        return [
+            (x.id, (x.subscribe_ref or x.channel_key), x.role, x.tg_channel_id)
+            for x in rows
+        ]
 
 
-async def _mark_source_status(source_id: int, *, error: str | None, title: str | None = None) -> None:
+def identity_mismatch(known_id: int | None, resolved_id: int, ref: str) -> str | None:
+    """The error to record when a handle resolves to a DIFFERENT channel than
+    the one this row was pinned to — else None.
+
+    A Telegram username is mutable and reusable: rename a channel and anyone may
+    claim the handle it freed. Resolving purely by handle would then subscribe us
+    to a stranger and let their posts enter the feed with the trust weight of the
+    spotter they displaced. A row that has learned its id refuses anything else,
+    and the operator has to re-point the handle deliberately.
+
+    A row with no id yet (`None`) adopts whatever it resolves — that is how the
+    identity is learned in the first place."""
+    if known_id is None or known_id == resolved_id:
+        return None
+    return (
+        f"handle {ref!r} now resolves to channel {resolved_id}, but this source is "
+        f"pinned to {known_id} — the channel was renamed or the handle was taken "
+        f"over. Update the handle in Sources if this is intended."
+    )
+
+
+async def _mark_source_status(
+    source_id: int,
+    *,
+    error: str | None,
+    title: str | None = None,
+    channel_id: int | None = None,
+) -> None:
     """Persist the listener's resolve/join outcome onto the Source row so the
     admin UI can show why a channel isn't delivering (mistyped handle, private,
     etc.). Cleared to NULL on a good connect."""
@@ -203,6 +235,11 @@ async def _mark_source_status(source_id: int, *, error: str | None, title: str |
         if src is None:
             return
         src.last_listener_error = error
+        # Learn the channel's identity once, on the first clean resolve, and
+        # never move it afterwards: re-pointing a source at a different channel
+        # is an operator decision, not something a rename may do behind our back.
+        if error is None and channel_id is not None and src.tg_channel_id is None:
+            src.tg_channel_id = channel_id
         # Upgrade a placeholder name (the handle we were added with) to the real
         # channel title, but never clobber an admin-edited display name.
         if error is None and title and src.name in ("", src.channel_key, src.subscribe_ref):
@@ -317,7 +354,20 @@ async def _run_listener_once(backfill: bool, run_state: dict) -> None:
         make_session(), settings.telegram_api_id, settings.telegram_api_hash
     )
     try:
-        await client.start()
+        # NOT client.start(): on an unauthorized session it falls through to an
+        # interactive login and blocks reading a phone number from stdin — which
+        # in a container never arrives, so the listener hangs there forever with
+        # no error, no reconnect and nothing in the logs. That silence cost a day
+        # and a half of dead feed on 2026-08-03. Connect explicitly and refuse
+        # loudly instead: the retry loop then reports it and backs off visibly.
+        await client.connect()
+        if not await client.is_user_authorized():
+            raise RuntimeError(
+                "Telegram session is not authorized — regenerate it with "
+                "`python -m app.telegram_login --string` and check that "
+                "TELEGRAM_API_ID/TELEGRAM_API_HASH match the ones it was made with "
+                "(a StringSession is bound to its API_ID)"
+            )
 
         from telethon import utils
 
@@ -331,20 +381,30 @@ async def _run_listener_once(backfill: bool, run_state: dict) -> None:
             # fall back to the env lists so the listener still starts. source_id
             # is None here -> _ensure_sources creates/finds the row on resolve.
             specs = (
-                [(None, c, "spotter") for c in settings.telegram_channel_list]
-                + [(None, c, "alert") for c in settings.alert_channel_list]
+                [(None, c, "spotter", None) for c in settings.telegram_channel_list]
+                + [(None, c, "alert", None) for c in settings.alert_channel_list]
             )
         entities = []
         entity_roles: dict[int, str] = {}
         id_to_source: dict[int, int] = {}
         source_role: dict[int, str] = {}
-        for source_id, ref, role in specs:
+        for source_id, ref, role, known_id in specs:
             try:
                 e = await _resolve_channel(client, ref)
             except Exception as ex:
                 log.error("could not resolve channel %r: %s", ref, ex)
                 if source_id is not None:
                     await _mark_source_status(source_id, error=str(ex)[:300])
+                continue
+            # Resolving is not enough — it has to be the SAME channel as last
+            # time. _resolve_channel has already joined whatever it found, but
+            # nothing of it reaches the feed: we neither register a handler for
+            # it nor map its id to a source, so its messages are dropped.
+            mismatch = identity_mismatch(known_id, e.id, str(ref))
+            if mismatch:
+                log.error("refusing channel %r: %s", ref, mismatch)
+                if source_id is not None:
+                    await _mark_source_status(source_id, error=mismatch[:300])
                 continue
             if source_id is None:  # env-fallback path: ensure a Source row exists
                 sid_map, _ = await _ensure_sources([e], {e.id: role})
@@ -354,7 +414,9 @@ async def _run_listener_once(backfill: bool, run_state: dict) -> None:
             id_to_source[e.id] = source_id
             id_to_source[utils.get_peer_id(e)] = source_id  # marked id == event.chat_id
             source_role[source_id] = role
-            await _mark_source_status(source_id, error=None, title=getattr(e, "title", None))
+            await _mark_source_status(
+                source_id, error=None, title=getattr(e, "title", None), channel_id=e.id
+            )
         if not entities:
             raise RuntimeError("no channels resolved")
 

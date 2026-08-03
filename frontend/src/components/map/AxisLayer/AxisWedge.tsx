@@ -1,7 +1,7 @@
 import type { ThreatAxis } from '@/types'
 
+import { edgePercent } from '../edgeProjection'
 import AxisLabel, { WRAP } from './AxisLabel'
-import { edgePercent } from './edgeProjection'
 
 /** Off-screen state: a chevron on the map edge pointing along the inbound bearing. */
 export default function AxisWedge({

@@ -171,6 +171,14 @@ class Source(Base):
     # Raw string the listener resolves this channel by (username without @, a
     # numeric id, or a t.me/+ invite link). NULL -> resolve by channel_key.
     subscribe_ref: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # The channel's Telegram id, learned on the first successful resolve and
+    # then treated as this row's true identity. A username is MUTABLE: a channel
+    # can rename itself (@KievRadar -> @kyiv_allerts on 2026-08-03), and the
+    # freed handle can be claimed by anyone — at which point resolving by handle
+    # would silently subscribe us to a stranger's channel and feed its posts in
+    # as a trusted spotter. The listener refuses any channel whose resolved id
+    # doesn't match this one. BigInteger: Telegram ids are 64-bit.
+    tg_channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     # Last resolve/join error the listener hit for this channel, surfaced in the
     # admin UI so a mistyped handle is visible; cleared to NULL on a good connect.
     last_listener_error: Mapped[str | None] = mapped_column(String(300), nullable=True)

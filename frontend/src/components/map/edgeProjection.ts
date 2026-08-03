@@ -14,6 +14,14 @@ export function edgePercent(bearingDeg: number): { left: number; top: number } {
   return { left: (0.5 + t * dx) * 100, top: (0.5 + t * dy) * 100 }
 }
 
+/** Compass bearing (degrees, 0 = up) of a screen-space delta. Screen y grows
+ * downward, so north is -y. Used to point at something whose place on screen is
+ * already known — unlike a geographic bearing, this stays true under whatever
+ * projection the map is drawn in. */
+export function screenBearing(dx: number, dy: number): number {
+  return (Math.atan2(dx, -dy) * 180) / Math.PI
+}
+
 export function isWellInsideView(
   x: number,
   y: number,

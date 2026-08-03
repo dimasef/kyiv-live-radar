@@ -15,10 +15,11 @@ import { useRadar } from "../../store";
 import { HOME_DANGER_COLORS } from "../../theme";
 import AxisLayer from "./AxisLayer";
 import CitywidePulse from "./CitywidePulse";
-import { KYIV_BOUNDS } from "./constants";
+import { KYIV_BOUNDS, MIN_ZOOM, WORLD_BOUNDS } from "./constants";
 import { HomeController, InspectController, ResizeHandler } from "./controllers";
 import DistrictLayer from "./DistrictLayer";
 import FriendLayer from "./FriendLayer";
+import HomeCompass from "./HomeCompass";
 import HomePlacement from "./HomePlacement";
 import MapLegend from "./MapLegend";
 import ThreatLayer from "./ThreatLayer";
@@ -71,6 +72,13 @@ export default function MapView() {
         ref={setMap}
         bounds={KYIV_BOUNDS}
         boundsOptions={{ padding: [20, 20] }}
+        minZoom={MIN_ZOOM}
+        // Without these the map is an infinite carousel: Leaflet repeats the
+        // world sideways forever, so zooming out to see where a raid came from
+        // showed three Europes side by side. Viscosity 1 makes the edge solid
+        // rather than springy.
+        maxBounds={WORLD_BOUNDS}
+        maxBoundsViscosity={1}
         className={placingHome ? "placing-home" : undefined}
         style={{ height: "100%", width: "100%", background: "#05080d" }}
       >
@@ -79,6 +87,9 @@ export default function MapView() {
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           subdomains="abcd"
           maxZoom={20}
+          // Stops the tiles themselves from repeating past the antimeridian —
+          // maxBounds alone constrains panning, not what gets drawn.
+          noWrap
         />
 
         {/* Real OSM raion boundaries with hover name tooltips; clicks bubble
@@ -135,6 +146,7 @@ export default function MapView() {
         )}
       </MapContainer>
       <AxisLayer map={map} />
+      <HomeCompass map={map} />
       <HomePlacement map={map} />
       <MapLegend />
     </div>
