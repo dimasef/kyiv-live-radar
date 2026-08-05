@@ -9,7 +9,7 @@ from datetime import datetime
 
 from sqlalchemy import select
 
-from ...domain.incidents import find_active_incident
+from ...domain.incidents import find_active_incident, incident_type_prior
 from ...models import RawMessage
 from ...observability import ingest_span, metrics
 from ...parsing import DistrictHit, DistrictMatcher, LlmUsage, ParseResult
@@ -108,8 +108,9 @@ async def _infer_incident_type(session, parsed: ParseResult, when: datetime) -> 
     if parsed.target_type != "unknown" or not (parsed.districts or parsed.citywide):
         return False
     inc = await find_active_incident(session, when)
-    if inc is not None and inc.target_type != "unknown":
-        parsed.target_type = inc.target_type
+    prior = incident_type_prior(inc) if inc is not None else None
+    if prior is not None:
+        parsed.target_type = prior
         return True
     return False
 

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.config import settings
 from app.db import Base
 from app.gazetteer import DISTRICTS, SOURCES
-from app.models import District, RawMessage, Source, Threat, ThreatEvent, utcnow
+from app.models import District, Notice, RawMessage, Source, Threat, ThreatEvent, utcnow
 from app.parsing import DistrictMatcher
 from app.pipeline.triage import TriageJob, route_verdict
 from tests.conftest import make_verdict
@@ -80,6 +80,49 @@ async def test_low_confidence_is_not_rescued(ctx, monkeypatch):
     bcs, action, state = await route_verdict(session, raw, job, verdict)
     assert action == "rescue_candidate"
     assert await session.scalar(select(func.count()).select_from(ThreatEvent)) == 0
+
+
+async def test_low_confidence_citywide_becomes_a_notice_not_silence(ctx, monkeypatch):
+    # 08-04: two citywide verdicts at 0.5 were dropped silently, so the raid
+    # showed nothing. Below the bar: still no track, but say it as a notice.
+    session, _, _did = ctx
+    monkeypatch.setattr(settings, "triage_rescue_enabled", True)
+    raw, job = await _raw_job(session, "До 8х реактивних вже БПЛА.", _did, utcnow())
+    verdict = make_verdict(category="citywide", surface=True, district_ids=[],
+                           target_type="jet_drone", status="unconfirmed", confidence=0.5)
+    bcs, action, state = await route_verdict(session, raw, job, verdict)
+    assert action == "rescue_notice" and state == "done"
+    assert [b.type for b in bcs] == ["notice"]
+    # A notice is NOT a track: nothing is placed on the map.
+    assert await session.scalar(select(func.count()).select_from(ThreatEvent)) == 0
+    assert await session.scalar(select(func.count()).select_from(Threat)) == 0
+    notice = (await session.scalars(select(Notice))).one()
+    assert notice.kind == "status" and notice.generated_by == "llm"
+
+
+async def test_low_confidence_localized_stays_silent(ctx, monkeypatch):
+    # City-wide only: a false DISTRICT pin is the damaging failure.
+    session, _, did = ctx
+    monkeypatch.setattr(settings, "triage_rescue_enabled", True)
+    raw, job = await _raw_job(session, "можливо ціль", did, utcnow())
+    verdict = make_verdict(category="localized", surface=True, district_ids=[did],
+                           target_type="shahed", confidence=0.5)
+    bcs, action, state = await route_verdict(session, raw, job, verdict)
+    assert action == "rescue_candidate" and bcs == []
+    assert await session.scalar(select(func.count()).select_from(Notice)) == 0
+
+
+async def test_citywide_above_the_bar_still_rescues_a_track(ctx, monkeypatch):
+    # The downgrade must not have replaced the rescue itself.
+    session, _, _did = ctx
+    monkeypatch.setattr(settings, "triage_rescue_enabled", True)
+    raw, job = await _raw_job(session, "Заліт у місто балістики!", _did,
+                              utcnow() - timedelta(minutes=1))
+    verdict = make_verdict(category="citywide", surface=True, district_ids=[],
+                           target_type="ballistic", status="sighting", confidence=0.9)
+    bcs, action, state = await route_verdict(session, raw, job, verdict)
+    assert action == "rescued"
+    assert await session.scalar(select(func.count()).select_from(ThreatEvent)) == 1
 
 
 async def test_too_old_rescue_is_late(ctx, monkeypatch):

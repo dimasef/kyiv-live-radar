@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.api.serialize import incident_out
 from app.db import Base, get_session
+from app.domain.journal import KYIV
 from app.main import app
 from app.models import Alert, District, Incident, Threat, ThreatEvent
 
@@ -135,9 +136,13 @@ async def test_incident_publishes_no_impact_count_or_impact_districts(client):
 async def test_journal_hides_todays_impacts_only_while_the_alert_is_open(client):
     c, s = client
     d = await _district(s)
-    today = datetime.now(UTC).replace(tzinfo=None)
+    # Timestamps are stored naive-UTC, but the journal buckets days in
+    # Europe/Kyiv — so the day KEYS must be Kyiv dates too. Using the UTC date
+    # made this fail for the 3 h each night when Kyiv is already tomorrow.
+    now = datetime.now(UTC)
+    today, today_key = now.replace(tzinfo=None), now.astimezone(KYIV).date()
     await _threat(s, d, kind="impact", status="impact", when=today)
-    yesterday = today - timedelta(days=1)
+    yesterday, yesterday_key = today - timedelta(days=1), today_key - timedelta(days=1)
     await _threat(s, d, kind="impact", status="impact", when=yesterday)
     alert = Alert(scope="city", alert_type="air_raid", started_at=today, provider="telegram")
     s.add(alert)
@@ -147,13 +152,13 @@ async def test_journal_hides_todays_impacts_only_while_the_alert_is_open(client)
         return {day["date"]: day["impact_count"] for day in payload["days"]}
 
     during = _impacts((await c.get("/journal/days")).json())
-    assert during[today.date().isoformat()] == 0
+    assert during[today_key.isoformat()] == 0
     # Only TODAY is withheld — a finished day is history and reports normally.
-    assert during[yesterday.date().isoformat()] == 1
+    assert during[yesterday_key.isoformat()] == 1
 
     alert.ended_at = today + timedelta(minutes=30)
     alert.closed_reason = "official"
     await s.commit()
 
     after = _impacts((await c.get("/journal/days")).json())
-    assert after[today.date().isoformat()] == 1
+    assert after[today_key.isoformat()] == 1

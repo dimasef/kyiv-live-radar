@@ -133,7 +133,7 @@ def section_ingest_order(messages: list[dict]) -> None:
         if posted and stored:
             lags.append(((stored - posted).total_seconds() / 60, m))
     if lags:
-        lags.sort(reverse=True)
+        lags.sort(key=lambda pair: pair[0], reverse=True)
         worst = [(lag, m) for lag, m in lags if lag > 5][:10]
         print(f"\n  ingestion lag available for {len(lags)}/{len(messages)} rows"
               + (f"; {len(worst)} over 5 min:" if worst else "; all under 5 min"))

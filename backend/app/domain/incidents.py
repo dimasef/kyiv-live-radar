@@ -25,6 +25,24 @@ log = logging.getLogger("incidents")
 # Target-type severity — an incident is labelled by its most dangerous member.
 _SEVERITY = {"unknown": 0, "shahed": 1, "jet_drone": 2, "missile": 3, "ballistic": 4}
 
+# Types that mean "the same kind of thing is flying" for inference purposes.
+# missile/ballistic is already treated as one family by ingest._upgrade_type.
+_FAMILY = {"shahed": "drone", "jet_drone": "drone",
+           "missile": "missile", "ballistic": "missile"}
+
+
+def incident_type_prior(inc: Incident) -> str | None:
+    """Type an untyped sighting may inherit, or None when the incident can't say.
+
+    NOT `inc.target_type` — that is a max-severity label that only ratchets up,
+    so one Циркон track made every later untyped callout ballistic (08-04: the
+    Бровари drone corridor read as балістика, losing its vector too). Only
+    honest while the raid is one family; combined -> unknown."""
+    families = {_FAMILY.get(t) for t in inc.attack_types or []}
+    if len(families) != 1 or None in families:
+        return None
+    return inc.target_type if inc.target_type != "unknown" else None
+
 
 def recompute_incident_types(inc: Incident) -> None:
     """Rebuild `attack_types`/`target_type` from the incident's CURRENT member

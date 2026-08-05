@@ -2,6 +2,7 @@
 
 from app.gazetteer import DISTRICTS
 from app.parsing import DistrictMatcher, parse_message
+from app.parsing.vocab import _CITYWIDE_BARE_RE
 
 
 def _matcher():
@@ -52,6 +53,14 @@ def test_jet_drone():
     r = parse_message("Реактивний БпЛА на високій швидкості, Позняки", M)
     assert r.target_type == "jet_drone"
     assert BY_EN["Pozniaky"] in {h.district_id for h in r.districts}
+
+
+def test_jet_drone_stated_as_a_noun():
+    # 08-04: the noun form parsed as `unknown` and inherited `ballistic` from
+    # the open incident — a drone corridor labelled ballistic on the map.
+    for txt in ["3 реактива повз Славутич", "Ще 2 реактива йдуть біля Десни",
+                "Новий реактив повз Славутич йде"]:
+        assert parse_message(txt, M).target_type == "jet_drone", txt
 
 
 def test_masculine_one_infers_shahed_when_no_type_stated():
@@ -360,6 +369,28 @@ def test_retrospective_attack_summary_is_not_a_live_alert():
         assert r.summary and not r.citywide and not r.matched, txt
 
 
+def test_bare_city_callout_is_citywide():
+    # 08-04 (raw 4511): "Київ!!" one second before "Балістика!!" was dropped as
+    # chatter. Bare city callout = city-level twin of a bare district callout.
+    for txt in ["Київ!!", "Київ!", "Київ", "Столиця!"]:
+        r = parse_message(txt, M)
+        assert r.citywide and r.matched and r.districts == [], txt
+
+
+def test_bare_city_rule_is_anchored_to_the_whole_message():
+    # The anchor is what keeps it safe: merely naming the city is not a threat.
+    for txt in ["Новини по Києву за добу", "Слава Києву!",
+                "У Києві чути вибухи", "Київ - 3 цілі"]:
+        assert not _CITYWIDE_BARE_RE.match(txt.lower()), txt
+
+
+def test_over_the_city_is_citywide():
+    # 08-04 (raw 4781): three drones over Kyiv, dropped because _CITYWIDE_STRONG
+    # had "на місто" but not "над містом".
+    r = parse_message("Вже 3х перших у вас над містом!", M)
+    assert r.citywide and r.matched and r.districts == []
+
+
 def test_citywide_needs_threat_context_not_just_a_city_phrase():
     # A city phrase alone (news/greeting/status) is NOT a city-wide threat.
     for txt in ["Новини по Києву за добу", "Слава Києву!",
@@ -535,6 +566,18 @@ def test_lost_signal_does_not_swallow_a_concurrent_real_sighting():
     assert not r.lost_signal and r.matched and names(r) == ["Позняки"]
 
 
+def test_standdown_that_announces_more_targets_does_not_close_anything():
+    # 08-04: «Поки чисто. Але ще виходи!» (raw 4558) closed 5 tracks, all 5 back
+    # within 6 min. lost_signal unset -> the message becomes a no-op.
+    for txt in ["Поки чисто. Але ще виходи!",
+                "Почули. Чисто. Можливі ще цілі.",
+                "Дорозвідка. Ще можливі цілі. Більше 24 було вже."]:
+        assert not parse_message(txt, M).lost_signal, txt
+    # An unqualified stand-down is unchanged — it still closes.
+    for txt in ["Чисто", "Вже чисто", "Дорозвідка"]:
+        assert parse_message(txt, M).lost_signal, txt
+
+
 def test_lost_signal_does_not_override_destroyed():
     # Real feed example: "Мінуснули, Дорозвідка" — one target confirmed
     # destroyed, "дорозвідка" here is a follow-up status note, not a broader
@@ -628,6 +671,13 @@ def test_pulse_scoped_to_another_oblast_does_not_pulse():
     # An ORIGIN mention is the opposite case — that target is heading here.
     assert parse_message("Ціль з Курщини", M).target_pulse
     assert parse_message("Ціль!", M).target_pulse
+
+
+def test_vinnytsia_oblast_spelling_variants_are_elsewhere():
+    # 08-04 (raw 4693): only the adjective stem "вінницьк" was listed, so this
+    # stayed pulse-shaped and corroborated the open Kyiv city-wide track.
+    for txt in ("Ціль на Вінниччину", "Ціль на Вінничину"):
+        assert not parse_message(txt, M).target_pulse, txt
 
 
 def test_negated_type_mention_does_not_type():

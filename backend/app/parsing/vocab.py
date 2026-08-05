@@ -31,7 +31,9 @@ _BALLISTIC = ("баліст", "іскандер", "кинджал", "кн-23", "
 # promotes a message to `ballistic`.
 _MISSILE = ("ракет", "крилат", "калібр", "х-101", "х-59", "х-22",
             "каб", "авіабомб", "керован авіа")
-_JET = ("реактивн", "швидкісн", "реактивного бпла")
+# Bare "реактив" stem, not "реактивн": the noun is used too ("3 реактива повз
+# Славутич") — 08-04 those stayed unknown and inherited ballistic.
+_JET = ("реактив", "швидкісн")
 _SHAHED = ("шахед", "shahed", "мопед", "герань", "герані", "дрон", "бпла",
            "безпілотник", "безпілотн")
 
@@ -452,7 +454,10 @@ _STANDDOWN_CLEAN_RE = re.compile(r"(?<![а-яіїєґ])чисто(?![а-яіїє
 # («Дорозвідка триває, але паралельно триває загроза балістики з Брянщини…»)
 # must NOT close everything — the live half wins (raises the directional axis).
 # Curated adversative markers, not bare "але" (too common in harmless asides).
-_STANDDOWN_LIVE_THREAT = ("паралельно", "але загроза", "але триває загроза")
+# The "more still coming" half (08-04): «Поки чисто. Але ще виходи!» closed 5
+# live tracks. A stand-down its own next clause contradicts must close nothing.
+_STANDDOWN_LIVE_THREAT = ("паралельно", "але загроза", "але триває загроза",
+                          "ще виходи", "ще можливі цілі", "можливі ще цілі")
 
 # --- City-wide threat: a strike aimed at the CITY as a whole, with no raion
 # localization ("Ціль на місто!", "На Київ!", "Балістика на Київ"). During the
@@ -463,7 +468,12 @@ _STANDDOWN_LIVE_THREAT = ("паралельно", "але загроза", "ал
 # signal ("На Київ!", "Увага місто!"), sufficient on their own. WEAK phrases
 # ("по Києву") also appear in news/recaps ("новини по Києву"), so they need a
 # threat-context word alongside. ---
-_CITYWIDE_STRONG = ("на місто", "на київ", "на столиц", "увага місто", "увага, місто")
+_CITYWIDE_STRONG = ("на місто", "над містом", "на київ", "на столиц",
+                    "увага місто", "увага, місто")
+# Bare "Київ!!" — the city-level twin of a bare district callout ("Бровари!"),
+# dropped 08-04 one second before "Балістика!!". Anchored to the WHOLE message
+# on purpose: a loose "київ" stem would swallow every recap naming the city.
+_CITYWIDE_BARE_RE = re.compile(r"^\W*(?:київ|столиця|столиці)\W*$")
 _CITYWIDE_WEAK = ("по місту", "по києву", "удар по києву", "по столиц")
 _THREAT_CONTEXT = ("ціль", "цілі", "ракет", "баліст", "шахед", "бпла", "дрон",
                    "загроз", "удар", "приліт", "вибух", "кинджал", "іскандер",

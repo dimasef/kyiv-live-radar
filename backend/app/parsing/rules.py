@@ -22,6 +22,7 @@ from .vocab import (
     _BALLISTIC,
     _BUZZ_CHATTER,
     _CARD_NUMBER_RE,
+    _CITYWIDE_BARE_RE,
     _CITYWIDE_STRONG,
     _CITYWIDE_WEAK,
     _CIVIC_NOTICE,
@@ -488,6 +489,7 @@ def _citywide(districts, status: str, norm: str, aftermath: bool, negated: bool,
                  or eppo_marks)
         and (
             any(p in norm for p in _CITYWIDE_STRONG)
+            or bool(_CITYWIDE_BARE_RE.match(norm))
             or (any(p in norm for p in _CITYWIDE_WEAK)
                 and any(w in norm for w in _THREAT_CONTEXT))
         )

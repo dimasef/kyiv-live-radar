@@ -343,7 +343,14 @@ async def _handle_citywide(ctx: IngestContext) -> list[Broadcast]:
     "Балістика!" inherits ballistic (see type inheritance)."""
     session, parsed, when = ctx.session, ctx.parsed, ctx.when
     did = await citywide_district_id(session)
-    if did is None:  # sentinel not seeded (shouldn't happen post-startup) — skip
+    if did is None:
+        # Invariant violation (the sentinel is seeded at startup) on the one
+        # branch that can silently discard the most severe class of message.
+        # 08-04 raw 4776 «Перші заходять на місто до вас!» parsed citywide and
+        # produced nothing, with no trace anywhere; replaying that night through
+        # this pipeline DOES produce the event, so it was runtime state no log
+        # recorded. This is the only silent exit left — make it loud.
+        log.error("city-wide threat dropped: sentinel district missing (raw %s)", ctx.raw.id)
         await ctx.done()
         return []
     track = await find_open_citywide(session, when)

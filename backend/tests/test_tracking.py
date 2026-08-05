@@ -1087,3 +1087,26 @@ async def test_reply_inside_a_donation_thread_is_kept_away_from_the_llm(ctx):
     assert not await in_promo_thread(s, src[0].id, 102, m)
     # An unknown parent ends the walk instead of guessing.
     assert not await in_promo_thread(s, src[0].id, 999, m)
+
+
+async def test_missing_sentinel_drops_citywide_loudly(ctx, monkeypatch):
+    # 08-04 raw 4776 parsed citywide and produced nothing, with no trace. This is
+    # the only branch that can do that; replaying the night reproduces the event,
+    # so the cause was runtime state. It must at least be diagnosable next time.
+    # Asserts on the logger object, not on captured output: another test's
+    # logging config disables this logger, so caplog/handlers see nothing.
+    from app.pipeline.ingest import handlers
+
+    s, m, src = ctx
+    errors: list[str] = []
+    monkeypatch.setattr(handlers, "citywide_district_id", _no_sentinel)
+    monkeypatch.setattr(handlers.log, "error",
+                        lambda msg, *a, **k: errors.append(msg % a if a else msg))
+    await ingest_message(s, text="Балістика на Київ", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    assert await s.scalar(select(func.count()).select_from(ThreatEvent)) == 0
+    assert any("sentinel district missing" in e for e in errors), errors
+
+
+async def _no_sentinel(_session):
+    return None

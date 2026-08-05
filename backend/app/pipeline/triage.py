@@ -346,7 +346,17 @@ async def _route_rescue(
         # Dark-launch: observe rescue_candidate on /raw before enabling.
         return [], "rescue_candidate", "done"
     if verdict.get("confidence", 0.0) < settings.triage_rescue_min_confidence:
-        return [], "rescue_candidate", "done"
+        # Confidence is not a "how real is this" score: the identical string
+        # «🟣 Загроза БАЛІСТИКИ» scored 0.5/0.7/0.8 on different nights, and no
+        # other verdict field (surface/status/is_new_target) separates the live
+        # callouts in that band from the recaps beside them. So don't guess —
+        # downgrade: a notice states the situation without inventing a track,
+        # and stays harmless if it WAS a recap. Citywide only — a false district
+        # pin is the damaging failure, and localized clears the bar anyway.
+        if verdict.get("category") != "citywide":
+            return [], "rescue_candidate", "done"
+        notice = await _make_triage_notice(session, "status", verdict, job, origin_key=None)
+        return [Broadcast("notice", notice=notice)], "rescue_notice", "done"
 
     max_age = min(settings.triage_rescue_max_age_minutes, settings.track_stale_minutes)
     if enforce_age and _age_minutes(job.when, utcnow()) > max_age:

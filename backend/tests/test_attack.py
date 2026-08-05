@@ -56,6 +56,48 @@ async def test_attack_types_accumulate_across_tracks(ctx):
     assert set(inc.attack_types) == {"shahed", "jet_drone"}
 
 
+async def test_untyped_callout_inherits_a_single_family_incident_type(ctx):
+    # The 07-18 case this fallback exists for: per-channel window (5 min) expired,
+    # incident is one family -> a bare toponym from the OTHER channel still types.
+    s, m, src = ctx
+    await ingest_message(s, text="Балістика на Троєщину", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Оболонь", matcher=m, when=BASE + timedelta(minutes=8),
+                         source_id=src[1].id, message_id=2)
+    obolon = (await s.scalars(
+        select(Threat).where(Threat.target_type == "ballistic"))).all()
+    assert len(obolon) == 2  # both tracks ballistic
+
+
+async def test_untyped_callout_stays_unknown_in_a_combined_incident(ctx):
+    # 08-04: inc.target_type only ratchets up, so one Циркон track made every
+    # later untyped callout ballistic. Combined raid -> the incident can't say.
+    s, m, src = ctx
+    await ingest_message(s, text="Балістика на Троєщину", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Реактивний БпЛА на Позняках", matcher=m,
+                         when=BASE + timedelta(minutes=1), source_id=src[0].id, message_id=2)
+    await ingest_message(s, text="Оболонь", matcher=m, when=BASE + timedelta(minutes=8),
+                         source_id=src[1].id, message_id=3)
+    inc = await _one_incident(s)
+    assert set(inc.attack_types) == {"ballistic", "jet_drone"}  # combined
+    types = {t.target_type for t in await s.scalars(select(Threat))}
+    assert "unknown" in types, types  # the bare "Оболонь" was not typed ballistic
+
+
+async def test_missile_and_ballistic_still_count_as_one_family(ctx):
+    # missile -> ballistic is one family (ingest._upgrade_type), not combined.
+    s, m, src = ctx
+    await ingest_message(s, text="Балістика на Троєщину", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Ракета на Позняки", matcher=m,
+                         when=BASE + timedelta(minutes=1), source_id=src[0].id, message_id=2)
+    await ingest_message(s, text="Оболонь", matcher=m, when=BASE + timedelta(minutes=8),
+                         source_id=src[1].id, message_id=3)
+    types = {t.target_type for t in await s.scalars(select(Threat))}
+    assert "unknown" not in types, types
+
+
 async def test_single_family_classification(ctx):
     s, m, src = ctx
     await ingest_message(s, text="🔴 Шахед над Оболонню", matcher=m, when=BASE,
