@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { Popup } from "react-leaflet";
 
+import HomeDistance from "@/components/common/HomeDistance";
 import AnalyzeButton from "@/components/game/AnalyzeButton";
 import { useRadar } from "@/store";
 
@@ -59,6 +60,7 @@ export default function ThreatPopup({ threat }: { threat: Threat }) {
             fontSize: 11,
           }}
         />
+        <HomeDistance threat={threat} className="mt-1" />
         {threat.has_conflict && (
           <div style={{ color: "#fb923c", fontWeight: 600, marginTop: 3 }}>
             ⚠ {t("log.conflict")}

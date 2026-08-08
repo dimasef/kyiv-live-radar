@@ -256,6 +256,10 @@
     "clear": "Reset",
     "district": "District",
     "km": "km",
+    "fromHome": "from home",
+    "closing": "closing in",
+    "receding": "moving away",
+    "approxHint": "Approximate — measured from the centre of the district where the target was seen",
     "markerTitle": "My home on the map",
     "markerPreviewHint": "This is how your marker looks on the map",
     "backToHome": "Back to my home"

@@ -2,6 +2,8 @@ import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { useRadar } from '../../store'
+import HomeDistance from '@/components/common/HomeDistance'
+
 import { typeLabel } from '../../threatDisplay'
 import { threatColor } from '../../theme'
 
@@ -35,6 +37,7 @@ export default function InspectBadge() {
           </span>
         )}
       </span>
+      <HomeDistance threat={display} />
       <button
         onClick={clearInspection}
         aria-label={t('inspect.close')}

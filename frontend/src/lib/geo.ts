@@ -29,6 +29,13 @@ export function haversineKm(a: Pt, b: Pt): number {
   return 2 * 6371 * Math.asin(Math.sqrt(h))
 }
 
+/** Distance for display: one decimal up close, whole km further out — a
+ * "12.4 км" reads as false precision when every position is a district
+ * centroid. */
+export function formatKm(km: number): string {
+  return km < 10 ? km.toFixed(1) : String(Math.round(km))
+}
+
 /** Signed smallest difference a-b between two bearings, in (-180, 180]. */
 export function angdiff(a: number, b: number): number {
   const d = (((a - b) % 360) + 360) % 360

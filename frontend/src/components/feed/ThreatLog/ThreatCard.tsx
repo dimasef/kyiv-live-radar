@@ -2,6 +2,7 @@ import { Sparkles, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import HomeDistance from '@/components/common/HomeDistance'
 import { useRadar } from '@/store'
 import { CountBadge, typeLabel } from '@/threatDisplay'
 import { threatColor } from '@/theme'
@@ -53,7 +54,7 @@ export default function ThreatCard({ event, threat }: FeedEntry) {
       }}
     >
       <div className="flex items-baseline justify-between gap-2">
-        <span className="flex items-center gap-1.5 font-medium text-slate-100">
+        <span className="flex min-w-0 flex-wrap items-center gap-1.5 font-medium text-slate-100">
           <TypeGlyph threat={threat} />
           <StatusChip threat={threat} />
           {typeLabel(threat, t)}
@@ -66,6 +67,8 @@ export default function ThreatCard({ event, threat }: FeedEntry) {
             count={event.event_target_count ?? threat.target_count}
             className="ml-1 font-mono font-semibold text-amber-400"
           />
+          {/* Only for targets near home or closing on it — see HomeDistance. */}
+          <HomeDistance threat={threat} notableOnly className="ml-0.5 flex-none" />
         </span>
         <span className="flex items-center gap-1.5">
           {rescued && (
