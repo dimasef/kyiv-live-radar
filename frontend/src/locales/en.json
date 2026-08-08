@@ -125,11 +125,6 @@
   "status": {
     "impact": "incident"
   },
-  "inspect": {
-    "viewing": "Viewing track:",
-    "events": "events",
-    "close": "Close track inspection"
-  },
   "target": {
     "shahed": "UAV",
     "jet_drone": "Jet UAV",

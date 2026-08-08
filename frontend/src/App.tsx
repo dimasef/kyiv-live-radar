@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { StatusBanner } from "@/components/banners";
 import { AppStatus, DisclaimerModal, MobileSheet } from "@/components/chrome";
 import { ThreatLog } from "@/components/feed";
-import { InspectBadge, MapView } from "@/components/map";
+import { MapView } from "@/components/map";
 import { riseDelay } from "@/lib/motion";
 import { safeGet, STORAGE_KEYS } from "@/lib/storage";
 import { bootstrapApp } from "@/store/bootstrap";
@@ -32,7 +32,6 @@ export default function App() {
         {/* Map overlays — pinned to the top of the map, not the navbar. */}
         <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex flex-col items-center gap-2 px-3 pt-3">
           <StatusBanner />
-          <InspectBadge />
         </div>
         {/* Connection status — top-right corner of the map. */}
         <div className="absolute right-3 top-3 z-[1000]">

@@ -108,15 +108,35 @@ export function HomeController() {
 }
 
 /** Flies the map to fit an inspected track the moment its points arrive —
- * once per selection, not on every subsequent event update. */
+ * once per selection, not on every subsequent event update — and drops the
+ * selection on a click into the map.
+ *
+ * That click is the only way out: the feed card that made the selection can be
+ * scrolled out of reach (on mobile the sheet collapses the moment you pick a
+ * target). Leaflet bubbles clicks to the map from paths — districts, the home
+ * circle — but NOT from markers, so opening a target's popup is not a
+ * deselection. */
 export function InspectController() {
   const map = useMap();
   const inspected = useRadar((s) => s.inspectedThreat);
   const liveThreats = useRadar((s) => s.threats);
   const fittedId = useRef<number | null>(null);
 
+  useMapEvents({
+    click() {
+      const state = useRadar.getState();
+      // While arming a home, the click belongs to placement (HomeController).
+      if (state.placingHome || !state.inspectedThreat) return;
+      state.clearInspection();
+    },
+  });
+
   useEffect(() => {
-    if (!inspected) return;
+    if (!inspected) {
+      // Re-selecting the same track after a deselect should fly to it again.
+      fittedId.current = null;
+      return;
+    }
     if (fittedId.current === inspected.id) return;
     // Prefer the live copy so an already-open track's points (and thus the
     // fly-to) are available instantly, instead of waiting on our own fetch.
