@@ -3,6 +3,8 @@ import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { safeGet, safeRemove, safeSet, STORAGE_KEYS } from '@/lib/storage'
+
 import { useRadar } from '../../store'
 import { INCIDENT_SEVERITY_COLOR, STATUS_COLORS } from '../../theme'
 import AlertSegment from './AlertSegment'
@@ -10,20 +12,44 @@ import AttackSegment from './AttackSegment'
 import BannerShell from './BannerShell'
 import Collapsible from './Collapsible'
 import Presence from './Presence'
-import { CLEAR_LINGER_MS, mostRecentlyEnded, notableIncident, primaryAlert, useNow } from './status'
+import {
+  CLEAR_LINGER_MS,
+  type CollapsedFor,
+  mostRecentlyEnded,
+  notableIncident,
+  primaryAlert,
+  stillCollapsed,
+  useNow,
+} from './status'
+
+function loadCollapsedFor(): CollapsedFor | null {
+  const raw = safeGet(STORAGE_KEYS.bannerCollapsed)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as CollapsedFor
+  } catch {
+    return null
+  }
+}
 
 export default function StatusBanner() {
   const { t } = useTranslation()
   const alerts = useRadar((s) => s.alerts)
   const incidents = useRadar((s) => s.incidents)
 
-  const [collapsed, setCollapsed] = useState(false)
-  const toggle = () => setCollapsed((v) => !v)
-  const toggleLabel = t(collapsed ? 'banner.expand' : 'banner.collapse')
-
   const alert = primaryAlert(alerts)
   const incident = notableIncident(incidents)
   const ended = mostRecentlyEnded(alerts)
+
+  const [collapsedFor, setCollapsedFor] = useState(loadCollapsedFor)
+  const collapsed = stillCollapsed(collapsedFor, alert?.id ?? null, incident?.id ?? null)
+  const toggle = () => {
+    const next = collapsed ? null : { alert: alert?.id ?? null, incident: incident?.id ?? null }
+    if (next) safeSet(STORAGE_KEYS.bannerCollapsed, JSON.stringify(next))
+    else safeRemove(STORAGE_KEYS.bannerCollapsed)
+    setCollapsedFor(next)
+  }
+  const toggleLabel = t(collapsed ? 'banner.expand' : 'banner.collapse')
 
   const sinceCleared =
     !alert && ended ? Date.now() - new Date(ended.ended_at!).getTime() : Infinity

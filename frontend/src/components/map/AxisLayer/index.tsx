@@ -5,7 +5,7 @@ import { useRadar } from '@/store'
 import { TYPE_COLORS } from '@/theme'
 import type { ThreatAxis } from '@/types'
 
-import { isWellInsideView } from '../edgeProjection'
+import { isInsideBox, overlayInsets, visibleInsets } from '../edgeProjection'
 import AxisSourceMarker from './AxisSourceMarker'
 import AxisWedge from './AxisWedge'
 
@@ -17,6 +17,8 @@ import AxisWedge from './AxisWedge'
 function AxisIndicator({ axis, map }: { axis: ThreatAxis; map: LeafletMap }) {
   const color = TYPE_COLORS[axis.target_type] ?? TYPE_COLORS.unknown
   const hasCoords = axis.origin_lat != null && axis.origin_lon != null
+  const size = map.getSize()
+  const insets = overlayInsets()
 
   let inView = false
   let x = -9999
@@ -25,12 +27,12 @@ function AxisIndicator({ axis, map }: { axis: ThreatAxis; map: LeafletMap }) {
     const pt = map.latLngToContainerPoint([axis.origin_lat as number, axis.origin_lon as number])
     x = pt.x
     y = pt.y
-    inView = isWellInsideView(x, y, map.getSize())
+    inView = isInsideBox(x, y, size, visibleInsets(insets))
   }
 
   return (
     <>
-      <AxisWedge axis={axis} color={color} visible={!inView} />
+      <AxisWedge axis={axis} color={color} visible={!inView} size={size} insets={insets} />
       {hasCoords && <AxisSourceMarker axis={axis} color={color} x={x} y={y} visible={inView} />}
     </>
   )

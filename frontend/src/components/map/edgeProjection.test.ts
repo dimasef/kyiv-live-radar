@@ -1,69 +1,69 @@
 import { describe, expect, it } from 'vitest'
 
-import { VIEW_MARGIN_PX, edgePercent, isWellInsideView, screenBearing } from './edgeProjection'
+import { edgeMarkerPosition, isInsideBox, screenBearing } from './edgeProjection'
 
-// Per-field, not toEqual: the trig lands cardinals on 7.000000000000001.
-function expectAt(actual: { left: number; top: number }, left: number, top: number) {
-  expect(actual.left).toBeCloseTo(left, 9)
-  expect(actual.top).toBeCloseTo(top, 9)
-}
+describe('edgeMarkerPosition', () => {
+  // A phone-ish map with the alert banner up top and the feed sheet below.
+  const size = { x: 390, y: 780 }
+  const insets = { top: 64, right: 12, bottom: 76, left: 12 }
+  const pill = { width: 108, height: 30 }
 
-describe('edgePercent', () => {
-  it('puts north at top-centre and south at bottom-centre', () => {
-    expectAt(edgePercent(0), 50, 7)
-    expectAt(edgePercent(180), 50, 93)
-  })
-
-  it('puts east at right-centre and west at left-centre', () => {
-    expectAt(edgePercent(90), 93, 50)
-    expectAt(edgePercent(270), 7, 50)
-  })
-
-  it('lands a diagonal bearing in the matching corner', () => {
-    const ne = edgePercent(45)
-    expect(ne.left).toBeGreaterThan(50)
-    expect(ne.top).toBeLessThan(50)
-    const sw = edgePercent(225)
-    expect(sw.left).toBeLessThan(50)
-    expect(sw.top).toBeGreaterThan(50)
-  })
-
-  it('always stays inside the container, so a wedge is never clipped', () => {
+  it('keeps the whole pill inside the safe box, from every direction', () => {
     for (let deg = 0; deg < 360; deg += 5) {
-      const { left, top } = edgePercent(deg)
-      expect(left).toBeGreaterThanOrEqual(0)
-      expect(left).toBeLessThanOrEqual(100)
-      expect(top).toBeGreaterThanOrEqual(0)
-      expect(top).toBeLessThanOrEqual(100)
+      const { left, top } = edgeMarkerPosition(deg, size, insets, pill)
+      expect(left).toBeGreaterThanOrEqual(insets.left - 0.001)
+      expect(left + pill.width).toBeLessThanOrEqual(size.x - insets.right + 0.001)
+      expect(top).toBeGreaterThanOrEqual(insets.top - 0.001)
+      expect(top + pill.height).toBeLessThanOrEqual(size.y - insets.bottom + 0.001)
     }
   })
 
-  it('wraps: 360 is the same place as 0', () => {
-    const a = edgePercent(0)
-    const b = edgePercent(360)
-    expect(b.left).toBeCloseTo(a.left, 9)
-    expect(b.top).toBeCloseTo(a.top, 9)
+  it('hangs the pill inward from the side it points past', () => {
+    // The reported bug: due west the arrow was clipped off the left edge.
+    expect(edgeMarkerPosition(270, size, insets, pill).left).toBeCloseTo(insets.left, 6)
+    expect(edgeMarkerPosition(90, size, insets, pill).left).toBeCloseTo(
+      size.x - insets.right - pill.width,
+      6,
+    )
+  })
+
+  it('stops above the feed sheet when home is due south', () => {
+    // The other reported bug: the pill sat under the collapsed sheet.
+    const south = edgeMarkerPosition(180, size, insets, pill)
+    expect(south.top).toBeCloseTo(size.y - insets.bottom - pill.height, 6)
+    expect(south.left).toBeCloseTo((size.x + insets.left - insets.right - pill.width) / 2, 6)
+  })
+
+  it('clears the alert banner when home is due north', () => {
+    expect(edgeMarkerPosition(0, size, insets, pill).top).toBeCloseTo(insets.top, 6)
+  })
+
+  it('pulls a corner-bound pill in so it never spills sideways', () => {
+    // North-east: it rides the top edge, but centring it there would push its
+    // right half past the container.
+    const ne = edgeMarkerPosition(60, size, insets, pill)
+    expect(ne.left + pill.width).toBeLessThanOrEqual(size.x - insets.right + 0.001)
+  })
+
+  it('survives a container narrower than the pill itself', () => {
+    const tiny = edgeMarkerPosition(90, { x: 40, y: 40 }, insets, pill)
+    expect(tiny.left).toBe(insets.left)
+    expect(tiny.top).toBe(insets.top)
   })
 })
 
-describe('isWellInsideView', () => {
-  const size = { x: 800, y: 600 }
+describe('isInsideBox', () => {
+  const size = { x: 390, y: 780 }
+  const insets = { top: 64, right: 56, bottom: 76, left: 56 }
 
-  it('accepts a point comfortably inside', () => {
-    expect(isWellInsideView(400, 300, size)).toBe(true)
+
+  it('accepts a point in the clear middle', () => {
+    expect(isInsideBox(195, 400, size, insets)).toBe(true)
   })
 
-  it('rejects a point in the margin band, so the wedge stays instead', () => {
-    expect(isWellInsideView(VIEW_MARGIN_PX - 1, 300, size)).toBe(false)
-    expect(isWellInsideView(400, size.y - VIEW_MARGIN_PX + 1, size)).toBe(false)
-  })
-
-  it('treats the margin itself as inside (boundary is inclusive)', () => {
-    expect(isWellInsideView(VIEW_MARGIN_PX, VIEW_MARGIN_PX, size)).toBe(true)
-  })
-
-  it('rejects the off-screen sentinel used for coordinate-less axes', () => {
-    expect(isWellInsideView(-9999, -9999, size)).toBe(false)
+  it('rejects a point hidden under the feed sheet or the banner', () => {
+    expect(isInsideBox(195, size.y - insets.bottom + 1, size, insets)).toBe(false)
+    expect(isInsideBox(195, insets.top - 1, size, insets)).toBe(false)
   })
 })
 
@@ -75,12 +75,15 @@ describe('screenBearing', () => {
     expect(screenBearing(-10, 0)).toBe(-90) // left
   })
 
-  it('agrees with edgePercent about which side of the box to sit on', () => {
+  it('agrees with edgeMarkerPosition about which side of the box to sit on', () => {
+    const size = { x: 390, y: 780 }
+    const insets = { top: 64, right: 12, bottom: 76, left: 12 }
+    const pill = { width: 108, height: 30 }
     // Home off the right edge -> the pointer belongs on the right edge.
-    const right = edgePercent(screenBearing(500, 0))
-    expect(right.left).toBeGreaterThan(50)
+    const right = edgeMarkerPosition(screenBearing(500, 0), size, insets, pill)
+    expect(right.left).toBeCloseTo(size.x - insets.right - pill.width, 6)
     // ...and above -> the top.
-    const up = edgePercent(screenBearing(0, -500))
-    expect(up.top).toBeLessThan(50)
+    const up = edgeMarkerPosition(screenBearing(0, -500), size, insets, pill)
+    expect(up.top).toBeCloseTo(insets.top, 6)
   })
 })

@@ -3,6 +3,10 @@
 export const STORAGE_KEYS = {
   home: 'klr-home',
   legendOpen: 'klr-legend-open',
+  // The episode the status banner was collapsed on ({alert, incident} ids).
+  // Survives reloads because an alert outlives the page — but only for that
+  // episode; see banners/status.ts stillCollapsed.
+  bannerCollapsed: 'klr-banner-collapsed',
   settingsOpen: 'klr-settings-open',
   disclaimerHide: 'klr-disclaimer-hide',
   lang: 'klr-lang',
