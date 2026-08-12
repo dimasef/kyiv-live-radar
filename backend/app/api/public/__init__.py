@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from . import districts, journal, push, raw, situation, threats
+from . import bugs, districts, journal, push, raw, situation, threats
 
 router = APIRouter()
-for _module in (districts, threats, situation, journal, raw, push):
+for _module in (districts, threats, situation, journal, raw, push, bugs):
     router.include_router(_module.router)

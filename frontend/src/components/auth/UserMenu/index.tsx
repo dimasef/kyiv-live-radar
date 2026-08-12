@@ -17,6 +17,7 @@ const circle =
 export default function UserMenu({ user }: { user: AuthUser }) {
   const [open, setOpen] = useState(false)
   const logout = useRadar((s) => s.logout)
+  const setBugReportOpen = useRadar((s) => s.setBugReportOpen)
   const gamification = useRadar((s) => s.gamification)
   const pending = useRadar((s) => s.friendRequests.incoming.length)
 
@@ -25,6 +26,10 @@ export default function UserMenu({ user }: { user: AuthUser }) {
   const go = (path: string) => {
     close()
     navigate(path)
+  }
+  const onReportBug = () => {
+    close()
+    setBugReportOpen(true)
   }
   const onLogout = () => {
     close()
@@ -39,6 +44,7 @@ export default function UserMenu({ user }: { user: AuthUser }) {
       gamification={gamification}
       pending={pending}
       go={go}
+      onReportBug={onReportBug}
       onLogout={onLogout}
     />
   )

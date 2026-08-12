@@ -36,7 +36,7 @@ export default function MarkerStyleModal({
   return (
     <Overlay
       onClose={onClose}
-      className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-2xl border border-white/10 bg-ink-900 p-5 shadow-2xl sm:max-w-2xl sm:p-6"
+      className="max-h-full w-full max-w-sm overflow-y-auto rounded-2xl border border-white/10 bg-ink-900 p-5 shadow-2xl sm:max-w-2xl sm:p-6"
     >
       <div className="mb-4 flex items-start justify-between gap-3">
         <h2 className="min-w-0 truncate font-display text-base font-bold text-slate-100">

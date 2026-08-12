@@ -293,6 +293,30 @@
       "failed": "Could not send request"
     }
   },
+  "bug": {
+    "title": "Report a bug",
+    "intro": "Describe what went wrong: what you saw and what you expected.",
+    "placeholder": "For example: after opening settings the map shrank into the corner",
+    "addScreenshot": "Add a screenshot",
+    "pasteHint": "or paste one from the clipboard (Ctrl+V)",
+    "remove": "Remove screenshot",
+    "context": "Technical details sent along",
+    "ctxVersion": "Version",
+    "ctxScreen": "Screen",
+    "ctxPage": "Page",
+    "ctxSystem": "System",
+    "send": "Send",
+    "sending": "Sending…",
+    "cancel": "Cancel",
+    "sent": "Thank you — the report was sent.",
+    "close": "Close",
+    "needAuth": "Sign in to send a report — otherwise there's nobody to ask for details.",
+    "signIn": "Sign in",
+    "failed": "Could not send. Please try again",
+    "rateLimited": "Too many reports in a row — try again a bit later",
+    "imageFailed": "Could not process the image",
+    "needSomething": "Describe the problem or attach a screenshot"
+  },
   "changelog": {
     "back": "Back to radar",
     "title": "Version history",

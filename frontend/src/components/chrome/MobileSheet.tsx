@@ -6,16 +6,12 @@ import { OnlineBadge, ThreatLog } from "@/components/feed";
 import { useRadar } from "@/store";
 import type { SheetHeight } from "@/store/prefsSlice";
 
-// Open height per user preference. Literal classes so Tailwind's JIT keeps them.
 const HEIGHT_CLASS: Record<SheetHeight, string> = {
-  low: "h-[32dvh]",
-  mid: "h-[62dvh]",
-  high: "h-[80dvh]",
+  low: "h-[32%]",
+  mid: "h-[62%]",
+  high: "h-[80%]",
 };
 
-/** Mobile bottom sheet for the event feed. Reads placingHome/inspectedThreat
- * straight from the store to auto-collapse (both need the map visible). Settings
- * moved to the shell drawer, so this is feed-only now. */
 export default function MobileSheet() {
   const { t } = useTranslation();
   const placingHome = useRadar((s) => s.placingHome);

@@ -141,6 +141,9 @@ CORRECTION_ORIGINS = ("dismiss", "retype_threat", "move_event")
 # CLAUDE.md). 'added' = a human later promoted it into app/gazetteer.py.
 GazCandidateStatus = Literal["pending", "geocoded", "added", "rejected"]
 GAZ_CANDIDATE_STATUSES: tuple[GazCandidateStatus, ...] = get_args(GazCandidateStatus)
+# User-filed bug reports (app/api/public/bugs.py -> the admin console tab).
+BugReportStatus = Literal["new", "in_progress", "closed"]
+BUG_REPORT_STATUSES: tuple[BugReportStatus, ...] = get_args(BugReportStatus)
 
 
 class Source(Base):
@@ -806,3 +809,49 @@ class ThreatAnalysis(Base):
     kind: Mapped[str] = mapped_column(String(10))  # see ANALYSIS_KINDS
     card_id: Mapped[int] = mapped_column()  # 1..len(CARD_IDS), the awarded card
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class BugReport(Base):
+    """A bug filed from inside the app: what the user saw, optionally a
+    screenshot, and the technical context collected for them.
+
+    That context is the whole point. The 2026-08-12 Android report ("everything
+    is in the corner") arrived as one screenshot with no version, browser or
+    viewport, and the diagnosis had to start by measuring pixels in a JPEG.
+
+    `screenshot` is an inline `data:` URL, validated by app/images.py — same
+    trade as avatars: Railway's filesystem is ephemeral, so object storage would
+    be a new dependency and a new secret for a handful of rows a year.
+
+    The reporter is kept as a nullable FK: a deleted account must not take the
+    bug it reported with it.
+    """
+
+    __tablename__ = "bug_reports"
+    __table_args__ = (Index("ix_bug_reports_status_created", "status", "created_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    description: Mapped[str] = mapped_column(Text)
+    screenshot: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(12), default="new")  # see BUG_REPORT_STATUSES
+    # Denormalized for the admin list (shown on every row, filtered on): what
+    # the app was, and what it was running in.
+    app_version: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    browser: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    os: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    # The raw string the two above were derived from — parsing a UA is guesswork
+    # and this is what lets a wrong guess be re-read by a human.
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Everything else the client volunteered: route, viewport, dpr, page scale,
+    # standalone/PWA, language, online. JSON because this list will keep growing
+    # with each class of bug that turns out to need one more number.
+    context: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+    user: Mapped[User | None] = relationship(lazy="joined")

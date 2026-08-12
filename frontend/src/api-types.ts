@@ -38,6 +38,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/bug-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin List Bug Reports */
+        get: operations["admin_list_bug_reports_admin_bug_reports_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/bug-reports/{report_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Admin Delete Bug Report */
+        delete: operations["admin_delete_bug_report_admin_bug_reports__report_id__delete"];
+        options?: never;
+        head?: never;
+        /** Admin Set Bug Report Status */
+        patch: operations["admin_set_bug_report_status_admin_bug_reports__report_id__patch"];
+        trace?: never;
+    };
     "/admin/corrections": {
         parameters: {
             query?: never;
@@ -626,6 +661,23 @@ export interface paths {
         get: operations["active_axes_axes_active_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bug-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** File Bug Report */
+        post: operations["file_bug_report_bug_reports_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1435,6 +1487,135 @@ export interface components {
             /** Endpoint */
             endpoint: string;
             keys: components["schemas"]["PushKeysIn"];
+        };
+        /**
+         * BugContextIn
+         * @description The technical context the app collects for the reporter.
+         *
+         *     Every field is optional: a browser that hides one of these (or a future one
+         *     the client stops sending) must still be able to file a bug. `scale` is the
+         *     page zoom — 0.25 there is the whole diagnosis of the 2026-08-12 Android
+         *     report, so it is worth its own field rather than a line of prose.
+         */
+        BugContextIn: {
+            /** App Version */
+            app_version?: string | null;
+            /** Dpr */
+            dpr?: number | null;
+            /** Language */
+            language?: string | null;
+            /** Online */
+            online?: boolean | null;
+            /** Route */
+            route?: string | null;
+            /** Scale */
+            scale?: number | null;
+            /** Standalone */
+            standalone?: boolean | null;
+            /** User Agent */
+            user_agent?: string | null;
+            /** Viewport H */
+            viewport_h?: number | null;
+            /** Viewport W */
+            viewport_w?: number | null;
+        };
+        /**
+         * BugReportAckOut
+         * @description What the reporter gets back — deliberately just the receipt.
+         */
+        BugReportAckOut: {
+            /** Id */
+            id: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "new" | "in_progress" | "closed";
+        };
+        /**
+         * BugReportIn
+         * @description POST /bug-reports — the form a user submits.
+         *
+         *     Either half is enough on its own: a screenshot of a mangled screen often
+         *     says more than a sentence about it, and a description needs no picture. An
+         *     empty report is the only thing rejected — it carries nothing to act on.
+         */
+        BugReportIn: {
+            /** @default {} */
+            context: components["schemas"]["BugContextIn"];
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Screenshot */
+            screenshot?: string | null;
+        };
+        /**
+         * BugReportOut
+         * @description One ticket in the admin console.
+         */
+        BugReportOut: {
+            /** App Version */
+            app_version?: string | null;
+            /** Browser */
+            browser?: string | null;
+            /**
+             * Context
+             * @default {}
+             */
+            context: {
+                [key: string]: unknown;
+            };
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description: string;
+            /** Id */
+            id: number;
+            /** Os */
+            os?: string | null;
+            reporter?: components["schemas"]["BugReporterOut"] | null;
+            /** Screenshot */
+            screenshot?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "new" | "in_progress" | "closed";
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** User Agent */
+            user_agent?: string | null;
+        };
+        /**
+         * BugReportStatusIn
+         * @description PATCH /admin/bug-reports/{id} — move a ticket along.
+         */
+        BugReportStatusIn: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "new" | "in_progress" | "closed";
+        };
+        /**
+         * BugReporterOut
+         * @description Who filed it — enough to reply to them, nothing more.
+         */
+        BugReporterOut: {
+            /** Display Name */
+            display_name?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Id */
+            id: number;
         };
         /**
          * CardCountOut
@@ -2914,6 +3095,111 @@ export interface operations {
             };
         };
     };
+    admin_list_bug_reports_admin_bug_reports_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by status */
+                status?: string | null;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BugReportOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_delete_bug_report_admin_bug_reports__report_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                report_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_set_bug_report_status_admin_bug_reports__report_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                report_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BugReportStatusIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BugReportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     admin_corrections_admin_corrections_get: {
         parameters: {
             query?: {
@@ -4046,6 +4332,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AxisOut"][];
+                };
+            };
+        };
+    };
+    file_bug_report_bug_reports_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BugReportIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BugReportAckOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

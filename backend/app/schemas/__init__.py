@@ -34,6 +34,14 @@ from .auth import (
     UserOut,
 )
 from .base import _as_utc
+from .bugs import (
+    BugContextIn,
+    BugReportAckOut,
+    BugReporterOut,
+    BugReportIn,
+    BugReportOut,
+    BugReportStatusIn,
+)
 from .common import (
     DistrictOut,
     SourceAdminOut,
@@ -121,6 +129,12 @@ __all__ = [
     "AnalyzeOut",
     "AxisOut",
     "BrowserSubscriptionIn",
+    "BugContextIn",
+    "BugReportAckOut",
+    "BugReportIn",
+    "BugReportOut",
+    "BugReportStatusIn",
+    "BugReporterOut",
     "CardCountOut",
     "CollectionOut",
     "CorrectionOut",

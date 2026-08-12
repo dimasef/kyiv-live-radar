@@ -6,6 +6,7 @@ import { RawMessagesView } from '@/components/raw'
 import { adminTabFromPath, adminTabPath, navigate, useRoute } from '@/router'
 import { useRadar } from '@/store'
 
+import BugReportsPanel from './BugReportsPanel'
 import CorrectionsPanel from './CorrectionsPanel'
 import CoverageGapList from './CoverageGapList'
 import ManagementTab from './ManagementTab'
@@ -60,6 +61,9 @@ export default function AdminPage() {
             <TabButton active={tab === 'manage'} onClick={() => navigate(adminTabPath('manage'))}>
               Керування
             </TabButton>
+            <TabButton active={tab === 'bugs'} onClick={() => navigate(adminTabPath('bugs'))}>
+              Баги
+            </TabButton>
             <TabButton active={tab === 'sources'} onClick={() => navigate(adminTabPath('sources'))}>
               Джерела
             </TabButton>
@@ -91,6 +95,7 @@ export default function AdminPage() {
         ) : (
           <div className="h-full overflow-y-auto overscroll-contain">
             {tab === 'manage' && <ManagementTab />}
+            {tab === 'bugs' && <BugReportsPanel />}
             {tab === 'sources' && <SourcesPanel />}
             {tab === 'gaps' && <CoverageGapList />}
             {tab === 'corrections' && <CorrectionsPanel />}

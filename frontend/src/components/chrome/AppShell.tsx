@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react'
 
 import AnalysisLayer from '@/components/game/AnalysisLayer'
+import { useRadar } from '@/store'
 
+import BugReportModal from './BugReportModal'
 import SettingsDrawer from './SettingsDrawer'
 import SplashScreen from './SplashScreen'
 import TopBar from './TopBar'
@@ -13,12 +15,14 @@ import UpdateToast from './UpdateToast'
  * in the map route, so it plays once per app launch — not every time the map
  * route remounts on in-app navigation (back to Мапа from Journal etc.). */
 export default function AppShell({ children }: { children: ReactNode }) {
+  const bugReportOpen = useRadar((s) => s.bugReportOpen)
   return (
     <div className="flex h-full flex-col">
       <SplashScreen />
       <TopBar />
       <div className="relative min-h-0 flex-1">{children}</div>
       <SettingsDrawer />
+      {bugReportOpen && <BugReportModal />}
       <UpdateToast />
       <AnalysisLayer />
     </div>

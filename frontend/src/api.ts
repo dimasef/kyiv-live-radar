@@ -366,3 +366,19 @@ export const fetchCollection = () => get<Collection>('/analysis/collection')
 /** A friend's collection (server 403s if not you or an accepted friend). */
 export const fetchUserCollection = (userId: number) =>
   get<Collection>(`/collection/${userId}`)
+
+// --- Bug reports (filed by users, worked in the admin console) --------------
+export type BugReport = Schemas['BugReportOut']
+export type BugReportStatus = BugReport['status']
+export type BugContext = Schemas['BugContextIn']
+export const submitBugReport = (
+  description: string,
+  screenshot: string | null,
+  context: BugContext,
+) => send<Schemas['BugReportAckOut']>('/bug-reports', 'POST', { description, screenshot, context })
+export const fetchBugReports = (status?: BugReportStatus) =>
+  get<BugReport[]>(`/admin/bug-reports${status ? `?status=${status}` : ''}`)
+export const setBugReportStatus = (id: number, status: BugReportStatus) =>
+  send<BugReport>(`/admin/bug-reports/${id}`, 'PATCH', { status })
+export const deleteBugReport = (id: number) =>
+  send<{ deleted: number }>(`/admin/bug-reports/${id}`, 'DELETE')

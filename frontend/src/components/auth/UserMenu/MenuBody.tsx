@@ -1,4 +1,4 @@
-import { Layers, LogOut, UserRound } from 'lucide-react'
+import { Bug, Layers, LogOut, UserRound } from 'lucide-react'
 
 import { type AuthUser } from '@/api'
 import { APP_VERSION } from '@/changelog'
@@ -15,6 +15,7 @@ export default function MenuBody({
   gamification,
   pending,
   go,
+  onReportBug,
   onLogout,
 }: {
   user: AuthUser
@@ -22,6 +23,7 @@ export default function MenuBody({
   gamification: boolean
   pending: number
   go: (path: string) => void
+  onReportBug: () => void
   onLogout: () => void
 }) {
   return (
@@ -43,6 +45,9 @@ export default function MenuBody({
             Колекція карток
           </MenuItem>
         )}
+        <MenuItem icon={<Bug size={15} />} onClick={onReportBug}>
+          Повідомити про баг
+        </MenuItem>
       </div>
 
       <div className="border-t border-white/[0.06] py-1">

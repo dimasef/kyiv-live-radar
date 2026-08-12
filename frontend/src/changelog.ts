@@ -32,12 +32,26 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.25.5";
+const LATEST = "0.26.0";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "Розкажіть про баг",
+    date: "2026-08-12",
+    kind: "minor",
+    changes: [
+      "У налаштуваннях і в меню акаунта зʼявився пункт «Повідомити про баг»: опишіть, що пішло не так, і за бажанням прикладіть знімок екрана",
+      "Знімок можна вибрати файлом або просто вставити з буфера (Ctrl+V) у поле опису",
+      "Разом зі звітом їдуть технічні дані — версія застосунку, браузер і розміри екрана. Шукати й переписувати їх не треба, а перед надсиланням видно, що саме буде передано",
+      "Достатньо чогось одного: або опису, або самого знімка",
+      "На Android застосунок більше не стискається в кут екрана після відкриття налаштувань чи інших вікон",
+      "Вікна й повідомлення більше не зʼїжджають за межі екрана на мобільних",
+    ],
+  },
+  {
+    version: "0.25.5",
     title: "Менше зайвого над мапою",
     date: "2026-08-08",
     kind: "patch",

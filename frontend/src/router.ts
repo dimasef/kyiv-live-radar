@@ -36,7 +36,7 @@ export const RAW_MESSAGES_PATH = '/raw'
 // Admin console tabs, each its own route (/admin/<tab>) so a reload keeps the
 // open tab instead of snapping back to the first one. 'manage' is the bare
 // /admin route; 'raw' also answers the legacy /raw path (see adminTabFromPath).
-export const ADMIN_TABS = ['manage', 'sources', 'gaps', 'corrections', 'reprocess', 'raw'] as const
+export const ADMIN_TABS = ['manage', 'bugs', 'sources', 'gaps', 'corrections', 'reprocess', 'raw'] as const
 export type AdminTab = (typeof ADMIN_TABS)[number]
 
 /** True for any admin route: /admin, /admin/<tab>, or the legacy /raw. */
