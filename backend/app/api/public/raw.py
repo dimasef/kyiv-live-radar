@@ -9,11 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ...auth.deps import require_admin
+from ...config import settings
 from ...db import get_session
 from ...models import (
     RawMessage,
     Source,
     User,
+    utcnow,
 )
 from ...schemas import (
     RawCountOut,
@@ -142,7 +144,10 @@ async def raw_messages_llm_stats(
     """Aggregate LLM fallback usage across ALL raw messages — total calls,
     tokens, and cost, for the analytics strip on /raw. Unfiltered (ignores
     search/outcome filters) so it always reads as "overall spend", not
-    "spend within the current view"."""
+    "spend within the current view". Also reports spend for the current
+    UTC day/month against the same caps `pipeline.triage.llm_spend_ok`
+    gates the fallback on, so the admin can see how close to the budget the
+    live pipeline is."""
     row = (
         await session.execute(
             select(
@@ -154,6 +159,28 @@ async def raw_messages_llm_stats(
         )
     ).one()
     calls, input_tokens, output_tokens, cost_usd = row
+
+    now = utcnow()
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    day_spend = await session.scalar(
+        select(func.coalesce(func.sum(RawMessage.llm_cost_usd), 0.0)).where(
+            RawMessage.event_time >= day_start
+        )
+    )
+    month_spend = await session.scalar(
+        select(func.coalesce(func.sum(RawMessage.llm_cost_usd), 0.0)).where(
+            RawMessage.event_time >= month_start
+        )
+    )
+
     return RawLlmStatsOut(
-        calls=calls, input_tokens=input_tokens, output_tokens=output_tokens, cost_usd=cost_usd
+        calls=calls,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        cost_usd=cost_usd,
+        day_spend_usd=day_spend or 0.0,
+        day_budget_usd=settings.llm_daily_budget_usd,
+        month_spend_usd=month_spend or 0.0,
+        month_budget_usd=settings.llm_monthly_budget_usd,
     )

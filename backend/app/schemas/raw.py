@@ -155,10 +155,17 @@ class RawExportOut(BaseModel):
 
 
 class RawLlmStatsOut(BaseModel):
-    """Aggregate LLM fallback usage across all raw messages — see
-    GET /raw_messages/llm_stats."""
+    """Aggregate LLM fallback usage across all raw messages, plus spend
+    against the running budget caps (`app.pipeline.triage.llm_spend_ok`) — see
+    GET /raw_messages/llm_stats. A cap of 0 means unlimited, mirrored here
+    rather than inferred from a missing field so the frontend doesn't need its
+    own copy of that convention."""
 
     calls: int
     input_tokens: int
     output_tokens: int
     cost_usd: float
+    day_spend_usd: float
+    day_budget_usd: float
+    month_spend_usd: float
+    month_budget_usd: float

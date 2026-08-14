@@ -2437,16 +2437,27 @@ export interface components {
         };
         /**
          * RawLlmStatsOut
-         * @description Aggregate LLM fallback usage across all raw messages — see
-         *     GET /raw_messages/llm_stats.
+         * @description Aggregate LLM fallback usage across all raw messages, plus spend
+         *     against the running budget caps (`app.pipeline.triage.llm_spend_ok`) — see
+         *     GET /raw_messages/llm_stats. A cap of 0 means unlimited, mirrored here
+         *     rather than inferred from a missing field so the frontend doesn't need its
+         *     own copy of that convention.
          */
         RawLlmStatsOut: {
             /** Calls */
             calls: number;
             /** Cost Usd */
             cost_usd: number;
+            /** Day Budget Usd */
+            day_budget_usd: number;
+            /** Day Spend Usd */
+            day_spend_usd: number;
             /** Input Tokens */
             input_tokens: number;
+            /** Month Budget Usd */
+            month_budget_usd: number;
+            /** Month Spend Usd */
+            month_spend_usd: number;
             /** Output Tokens */
             output_tokens: number;
         };
