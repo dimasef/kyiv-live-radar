@@ -1173,125 +1173,6 @@
         "title": "GamificationPrefOut",
         "type": "object"
       },
-      "GazetteerCandidateIn": {
-        "description": "POST /admin/gazetteer_candidates — flag a toponym from a coverage gap.\nNOT a live gazetteer edit; just a captured candidate for later review.",
-        "properties": {
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          },
-          "raw_message_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Raw Message Id"
-          },
-          "suggested_name": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Suggested Name",
-            "type": "string"
-          }
-        },
-        "required": [
-          "suggested_name"
-        ],
-        "title": "GazetteerCandidateIn",
-        "type": "object"
-      },
-      "GazetteerCandidateOut": {
-        "properties": {
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "id": {
-            "title": "Id",
-            "type": "integer"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          },
-          "raw_message_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Raw Message Id"
-          },
-          "status": {
-            "enum": [
-              "pending",
-              "geocoded",
-              "added",
-              "rejected"
-            ],
-            "title": "Status",
-            "type": "string"
-          },
-          "suggested_name": {
-            "title": "Suggested Name",
-            "type": "string"
-          },
-          "text": {
-            "title": "Text",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "text",
-          "suggested_name",
-          "status",
-          "created_at"
-        ],
-        "title": "GazetteerCandidateOut",
-        "type": "object"
-      },
-      "GazetteerCandidateStatusIn": {
-        "properties": {
-          "status": {
-            "enum": [
-              "pending",
-              "geocoded",
-              "added",
-              "rejected"
-            ],
-            "title": "Status",
-            "type": "string"
-          }
-        },
-        "required": [
-          "status"
-        ],
-        "title": "GazetteerCandidateStatusIn",
-        "type": "object"
-      },
       "GoogleAuthIn": {
         "description": "POST /auth/google — the id_token from Google Identity Services.",
         "properties": {
@@ -4200,7 +4081,7 @@
     },
     "/admin/coverage_gaps": {
       "get": {
-        "description": "Recent threat-flavored messages the parser couldn't pin to a district —\nthe coverage-gap queue (usually a missing gazetteer entry).",
+        "description": "Recent threat-flavored messages the parser couldn't pin to a district —\nthe coverage-gap queue (usually a missing gazetteer entry). `scan` widens\nthe raw-message window behind it; the export path asks for a bigger one\nthan the on-screen list does.",
         "operationId": "admin_coverage_gaps_admin_coverage_gaps_get",
         "parameters": [
           {
@@ -4209,9 +4090,21 @@
             "required": false,
             "schema": {
               "default": 50,
-              "maximum": 200,
+              "maximum": 1000,
               "minimum": 1,
               "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scan",
+            "required": false,
+            "schema": {
+              "default": 800,
+              "maximum": 20000,
+              "minimum": 50,
+              "title": "Scan",
               "type": "integer"
             }
           },
@@ -4438,194 +4331,6 @@
           }
         },
         "summary": "Admin Move Event"
-      }
-    },
-    "/admin/gazetteer_candidates": {
-      "get": {
-        "operationId": "admin_list_gazetteer_candidates_admin_gazetteer_candidates_get",
-        "parameters": [
-          {
-            "description": "Filter by status",
-            "in": "query",
-            "name": "status",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Filter by status",
-              "title": "Status"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/GazetteerCandidateOut"
-                  },
-                  "title": "Response Admin List Gazetteer Candidates Admin Gazetteer Candidates Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Admin List Gazetteer Candidates"
-      },
-      "post": {
-        "description": "Capture a toponym candidate from a gap — NOT a live gazetteer edit; that\nstays a reviewed code step with a stem-collision sweep (CLAUDE.md).",
-        "operationId": "admin_add_gazetteer_candidate_admin_gazetteer_candidates_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GazetteerCandidateIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GazetteerCandidateOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Admin Add Gazetteer Candidate"
-      }
-    },
-    "/admin/gazetteer_candidates/{candidate_id}": {
-      "patch": {
-        "operationId": "admin_update_gazetteer_candidate_admin_gazetteer_candidates__candidate_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "candidate_id",
-            "required": true,
-            "schema": {
-              "title": "Candidate Id",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GazetteerCandidateStatusIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GazetteerCandidateOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Admin Update Gazetteer Candidate"
       }
     },
     "/admin/incidents/{incident_id}/dismiss": {
@@ -7840,7 +7545,7 @@
     },
     "/raw_messages/llm_stats": {
       "get": {
-        "description": "Aggregate LLM fallback usage across ALL raw messages — total calls,\ntokens, and cost, for the analytics strip on /raw. Unfiltered (ignores\nsearch/outcome filters) so it always reads as \"overall spend\", not\n\"spend within the current view\".",
+        "description": "Aggregate LLM fallback usage across ALL raw messages — total calls,\ntokens, and cost, for the analytics strip on /raw. Unfiltered (ignores\nsearch/outcome filters) so it always reads as \"overall spend\", not\n\"spend within the current view\". Also reports spend for the current\nUTC day/month against the same caps `pipeline.triage.llm_spend_ok`\ngates the fallback on, so the admin can see how close to the budget the\nlive pipeline is.",
         "operationId": "raw_messages_llm_stats_raw_messages_llm_stats_get",
         "parameters": [
           {

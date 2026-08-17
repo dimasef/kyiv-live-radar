@@ -186,20 +186,8 @@ export const fetchDismissed = () => get<Dismissed>('/admin/dismissed')
 
 // --- Learning from corrections (admin) — coverage gaps + harvested labels. ---
 export type CoverageGap = Schemas['CoverageGapOut']
-export const fetchCoverageGaps = (limit = 50) =>
-  get<CoverageGap[]>(`/admin/coverage_gaps?limit=${limit}`)
-
-export type GazetteerCandidate = Schemas['GazetteerCandidateOut']
-export const addGazetteerCandidate = (rawMessageId: number, suggestedName: string, note?: string) =>
-  send<GazetteerCandidate>('/admin/gazetteer_candidates', 'POST', {
-    raw_message_id: rawMessageId,
-    suggested_name: suggestedName,
-    note: note ?? null,
-  })
-export const fetchGazetteerCandidates = (status?: string) =>
-  get<GazetteerCandidate[]>(`/admin/gazetteer_candidates${status ? `?status=${status}` : ''}`)
-export const updateGazetteerCandidate = (id: number, status: GazetteerCandidate['status']) =>
-  send<GazetteerCandidate>(`/admin/gazetteer_candidates/${id}`, 'PATCH', { status })
+export const fetchCoverageGaps = (limit = 50, scan?: number) =>
+  get<CoverageGap[]>(`/admin/coverage_gaps?limit=${limit}${scan ? `&scan=${scan}` : ''}`)
 
 export type Correction = Schemas['CorrectionOut']
 export const fetchCorrections = (limit = 100) =>

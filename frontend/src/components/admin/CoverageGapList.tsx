@@ -1,14 +1,22 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { addGazetteerCandidate, fetchCoverageGaps, type CoverageGap } from '@/api'
+import { fetchCoverageGaps, type CoverageGap } from '@/api'
 
 import AdminActionButton from './AdminActionButton'
+import { downloadGapExport, openGapExport } from './exportGaps'
+
+/** How many recent raw messages an export re-parses. The on-screen list stays
+ * on the server default (a cheap recent window); an export is a deliberate
+ * click, so it sweeps far deeper — the file is what gets handed off for
+ * gazetteer/parser work. */
+const EXPORT_SCAN = 5000
+const EXPORT_LIMIT = 500
 
 /** Threat-flavored messages the parser couldn't localize (usually a missing
- * gazetteer entry — the primary accuracy lever). The operator captures a
- * toponym candidate per gap for later review/geocoding; adding one drops it
- * from the list. Read-mostly, so a mount fetch is the simplest correct sync. */
+ * gazetteer entry — the primary accuracy lever). Read-only: the list is a live
+ * indicator (it's re-derived by the CURRENT parser on every load, so a fixed
+ * gap disappears by itself), and the export is how the batch leaves the app. */
 export default function CoverageGapList() {
   const [gaps, setGaps] = useState<CoverageGap[]>([])
   const [loaded, setLoaded] = useState(false)
@@ -20,29 +28,54 @@ export default function CoverageGapList() {
       .finally(() => setLoaded(true))
   }, [])
 
-  const remove = (id: number) => setGaps((gs) => gs.filter((g) => g.raw_message_id !== id))
-
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-4">
       <p className="text-xs text-slate-500">
         Повідомлення, які схожі на загрозу, але парсер не зміг привʼязати до району — найчастіше це
-        відсутній у газетирі топонім. Запишіть кандидата, щоб потім додати його після перевірки.
+        відсутній у газетирі топонім. Експортуйте їх у JSON для розбору.
       </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] text-slate-500">
+          Показано {gaps.length} · експорт сканує {EXPORT_SCAN} останніх повідомлень
+        </span>
+        <AdminActionButton
+          label="Експорт JSON"
+          tone="accent"
+          onRun={async () => {
+            const all = await fetchCoverageGaps(EXPORT_LIMIT, EXPORT_SCAN)
+            downloadGapExport(all, EXPORT_SCAN)
+          }}
+        />
+        <AdminActionButton
+          label="Відкрити"
+          onRun={async () => {
+            // Open the tab NOW, inside the click gesture — a tab opened after
+            // the fetch below would be blocked as a popup.
+            const tab = window.open()
+            try {
+              const all = await fetchCoverageGaps(EXPORT_LIMIT, EXPORT_SCAN)
+              openGapExport(all, EXPORT_SCAN, tab)
+            } catch (err) {
+              tab?.close()
+              throw err
+            }
+          }}
+        />
+      </div>
       {loaded && gaps.length === 0 && (
         <p className="text-xs text-slate-600">Прогалин не знайдено.</p>
       )}
       <ul className="space-y-1.5">
         {gaps.map((gap) => (
-          <GapRow key={gap.raw_message_id} gap={gap} onCaptured={() => remove(gap.raw_message_id)} />
+          <GapRow key={gap.raw_message_id} gap={gap} />
         ))}
       </ul>
     </div>
   )
 }
 
-function GapRow({ gap, onCaptured }: { gap: CoverageGap; onCaptured: () => void }) {
+function GapRow({ gap }: { gap: CoverageGap }) {
   const { t } = useTranslation()
-  const [name, setName] = useState('')
 
   return (
     <li className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2">
@@ -53,21 +86,6 @@ function GapRow({ gap, onCaptured }: { gap: CoverageGap; onCaptured: () => void 
         {gap.source_name && <span>{gap.source_name}</span>}
       </div>
       <p className="mt-1 text-sm text-slate-200">{gap.text}</p>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Назва топоніма"
-          className="min-w-0 flex-1 rounded-md border border-white/15 bg-ink-900 px-2 py-1 text-xs text-slate-200 placeholder:text-slate-600"
-        />
-        <AdminActionButton
-          label="Додати кандидата"
-          tone="accent"
-          onRun={() =>
-            addGazetteerCandidate(gap.raw_message_id, name.trim()).then(onCaptured)
-          }
-        />
-      </div>
     </li>
   )
 }

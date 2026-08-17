@@ -136,11 +136,6 @@ PROVIDERS = ("google", "telegram")
 CorrectionKind = Literal["false_positive", "retype", "relocate"]
 CORRECTION_KINDS: tuple[CorrectionKind, ...] = get_args(CorrectionKind)
 CORRECTION_ORIGINS = ("dismiss", "retype_threat", "move_event")
-# Toponym candidates captured from the coverage-gap queue — NOT live gazetteer
-# edits (those stay a code-review step with a stem-collision sweep, see
-# CLAUDE.md). 'added' = a human later promoted it into app/gazetteer.py.
-GazCandidateStatus = Literal["pending", "geocoded", "added", "rejected"]
-GAZ_CANDIDATE_STATUSES: tuple[GazCandidateStatus, ...] = get_args(GazCandidateStatus)
 # User-filed bug reports (app/api/public/bugs.py -> the admin console tab).
 BugReportStatus = Literal["new", "in_progress", "closed"]
 BUG_REPORT_STATUSES: tuple[BugReportStatus, ...] = get_args(BugReportStatus)
@@ -746,29 +741,6 @@ class ParserCorrection(Base):
     # "district_en"} for relocate.
     expected: Mapped[dict] = mapped_column(JSON, default=dict)
     origin: Mapped[str] = mapped_column(String(20))  # see CORRECTION_ORIGINS
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    created_by_user_id: Mapped[int | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
-
-
-class GazetteerCandidate(Base):
-    """A toponym an admin flagged from the coverage-gap queue (a threat-flavored
-    message the parser couldn't localize). Deliberately NOT a live gazetteer
-    edit — adding to app/gazetteer.py stays a reviewed code step with a
-    stem-collision sweep (CLAUDE.md); this is just the captured candidate.
-    """
-
-    __tablename__ = "gazetteer_candidates"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    raw_message_id: Mapped[int | None] = mapped_column(
-        ForeignKey("raw_messages.id", ondelete="SET NULL"), nullable=True
-    )
-    text: Mapped[str] = mapped_column(Text)
-    suggested_name: Mapped[str] = mapped_column(String(200))
-    note: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(String(12), default="pending")  # see GAZ_CANDIDATE_STATUSES
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     created_by_user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True

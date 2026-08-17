@@ -1,10 +1,10 @@
 """Turn admin corrections + coverage gaps into parser accuracy: surface the
-messages that never localized, capture toponym candidates, and show whether
-the current parser has retired each harvested correction."""
+messages that never localized, and show whether the current parser has retired
+each harvested correction."""
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,17 +16,12 @@ from ...domain.corrections import (
 from ...feeds.common import build_matcher
 from ...models import (
     District,
-    GazetteerCandidate,
     ParserCorrection,
-    RawMessage,
     User,
 )
 from ...schemas import (
     CorrectionOut,
     CoverageGapOut,
-    GazetteerCandidateIn,
-    GazetteerCandidateOut,
-    GazetteerCandidateStatusIn,
 )
 from ..coverage import find_coverage_gaps
 
@@ -35,67 +30,17 @@ router = APIRouter()
 
 @router.get("/admin/coverage_gaps", response_model=list[CoverageGapOut])
 async def admin_coverage_gaps(
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(50, ge=1, le=1000),
+    scan: int = Query(800, ge=50, le=20000),
     session: AsyncSession = Depends(get_session),
     _admin: User = Depends(require_admin),
 ):
     """Recent threat-flavored messages the parser couldn't pin to a district —
-    the coverage-gap queue (usually a missing gazetteer entry)."""
+    the coverage-gap queue (usually a missing gazetteer entry). `scan` widens
+    the raw-message window behind it; the export path asks for a bigger one
+    than the on-screen list does."""
     matcher = await build_matcher(session)
-    return await find_coverage_gaps(session, matcher, limit=limit)
-
-
-@router.post("/admin/gazetteer_candidates", response_model=GazetteerCandidateOut)
-async def admin_add_gazetteer_candidate(
-    body: GazetteerCandidateIn,
-    session: AsyncSession = Depends(get_session),
-    admin: User = Depends(require_admin),
-):
-    """Capture a toponym candidate from a gap — NOT a live gazetteer edit; that
-    stays a reviewed code step with a stem-collision sweep (CLAUDE.md)."""
-    text = ""
-    if body.raw_message_id is not None:
-        raw = await session.get(RawMessage, body.raw_message_id)
-        if raw is None:
-            raise HTTPException(status_code=400, detail="raw message not found")
-        text = raw.text
-    cand = GazetteerCandidate(
-        raw_message_id=body.raw_message_id,
-        text=text,
-        suggested_name=body.suggested_name,
-        note=body.note,
-        created_by_user_id=admin.id,
-    )
-    session.add(cand)
-    await session.commit()
-    return cand
-
-
-@router.get("/admin/gazetteer_candidates", response_model=list[GazetteerCandidateOut])
-async def admin_list_gazetteer_candidates(
-    status: str | None = Query(None, description="Filter by status"),
-    session: AsyncSession = Depends(get_session),
-    _admin: User = Depends(require_admin),
-):
-    stmt = select(GazetteerCandidate).order_by(GazetteerCandidate.created_at.desc())
-    if status is not None:
-        stmt = stmt.where(GazetteerCandidate.status == status)
-    return list(await session.scalars(stmt))
-
-
-@router.patch("/admin/gazetteer_candidates/{candidate_id}", response_model=GazetteerCandidateOut)
-async def admin_update_gazetteer_candidate(
-    candidate_id: int,
-    body: GazetteerCandidateStatusIn,
-    session: AsyncSession = Depends(get_session),
-    _admin: User = Depends(require_admin),
-):
-    cand = await session.get(GazetteerCandidate, candidate_id)
-    if cand is None:
-        raise HTTPException(status_code=404, detail="candidate not found")
-    cand.status = body.status
-    await session.commit()
-    return cand
+    return await find_coverage_gaps(session, matcher, limit=limit, scan=scan)
 
 
 @router.get("/admin/corrections", response_model=list[CorrectionOut])

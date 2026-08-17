@@ -5,9 +5,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, field_validator
 
-from ..models import CorrectionKind, GazCandidateStatus, TargetType
+from ..models import CorrectionKind, TargetType
 from .base import _as_utc
 from .situation import AlertOut, IncidentOut
 from .threats import ThreatOut
@@ -46,33 +46,6 @@ class CoverageGapOut(BaseModel):
     detected_status: str
 
     _tz_gap = field_validator("event_time", mode="before")(_as_utc)
-
-
-class GazetteerCandidateIn(BaseModel):
-    """POST /admin/gazetteer_candidates — flag a toponym from a coverage gap.
-    NOT a live gazetteer edit; just a captured candidate for later review."""
-
-    raw_message_id: int | None = None
-    suggested_name: str = Field(min_length=1, max_length=200)
-    note: str | None = None
-
-
-class GazetteerCandidateStatusIn(BaseModel):
-    status: Literal["pending", "geocoded", "added", "rejected"]
-
-
-class GazetteerCandidateOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    raw_message_id: int | None = None
-    text: str
-    suggested_name: str
-    note: str | None = None
-    status: GazCandidateStatus
-    created_at: datetime
-
-    _tz_cand = field_validator("created_at", mode="before")(_as_utc)
 
 
 class CorrectionOut(BaseModel):

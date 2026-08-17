@@ -104,7 +104,9 @@ export interface paths {
         /**
          * Admin Coverage Gaps
          * @description Recent threat-flavored messages the parser couldn't pin to a district —
-         *     the coverage-gap queue (usually a missing gazetteer entry).
+         *     the coverage-gap queue (usually a missing gazetteer entry). `scan` widens
+         *     the raw-message window behind it; the export path asks for a bigger one
+         *     than the on-screen list does.
          */
         get: operations["admin_coverage_gaps_admin_coverage_gaps_get"];
         put?: never;
@@ -162,45 +164,6 @@ export interface paths {
          *     re-broadcast is all that's needed to update the map.
          */
         patch: operations["admin_move_event_admin_events__event_id__patch"];
-        trace?: never;
-    };
-    "/admin/gazetteer_candidates": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Admin List Gazetteer Candidates */
-        get: operations["admin_list_gazetteer_candidates_admin_gazetteer_candidates_get"];
-        put?: never;
-        /**
-         * Admin Add Gazetteer Candidate
-         * @description Capture a toponym candidate from a gap — NOT a live gazetteer edit; that
-         *     stays a reviewed code step with a stem-collision sweep (CLAUDE.md).
-         */
-        post: operations["admin_add_gazetteer_candidate_admin_gazetteer_candidates_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/gazetteer_candidates/{candidate_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Admin Update Gazetteer Candidate */
-        patch: operations["admin_update_gazetteer_candidate_admin_gazetteer_candidates__candidate_id__patch"];
         trace?: never;
     };
     "/admin/incidents/{incident_id}/dismiss": {
@@ -1276,7 +1239,10 @@ export interface paths {
          * @description Aggregate LLM fallback usage across ALL raw messages — total calls,
          *     tokens, and cost, for the analytics strip on /raw. Unfiltered (ignores
          *     search/outcome filters) so it always reads as "overall spend", not
-         *     "spend within the current view".
+         *     "spend within the current view". Also reports spend for the current
+         *     UTC day/month against the same caps `pipeline.triage.llm_spend_ok`
+         *     gates the fallback on, so the admin can see how close to the budget the
+         *     live pipeline is.
          */
         get: operations["raw_messages_llm_stats_raw_messages_llm_stats_get"];
         put?: never;
@@ -1884,50 +1850,6 @@ export interface components {
         GamificationPrefOut: {
             /** Enabled */
             enabled: boolean;
-        };
-        /**
-         * GazetteerCandidateIn
-         * @description POST /admin/gazetteer_candidates — flag a toponym from a coverage gap.
-         *     NOT a live gazetteer edit; just a captured candidate for later review.
-         */
-        GazetteerCandidateIn: {
-            /** Note */
-            note?: string | null;
-            /** Raw Message Id */
-            raw_message_id?: number | null;
-            /** Suggested Name */
-            suggested_name: string;
-        };
-        /** GazetteerCandidateOut */
-        GazetteerCandidateOut: {
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Id */
-            id: number;
-            /** Note */
-            note?: string | null;
-            /** Raw Message Id */
-            raw_message_id?: number | null;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "pending" | "geocoded" | "added" | "rejected";
-            /** Suggested Name */
-            suggested_name: string;
-            /** Text */
-            text: string;
-        };
-        /** GazetteerCandidateStatusIn */
-        GazetteerCandidateStatusIn: {
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "pending" | "geocoded" | "added" | "rejected";
         };
         /**
          * GoogleAuthIn
@@ -3248,6 +3170,7 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
+                scan?: number;
             };
             header?: {
                 authorization?: string | null;
@@ -3367,112 +3290,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ThreatOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    admin_list_gazetteer_candidates_admin_gazetteer_candidates_get: {
-        parameters: {
-            query?: {
-                /** @description Filter by status */
-                status?: string | null;
-            };
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GazetteerCandidateOut"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    admin_add_gazetteer_candidate_admin_gazetteer_candidates_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GazetteerCandidateIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GazetteerCandidateOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    admin_update_gazetteer_candidate_admin_gazetteer_candidates__candidate_id__patch: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                candidate_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GazetteerCandidateStatusIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GazetteerCandidateOut"];
                 };
             };
             /** @description Validation Error */

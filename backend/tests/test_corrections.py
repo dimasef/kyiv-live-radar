@@ -190,38 +190,10 @@ async def test_coverage_gaps(client):
     assert gap.id in ids
     assert junk.id not in ids
 
-
-async def test_gazetteer_candidate_crud(client):
-    c, s = client
-    headers = await _admin_headers(s)
-    src = Source(channel_key="s1", name="S1")
-    s.add(src)
-    await s.commit()
-    raw = RawMessage(source_id=src.id, message_id=7001, text="Шахед над Гатне")
-    s.add(raw)
-    await s.commit()
-
-    r = await c.post(
-        "/admin/gazetteer_candidates",
-        json={"raw_message_id": raw.id, "suggested_name": "Гатне"},
-        headers=headers,
-    )
+    # The export path asks for a deeper scan + a bigger page than the UI list.
+    r = await c.get("/admin/coverage_gaps?limit=500&scan=5000", headers=headers)
     assert r.status_code == 200
-    cid = r.json()["id"]
-    assert r.json()["text"] == raw.text
-    assert r.json()["status"] == "pending"
-
-    r = await c.get("/admin/gazetteer_candidates", headers=headers)
-    assert cid in {x["id"] for x in r.json()}
-
-    r = await c.patch(
-        f"/admin/gazetteer_candidates/{cid}", json={"status": "rejected"}, headers=headers
-    )
-    assert r.status_code == 200
-    assert r.json()["status"] == "rejected"
-
-    r = await c.get("/admin/gazetteer_candidates?status=pending", headers=headers)
-    assert cid not in {x["id"] for x in r.json()}
+    assert gap.id in {g["raw_message_id"] for g in r.json()}
 
 
 def test_corrections_eval_check():
