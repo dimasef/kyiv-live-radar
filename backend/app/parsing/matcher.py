@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 
 from ..gazetteer import CITYWIDE_NAME_EN as _CITYWIDE_NAME_EN
-from .vocab import _APOSTROPHES, _STREET_WORDS, _SUFFIXES
+from .vocab import _APOSTROPHES, _STREET_WORDS, _SUFFIXES, _WHOLE_WORD_ALIASES
 
 
 def normalize(text: str) -> str:
@@ -84,17 +84,30 @@ class DistrictMatcher:
             if name_en == _CITYWIDE_NAME_EN:
                 continue
             self.districts_index.append((did, name))
-            stems = set()
+            stems, exact = set(), set()
             for form in [name, *aliases]:
+                if normalize(form).replace(" ", "") in _WHOLE_WORD_ALIASES:
+                    exact.add(normalize(form).replace(" ", ""))
+                    continue
                 s = _stem(form)
                 if len(s) >= 4:
                     stems.add(s)
-            if not stems:
+            if not stems and not exact:
                 continue
+
+            def _alt(forms):
+                return "|".join(sorted(map(re.escape, forms), key=len, reverse=True))
+
             # Word-start boundary + stem + optional Ukrainian tail (case endings).
-            alt = "|".join(sorted(map(re.escape, stems), key=len, reverse=True))
-            pat = re.compile(r"(?<![а-яіїєґ])(?:" + alt + r")[а-яіїєґ]*", re.IGNORECASE)
-            self._patterns.append((did, name, pat, max(len(s) for s in stems)))
+            branches = []
+            if stems:
+                branches.append(r"(?:" + _alt(stems) + r")[а-яіїєґ]*")
+            # A short abbreviation carries no case tail, so it matches as a whole
+            # word only ("ЧЗВ") — see _WHOLE_WORD_ALIASES.
+            if exact:
+                branches.append(r"(?:" + _alt(exact) + r")(?![а-яіїєґ])")
+            pat = re.compile(r"(?<![а-яіїєґ])(?:" + "|".join(branches) + r")", re.IGNORECASE)
+            self._patterns.append((did, name, pat, max(len(s) for s in stems | exact)))
 
     def find(self, norm_text: str) -> list[DistrictHit]:
         hits: dict[int, DistrictHit] = {}

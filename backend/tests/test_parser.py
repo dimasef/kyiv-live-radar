@@ -752,3 +752,98 @@ def test_southern_corridor_gazetteer_gaps():
     # Bare "Заспа"/"Віта" must NOT match (collide with заспокойтесь/вітаю).
     assert not parse_message("Заспокойтесь, все тихо", M).districts
     assert not parse_message("Вітаю всіх на каналі", M).districts
+
+
+def test_relayed_news_of_a_faraway_destruction_is_not_a_stand_down():
+    # 2026-08-14 raw 6097: a news repost about a train destroyed in Siberia
+    # carries "знищ" -> status=destroyed, and a destroyed message with no
+    # district adopts whichever track is open. It closed T3332 (a live Шахед
+    # over Київське водосховище, 14 min old) as «знищено».
+    r = parse_message(
+        "Повідомляють про знищення в Сибіру ешелону з північнокорейськими ракетами\n\n"
+        "За попередніми даними, залізничний склад із балістичними ракетами КНДР "
+        "знищили за 6 тисяч км від України.",
+        M,
+    )
+    assert r.status == "destroyed"
+    assert r.reportage and not r.matched
+
+
+def test_reportage_marker_does_not_touch_a_localized_callout():
+    # Both real reportage-marked sightings in the corpus name a raion — the
+    # no-district gate is what keeps first-hand callouts alive.
+    r = parse_message("Гатне повідомляють про приліт", M)
+    assert not r.reportage and r.matched and r.districts
+    r = parse_message(
+        "🔴Кияни та жителі області будьте уважні! У районі Ворзеля, Ірпеня та Бучі "
+        "зафіксовано ворожий розвідувальний БпЛА. За попередніми даними, ціль "
+        "рухається у напрямку Києва.",
+        M,
+    )
+    assert not r.reportage and r.matched and r.districts
+
+
+def test_reportage_gate_leaves_a_real_minus_alone():
+    # A spotter's own stand-down carries no reportage marker and must still
+    # close its track, however long the message is.
+    for txt in ["Мінус", "Тут мінус. Фіксується 1х в район Чорнобиля з Чернігівщини.",
+                "Мінус останній. Локацяйно чисто. Але до відбою увага, їх було "
+                "більше, ніж 4х загалом, йшли низько дуже по Дніпру."]:
+        r = parse_message(txt, M)
+        assert r.status == "destroyed" and not r.reportage, txt
+
+
+def test_analytic_past_frame_does_not_raise_a_city_alert():
+    # 2026-08-15 raw 6145: analysis of an EARLIER attack. "на київ" inside the
+    # past clause "атаки, що була на Київ" raised a live city-wide ballistic
+    # threat at 23:09 with nothing in the sky.
+    r = parse_message(
+        "Висновок ще в тому, що рф економить «Іскандери-М», а використовує "
+        "союзницькі «KN-23», а також попередньої атаки, що була на Київ, ворог "
+        "також в основному застосував ракети ЗРК.",
+        M,
+    )
+    assert r.summary
+    assert not r.citywide and not r.matched
+
+
+def test_past_passive_city_attack_is_a_summary_not_a_live_notice():
+    # 2026-08-15 raw 6143: rules found no district, so it reached the LLM, which
+    # read it as citywide and rescued it into a LIVE citywide notice. As a
+    # summary it stays info-only AND should_fallback stops paying for the call.
+    from app.pipeline.ingest.resolve import should_fallback
+
+    r = parse_message("Місто було атаковане після атаки БПЛА, зокрема реактивними.", M)
+    assert r.summary and not r.citywide and not r.matched
+    assert not should_fallback(r)
+    # Present-tense city callouts must still raise the live alert.
+    assert parse_message("Ціль на місто!", M).citywide
+
+
+def test_koncha_zaspa_matches_the_unhyphenated_spelling():
+    # 2026-08-16 raw 6278/6237: the entry was keyed on the hyphenated stem only,
+    # and _stem() strips spaces, so a multiword alias could never match spaced
+    # text. Both spellings must resolve to the same place.
+    for txt in ["Конча-Заспа шахед", "Конча Заспа", "Конча заспа",
+                "1х реактив повз Конча-Заспа у напрямку Києва."]:
+        assert BY_EN["KonchaZaspa"] in {h.district_id for h in parse_message(txt, M).districts}, txt
+    # Bare "Заспа" stays out (its stem collides with заспокоїтись).
+    assert not parse_message("Заспокоїтись треба, все тихо", M).districts
+
+
+def test_northern_approach_gazetteer_gaps():
+    # 2026-08-17 feed gaps on the Belarus->exclusion-zone corridor.
+    assert BY_EN["Strakholissia"] in {
+        h.district_id for h in parse_message("Страхолісся два кружляють", M).districts}
+    for txt in ["2 в ЧЗВ", "З Білорусі на ЧЗВ", "Їх три, летять на ЧЗВ",
+                "через ЧЗВ пара на захід йде",
+                "Тут мінус. Фіксується 1х в район Чорнобиля з Чернігівщини."]:
+        assert BY_EN["ChornobylZone"] in {
+            h.district_id for h in parse_message(txt, M).districts}, txt
+
+
+def test_short_whole_word_alias_cannot_match_inside_a_word():
+    # "чзв" is below the 4-char stem floor and only matches as a whole word, so
+    # it can never fire on a longer token the way a stem would.
+    assert not parse_message("чзвабра кадабра", M).districts
+    assert not parse_message("Ачзв", M).districts

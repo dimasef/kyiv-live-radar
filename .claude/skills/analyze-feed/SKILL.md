@@ -130,3 +130,9 @@ self-explanatory without a DB session; `suppressed_by`, per-event district,
 the `parsed` snapshot, `ingested_at` and `reply_parent_raw_id` were all added
 because an analysis stalled without them. Say what you had to reconstruct by
 hand and what field would have saved it.
+
+Known open gap: **which LLM path paid for a call is not recorded.** The report
+infers it from `suppressed_by` and leaves the event/notice rows undetermined (see
+the LLM-spend section of the taxonomy). The field that would close it is a flag
+set where `triage._process_job` already knows the answer — `usage is not None`
+means triage made the call, otherwise it re-used the inline verdict.

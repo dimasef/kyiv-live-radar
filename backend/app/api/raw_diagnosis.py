@@ -26,6 +26,7 @@ _SUPPRESSION_LABELS: list[tuple[str, str]] = [
     ("negated", "заперечення"),
     ("siren_only", "лише сирена"),
     ("political_quote", "цитата/політика"),
+    ("reportage", "переказ новини"),
     ("day_recap", "денний підсумок"),
     ("lost_signal", "втрата сигналу"),
     ("summary", "підсумок атаки"),

@@ -58,6 +58,7 @@ from .vocab import (
     _PULSE_WORD,
     _QUOTE_ATTRIBUTION_RE,
     _RECON_ANALYSIS,
+    _REPORTAGE,
     _RETROSPECTIVE,
     _SHAHED,
     _SIREN_WORD,
@@ -155,6 +156,10 @@ class ParseResult:
     # inheritance, which it otherwise poisons ("реактивні бджілки" -> jet_drone).
     chatter: bool = field(default=False)
     political_quote: bool = field(default=False)
+    # Relayed news of a destruction elsewhere ("Повідомляють про знищення в
+    # Сибіру…") — suppressed so it can't adopt an open track and close it as
+    # «знищено». Only ever set on a destroyed message with no district of its own.
+    reportage: bool = field(default=False)
     lost_signal: bool = field(default=False)
     # A city-level threat with no raion of its own ("Ціль на місто!") — ingest
     # raises a single city-wide alert instead of a per-district track.
@@ -374,6 +379,22 @@ def _negated(norm: str, status: str, impact: bool) -> bool:
     )
 
 
+def _reportage(norm: str, districts, status: str) -> bool:
+    """Relayed news of a destruction that happened somewhere we don't track
+    ("Повідомляють про знищення в Сибіру ешелону...") — not a stand-down for any
+    of OUR tracks. Every other suppressor is powerless here: a "destroyed"
+    message deliberately bypasses promo/negated/siren (a real «мінус» must always
+    be able to close a track), and with no district of its own the destroyed
+    handler adopts whichever track is open — closing a live one as «знищено»
+    (T3332, 2026-08-14).
+
+    Gated on no-district AND destroyed, the two things that make a relayed item
+    dangerous rather than merely noisy. A first-hand callout always localizes, so
+    the two real reportage-marked sightings in the corpus ("Гатне повідомляють
+    про приліт") keep their districts and pass through untouched."""
+    return any(k in norm for k in _REPORTAGE) and not districts and status == "destroyed"
+
+
 def _siren_only(target_type: str, status: str, districts, norm: str) -> bool:
     """Siren-status echo: names a district, mentions "тривога", but states no
     target type at all — the technical "alarm is on here" notice, not a
@@ -564,7 +585,7 @@ def _origin_present(origin: Origin | None, status: str, target_type: str, norm: 
 
 def _matched(districts, citywide: bool, status: str, aftermath: bool, negated: bool,
              siren_only: bool, political_quote: bool, ad_action: bool, promo: bool,
-             civic_notice: bool, eppo_marks: bool) -> bool:
+             civic_notice: bool, eppo_marks: bool, reportage: bool) -> bool:
     """No district and no actionable status -> nothing structured to record."""
     return (
         (bool(districts) or citywide or status in ("clear", "destroyed"))
@@ -576,6 +597,7 @@ def _matched(districts, citywide: bool, status: str, aftermath: bool, negated: b
         and not promo
         and not eppo_marks
         and not civic_notice
+        and not reportage
     )
 
 
@@ -605,6 +627,7 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
     if day_recap:
         conf = min(conf, 0.35)
     political_quote = _political_quote(target_type, status, districts, norm)
+    reportage = _reportage(norm, districts, status)
     lost_signal = _lost_signal(norm, districts, status)
     summary = _summary(norm, target_type, bool(districts))
     promo = _promo(norm, status, impact)
@@ -623,7 +646,8 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
     # origin still feeds a secondary axis but that branch handles the track/alert.
     directional = origin_present and not districts and not citywide
     matched = _matched(districts, citywide, status, aftermath, negated, siren_only,
-                       political_quote, ad_action, promo, civic_notice, eppo_marks)
+                       political_quote, ad_action, promo, civic_notice, eppo_marks,
+                       reportage)
 
     if (aftermath or negated or siren_only or political_quote or ad_action or promo
             or civic_notice or eppo_marks):
@@ -653,6 +677,7 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
         day_recap=day_recap,
         chatter=chatter,
         political_quote=political_quote,
+        reportage=reportage,
         lost_signal=lost_signal,
         clear_scope=clear_scope,
         citywide=citywide,

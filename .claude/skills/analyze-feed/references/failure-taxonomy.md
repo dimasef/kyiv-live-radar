@@ -99,7 +99,22 @@ Two independent paths, and a fix aimed at the wrong one changes nothing:
 - **async triage** — `pipeline/triage.py::should_triage`, picks up the
   *suppressed* classes (negated, aftermath, day_recap…) for a second look.
 
-A row with a `triage_state` came through triage. The report splits them.
+**A `triage_state` does NOT mean the call came through triage** — that was wrong
+and cost one analysis a completely inverted split (reported 0 inline / 23 triage
+where the truth was ~15 / 8). `should_triage` deliberately returns True when an
+inline verdict already exists ("inline call ran, didn't localize — reuse it"),
+and `_process_job` then stamps `triage_state`/`triage_action` on that row while
+leaving the cost fields the inline call wrote. Both paths end up stamped.
+
+What the export actually supports: `suppressed_by` is decisive at both ends — a
+triage-only suppressor flag (negated/aftermath/civic_notice/eppo_marks/
+siren_only/political_quote/day_recap) means triage paid, and `no_district`/
+`not_threat` means the inline fallback did, since those are the no-flag
+fall-through labels that `should_triage` won't enqueue on its own. The gap is
+rows that produced an event or a notice: `raw_query.py` blanks their
+`suppressed_by`, and nothing else records the path, so the report calls those
+**undetermined** rather than guessing. Settle one by re-running
+`should_fallback` on its text.
 
 Each call ships the whole gazetteer enum (~3.5k input tokens, ~$0.004), so the
 question for a wasted call is always "could a deterministic rule have known

@@ -50,6 +50,12 @@ QUERIES: list[tuple[str, list[str]]] = [
     ("Kalynivka Kyiv Oblast", ["Калинівка, Києво-Святошинський район, Київська область"]),
     ("Novosilky", ["Новосілки, Києво-Святошинський район, Київська область"]),
     ("Kyiv Reservoir", ["Київське водосховище, Вишгородський район, Київська область"]),
+    # G. Northern approach — 2026-08-17 feed gaps (drones enter Kyiv oblast via
+    # the exclusion zone from Belarus; every "ЧЗВ"/"Страхолісся" mention was
+    # lost as "не про загрозу").
+    ("Strakholissia", ["Страхолісся, Вишгородський район, Київська область"]),
+    ("Chornobyl Zone", ["Чорнобиль, Київська область",
+                        "Чорнобильська зона відчуження"]),
 ]
 
 

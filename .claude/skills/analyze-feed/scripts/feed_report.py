@@ -80,21 +80,75 @@ def section_outcomes(messages: list[dict]) -> None:
         print(f"  {name:<28} {n:4} msgs   surfaced {c['surfaced']:3} ({_pct(c['surfaced'], n)})")
 
 
+# Suppression flags that ONLY the async triage engine picks up
+# (triage.py::should_triage's `suppressed` set). resolve.py::should_fallback
+# returns False on every one of them, so an LLM call on such a row was triage's.
+_TRIAGE_ONLY_FLAGS = frozenset({
+    "aftermath", "negated", "civic_notice", "eppo_marks", "siren_only",
+    "political_quote", "day_recap",
+})
+# The two labels diagnose() falls through to when NO flag fired — exactly the
+# shape should_fallback requires, and a shape should_triage will not enqueue on
+# its own. So an LLM call on such a row was the inline fallback's.
+_INLINE_ONLY_FLAGS = frozenset({"no_district", "not_threat"})
+
+
+def _llm_path(m: dict) -> str:
+    """Which path paid for this row's LLM call: 'inline', 'triage' or '?'.
+
+    The export does NOT record this directly, and it cannot be inferred from
+    `triage_state`: should_triage deliberately re-uses an inline verdict
+    ("inline call ran, didn't localize — reuse it") and _process_job then stamps
+    triage_state/triage_action on that row too, while leaving the cost fields
+    the inline call already wrote. So `triage_state` is set on BOTH paths.
+
+    What survives in the export is `suppressed_by`, which is decisive at both
+    ends — except that raw_query.py blanks it whenever the row produced an event
+    or a notice, and those rows are exactly the ambiguous ones."""
+    flag = m.get("suppressed_by")
+    if flag in _TRIAGE_ONLY_FLAGS:
+        return "triage"
+    if flag in _INLINE_ONLY_FLAGS:
+        return "inline"
+    return "?"
+
+
 def section_llm(messages: list[dict]) -> None:
-    """Which of the two LLM paths spent money, and what it bought.
+    """What the LLM spend bought, and which path spent it.
 
     The distinction matters: the inline fallback (resolve.py::should_fallback)
     and the async triage engine (triage.py::should_triage) select DIFFERENT
-    message classes, so a fix aimed at the wrong one changes nothing. A row with
-    a triage_state came through triage."""
+    message classes, so a fix aimed at the wrong one changes nothing."""
     called = [m for m in messages if m.get("llm_attempted")]
     if not called:
         print("\n## LLM\n(no calls in this window)")
         return
     cost = sum(m.get("llm_cost_usd") or 0.0 for m in called)
-    inline = [m for m in called if not m.get("triage_state")]
     print(f"\n## LLM — {len(called)} call(s) of {len(messages)} msgs, ${cost:.4f} total")
-    print(f"  inline fallback: {len(inline)}   via triage: {len(called) - len(inline)}")
+
+    paths = Counter(_llm_path(m) for m in called)
+    print(f"  inline fallback: {paths['inline']}   via triage: {paths['triage']}"
+          f"   undetermined: {paths['?']}")
+    if paths["?"]:
+        if all(m.get("suppressed_by") is None for m in messages):
+            print("  (undetermined for ALL of them: this export predates `suppressed_by`,")
+            print("   the only field the path can be inferred from.)")
+        else:
+            print("  (undetermined = the row produced an event/notice, so the export blanks")
+            print("   its `suppressed_by`; the path is recorded nowhere else. Re-run")
+            print("   resolve.py::should_fallback on the text to settle one.)")
+
+    actions = Counter(m.get("triage_action") or "-" for m in called)
+    if set(actions) != {"-"}:
+        _table("Triage verdict applied", actions, len(called))
+        confirmed = actions.get("suppress_confirmed", 0)
+        if confirmed:
+            spent = sum(m.get("llm_cost_usd") or 0.0 for m in called
+                        if m.get("triage_action") == "suppress_confirmed")
+            print(f"  {confirmed} call(s) (${spent:.4f}) only AGREED with a suppression the"
+                  " rules had already made.")
+            print("  -> the rescue rate is what justifies triage; compare it against this.")
+
     verdicts = Counter((m.get("llm_response") or {}).get("category", "?") for m in called)
     _table("LLM category verdicts", verdicts, len(called))
     wasted = [m for m in called
@@ -103,7 +157,7 @@ def section_llm(messages: list[dict]) -> None:
     if wasted:
         spent = sum(m.get("llm_cost_usd") or 0.0 for m in wasted)
         print(f"\n  {len(wasted)} call(s) returned nothing usable (${spent:.4f}). Ids: "
-              + ", ".join(str(m["id"]) for m in wasted))
+              + ", ".join(f"{m['id']}[{_llm_path(m)}]" for m in wasted))
         print("  -> for each, ask whether a deterministic rule could have known that")
         print("     for free (an ancestor already suppressed, an obvious meta-post).")
 

@@ -293,11 +293,17 @@ DISTRICTS: list[dict] = [
     # "без району" or "не про загрозу"). Coords via geocode_localities.py
     # (Nominatim) unless noted.
     {"name_uk": "Ходосівка", "name_en": "Khodosivka", "lat": 50.2728, "lon": 30.5221, "aliases": []},
-    # Конча-Заспа: keyed on the HYPHENATED compound only (stem "конча-засп").
-    # Bare "Заспа" is deliberately NOT an alias — its stem "засп" collides with
-    # "заспокойтесь/заспокоїти" (calm down), common here; and a different village
-    # "Заспа" ~45 km away breaks Nominatim (see the omitted-Заспа note above).
-    {"name_uk": "Конча-Заспа", "name_en": "KonchaZaspa", "lat": 50.3007, "lon": 30.5765, "aliases": []},
+    # Конча-Заспа: the hyphenated stem ("конча-засп") only matched the hyphenated
+    # spelling, and _stem() strips spaces, so a multiword alias can never match
+    # spaced text — spotters write "Конча Заспа" too and both forms were lost
+    # (2026-08-16 raw 6278/6237). Fixed with the "конча" alias (stem "конч"),
+    # which covers every spelling: 4 corpus hits, all this place, zero collisions
+    # in 4243 unique messages.
+    # Bare "Заспа" is still NOT an alias — its stem "засп" is corpus-clean at
+    # 14/15 but the 15th is "заспокоїтись", and a different village "Заспа"
+    # ~45 km away breaks Nominatim (see the omitted-Заспа note above).
+    {"name_uk": "Конча-Заспа", "name_en": "KonchaZaspa", "lat": 50.3007, "lon": 30.5765,
+     "aliases": ["конча"]},
     # "Рогозів" stem "рогоз" also matches the plant рогоза (cattail); the FP
     # sweep of the real corpus found zero such uses — revisit if that changes
     # (same treatment as Щасливе).
@@ -344,6 +350,26 @@ DISTRICTS: list[dict] = [
     # right before the token), NOT by dropping the alias.
     {"name_uk": "Район моря", "name_en": "KyivSeaApproach", "lat": 50.66, "lon": 30.52,
      "aliases": ["море", "моря", "морі"]},
+
+    # --- Far-northern approach: drones from Belarus enter the oblast over the
+    # exclusion zone, so these are the first Kyiv-relevant fix on that corridor
+    # (2026-08-17 feed gaps — every mention was lost as "не про загрозу").
+    # Coords via geocode_localities.py (Nominatim).
+    # "ЧЗВ" is how spotters always write it (8 real messages: "2 в ЧЗВ", "Їх три,
+    # летять на ЧЗВ", "через ЧЗВ пара на захід йде"). It is 3 chars, BELOW the
+    # matcher's stem floor, so it needs vocab._WHOLE_WORD_ALIASES to match at all
+    # — as a whole word, never inside another word. "чорнобиль" carries the
+    # spelled-out form ("в район Чорнобиля", "вздовж Чорнобильскої зони"); all 3
+    # of its corpus hits are geographic. Bare "зона" is NOT an alias (it is a
+    # common noun); the multiword name is a label only, since _stem() strips
+    # spaces (same convention as "Київське водосховище").
+    {"name_uk": "Чорнобильська зона", "name_en": "ChornobylZone", "lat": 51.2705, "lon": 30.2196,
+     "aliases": ["чзв", "чорнобиль"]},
+    # Страхолісся (Іванківська громада) — on the same corridor between Іванків
+    # and the reservoir. Stem "страхолісс" is 10 chars and distinctive: 1 corpus
+    # hit, the sighting itself.
+    {"name_uk": "Страхолісся", "name_en": "Strakholissia", "lat": 51.0755, "lon": 30.395,
+     "aliases": []},
 
     # Sentinel "district" for CITY-WIDE threats — a strike aimed at the city as
     # a whole ("ціль на місто", "балістика на Київ") that no spotter localizes
