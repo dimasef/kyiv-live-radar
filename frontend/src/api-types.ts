@@ -922,6 +922,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/journal/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Journal Stats
+         * @description Across-days statistics for the journal's «Статистика» tab: period totals,
+         *     hour-of-day distribution of alerts and targets, per-day rows for the trend
+         *     chart, alert-duration histogram and the most-affected districts.
+         *
+         *     Deliberately a separate route from /journal/days: 'all' is uncapped, and the
+         *     payload is a different aggregation shape (across days, not per day).
+         */
+        get: operations["journal_stats_journal_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/contact_prefs": {
         parameters: {
             query?: never;
@@ -1747,6 +1772,47 @@ export interface components {
             name_uk: string;
         };
         /**
+         * DistrictStatOut
+         * @description How often one district/approach town saw targets. `days` is the honest
+         *     ranking key — `events` is raw sighting volume and rises with spotter
+         *     chatter.
+         */
+        DistrictStatOut: {
+            /**
+             * Days
+             * @default 0
+             */
+            days: number;
+            /** District Id */
+            district_id: number;
+            /**
+             * Events
+             * @default 0
+             */
+            events: number;
+            /**
+             * Impacts
+             * @default 0
+             */
+            impacts: number;
+        };
+        /**
+         * DurationBucketOut
+         * @description One bin of the alert-duration histogram; only complete windows counted.
+         */
+        DurationBucketOut: {
+            /**
+             * Bucket
+             * @enum {string}
+             */
+            bucket: "lt30" | "30to60" | "1to2h" | "2to4h" | "gt4h";
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+        };
+        /**
          * EventDistrictIn
          * @description PATCH /admin/events/{id} — admin fixes a mislocated sighting.
          */
@@ -1923,6 +1989,29 @@ export interface components {
              * @default 3
              */
             radius_km: number;
+        };
+        /**
+         * HourBucketOut
+         * @description One hour of the Kyiv-local day, aggregated over the whole period.
+         */
+        HourBucketOut: {
+            /**
+             * Alert Minutes
+             * @default 0
+             */
+            alert_minutes: number;
+            /**
+             * Alert Share
+             * @default 0
+             */
+            alert_share: number;
+            /** Hour */
+            hour: number;
+            /**
+             * Target Count
+             * @default 0
+             */
+            target_count: number;
         };
         /**
          * IncidentOut
@@ -2109,6 +2198,79 @@ export interface components {
             from_date: string;
             /** To Date */
             to_date: string;
+        };
+        /**
+         * JournalStatsOut
+         * @description GET /journal/stats — one period, aggregated across its days.
+         *
+         *     `alert_from_date`/`alert_days_observed` exist because the official alert feed
+         *     was added after the spotter feed: every alert-derived rate is normalized on
+         *     that narrower window, and the UI states it.
+         */
+        JournalStatsOut: {
+            /**
+             * Alert Days Observed
+             * @default 0
+             */
+            alert_days_observed: number;
+            /**
+             * Alert Durations
+             * @default []
+             */
+            alert_durations: components["schemas"]["DurationBucketOut"][];
+            /** Alert From Date */
+            alert_from_date?: string | null;
+            /**
+             * Days
+             * @default []
+             */
+            days: components["schemas"]["StatsDayOut"][];
+            /** Days Observed */
+            days_observed: number;
+            /**
+             * Districts
+             * @default []
+             */
+            districts: components["schemas"]["DistrictStatOut"][];
+            /** From Date */
+            from_date: string;
+            /**
+             * Hours
+             * @default []
+             */
+            hours: components["schemas"]["HourBucketOut"][];
+            /**
+             * Mean Alert Seconds
+             * @default 0
+             */
+            mean_alert_seconds: number;
+            /**
+             * Median Alert Seconds
+             * @default 0
+             */
+            median_alert_seconds: number;
+            /**
+             * Period
+             * @enum {string}
+             */
+            period: "30d" | "90d" | "all";
+            /** To Date */
+            to_date: string;
+            totals: components["schemas"]["StatsTotalsOut"];
+            /**
+             * Type Days
+             * @default {}
+             */
+            type_days: {
+                [key: string]: number;
+            };
+            /**
+             * Type Totals
+             * @default {}
+             */
+            type_totals: {
+                [key: string]: number;
+            };
         };
         /**
          * LoginIn
@@ -2732,6 +2894,115 @@ export interface components {
             role?: ("spotter" | "alert") | null;
             /** Trust Weight */
             trust_weight?: number | null;
+        };
+        /**
+         * StatsDayOut
+         * @description One day, light: only what the period charts need. Deliberately NOT
+         *     `JournalDayOut` — dropping alert_windows/district_ids keeps an "all time"
+         *     response small, and the client groups these rows into weeks itself.
+         */
+        StatsDayOut: {
+            /**
+             * Alert Count
+             * @default 0
+             */
+            alert_count: number;
+            /**
+             * Alert Incomplete
+             * @default false
+             */
+            alert_incomplete: boolean;
+            /**
+             * Alert Seconds
+             * @default 0
+             */
+            alert_seconds: number;
+            /**
+             * Attack Count
+             * @default 0
+             */
+            attack_count: number;
+            /** Date */
+            date: string;
+            /**
+             * Impact Count
+             * @default 0
+             */
+            impact_count: number;
+            /**
+             * Target Count
+             * @default 0
+             */
+            target_count: number;
+            /**
+             * Track Count
+             * @default 0
+             */
+            track_count: number;
+            /**
+             * Type Counts
+             * @default {}
+             */
+            type_counts: {
+                [key: string]: number;
+            };
+        };
+        /** StatsTotalsOut */
+        StatsTotalsOut: {
+            /**
+             * Active Days
+             * @default 0
+             */
+            active_days: number;
+            /**
+             * Alert Incomplete
+             * @default false
+             */
+            alert_incomplete: boolean;
+            /**
+             * Alert Seconds
+             * @default 0
+             */
+            alert_seconds: number;
+            /**
+             * Alerts
+             * @default 0
+             */
+            alerts: number;
+            /**
+             * Attacks
+             * @default 0
+             */
+            attacks: number;
+            /**
+             * Impacts
+             * @default 0
+             */
+            impacts: number;
+            /**
+             * Longest Alert Seconds
+             * @default 0
+             */
+            longest_alert_seconds: number;
+            /**
+             * Quiet Streak Days
+             * @default 0
+             */
+            quiet_streak_days: number;
+            /** Quiet Streak From */
+            quiet_streak_from?: string | null;
+            /** Quiet Streak To */
+            quiet_streak_to?: string | null;
+            /**
+             * Targets
+             * @default 0
+             */
+            targets: number;
+            /**
+             * Tracks
+             * @default 0
+             */
+            tracks: number;
         };
         /**
          * TelegramAuthIn
@@ -4624,6 +4895,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JournalOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    journal_stats_journal_stats_get: {
+        parameters: {
+            query?: {
+                /** @description One of 30d, 90d, all */
+                period?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JournalStatsOut"];
                 };
             };
             /** @description Validation Error */

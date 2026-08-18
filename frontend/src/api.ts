@@ -1,11 +1,13 @@
 import type {
   Alert,
+  AnalyticsPeriod,
   District,
   DistrictBoundary,
   FeedEntry,
   HealthStatus,
   Incident,
   Journal,
+  JournalStats,
   Notice,
   RawCount,
   RawExportResponse,
@@ -117,6 +119,10 @@ export const fetchRecentEvents = (limit = 60) =>
 // are Kyiv-local YYYY-MM-DD; the response spans every day in [from, to].
 export const fetchJournal = (from: string, to: string) =>
   get<Journal>(`/journal/days?from=${from}&to=${to}`)
+// Across-days aggregation for the journal's statistics tab. Separate route
+// because 'all' is uncapped, unlike the 92-day-limited /journal/days.
+export const fetchJournalStats = (period: AnalyticsPeriod) =>
+  get<JournalStats>(`/journal/stats?period=${period}`)
 // Full event history for one track (oldest -> newest), including closed/
 // destroyed ones — used to draw a track on the map for a feed item click,
 // independent of the live `threats` map (which evicts closed tracks after

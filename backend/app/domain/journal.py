@@ -15,20 +15,11 @@ weighting (single place to tweak) and derives it from these raw fields.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from ..models import TARGET_TYPES
-from ..timeutil import naive
-
-KYIV = ZoneInfo("Europe/Kyiv")
-
-
-def _kyiv_date(dt: datetime, tz: ZoneInfo) -> date:
-    """Naive-UTC (or aware) datetime -> its calendar date in `tz`."""
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=UTC)
-    return dt.astimezone(tz).date()
+from ..timeutil import KYIV, kyiv_date, naive
 
 
 @dataclass
@@ -86,7 +77,7 @@ def build_journal(
         d += timedelta(days=1)
 
     def bucket(dt: datetime) -> DayStat | None:
-        return days.get(_kyiv_date(dt, tz))
+        return days.get(kyiv_date(dt, tz))
 
     def impacts_hidden(day: date) -> bool:
         return hide_impacts_from is not None and day >= hide_impacts_from
@@ -99,7 +90,7 @@ def build_journal(
             s.attack_count += 1
 
     for th in threats:
-        day = _kyiv_date(th.created_at, tz)
+        day = kyiv_date(th.created_at, tz)
         s = days.get(day)
         if s is None:
             continue
@@ -124,7 +115,7 @@ def build_journal(
     for event_time, district_id, is_impact in district_events:
         if district_id == sentinel_district_id:
             continue
-        key = _kyiv_date(event_time, tz)
+        key = kyiv_date(event_time, tz)
         if key not in days:
             continue
         if is_impact and impacts_hidden(key):

@@ -1,12 +1,32 @@
 import type { JournalDay, TargetType } from '@/types'
 
-const TYPE_ORDER: TargetType[] = ['ballistic', 'missile', 'jet_drone', 'shahed', 'unknown']
+/** Segment order for every type-mix bar/stack (roughly severity-descending).
+ * `missile` sits between `jet_drone` and `shahed` on purpose: the palette is
+ * fixed by the map legend (TYPE_COLORS), and orange↔yellow next to each other
+ * fails the adjacent-pair separation check (normal-vision ΔE 14.6, deutan 10.6).
+ * The white `missile` step between them lifts the worst adjacent pair to ΔE 20.9
+ * / 20.4 without recoloring anything. Verified with the dataviz palette
+ * validator against the panel surface #0d151f. */
+export const TYPE_ORDER: TargetType[] = [
+  'ballistic',
+  'jet_drone',
+  'missile',
+  'shahed',
+  'unknown',
+]
+
+/** The fields a day needs to be scored — a structural subset, so both the
+ * calendar's JournalDay and the statistics tab's lighter StatsDay qualify. */
+export type ScorableDay = Pick<
+  JournalDay,
+  'target_count' | 'impact_count' | 'alert_seconds' | 'type_counts'
+>
 
 /** Composite "how heavy was this day" score — the intensity encoding for the
  * calendar. Weights (owned here, the single place to tune; the backend returns
  * only raw counts): each inbound target counts 1, a confirmed strike 3 extra, a
  * ballistic target 5 extra, and each hour under city alert adds 1. */
-export function intensityScore(d: JournalDay): number {
+export function intensityScore(d: ScorableDay): number {
   const ballistic = d.type_counts.ballistic ?? 0
   const alertHours = d.alert_seconds / 3600
   return d.target_count + d.impact_count * 3 + ballistic * 5 + alertHours
@@ -36,7 +56,7 @@ const BUCKET_THRESHOLDS = [25, 80, 200] as const
  * city air-raid alert renders as a PLAIN day (bucket 0, no fill), whatever the
  * spotter volume — no siren means it was never a real threat to Kyiv. Only
  * alert days get onto the yellow→red scale. */
-export function intensityBucket(d: JournalDay): IntensityBucket {
+export function intensityBucket(d: ScorableDay & Pick<JournalDay, 'alert_count'>): IntensityBucket {
   if (d.alert_count === 0) return 0
   const score = intensityScore(d)
   if (score <= BUCKET_THRESHOLDS[0]) return 1

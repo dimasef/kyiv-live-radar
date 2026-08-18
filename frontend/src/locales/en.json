@@ -346,7 +346,51 @@
     "districts": "Districts",
     "attackWaves": "Attack waves",
     "showAll": "+{{n}} more",
-    "collapse": "Collapse"
+    "collapse": "Collapse",
+    "tabs": {
+      "calendar": "Calendar",
+      "stats": "Statistics"
+    },
+    "stats": {
+      "subtitle": "Period at a glance: when alerts happen, what flies and where",
+      "period": "Period",
+      "periods": {
+        "30d": "30 days",
+        "90d": "90 days",
+        "all": "All time"
+      },
+      "underAlert": "that is {{percent}} of the time under alert",
+      "alertCount": "Alerts",
+      "activeDays": "Active days",
+      "longestAlert": "Longest alert:",
+      "quietStreak": "longest quiet run — {{n}} days",
+      "hourAlertShare": "Chance of an alert by hour",
+      "hourTargets": "Targets by hour",
+      "hourNote": "Hours are Kyiv time. The top chart is the share of that hour spent under alert; the bottom one is how many targets were first sighted in it.",
+      "alertWindowNote": "Alerts are counted from {{from}} — when the official alert channel was added, so earlier days don't dilute the percentages.",
+      "trend": "Target mix over time",
+      "perDay": "per day",
+      "perWeek": "per week",
+      "type": "Type",
+      "share": "Share",
+      "onDays": "Days",
+      "durations": "Alert duration",
+      "bucket": {
+        "lt30": "<30m",
+        "30to60": "30–60m",
+        "1to2h": "1–2h",
+        "2to4h": "2–4h",
+        "gt4h": ">4h"
+      },
+      "median": "Median:",
+      "mean": "mean:",
+      "topDistricts": "Most often under threat",
+      "dayCount": "{{count}} days",
+      "districtNote": "Ranked by the number of days a target was seen over the district. Dimmed: the raw number of reports, which tracks how busy the spotters were that night.",
+      "heaviestDays": "Heaviest days",
+      "dayLine": "{{targets}} targets · {{alert}} of alerts",
+      "noData": "No data for this period"
+    }
   },
   "banner": {
     "expand": "Expand",

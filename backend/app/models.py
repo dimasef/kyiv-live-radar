@@ -139,6 +139,15 @@ CORRECTION_ORIGINS = ("dismiss", "retype_threat", "move_event")
 # User-filed bug reports (app/api/public/bugs.py -> the admin console tab).
 BugReportStatus = Literal["new", "in_progress", "closed"]
 BUG_REPORT_STATUSES: tuple[BugReportStatus, ...] = get_args(BugReportStatus)
+# Window the journal's statistics tab aggregates over (GET /journal/stats).
+# 'all' reaches back to the first day with any data — deliberately uncapped,
+# which is why it's a separate route from the 92-day-capped /journal/days.
+AnalyticsPeriod = Literal["30d", "90d", "all"]
+ANALYTICS_PERIODS: tuple[AnalyticsPeriod, ...] = get_args(AnalyticsPeriod)
+# Fixed histogram bins for city air-raid alert duration, in minutes:
+# [0,30) [30,60) [60,120) [120,240) [240,∞).
+AlertDurationBucket = Literal["lt30", "30to60", "1to2h", "2to4h", "gt4h"]
+ALERT_DURATION_BUCKETS: tuple[AlertDurationBucket, ...] = get_args(AlertDurationBucket)
 
 
 class Source(Base):

@@ -19,6 +19,14 @@ from .admin import (
     ReprocessSummaryOut,
     ThreatTypeIn,
 )
+from .analytics import (
+    DistrictStatOut,
+    DurationBucketOut,
+    HourBucketOut,
+    JournalStatsOut,
+    StatsDayOut,
+    StatsTotalsOut,
+)
 from .auth import (
     AccessTokenOut,
     GoogleAuthIn,
@@ -138,6 +146,8 @@ __all__ = [
     "CoverageGapOut",
     "DismissedOut",
     "DistrictOut",
+    "DistrictStatOut",
+    "DurationBucketOut",
     "EventDistrictIn",
     "FeedEntryOut",
     "FriendActionOut",
@@ -149,6 +159,7 @@ __all__ = [
     "GamificationPrefOut",
     "GoogleAuthIn",
     "HomePointOut",
+    "HourBucketOut",
     "ContactPrefIn",
     "ContactPrefsOut",
     "HomeIn",
@@ -158,6 +169,7 @@ __all__ = [
     "JournalAlertWindowOut",
     "JournalDayOut",
     "JournalOut",
+    "JournalStatsOut",
     "LoginIn",
     "MeUpdateIn",
     "MyHomeOut",
@@ -191,6 +203,8 @@ __all__ = [
     "SourceOut",
     "SourceStatsOut",
     "SourceUpdateIn",
+    "StatsDayOut",
+    "StatsTotalsOut",
     "TelegramAuthIn",
     "ThreatAnalysisStateOut",
     "ThreatEventOut",

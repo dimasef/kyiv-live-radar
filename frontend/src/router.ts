@@ -22,8 +22,29 @@ export function useRoute(): string {
 // The radar map — the app's default/home route.
 export const MAP_PATH = '/'
 export const CHANGELOG_PATH = '/change-log'
-// Operator-facing calendar of past aerial-threat activity (linked from Settings).
+// Operator-facing history of past aerial-threat activity (linked from Settings).
 export const THREAT_JOURNAL_PATH = '/journal'
+
+// Journal tabs, each its own route (/journal/<tab>) so a reload — or a shared
+// link — keeps the open tab. 'calendar' is the bare /journal route.
+export const JOURNAL_TABS = ['calendar', 'stats'] as const
+export type JournalTab = (typeof JOURNAL_TABS)[number]
+
+/** True for any journal route: /journal or /journal/<tab>. */
+export function isJournalRoute(path: string): boolean {
+  return path === THREAT_JOURNAL_PATH || path.startsWith(`${THREAT_JOURNAL_PATH}/`)
+}
+
+/** The URL for a given journal tab. 'calendar' is the bare /journal. */
+export function journalTabPath(tab: JournalTab): string {
+  return tab === 'calendar' ? THREAT_JOURNAL_PATH : `${THREAT_JOURNAL_PATH}/${tab}`
+}
+
+/** The journal tab a path selects; unknown sub-paths fall back to 'calendar'. */
+export function journalTabFromPath(path: string): JournalTab {
+  const seg = path.slice(THREAT_JOURNAL_PATH.length + 1)
+  return (JOURNAL_TABS as readonly string[]).includes(seg) ? (seg as JournalTab) : 'calendar'
+}
 // Admin console (replaces the standalone /raw tab in the header). Hosts the
 // manual parser-override controls plus the raw-message log as tabs. Admin-only:
 // the page gates on role and every /admin/* backend endpoint 403s non-admins.

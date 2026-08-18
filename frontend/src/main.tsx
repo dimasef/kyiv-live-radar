@@ -8,7 +8,7 @@ import {
   CHANGELOG_PATH,
   isAdminRoute,
   isCollectionRoute,
-  THREAT_JOURNAL_PATH,
+  isJournalRoute,
   useRoute,
   userRouteId,
 } from './router'
@@ -53,7 +53,7 @@ function Root() {
   const page =
     route === CHANGELOG_PATH ? (
       <ChangelogPage />
-    ) : route === THREAT_JOURNAL_PATH ? (
+    ) : isJournalRoute(route) ? (
       <ThreatJournalPage />
     ) : isAdminRoute(route) ? (
       <AdminPage />

@@ -929,6 +929,61 @@
         "title": "DistrictOut",
         "type": "object"
       },
+      "DistrictStatOut": {
+        "description": "How often one district/approach town saw targets. `days` is the honest\nranking key — `events` is raw sighting volume and rises with spotter\nchatter.",
+        "properties": {
+          "days": {
+            "default": 0,
+            "title": "Days",
+            "type": "integer"
+          },
+          "district_id": {
+            "title": "District Id",
+            "type": "integer"
+          },
+          "events": {
+            "default": 0,
+            "title": "Events",
+            "type": "integer"
+          },
+          "impacts": {
+            "default": 0,
+            "title": "Impacts",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "district_id"
+        ],
+        "title": "DistrictStatOut",
+        "type": "object"
+      },
+      "DurationBucketOut": {
+        "description": "One bin of the alert-duration histogram; only complete windows counted.",
+        "properties": {
+          "bucket": {
+            "enum": [
+              "lt30",
+              "30to60",
+              "1to2h",
+              "2to4h",
+              "gt4h"
+            ],
+            "title": "Bucket",
+            "type": "string"
+          },
+          "count": {
+            "default": 0,
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bucket"
+        ],
+        "title": "DurationBucketOut",
+        "type": "object"
+      },
       "EventDistrictIn": {
         "description": "PATCH /admin/events/{id} — admin fixes a mislocated sighting.",
         "properties": {
@@ -1321,6 +1376,35 @@
         "title": "HomeZoneIn",
         "type": "object"
       },
+      "HourBucketOut": {
+        "description": "One hour of the Kyiv-local day, aggregated over the whole period.",
+        "properties": {
+          "alert_minutes": {
+            "default": 0,
+            "title": "Alert Minutes",
+            "type": "integer"
+          },
+          "alert_share": {
+            "default": 0.0,
+            "title": "Alert Share",
+            "type": "number"
+          },
+          "hour": {
+            "title": "Hour",
+            "type": "integer"
+          },
+          "target_count": {
+            "default": 0,
+            "title": "Target Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hour"
+        ],
+        "title": "HourBucketOut",
+        "type": "object"
+      },
       "IncidentOut": {
         "description": "A coordinated attack with counts aggregated from its member threats.",
         "properties": {
@@ -1599,6 +1683,118 @@
           "days"
         ],
         "title": "JournalOut",
+        "type": "object"
+      },
+      "JournalStatsOut": {
+        "description": "GET /journal/stats — one period, aggregated across its days.\n\n`alert_from_date`/`alert_days_observed` exist because the official alert feed\nwas added after the spotter feed: every alert-derived rate is normalized on\nthat narrower window, and the UI states it.",
+        "properties": {
+          "alert_days_observed": {
+            "default": 0,
+            "title": "Alert Days Observed",
+            "type": "integer"
+          },
+          "alert_durations": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/DurationBucketOut"
+            },
+            "title": "Alert Durations",
+            "type": "array"
+          },
+          "alert_from_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert From Date"
+          },
+          "days": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/StatsDayOut"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "days_observed": {
+            "title": "Days Observed",
+            "type": "integer"
+          },
+          "districts": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/DistrictStatOut"
+            },
+            "title": "Districts",
+            "type": "array"
+          },
+          "from_date": {
+            "title": "From Date",
+            "type": "string"
+          },
+          "hours": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/HourBucketOut"
+            },
+            "title": "Hours",
+            "type": "array"
+          },
+          "mean_alert_seconds": {
+            "default": 0,
+            "title": "Mean Alert Seconds",
+            "type": "integer"
+          },
+          "median_alert_seconds": {
+            "default": 0,
+            "title": "Median Alert Seconds",
+            "type": "integer"
+          },
+          "period": {
+            "enum": [
+              "30d",
+              "90d",
+              "all"
+            ],
+            "title": "Period",
+            "type": "string"
+          },
+          "to_date": {
+            "title": "To Date",
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/StatsTotalsOut"
+          },
+          "type_days": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "default": {},
+            "title": "Type Days",
+            "type": "object"
+          },
+          "type_totals": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "default": {},
+            "title": "Type Totals",
+            "type": "object"
+          }
+        },
+        "required": [
+          "period",
+          "from_date",
+          "to_date",
+          "days_observed",
+          "totals"
+        ],
+        "title": "JournalStatsOut",
         "type": "object"
       },
       "LoginIn": {
@@ -3134,6 +3330,141 @@
           }
         },
         "title": "SourceUpdateIn",
+        "type": "object"
+      },
+      "StatsDayOut": {
+        "description": "One day, light: only what the period charts need. Deliberately NOT\n`JournalDayOut` — dropping alert_windows/district_ids keeps an \"all time\"\nresponse small, and the client groups these rows into weeks itself.",
+        "properties": {
+          "alert_count": {
+            "default": 0,
+            "title": "Alert Count",
+            "type": "integer"
+          },
+          "alert_incomplete": {
+            "default": false,
+            "title": "Alert Incomplete",
+            "type": "boolean"
+          },
+          "alert_seconds": {
+            "default": 0,
+            "title": "Alert Seconds",
+            "type": "integer"
+          },
+          "attack_count": {
+            "default": 0,
+            "title": "Attack Count",
+            "type": "integer"
+          },
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "impact_count": {
+            "default": 0,
+            "title": "Impact Count",
+            "type": "integer"
+          },
+          "target_count": {
+            "default": 0,
+            "title": "Target Count",
+            "type": "integer"
+          },
+          "track_count": {
+            "default": 0,
+            "title": "Track Count",
+            "type": "integer"
+          },
+          "type_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "default": {},
+            "title": "Type Counts",
+            "type": "object"
+          }
+        },
+        "required": [
+          "date"
+        ],
+        "title": "StatsDayOut",
+        "type": "object"
+      },
+      "StatsTotalsOut": {
+        "properties": {
+          "active_days": {
+            "default": 0,
+            "title": "Active Days",
+            "type": "integer"
+          },
+          "alert_incomplete": {
+            "default": false,
+            "title": "Alert Incomplete",
+            "type": "boolean"
+          },
+          "alert_seconds": {
+            "default": 0,
+            "title": "Alert Seconds",
+            "type": "integer"
+          },
+          "alerts": {
+            "default": 0,
+            "title": "Alerts",
+            "type": "integer"
+          },
+          "attacks": {
+            "default": 0,
+            "title": "Attacks",
+            "type": "integer"
+          },
+          "impacts": {
+            "default": 0,
+            "title": "Impacts",
+            "type": "integer"
+          },
+          "longest_alert_seconds": {
+            "default": 0,
+            "title": "Longest Alert Seconds",
+            "type": "integer"
+          },
+          "quiet_streak_days": {
+            "default": 0,
+            "title": "Quiet Streak Days",
+            "type": "integer"
+          },
+          "quiet_streak_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quiet Streak From"
+          },
+          "quiet_streak_to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quiet Streak To"
+          },
+          "targets": {
+            "default": 0,
+            "title": "Targets",
+            "type": "integer"
+          },
+          "tracks": {
+            "default": 0,
+            "title": "Tracks",
+            "type": "integer"
+          }
+        },
+        "title": "StatsTotalsOut",
         "type": "object"
       },
       "TelegramAuthIn": {
@@ -6409,6 +6740,49 @@
           }
         },
         "summary": "Journal Days"
+      }
+    },
+    "/journal/stats": {
+      "get": {
+        "description": "Across-days statistics for the journal's «Статистика» tab: period totals,\nhour-of-day distribution of alerts and targets, per-day rows for the trend\nchart, alert-duration histogram and the most-affected districts.\n\nDeliberately a separate route from /journal/days: 'all' is uncapped, and the\npayload is a different aggregation shape (across days, not per day).",
+        "operationId": "journal_stats_journal_stats_get",
+        "parameters": [
+          {
+            "description": "One of 30d, 90d, all",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "default": "30d",
+              "description": "One of 30d, 90d, all",
+              "title": "Period",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JournalStatsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Journal Stats"
       }
     },
     "/me/contact_prefs": {
