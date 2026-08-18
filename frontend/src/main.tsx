@@ -2,7 +2,7 @@ import React, { Suspense, lazy } from 'react'
 import ReactDOM from 'react-dom/client'
 
 import App from './App'
-import { AppShell } from './components/chrome'
+import { AppShell, ErrorBoundary } from './components/chrome'
 import {
   ACCOUNT_PATH,
   CHANGELOG_PATH,
@@ -83,6 +83,10 @@ function RouteFallback() {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <Root />
+    {/* Outermost, so a crash in AppShell itself still lands on a readable screen
+        instead of an unmounted (black) tree. */}
+    <ErrorBoundary>
+      <Root />
+    </ErrorBoundary>
   </React.StrictMode>,
 )

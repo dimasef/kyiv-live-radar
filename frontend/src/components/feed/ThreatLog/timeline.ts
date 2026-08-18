@@ -1,28 +1,16 @@
+import { kyivDayKey, kyivDayMonth } from '@/lib/kyivTime'
 import type { FeedEntry, Incident, Notice } from '@/types'
-
-const KYIV_TZ = 'Europe/Kyiv'
 
 // YYYY-MM-DD in Kyiv's calendar day, not UTC/browser-local — a message right
 // after midnight Kyiv time must group under that new day, not the UTC one.
-export function kyivDayKey(date: Date): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: KYIV_TZ,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(date)
-}
+export { kyivDayKey }
 
 export function daySeparatorLabel(dayKey: string, lang: string, t: (k: string) => string): string {
   const now = new Date()
   if (dayKey === kyivDayKey(now)) return t('log.today')
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
   if (dayKey === kyivDayKey(yesterday)) return t('log.yesterday')
-  const label = new Intl.DateTimeFormat(lang === 'uk' ? 'uk-UA' : 'en-US', {
-    timeZone: KYIV_TZ,
-    day: 'numeric',
-    month: 'long',
-  }).format(new Date(`${dayKey}T12:00:00Z`))
+  const label = kyivDayMonth(new Date(`${dayKey}T12:00:00Z`), lang === 'uk' ? 'uk-UA' : 'en-US')
   return label.charAt(0).toUpperCase() + label.slice(1)
 }
 

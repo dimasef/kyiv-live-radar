@@ -2,6 +2,8 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { observeResize } from '@/lib/observers'
+
 /** Collapses a long message: up to 5 lines show in full; anything longer is
  * clamped to 4 with a centred chevron to expand (and collapse) — no label.
  * Overflow depends on wrap width and is only knowable after layout, so it's
@@ -26,9 +28,7 @@ export default function ClampText({
     if (!el || expanded) return
     const measure = () => setLong(el.scrollHeight > el.clientHeight + 1)
     measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(el)
-    return () => ro.disconnect()
+    return observeResize(el, measure)
   }, [text, expanded])
 
   // 5 lines is the fits-in-full budget; once it overflows, collapse to 4 so the

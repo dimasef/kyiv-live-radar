@@ -4,6 +4,7 @@ import { Popup } from "react-leaflet";
 
 import HomeDistance from "@/components/common/HomeDistance";
 import AnalyzeButton from "@/components/game/AnalyzeButton";
+import { kyivClock } from "@/lib/kyivTime";
 import { useRadar } from "@/store";
 
 import { CorroborationLine, CountBadge, typeLabel } from "../../threatDisplay";
@@ -87,13 +88,7 @@ export default function ThreatPopup({ threat }: { threat: Threat }) {
                     fontFamily: "IBM Plex Mono, monospace",
                   }}
                 >
-                  <span>
-                    {new Date(ev.event_time).toLocaleTimeString("uk-UA", {
-                      timeZone: "Europe/Kyiv",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
+                  <span>{kyivClock(ev.event_time)}</span>
                   {ev.source_name && <span>{ev.source_name}</span>}
                 </div>
                 <div style={{ fontSize: 11, lineHeight: 1.35, opacity: 0.9 }}>{ev.raw_text}</div>

@@ -93,7 +93,7 @@ export default function DayDetail({ day, districtName, locale }: Props) {
           )}
 
           <div className="mt-5 border-t border-white/[0.06] pt-4">
-            <DayAlerts day={day} locale={locale} />
+            <DayAlerts day={day} />
           </div>
 
           {day.district_count > 0 && (

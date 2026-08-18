@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { fetchRawSources, isAdminRole } from '@/api'
 import { AuthModal } from '@/components/auth'
+import { observeVisible } from '@/lib/observers'
 import { useRadar } from '@/store'
 import type { RawOutcomeFilter, RawSource } from '@/types'
 
@@ -83,14 +84,7 @@ export function RawMessagesView() {
   useEffect(() => {
     const el = sentinelRef.current
     if (!el) return
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) loadMore()
-      },
-      { rootMargin: '400px' },
-    )
-    observer.observe(el)
-    return () => observer.disconnect()
+    return observeVisible(el, loadMore, { rootMargin: '400px' })
   }, [loadMore])
 
   return (

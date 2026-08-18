@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 import { type BugReport, type BugReportStatus } from '@/api'
 import Overlay from '@/components/common/Overlay'
+import { kyivStamp } from '@/lib/kyivTime'
 
 const STATUS_LABEL: Record<BugReportStatus, string> = {
   new: 'Новий',
@@ -52,7 +53,7 @@ export default function BugReportRow({
           {STATUS_LABEL[report.status]}
         </span>
         <span className="font-mono text-[11px] text-slate-500">
-          {new Date(report.created_at).toLocaleString('uk-UA', { timeZone: 'Europe/Kyiv' })}
+          {kyivStamp(report.created_at)}
         </span>
         <span className="text-[11px] text-slate-400">
           {report.reporter?.display_name || report.reporter?.email || 'акаунт видалено'}

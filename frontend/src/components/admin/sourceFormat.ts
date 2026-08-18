@@ -1,4 +1,5 @@
 import type { Source, SourceStats } from '@/api'
+import { kyivStamp } from '@/lib/kyivTime'
 
 /** Pure formatting/derivation helpers for the Sources admin tab (kept out of the
  * JSX so they're trivially testable and the row components stay lean). */
@@ -13,8 +14,7 @@ export const scoreColor = (score: number | null): string => {
   return 'text-rose-300'
 }
 
-export const formatKyivTime = (iso: string | null): string =>
-  iso ? new Date(iso).toLocaleString('uk-UA', { timeZone: 'Europe/Kyiv' }) : '—'
+export const formatKyivTime = (iso: string | null): string => kyivStamp(iso)
 
 /** Public Telegram URL for a channel, or null when the ref can't map to one
  * (a numeric tg<id> fallback has no public link). */

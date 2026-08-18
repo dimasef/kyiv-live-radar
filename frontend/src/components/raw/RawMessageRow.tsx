@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 
+import { kyivStamp } from '@/lib/kyivTime'
 import { TYPE_COLORS } from '@/theme'
 import type { RawMessage, TargetType } from '@/types'
 
@@ -114,7 +115,7 @@ export default function RawMessageRow({
             )}
             <OutcomeBadge outcome={item.outcome} events={item.events} noticeId={item.notice_id} />
             <time className="font-mono text-[10px] tabular-nums text-slate-500">
-              {new Date(item.event_time).toLocaleString('uk-UA', { timeZone: 'Europe/Kyiv' })}
+              {kyivStamp(item.event_time)}
             </time>
           </span>
         </div>

@@ -1,14 +1,10 @@
 import type { ReactNode } from 'react'
 
+import { kyivClock } from '@/lib/kyivTime'
+
 export function EventTime({ iso }: { iso: string }) {
   return (
-    <span className="font-mono text-[10px] tabular-nums text-slate-500">
-      {new Date(iso).toLocaleTimeString('uk-UA', {
-        timeZone: 'Europe/Kyiv',
-        hour: '2-digit',
-        minute: '2-digit',
-      })}
-    </span>
+    <span className="font-mono text-[10px] tabular-nums text-slate-500">{kyivClock(iso)}</span>
   )
 }
 

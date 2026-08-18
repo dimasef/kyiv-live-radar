@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useMap, useMapEvents } from "react-leaflet";
 
 import { centerPinMode } from "../../lib/device";
+import { observeResize } from "@/lib/observers";
 import { useRadar } from "../../store";
 import { INSPECT_MAX_ZOOM, INSPECT_ZOOM, KYIV_BOUNDS } from "./constants";
 import { trackPoints } from "./track";
@@ -47,15 +48,14 @@ export function ResizeHandler() {
     };
     const raf = requestAnimationFrame(kick);
 
-    const ro = new ResizeObserver(kick);
-    ro.observe(container);
+    const stopResizeObserver = observeResize(container, kick);
     // Mobile Safari fires these without a corresponding element resize.
     window.addEventListener("orientationchange", kick);
     window.addEventListener("pageshow", kick);
 
     return () => {
       cancelAnimationFrame(raf);
-      ro.disconnect();
+      stopResizeObserver();
       map.off("zoomstart", markTaken);
       map.off("dragstart", markTaken);
       window.removeEventListener("orientationchange", kick);

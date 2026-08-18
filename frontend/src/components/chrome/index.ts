@@ -1,6 +1,7 @@
 export { default as AppShell } from './AppShell'
 export { default as AppStatus } from './AppStatus'
 export { default as DisclaimerModal } from './DisclaimerModal'
+export { default as ErrorBoundary } from './ErrorBoundary'
 export { default as HomeControl, requestGeolocation } from './HomeControl'
 export { default as InstallControl } from './InstallControl'
 export { default as LanguageSwitcher } from './LanguageSwitcher'

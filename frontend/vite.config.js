@@ -3,6 +3,12 @@ import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig({
+    // Vite 7 defaults to 'baseline-widely-available' (~Chrome 107), which ships
+    // `??=`, class static blocks and friends untranspiled. TV browsers (Samsung
+    // Internet on Tizen) sit years behind that and would die on a parse error —
+    // before any of our code runs, so with no way to diagnose it on the device.
+    // es2019 costs a few bytes and removes the whole class of failure.
+    build: { target: 'es2019' },
     resolve: {
         alias: {
             '@': fileURLToPath(new URL('./src', import.meta.url)),

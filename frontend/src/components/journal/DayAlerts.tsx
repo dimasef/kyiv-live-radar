@@ -1,29 +1,18 @@
 import { useTranslation } from 'react-i18next'
 
+import { kyivClock } from '@/lib/kyivTime'
 import type { JournalDay } from '@/types'
 
 import { formatDuration } from './journalStats'
 
 interface Props {
   day: JournalDay
-  locale: string
 }
-
-// Journal days are bucketed by Kyiv local date, so window times must render in
-// Kyiv time too — not the browser's zone.
-const timeFmt = (locale: string) =>
-  new Intl.DateTimeFormat(locale, {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: 'Europe/Kyiv',
-  })
 
 /** The day's air-raid alerts: count + total, then every тривога→відбій interval
  * with the longest one highlighted. */
-export default function DayAlerts({ day, locale }: Props) {
+export default function DayAlerts({ day }: Props) {
   const { t } = useTranslation()
-  const fmt = timeFmt(locale)
   // "Longest" only means something against others — never highlight a lone alert.
   const longest = day.alert_windows.length > 1 ? day.longest_alert_seconds : 0
 
@@ -61,9 +50,9 @@ export default function DayAlerts({ day, locale }: Props) {
                     isLongest ? 'text-red-200' : 'text-slate-300'
                   }`}
                 >
-                  {fmt.format(new Date(w.started_at))}
+                  {kyivClock(w.started_at)}
                   <span className={isLongest ? 'text-red-300/60' : 'text-slate-600'}> – </span>
-                  {w.ended_at ? fmt.format(new Date(w.ended_at)) : '…'}
+                  {w.ended_at ? kyivClock(w.ended_at) : '…'}
                 </span>
                 <span className="flex items-center gap-2">
                   {isLongest && (
