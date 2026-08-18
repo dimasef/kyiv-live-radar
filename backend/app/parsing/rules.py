@@ -37,6 +37,7 @@ from .vocab import (
     _DAY_RECAP_WORD,
     _DECOY,
     _DESTROYED,
+    _ENGAGEMENT,
     _EPPO_DISMISS,
     _EPPO_WORD,
     _FORECAST_TIMEFRAME,
@@ -45,6 +46,9 @@ from .vocab import (
     _HYPERSONIC,
     _IMPACT,
     _JET,
+    _LEVEL_OBLAST,
+    _LEVEL_QUIET,
+    _LEVEL_RAISED,
     _LINK_MARKERS,
     _LOST_WORD,
     _MASC_ONE_RE,
@@ -170,6 +174,11 @@ class ParseResult:
     # A terse target/launch callout with no place ("Ціль!", "Ще вихід") — only
     # acted on (as corroboration) when a city-wide alert is already open.
     target_pulse: bool = field(default=False)
+    # A threat-LEVEL bulletin about a target type with no target of its own
+    # ("червоний рівень по балістиці" / "по балістиці тихо"): 'forecast' when
+    # the level is up, 'status' when that type is quiet. Never a live target and
+    # never an all-clear — ingest turns it into a feed notice of that kind.
+    notice_kind: str | None = field(default=None)
     # None = a genuine full clear ("Відбій тривоги та всіх загроз") — closes
     # every open track. A target type = an all-clear scoped to just THAT
     # type ("Відбій балістичної загрози з Криму") — must not close unrelated
@@ -478,18 +487,63 @@ def _summary(norm: str, target_type: str, has_district: bool) -> bool:
 
 
 def _promo(norm: str, status: str, impact: bool) -> bool:
-    """A message carrying a URL, a bare payment-card number, or a link-less
-    channel-recruitment phrase (_AD_RECRUIT) is promo / donation / channel-boost
-    / ad / meta, never a live target callout — a spotter's sighting never links
-    out or advertises (validated against the real corpus: zero such sightings).
-    Suppress it like aftermath: a real clear/destroyed keyword or a confirmed
-    impact in the same message still wins."""
+    """A message carrying a URL, a bare payment-card number, a link-less
+    channel-recruitment phrase (_AD_RECRUIT) or a donation/engagement frame
+    (_ENGAGEMENT) is promo / donation / channel-boost / ad / meta, never a live
+    target callout — a spotter's sighting never links out or advertises
+    (validated against the real corpus: zero such sightings). Suppress it like
+    aftermath: a real clear/destroyed keyword or a confirmed impact in the same
+    message still wins."""
     return (
         (any(m in norm for m in _LINK_MARKERS) or bool(_CARD_NUMBER_RE.search(norm))
-         or any(m in norm for m in _AD_RECRUIT))
+         or any(m in norm for m in _AD_RECRUIT) or any(m in norm for m in _ENGAGEMENT))
         and status not in ("clear", "destroyed")
         and not impact
     )
+
+
+def _level_notice(target_type: str, districts, citywide: bool, directional: bool, status: str,
+                  norm: str, target_count: int | None, aftermath: bool, negated: bool,
+                  siren_only: bool, political_quote: bool, lost_signal: bool, summary: bool,
+                  ad_action: bool, civic_notice: bool, eppo_marks: bool,
+                  promo: bool) -> str | None:
+    """Threat-level bulletin about a target TYPE with nothing to localize —
+    'forecast' (the level is up) or 'status' (that type is quiet, is somewhere in
+    the oblast, or arrives as a bare count) — the two notice kinds the feed
+    renders. Requires a named type: an untyped "поки тихо" is chatter, while "по
+    балістиці тихо" is the standing bulletin the spotters keep beside the live
+    callouts.
+
+    Everything that localizes or supersedes wins first: a raion, a CITY-WIDE
+    callout ("Загроза балістики на Київ" is a live alert, not a bulletin), an
+    ORIGIN ("Загроза балістики з Брянщини" is an axis — by far the commonest
+    shape of this sentence), a clear/destroyed, any suppressor. So this only
+    fires where the message would otherwise have produced nothing at all. A pulse-shaped bulletin («🟣 Загроза
+    БАЛІСТИКИ») deliberately keeps BOTH flags: with a city-wide alert already
+    open it corroborates as a pulse, and only the fall-through case — nothing
+    open to corroborate — reaches the notice branch in _dispatch."""
+    if (districts or citywide or directional or target_type == "unknown"
+            or status in ("clear", "destroyed")):
+        return None
+    if (aftermath or negated or siren_only or political_quote or lost_signal
+            or summary or ad_action or civic_notice or eppo_marks or promo):
+        return None
+    if target_elsewhere(norm):  # "по Чернігівщині тихо" — someone else's bulletin
+        return None
+    if any(p in norm for p in _LEVEL_RAISED):
+        return "forecast"
+    if any(p in norm for p in _LEVEL_QUIET):
+        return "status"
+    if any(p in norm for p in _LEVEL_OBLAST):
+        return "status"
+    # A stated COUNT with nowhere to put it ("Вже близько 21 ракет пустили",
+    # "Був залп з 5 ракет") — during a salvo this number IS the situation, and
+    # it is the one thing the feed used to lose entirely. Terse counts that
+    # arrive while a city-wide alert is open never get here: _dispatch runs the
+    # pulse handler first, and corroborating the live track beats a notice.
+    if target_count is not None:
+        return "status"
+    return None
 
 
 def _citywide(districts, status: str, norm: str, aftermath: bool, negated: bool,
@@ -645,6 +699,9 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
     # primary "загроза з Брянська" class. When a raion/citywide IS also present,
     # origin still feeds a secondary axis but that branch handles the track/alert.
     directional = origin_present and not districts and not citywide
+    notice_kind = _level_notice(target_type, districts, citywide, directional, status, norm,
+                                target_count, aftermath, negated, siren_only, political_quote,
+                                lost_signal, summary, ad_action, civic_notice, eppo_marks, promo)
     matched = _matched(districts, citywide, status, aftermath, negated, siren_only,
                        political_quote, ad_action, promo, civic_notice, eppo_marks,
                        reportage)
@@ -683,6 +740,7 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
         citywide=citywide,
         summary=summary,
         target_pulse=target_pulse,
+        notice_kind=notice_kind,
         decoy=decoy,
         hypersonic=hypersonic,
         directional=directional,

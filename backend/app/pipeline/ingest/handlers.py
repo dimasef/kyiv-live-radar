@@ -228,6 +228,17 @@ async def _handle_summary(ctx: IngestContext) -> list[Broadcast]:
     return [Broadcast("notice", notice=notice)]
 
 
+async def _handle_level_notice(ctx: IngestContext) -> list[Broadcast]:
+    """Threat-level bulletin ("червоний рівень по балістиці" / "по балістиці
+    тихо") — no target and no place, so nothing goes on the map; it surfaces in
+    the feed as the forecast/status notice the parser classified it as. It
+    closes nothing: an informal "тихо" is not an відбій."""
+    notice = await _make_notice(ctx.session, ctx.parsed.notice_kind or "status", ctx.parsed,
+                                ctx.source_id, ctx.when, ctx.message_id)
+    await ctx.done()
+    return [Broadcast("notice", notice=notice)]
+
+
 async def _handle_destroyed(ctx: IngestContext) -> list[Broadcast]:
     """Destroyed closes the matching open track. A "Мінус"-style reply names
     its target's chain directly; otherwise prefer the track over the named
@@ -561,6 +572,13 @@ async def _dispatch(ctx: IngestContext) -> list[Broadcast]:
     # 2a-quinquies. Directional/origin callout with no raion -> a map axis.
     if parsed.directional:
         return await _handle_directional(ctx)
+
+    # 2a-sexies. Threat-level bulletin about a type ("червоний рівень по
+    #     балістиці", "по балістиці тихо") — a feed notice, never a track and
+    #     never a stand-down. After the directional check: the same sentence
+    #     naming an origin ("загроза балістики з Брянщини") is an axis first.
+    if parsed.notice_kind is not None:
+        return await _handle_level_notice(ctx)
 
     # 2b. Nothing localizable/actionable — keep the raw row, emit nothing.
     if not parsed.matched:

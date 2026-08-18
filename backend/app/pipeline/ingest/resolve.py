@@ -54,6 +54,8 @@ def should_fallback(parsed: ParseResult) -> bool:
         return False
     if parsed.target_pulse:  # terse pulse, no place — nothing for the LLM to localize
         return False
+    if parsed.notice_kind:  # threat-level bulletin — already surfaced as a feed notice
+        return False
     if parsed.districts or parsed.status in ("clear", "destroyed"):
         return False
     if target_elsewhere(normalize(parsed.raw_text)):

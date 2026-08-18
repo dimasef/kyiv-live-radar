@@ -56,6 +56,22 @@ QUERIES: list[tuple[str, list[str]]] = [
     ("Strakholissia", ["Страхолісся, Вишгородський район, Київська область"]),
     ("Chornobyl Zone", ["Чорнобиль, Київська область",
                         "Чорнобильська зона відчуження"]),
+    # H. Spotter shorthand — 2026-08-18 coverage-gap export. "ПОХ" (Позняки-
+    # Осокорки-Харківський) and "Торгмаш" are decoded by the maintainer, not by
+    # a search engine; only the two real toponyms are geocodable here.
+    ("Pushcha-Vodytsia", ["Пуща-Водиця, Київ"]),
+    ("Torhmash Brovary", ["Торгмаш, Бровари, Київська область",
+                          "завод Торгмаш, Бровари"]),
+    # I. Southern/eastern approach towns of Kyiv oblast — 2026-08-18 coverage-gap
+    # export. Drones are called in over these on the way to the city.
+    ("Berezan", ["Березань, Броварський район, Київська область"]),
+    ("Bila Tserkva", ["Біла Церква, Київська область"]),
+    ("Kaharlyk", ["Кагарлик, Обухівський район, Київська область"]),
+    ("Rokytne", ["Рокитне, Білоцерківський район, Київська область"]),
+    ("Myronivka", ["Миронівка, Обухівський район, Київська область"]),
+    ("Tarashcha", ["Тараща, Білоцерківський район, Київська область"]),
+    ("Bohuslav", ["Богуслав, Обухівський район, Київська область"]),
+    ("Kyiliv", ["Кийлів, Бориспільський район, Київська область"]),
 ]
 
 

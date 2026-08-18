@@ -95,6 +95,8 @@ def should_triage(parsed: ParseResult, decision_source: str, llm_response: dict 
         return False
     if parsed.lost_signal or parsed.summary or parsed.target_pulse or parsed.promo:
         return False
+    if parsed.notice_kind:             # rules already emitted the forecast/status notice
+        return False
     if llm_response is not None:       # inline call ran, didn't localize — reuse it
         return True
     suppressed = (parsed.aftermath or parsed.negated or parsed.civic_notice

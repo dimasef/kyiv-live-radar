@@ -137,7 +137,18 @@ _CIVIC_NOTICE = ("тролейбус", "трамвай", "маршрутк", "ф
                  "громадського транспорт", "громадський транспорт",
                  "дорожнього руху", "рух транспорт", "руху транспорт",
                  "організації руху", "обмежать рух", "обмежуватимуть рух",
-                 "перекрито рух", "перекрито середню")
+                 "перекрито рух", "перекрито середню",
+                 # Scheduled utility works — the same class as transport news:
+                 # a neighbourhood named in a plumbing/repair announcement
+                 # ("У житловому масиві Пуща-Водиця … під час виконання
+                 # ремонтних робіт можливе зниження тиску у водопостачанні",
+                 # raw 1371, which was raising a track).
+                 "водопостачанн", "водогін", "ремонтних робіт", "ремонтні роботи",
+                 "планові роботи", "зниження тиску", "профілактичн",
+                 # City-services news in the same register — it names beaches,
+                 # lakes and neighbourhoods ("🏖 На більшості пляжів Києва вода
+                 # відповідає нормам … у Пущі-Водиці", raw 1724).
+                 "пляж", "водойм", "відповідає нормам", "якість води")
 
 # єППО = the crowd-sensor app. Spotters relay its marks while dismissing them as
 # unverified. Suppress only when an єППО mention is PAIRED with a dismissal cue,
@@ -318,10 +329,61 @@ _CITYWIDE_STRONG = ("на місто", "над містом", "на київ", "
 # second before "Балістика!!". Anchored to the WHOLE message: a loose "київ"
 # stem would swallow every recap naming the city.
 _CITYWIDE_BARE_RE = re.compile(r"^\W*(?:київ|столиця|столиці)\W*$")
-_CITYWIDE_WEAK = ("по місту", "по києву", "удар по києву", "по столиц")
+# "над Києвом"/"над столицею" are WEAK, not strong, even though the twin "над
+# містом" is strong: the corpus sweep found all three of their existing hits are
+# «🌈 Над Києвом зʼявилася яскрава веселка» rainbow posts. With the threat-word
+# gate, "4 БпЛА над Києвом" (raw 4824, which used to produce nothing at all)
+# raises the city alert and the rainbows stay silent.
+_CITYWIDE_WEAK = ("по місту", "по києву", "удар по києву", "по столиц",
+                  "над києвом", "над столицею",
+                  # City-BOUND phrasing from the same sweep: "до 10х ворожих
+                  # БпЛА в бік Столиці", "~10х крилатих ракет в напрямку
+                  # Столиці" — a live city warning that used to localize
+                  # nowhere. Weak (needs a threat word) because "в напрямку
+                  # Києва" also shows up in travel/logistics reposts.
+                  "бік столиці", "бік києва", "напрямку столиці", "напрямку києва",
+                  "напрямок києва", "напрямку на київ")
 _THREAT_CONTEXT = ("ціль", "цілі", "ракет", "баліст", "шахед", "бпла", "дрон",
                    "загроз", "удар", "приліт", "вибух", "кинджал", "іскандер",
                    "каб", "с-400", "с400", "с-300", "с300", "циркон", "пуск")
+
+# --- Threat-LEVEL bulletin: commentary about a target TYPE with no target and
+# no place of its own ("Сьогодні червоний рівень по балістиці", "По балістиці
+# тихо на даний момент"). The spotters run this as a standing side-channel
+# beside the live callouts — 51 "по балістиці" messages in the captured corpus —
+# and every one of them used to die silently after paying for an LLM call.
+#
+# Two shapes, mapped onto the notice kinds the feed already renders:
+# RAISED -> `forecast` (the level is up / the warning still stands),
+# QUIET  -> `status`   (nothing of that type is flying right now).
+# RAISED is tested first, so a mixed "попередження дійсні, але поки тихо" reads
+# as the warning rather than the lull.
+#
+# QUIET is emphatically NOT an all-clear: a spotter's "по балістиці тихо" must
+# never close a track — the same reason _dispatch keeps a spotter's full відбій
+# inert. It only states the situation in the feed. ---
+_LEVEL_RAISED = ("загроза баліст", "небезпека баліст", "загроза балістики",
+                 "тривога в області", "тривога у області", "тривога в обл",
+                 "тривога по області", "тривога в київській обл",
+                 "червоний рівень", "червоний сигнал", "підвищена загроза",
+                 "підвищена небезпека", "загроза зберігається", "загроза залишається",
+                 "залишається загроза", "існує загроза", "зберігається підвищена",
+                 "загроза актуальна", "теж актуальна",
+                 "дійсні попередження", "попередження дійсні", "попередження по",
+                 "реагуємо на тривог", "реагування на загрозу", "реагуємо",
+                 "залишається спорядж")
+# Oblast-scope situation reports ("По області 2-3 БПЛА", "В області цей один",
+# "Залишився один в області"). The threat is in Kyiv OBLAST with no raion named:
+# nothing to place on the map, but it answers the operator's actual question —
+# is it near yet. `status`, not `forecast`; the "тривога в області" heads-up
+# above is the forecast half of the same family.
+_LEVEL_OBLAST = ("в області", "у області", "по області", "в обл.", "області вже",
+                 "областi", "в київській області", "по київській області")
+
+_LEVEL_QUIET = ("тихо", "не видно", "без запусків", "без пусків", "пусків немає",
+                "наразі немає", "поки немає",
+                "не фіксується", "спокійно", "ситуація спокійна", "минула без",
+                "поки все спокійно", "фальш цілі", "фальшцілі")
 
 # --- Retrospective attack SUMMARY ("Загалом по Києву пустили до 8 ракет") —
 # recaps what already happened; info, never a live city alert. Distinguished from
@@ -372,6 +434,17 @@ _CARD_NUMBER_RE = re.compile(r"(?<!\d)\d{16}(?!\d)")
 # "підписуйс" also hits an already-suppressed power-schedule promo.
 _AD_RECRUIT = ("тепер в telegram", "тепер у telegram", "якщо ти живеш у",
                "підписуйс", "підписуйтес")
+# The link-less, card-less donation/engagement post — one channel runs these as
+# a fundraiser scoreboard and audience call-and-response, and the sign-off
+# ("бережіть себе", "до останнього шахеда") keeps them threat-flavoured. The
+# identical "підтримало збір тільки 4ро людей" text appeared 8 times in one
+# 5000-message window, each one paying for its own LLM call. Phrases are the
+# scoreboard/engagement frames themselves, never the sign-off, so a real callout
+# in the same register is untouched.
+_ENGAGEMENT = ("підтримало збір", "підтримали збір", "підтримало тільки",
+               "підтримала лише", "підтримав лише", "підтримало лише",
+               "хто не пройде повз", "хто не ігнорує", "дайте реакцію",
+               "дайте реакції", "дивитесь футбол", "буде зі мною", "люблю цілую")
 
 # --- Decoy / EW ("Ймовірно, імітація", "працює РЕБ") — a modifier on the attack
 # (attack.py::classify), NOT a replacement classification: a raid can be combined
@@ -404,9 +477,26 @@ _APOSTROPHES = "'ʼ`’‘"
 _STREET_WORDS = ("проспект", "вулиц", "вул", "провулок", "бульвар", "узвіз", "шосе",
                   "набережн", "площ")
 
-# Gazetteer aliases shorter than DistrictMatcher's 4-char stem floor, which
-# would otherwise drop them silently. Matched as WHOLE words with no case tail —
-# the same discipline rules.py::_WHOLE_WORD uses for "каб"/"реб" — so a 3-letter
-# alias can never fire inside an unrelated word. Keep this set tiny: only
-# abbreviations the spotters actually use as a standalone toponym.
-_WHOLE_WORD_ALIASES = frozenset({"чзв"})
+# Gazetteer aliases that must match as WHOLE words with no case tail — the same
+# discipline rules.py::_WHOLE_WORD uses for "каб"/"реб", so a short alias can
+# never fire inside an unrelated word. Two reasons to be in here: an alias below
+# DistrictMatcher's 4-char stem floor (which would otherwise be dropped
+# silently), or one whose stem collides with everyday words —
+#   "пох"   -> "похолодання", "поховались", "походу"
+#   "голос" -> "голосно", "проголосуйте", "оголосили"
+#   "пущею" -> stems to "пуще", which fires inside "Пущено ракети"
+# Keep this set tiny: only forms the spotters really use as a standalone toponym.
+_WHOLE_WORD_ALIASES = frozenset({"чзв", "пох", "бц", "голос", "пущею"})
+
+# An alias that is also part of a PROPER NAME, keyed to the word that follows it.
+# "Голос Києва" is a Telegram channel other channels quote ("Голос Києва —
+# @golos_kieva попередив про загрозу"), not a callout over Holosiivskyi. Same
+# idea as _FOREIGN_SEA_ADJ in matcher.py: the toponym stays, its collision is
+# resolved by the adjacent word.
+_ALIAS_NEXT_WORD_VETO: dict[str, tuple[str, ...]] = {"голос": ("києва", "кієва")}
+
+# The mirror image: an alias that only counts when the PRECEDING word starts
+# with one of these. "церкв" is Біла Церква's only matchable word (a spaced name
+# never becomes one stem), but on its own it would read a real strike report
+# ("приліт у церкву") as a callout over a town 80 km south.
+_ALIAS_PREV_WORD_REQUIRED: dict[str, tuple[str, ...]] = {"церкв": ("біл",)}

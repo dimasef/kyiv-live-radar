@@ -847,3 +847,156 @@ def test_short_whole_word_alias_cannot_match_inside_a_word():
     # it can never fire on a longer token the way a stem would.
     assert not parse_message("чзвабра кадабра", M).districts
     assert not parse_message("Ачзв", M).districts
+
+
+def test_over_kyiv_is_citywide_but_a_rainbow_is_not():
+    # raw 4824 "4 БпЛА над Києвом" produced nothing at all: "над містом" was a
+    # city phrase, "над Києвом" wasn't. It is WEAK, not strong — the corpus's
+    # only other uses of the phrase are «🌈 Над Києвом зʼявилася веселка».
+    for txt in ["4 БпЛА над Києвом", "Балістика над столицею"]:
+        r = parse_message(txt, M)
+        assert r.citywide and r.matched and r.districts == [], txt
+    for txt in ["🌈 Над Києвом цього вечора зʼявилася яскрава веселка",
+                "🌈Подвійна веселка зʼявилась над столицею."]:
+        r = parse_message(txt, M)
+        assert not r.citywide and not r.matched, txt
+
+
+def test_threat_level_bulletin_becomes_a_forecast_or_status_notice():
+    # The standing "по балістиці" side-channel: 51 such messages in the captured
+    # corpus, each one previously silent AND paying for an LLM call.
+    for txt in ["Сьогодні теж червоний рівень по балістиці, реагуємо на тривоги",
+                "Отримано червоний сигнал щодо загрози обстрілу балістикою протягом двох діб!",
+                "🟣 Загроза БАЛІСТИКИ", "По балістиці загроза зберігається."]:
+        r = parse_message(txt, M)
+        assert r.notice_kind == "forecast", txt
+    for txt in ["По балістиці тихо на даний момент.", "Балістики поки не видно",
+                "Пусків Цирконів наразі немає.",
+                "Наразі без запусків аеробалістичної ракети типу «Кинджал»."]:
+        r = parse_message(txt, M)
+        assert r.notice_kind == "status", txt
+
+
+def test_threat_level_bulletin_never_localizes_or_stands_down():
+    # A level bulletin is feed context only: no district, no track, and above all
+    # not an all-clear — a spotter's "тихо" must not close anything.
+    r = parse_message("По балістиці тихо на даний момент.", M)
+    assert r.districts == [] and not r.citywide and r.status != "clear"
+    # A raion of its own always wins — that's a real sighting, not a bulletin.
+    r = parse_message("Балістика на Троєщині, тихо не буде", M)
+    assert r.notice_kind is None and names(r) == ["Троєщина"]
+    # Someone else's bulletin stays someone else's.
+    assert parse_message("По Чернігівщині поки тихо, балістики немає", M).notice_kind is None
+
+
+def test_engagement_post_is_promo():
+    # One channel runs a fundraiser scoreboard with no link and no card number;
+    # the identical text appeared 8 times in one 5000-message window, each time
+    # reaching the LLM as an unlocalized "threat".
+    for txt in ["🇺🇦🔴На жаль , підтримало збір тільки 4ро людей!!! Дякуємо тим хто не пройде повз",
+                "🔴Доречі поки чекаємо відбій, дивитесь футбол?",
+                "🔴Скільки Киян сьогодні буде зі мною протягом ночі? Дайте реакцію щоб я бачив"]:
+        r = parse_message(txt, M)
+        assert r.promo and not r.matched, txt
+
+
+def test_spotter_shorthand_resolves_to_its_area():
+    # The «Місто Кия» shorthand, decoded by the maintainer from the coverage-gap
+    # export: five callout forms that used to localize nowhere.
+    cases = {
+        "ПОХ 🔴.": "Позняки-Осокорки-Харківський",
+        "На ПОХ йде новий реактивний 🔴.": "Позняки-Осокорки-Харківський",
+        "Пуща 🔴.": "Пуща-Водиця",
+        "Шахед над Пущею-Водицею": "Пуща-Водиця",
+        "Голос 🔴.": "Голосіївський",
+        "Голос парк 🔴.": "Голосіївський",
+        "Торгмаш 🔴.": "Бровари",
+    }
+    for txt, expected in cases.items():
+        assert expected in names(parse_message(txt, M)), txt
+
+
+def test_shorthand_aliases_do_not_fire_inside_everyday_words():
+    # Each of these appears in the real corpus; every one of them would have
+    # been a phantom target if the aliases matched as plain stems.
+    for txt in ["🌧 Київ готується до нової хвилі похолодання",
+                "Хутко всі поховались, будьте обережні",
+                "Ці БПЛА походу проводять розвідку передмістя",
+                "🫶Велике прохання, проголосуйте за наш канал",
+                "Тривогу вчасно не оголосили",
+                "Пущено 12 ракет", "Усього було запущено 41 ракету"]:
+        assert names(parse_message(txt, M)) == [], txt
+
+
+def test_holos_kyeva_is_a_channel_not_holosiivskyi():
+    # "Голос Києва — @golos_kieva попередив про загрозу" quotes another channel.
+    r = parse_message("Під час минулої атаки Голос Києва — @golos_kieva попередив "
+                      "про загрозу одним із перших.", M)
+    assert names(r) == []
+
+
+def test_utility_and_city_services_news_naming_a_neighbourhood_is_suppressed():
+    # Both real, both raised a track once their neighbourhood entered the
+    # gazetteer: scheduled plumbing works and a beach water-quality bulletin.
+    for txt in [
+        "У житловому масиві Пуща-Водиця сьогодні з 23:00 і до 6:00 під час виконання "
+        "ремонтних робіт можливе зниження тиску у водопостачанні",
+        "🏖 На більшості пляжів Києва вода відповідає нормам. Безпечною воду визнали "
+        "на 13 пляжах і водоймах столиці, зокрема у Пущі-Водиці",
+    ]:
+        r = parse_message(txt, M)
+        assert r.civic_notice and not r.matched, txt
+
+
+def test_southern_staging_ring_localizes():
+    # The southern approach towns from the coverage-gap export: targets loiter
+    # and turn over these before entering the city.
+    cases = {
+        "2 Реактивних БпЛА на Березань.": ["Березань"],
+        "Один на Білу Церкву": ["Біла Церква"],
+        "Рокитне/БЦ уважно по двох групах БПЛА.": ["Рокитне", "Біла Церква"],
+        "1 шахед на Кагарлик": ["Кагарлик"],
+        "Райони Миронівки/Таращі/Богуслава уважно по третьому ланцюгу БПЛА.":
+            ["Миронівка", "Тараща", "Богуслав"],
+        "Кийлів район. Фіксується один, другий зник.": ["Кийлів"],
+        "Розвернувся у район БЦ 🔴.": ["Біла Церква"],
+    }
+    for txt, expected in cases.items():
+        assert sorted(names(parse_message(txt, M))) == sorted(expected), txt
+
+
+def test_tserkva_only_counts_inside_bila_tserkva():
+    # "церкв" is the only matchable word of the spaced name, so it is gated on a
+    # preceding "Біл…" — otherwise a strike report pins a town 80 km south.
+    assert names(parse_message("У Білій Церкві фіксується БпЛА", M)) == ["Біла Церква"]
+    assert names(parse_message("Приліт у церкву, є руйнування", M)) == []
+    assert names(parse_message("Пошкоджено церкву та кілька будинків", M)) == []
+
+
+def test_oblast_scope_report_is_a_notice_not_a_track():
+    # "Тривога в області" is the heads-up half (forecast); a count with no raion
+    # is the state half (status). Neither can go on the map.
+    assert parse_message("Тривога в області, загроза БПЛА", M).notice_kind == "forecast"
+    for txt in ["По області 2-3 БПЛА", "В області цей один.", "Залишився один в області"]:
+        r = parse_message(txt, M)
+        assert r.notice_kind == "status" and r.districts == [], txt
+    # A raion of its own always wins — that IS a placeable target.
+    r = parse_message("Бориспіль південь 🔴. Він останній в області.", M)
+    assert r.notice_kind is None and names(r) == ["Бориспіль"]
+
+
+def test_salvo_scale_without_a_place_is_a_notice():
+    # During a salvo the count IS the situation, and it used to vanish entirely.
+    for txt in ["До 6 ракет вже.", "Вже близько 21 ракет пустили", "Був залп з 5 ракет!",
+                "Десь під 40 ракет …"]:
+        r = parse_message(txt, M)
+        assert r.notice_kind == "status" and r.districts == [], txt
+
+
+def test_city_bound_callout_is_an_alert_not_a_notice():
+    # "в бік Столиці" / "в напрямку Столиці" carry a count too, but they say
+    # where it is going — that outranks the scale notice.
+    for txt in ["❗️Локаційно фіксується до 10х ворожих БпЛА в бік Столиці.",
+                "‼️~10х крилатих ракет в напрямку Столиці."]:
+        r = parse_message(txt, M)
+        assert r.citywide and r.notice_kind is None, txt

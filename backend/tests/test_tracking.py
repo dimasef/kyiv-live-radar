@@ -1110,3 +1110,24 @@ async def test_missing_sentinel_drops_citywide_loudly(ctx, monkeypatch):
 
 async def _no_sentinel(_session):
     return None
+
+
+async def test_threat_level_bulletin_notices_and_closes_nothing(ctx):
+    """"Червоний рівень по балістиці" / "по балістиці тихо" belong in the feed,
+    not on the map — and the quiet one must NOT stand a live track down."""
+    s, m, src = ctx
+    await ingest_message(s, text="🔴 Шахед над Оболонню", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Сьогодні червоний рівень по балістиці, реагуємо на тривоги",
+                         matcher=m, when=BASE + timedelta(minutes=1),
+                         source_id=src[0].id, message_id=2)
+    await ingest_message(s, text="По балістиці тихо на даний момент.", matcher=m,
+                         when=BASE + timedelta(minutes=2), source_id=src[0].id, message_id=3)
+
+    kinds = sorted(await s.scalars(select(Notice.kind)))
+    assert kinds == ["forecast", "status"]
+    assert all(n.generated_by == "rule" for n in await s.scalars(select(Notice)))
+    # One track, still open: the shahed sighting is untouched by either bulletin.
+    assert await _count_threats(s) == 1
+    track = await s.scalar(select(Threat))
+    assert track.status == "tracking"

@@ -6,7 +6,14 @@ import re
 from dataclasses import dataclass
 
 from ..gazetteer import CITYWIDE_NAME_EN as _CITYWIDE_NAME_EN
-from .vocab import _APOSTROPHES, _STREET_WORDS, _SUFFIXES, _WHOLE_WORD_ALIASES
+from .vocab import (
+    _ALIAS_NEXT_WORD_VETO,
+    _ALIAS_PREV_WORD_REQUIRED,
+    _APOSTROPHES,
+    _STREET_WORDS,
+    _SUFFIXES,
+    _WHOLE_WORD_ALIASES,
+)
 
 
 def normalize(text: str) -> str:
@@ -65,6 +72,32 @@ def _is_foreign_sea(norm_text: str, start: int, end: int) -> bool:
     return any(before_word.startswith(a) for a in _FOREIGN_SEA_ADJ)
 
 
+def _is_proper_name(norm_text: str, start: int, end: int) -> bool:
+    """True if the match at [start:end) is part of a proper name that merely
+    contains a toponym alias ("Голос Києва", a channel) — see
+    vocab._ALIAS_NEXT_WORD_VETO."""
+    veto = _ALIAS_NEXT_WORD_VETO.get(norm_text[start:end])
+    if not veto:
+        return False
+    after = norm_text[end:].lstrip(" ,.;:()–—-")
+    next_word = after.split(" ", 1)[0] if after else ""
+    return next_word.startswith(veto)
+
+
+def _missing_required_prev(norm_text: str, start: int, end: int) -> bool:
+    """True if the match at [start:end) needs a specific preceding word and
+    doesn't have it ("церкв" only counts inside "Біла Церква") — see
+    vocab._ALIAS_PREV_WORD_REQUIRED."""
+    matched = norm_text[start:end]
+    for alias, required in _ALIAS_PREV_WORD_REQUIRED.items():
+        if not matched.startswith(alias):
+            continue
+        before = norm_text[:start].rstrip(" ,.;:()–—-")
+        prev_word = before.rsplit(" ", 1)[-1] if before else ""
+        return not prev_word.startswith(required)
+    return False
+
+
 class DistrictMatcher:
     """Compiles per-district stem regexes from names + aliases for fast matching."""
 
@@ -116,6 +149,10 @@ class DistrictMatcher:
                 if _is_street_reference(norm_text, m.start(), m.end()):
                     continue
                 if _is_foreign_sea(norm_text, m.start(), m.end()):
+                    continue
+                if _is_proper_name(norm_text, m.start(), m.end()):
+                    continue
+                if _missing_required_prev(norm_text, m.start(), m.end()):
                     continue
                 hits[did] = DistrictHit(did, name, m.start(), stem_len)
                 break

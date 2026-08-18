@@ -2,8 +2,10 @@
 
 from datetime import datetime, timedelta
 
+from app.domain.origins import target_elsewhere
 from app.gazetteer import DISTRICTS
 from app.parsing import DistrictMatcher, parse_message
+from app.parsing.matcher import normalize
 from app.pipeline.ingest import _note_and_inherit_type, should_fallback
 
 M = DistrictMatcher([{"id": i + 1, **d} for i, d in enumerate(DISTRICTS)])
@@ -204,3 +206,39 @@ def test_zircon_callout_updates_type_context():
     _feed("Циркон з курська", source_id=1, when=T0)
     r = _feed("Троя", source_id=1, when=T0 + timedelta(minutes=1))
     assert r.target_type == "ballistic"
+
+
+def test_newly_covered_target_oblasts_skip_the_llm():
+    # A 5000-message coverage sweep: each of these named a target location the
+    # elsewhere list didn't know, so every one of them paid for an LLM call that
+    # came back empty. Prilyuky/Nizhyn/Cherkasy/Sumy/Odesa/Poland are not ours.
+    for txt in [
+        "Пара БПЛА на Прилуки",
+        "Два Шахеди на Ніжин, реактивні",
+        "Крилаті на Черкаси",
+        "Ціль на Суми.",
+        "Скоріш за все думали це Циркон, а це Онікс на Одесу!",
+        "Ракета ввійшла в ПП Польщі.",
+        "На Talmaza, Молдова - летіла російська ракета.",
+        "Один курсом на Житомирську область",
+    ]:
+        r = parse_message(txt, M)
+        assert not should_fallback(r), txt
+
+
+def test_far_city_used_as_a_local_road_or_destination_stays_ours():
+    # The collisions that trimmed the list: a highway named after a far city runs
+    # through Kyivshchyna, and a message that states US as the destination is
+    # exactly what this feed is for — neither is "someone else's threat".
+    for txt in ["Шахед по трасі Київ-Суми.", "Шахед над Одеською трасою"]:
+        assert should_fallback(parse_message(txt, M)), txt
+    # Us as the stated destination outranks every other place named on the way.
+    r = parse_message("Шахеди зі Сумщини пішли в район Ніжина, далі ймовірно на Київщину.", M)
+    assert r.matched and not target_elsewhere(normalize(r.raw_text))
+
+
+def test_level_bulletin_does_not_pay_for_an_llm_call():
+    # It already became a feed notice — there is no district for the LLM to find.
+    for txt in ["По балістиці тихо на даний момент.", "🟣 Загроза БАЛІСТИКИ"]:
+        r = parse_message(txt, M)
+        assert r.notice_kind and not should_fallback(r), txt

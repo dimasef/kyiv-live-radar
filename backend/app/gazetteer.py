@@ -23,8 +23,10 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Голосіївський", "name_en": "Holosiivskyi", "lat": 50.381, "lon": 30.508,
      # "голосіїв" is spelled with ї — its stem doesn't cover the common spotter
      # form "Голосієво" (є, no ї); added explicitly rather than relying on the
-     # stemmer to bridge the two spellings.
-     "aliases": ["голосіїв", "голосіївський район", "голосієво"]},
+     # stemmer to bridge the two spellings. "голос" is the terse callout form
+     # ("Голос 🔴") and is WHOLE-WORD-only (_WHOLE_WORD_ALIASES): as a stem it
+     # would fire inside "голосно"/"голосування".
+     "aliases": ["голосіїв", "голосіївський район", "голосієво", "голос"]},
     {"name_uk": "Дарницький", "name_en": "Darnytskyi", "lat": 50.410, "lon": 30.630,
      "aliases": ["дарниця", "дарницький район"]},
     {"name_uk": "Деснянський", "name_en": "Desnianskyi", "lat": 50.515, "lon": 30.605,
@@ -55,6 +57,13 @@ DISTRICTS: list[dict] = [
      "aliases": ["позняки"]},
     {"name_uk": "Осокорки", "name_en": "Osokorky", "lat": 50.400, "lon": 30.610,
      "aliases": ["осокорки"]},
+    {"name_uk": "Пуща-Водиця", "name_en": "PushchaVodytsia", "lat": 50.5371, "lon": 30.3564,
+     # Called by its first word alone ("Пуща 🔴"). The bare stem is safe: every
+     # corpus near-miss is "запущено"/"пуски", which the word-start boundary
+     # already blocks.
+     # Case forms are listed explicitly: the stem floor keeps "пущ" out (it would
+     # fire on "Пущено ракети"), and "пуща"+tail doesn't reach "Пущею"/"Пущі".
+     "aliases": ["пуща", "пущі", "пущу", "пущею", "пуща водиця", "пущаводиця"]},
     {"name_uk": "Виноградар", "name_en": "Vynohradar", "lat": 50.500, "lon": 30.415,
      "aliases": ["виноградар"]},
     {"name_uk": "Нивки", "name_en": "Nyvky", "lat": 50.460, "lon": 30.410,
@@ -136,7 +145,11 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Вишгород", "name_en": "Vyshhorod", "lat": 50.585, "lon": 30.490,
      "aliases": ["вишгорода"]},
     {"name_uk": "Бровари", "name_en": "Brovary", "lat": 50.511, "lon": 30.790,
-     "aliases": ["броварів", "броварський"]},
+     # "Торгмаш" is the plant on Brovary's eastern edge (50.5068, 30.8266) that
+     # spotters call targets over. An ALIAS, not its own entry: 2.5 km from the
+     # town centroid is inside this map's precision, and sharing the id means a
+     # "Торгмаш" callout corroborates a "Бровари" one instead of splitting it.
+     "aliases": ["броварів", "броварський", "торгмаш"]},
     {"name_uk": "Бориспіль", "name_en": "Boryspil", "lat": 50.353, "lon": 30.955,
      "aliases": ["борисполя"]},
     {"name_uk": "Васильків", "name_en": "Vasylkiv", "lat": 50.185, "lon": 30.315,
@@ -204,6 +217,10 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Переяслав", "name_en": "Pereiaslav", "lat": 50.0644, "lon": 31.4447, "aliases": []},
     {"name_uk": "Яготин", "name_en": "Yahotyn", "lat": 50.2759, "lon": 31.7635, "aliases": []},
     {"name_uk": "Баришівка", "name_en": "Baryshivka", "lat": 50.3645, "lon": 31.3257, "aliases": []},
+    # East approach, on the Baryshivka line ("Баришівка/Березань перші в сторону
+    # Борисполя"). Stems to "березан", which the March month "березень" (е, not
+    # а) never reaches.
+    {"name_uk": "Березань", "name_en": "Berezan", "lat": 50.3133, "lon": 31.4689, "aliases": []},
     {"name_uk": "Гоголів", "name_en": "Hoholiv", "lat": 50.5127, "lon": 31.0226, "aliases": []},
     {"name_uk": "Требухів", "name_en": "Trebukhiv", "lat": 50.4833, "lon": 30.9011, "aliases": []},
     {"name_uk": "Княжичі", "name_en": "Kniazhychi", "lat": 50.4604, "lon": 30.7862, "aliases": []},
@@ -222,6 +239,23 @@ DISTRICTS: list[dict] = [
     #  mislocalized onto this Kyiv suburb. Same class of bug as Остер/"остерігайтеся".)
     {"name_uk": "Ржищів", "name_en": "Rzhyshchiv", "lat": 49.9682, "lon": 31.0412, "aliases": []},
     {"name_uk": "Козин", "name_en": "Kozyn", "lat": 50.229, "lon": 30.6479, "aliases": []},
+    # C-bis. The SOUTHERN staging ring — 2026-08-18 coverage-gap export. Drones
+    # loiter and turn over these towns before entering the city, and every
+    # callout naming them ("Рокитне/БЦ уважно по двох групах БПЛА", "Райони
+    # Миронівки/Таращі/Богуслава уважно по третьому ланцюгу") localized nowhere.
+    # Geocoded via scripts/geocode_localities.py, corpus-swept for collisions.
+    {"name_uk": "Біла Церква", "name_en": "BilaTserkva", "lat": 49.797, "lon": 30.1158,
+     # Space-separated names never match as one stem (see Труханів острів), so
+     # the town rides on its second word — gated on a preceding "Біл…" via
+     # vocab._ALIAS_PREV_WORD_REQUIRED, or "приліт у церкву" would pin a strike
+     # 80 km out of town. "бц" is the spotters' own abbreviation (14 corpus
+     # hits, all this town) and is whole-word-only.
+     "aliases": ["церкв", "білоцерк", "бц"]},
+    {"name_uk": "Рокитне", "name_en": "Rokytne", "lat": 49.6867, "lon": 30.473, "aliases": []},
+    {"name_uk": "Тараща", "name_en": "Tarashcha", "lat": 49.5555, "lon": 30.5023, "aliases": []},
+    {"name_uk": "Богуслав", "name_en": "Bohuslav", "lat": 49.5476, "lon": 30.8733, "aliases": []},
+    {"name_uk": "Миронівка", "name_en": "Myronivka", "lat": 49.6583, "lon": 30.9825, "aliases": []},
+    {"name_uk": "Кагарлик", "name_en": "Kaharlyk", "lat": 49.8651, "lon": 30.8227, "aliases": []},
     # D. North-West (from Belarus / Zhytomyr).
     {"name_uk": "Бородянка", "name_en": "Borodianka", "lat": 50.6438, "lon": 29.9278, "aliases": []},
     {"name_uk": "Немішаєве", "name_en": "Nemishaieve", "lat": 50.568, "lon": 30.1015, "aliases": []},
@@ -257,6 +291,14 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Теличка", "name_en": "Telychka", "lat": 50.3956, "lon": 30.5711, "aliases": []},
     {"name_uk": "Харківський масив", "name_en": "KharkivskyiMasyv", "lat": 50.4118, "lon": 30.6581,
      "aliases": ["харківський"]},
+    # "ПОХ" = Позняки-Осокорки-Харківський, the spotters' name for the one
+    # left-bank strip those three massifs form. Deliberately ONE entry at their
+    # centroid, not the alias on all three: DistrictMatcher keeps a single hit
+    # per match offset, and three ids for one callout would read as three
+    # simultaneous targets (see rules._multi_targets). Whole-word only — as a
+    # stem it would fire inside "похолодання"/"поховались"/"походу".
+    {"name_uk": "Позняки-Осокорки-Харківський", "name_en": "PoznyakyOsokorkyKharkivskyi",
+     "lat": 50.4029, "lon": 30.6363, "aliases": ["пох"]},
     {"name_uk": "Русанівські сади", "name_en": "RusanivskiSady", "lat": 50.4744, "lon": 30.5753,
      "aliases": []},
     {"name_uk": "Нижні Сади", "name_en": "NyzhniSady", "lat": 50.3682, "lon": 30.6076, "aliases": []},
@@ -278,6 +320,9 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Ворзель", "name_en": "Vorzel", "lat": 50.5457, "lon": 30.1563, "aliases": []},
     {"name_uk": "Воропаїв", "name_en": "Voropaiv", "lat": 50.7692, "lon": 30.6582, "aliases": []},
     {"name_uk": "Вишеньки", "name_en": "Vyshenky", "lat": 50.3043, "lon": 30.7147, "aliases": []},
+    # Dnipro-bank village south of Boryspil, called in as targets follow the
+    # river ("Кийлів район. Фіксується один, другий зник").
+    {"name_uk": "Кийлів", "name_en": "Kyiliv", "lat": 50.1485, "lon": 30.8845, "aliases": []},
     {"name_uk": "Гнідин", "name_en": "Hnidyn", "lat": 50.3287, "lon": 30.7058, "aliases": []},
     {"name_uk": "Горенка", "name_en": "Horenka", "lat": 50.5596, "lon": 30.3123, "aliases": []},
     {"name_uk": "Хотянівка", "name_en": "Khotianivka", "lat": 50.5959, "lon": 30.5668, "aliases": []},

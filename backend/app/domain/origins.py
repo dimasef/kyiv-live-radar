@@ -120,11 +120,33 @@ def match_origin(norm: str) -> Origin | None:
 # raise. An ORIGIN mention ("з Чернігівщини", heading toward us) is different —
 # that IS Kyiv-relevant. This is the same set the LLM system prompt is told to
 # return empty for.
+#
+# The second block was added from a 5000-message coverage sweep: every entry
+# there is a place the feed named as a TARGET while the first block stayed
+# silent, so the message reached the LLM and came back empty ("Ракета ввійшла в
+# ПП Польща", "Пара БПЛА на Прилуки", "В Сумах впали"). City forms are listed
+# next to their oblast because the spotters use both.
+#
+# Rejected after the corpus sweep, each for a real collision:
+#   "сум"     — eats "сумно"/"сумнів"; the explicit "суми"/"сумах" forms are used;
+#   "житомир" — Kyiv's own metro station and highway ("станції метро
+#               «Житомирська»", "Житомирська траса"); only the oblast forms are;
+#   "львів"   — Львівська площа is in Shevchenkivskyi; only "львівщин" is;
+#   "рівне"   — too close to the adjective;
+#   "вологд"  — appears only as a launch ORIGIN ("пуски з району Вологди"),
+#               which must stay Kyiv-relevant.
 _OTHER_OBLAST = ("чернігівщин", "чернігів", "брянщин", "курщин", "ростов", "воронеж", "воронєж",
                  "дніпропетровщин", "дніпро", "запоріжж", "миколаївщин", "сумщин",
                  "полтавщин", "харківщин", "харков", "білорус", "крим",
                  "житомирщин", "вінницьк", "вінниччин", "вінничин",
-                 "черкащин", "одещин", "херсонщин")
+                 "черкащин", "одещин", "херсонщин",
+                 "черкас", "полтав", "суми", "сумах", "житомирську обл",
+                 "житомирської обл", "ніжин", "прилук", "жашків", "одес", "миколаїв",
+                 "львівщин", "дрогобич", "самбір", "стрий", "рівненщин", "волин",
+                 "тернопільщин", "тернопіл", "закарпат", "франківськ",
+                 "хмельниччин", "хмельницьк", "кіровоградщин", "донеччин",
+                 "луганщин", "чернівц", "буковин",
+                 "польщ", "люблін", "молдов", "румун")
 _OBLAST_ALT_ANY = "|".join(sorted(map(re.escape, _OTHER_OBLAST), key=len, reverse=True))
 # Any other-oblast mention.
 _OBLAST_ANY_RE = re.compile(r"(?<![а-яіїєґ])(?:" + _OBLAST_ALT_ANY + r")")
@@ -133,7 +155,7 @@ _OBLAST_ANY_RE = re.compile(r"(?<![а-яіїєґ])(?:" + _OBLAST_ALT_ANY + r")")
 # govern a coordinated LIST ("загроза балістики з Брянщини, Курщини та з району
 # Ростова" — all three are origins) — the tail alternation swallows the
 # continuation so those oblasts count as origin-form too.
-_OBLAST_BRIDGE = r"(?:боку\s+|напрямку\s+|району\s+|р-ну\s+|межах\s+|межа\w*\s+)?"
+_OBLAST_BRIDGE = r"(?:боку\s+|напрямку\s+|район\w*\s+|р-ну\s+|межах\s+|межа\w*\s+)?"
 _OBLAST_ORIGIN_RE = re.compile(
     r"(?<![а-яіїєґ])(?:з|зі|із|від)\s+"
     + _OBLAST_BRIDGE
@@ -143,12 +165,34 @@ _OBLAST_ORIGIN_RE = re.compile(
 )
 
 
+# A far city's name used for a road/street that runs through OUR area is not
+# another oblast: "Маневр по трасі Київ-Суми" and "ДТП на Одеській трасі" are
+# both about Kyivshchyna. Blanked before counting, so the highway register can't
+# suppress a local sighting.
+_ROAD_USE_RE = re.compile(
+    r"(?:" + _OBLAST_ALT_ANY + r")[а-яіїєґ]*\s+(?:трас|шосе|площ|вулиц|проспект)[а-яіїєґ]*"
+    r"|(?<![а-яіїєґ])київ[а-яіїєґ]*\s*[-–—]\s*(?:" + _OBLAST_ALT_ANY + r")[а-яіїєґ]*"
+)
+
+
+# Us as the stated DESTINATION — vetoes the whole check below.
+_KYIV_DESTINATION_RE = re.compile(
+    r"(?<![а-яіїєґ])(?:на|до|в бік|у бік|курс(?:ом)? на)\s+(?:київ|києва|київщин|столиц)"
+)
+
+
 def target_elsewhere(norm: str) -> bool:
     """True if the message names another oblast as a target LOCATION (not merely
     an inbound target's origin) — then the threat genuinely isn't ours: no Kyiv
     district to localize AND no Kyiv-relevant axis to raise. An origin-only
     mention ("з Чернігівщини", heading to us) returns False. Conservative when
     unclear: a non-origin oblast mention suppresses."""
+    norm = _ROAD_USE_RE.sub(" ", norm)
+    if _KYIV_DESTINATION_RE.search(norm):
+        # The message states US as the destination ("зі Сумщини пішли в район
+        # Ніжин, далі ймовірно на Київщину") — whatever else it names on the way,
+        # it is exactly the message this feed exists for.
+        return False
     total = len(_OBLAST_ANY_RE.findall(norm))
     if total == 0:
         return False
