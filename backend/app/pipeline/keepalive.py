@@ -13,6 +13,7 @@ import asyncio
 
 from ..api.ws import manager
 from ..config import settings
+from ..models import utcnow
 from ..schemas import WSMessage
 
 
@@ -20,4 +21,5 @@ async def run_keepalive() -> None:
     while True:
         await asyncio.sleep(settings.ws_keepalive_s)
         if manager.online > 0:
-            await manager.broadcast(WSMessage(type="ping"))
+            # Doubles as the client's clock reference — see WSMessage.server_time.
+            await manager.broadcast(WSMessage(type="ping", server_time=utcnow()))

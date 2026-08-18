@@ -1,4 +1,5 @@
 import type { AnalysisKind } from '@/api'
+import { lastSeenMs } from '@/lib/threatFreshness'
 import type { Threat } from '@/types'
 
 /** Rarity drives BOTH the card-frame tint and the drop odds: rarer cards drop
@@ -148,16 +149,6 @@ const ANALYSABLE_TYPES = new Set(['shahed', 'jet_drone', 'missile', 'ballistic']
 /** A target older than this since last seen is stale — no longer analysable.
  * Mirrors backend app/domain/cards.STALE_AFTER (12h). */
 const STALE_MS = 12 * 60 * 60 * 1000
-
-/** Last-seen time of a track: its most recent event, else when it was created. */
-function lastSeenMs(threat: Threat): number {
-  let t = Date.parse(threat.created_at)
-  for (const ev of threat.events) {
-    const e = Date.parse(ev.event_time)
-    if (!Number.isNaN(e) && e > t) t = e
-  }
-  return t
-}
 
 /** A real localized weapon target — the only kind the mechanic ever engages
  * (excludes city-wide banners and unclassified rows). */

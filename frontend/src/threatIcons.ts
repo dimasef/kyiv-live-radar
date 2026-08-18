@@ -131,18 +131,35 @@ interface IconOpts {
   bearingDeg?: number
   color?: string
   size?: number
+  /** Stated group size. Spotters count targets constantly ("3 на Славутич"), and
+   * a group of six used to look exactly like a single drone on the map — the
+   * number was only in the popup and the feed. */
+  count?: number | null
+  /** The track just closed and is living out its linger — the icon fades away
+   * over it instead of blinking out. A «Чисто» closes dozens of tracks in one
+   * message, and dozens of markers vanishing on the same frame read as a glitch
+   * rather than as an all-clear. */
+  closing?: boolean
 }
 
 /** Leaflet divIcon для мапи. Колір передається ззовні (тип, або сірий якщо збито). */
 export function threatDivIcon(type: TargetType, opts: IconOpts = {}): L.DivIcon {
-  const { state = 'active', bearingDeg = 0, color, size = 26 } = opts
-  const html =
+  const { state = 'active', bearingDeg = 0, color, size = 26, closing = false, count } = opts
+  const glyph =
     state === 'fix'
       ? fixDotSvg(size, color)
       : threatGlyphSvg(type, { size, state, bearingDeg, color })
+  // Deliberately a SIBLING of the svg, never inside it: the glyph is rotated to
+  // the movement heading, and a number inside that transform would hang upside
+  // down on a southbound target. Neutral colours (never the type colour — a
+  // yellow numeral on the yellow shahed glyph is unreadable), and
+  // pointer-events:none so it can't swallow the click that opens the popup.
+  const badge =
+    count != null && count > 1 ? `<span class="threat-count">\u00d7${count}</span>` : ''
   return L.divIcon({
-    html,
-    className: 'threat-icon', // без дефолтних стилів leaflet
+    html: glyph + badge,
+    // без дефолтних стилів leaflet
+    className: closing ? 'threat-icon threat-icon--closing' : 'threat-icon',
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   })

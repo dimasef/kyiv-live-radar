@@ -65,9 +65,18 @@ class ThreatOut(BaseModel):
     corroboration_count: int = 1
     has_conflict: bool = False
     confidence: float = 0.5
+    # Freshness, derived (see domain/staleness.py): when this target was last
+    # seen, and the instant the sweeper will auto-close it as 'stale'. The map
+    # fades a target out across that span, so a stale dot stops looking as
+    # convincing as a fresh one. NULL on the shallow (feed) serialization —
+    # a feed row is history and needs no freshness. See api/serialize.py.
+    last_event_at: datetime | None = None
+    stale_at: datetime | None = None
     events: list[ThreatEventOut] = []
 
-    _tz_created_at = field_validator("created_at", "closed_at", mode="before")(_as_utc)
+    _tz_created_at = field_validator(
+        "created_at", "closed_at", "last_event_at", "stale_at", mode="before"
+    )(_as_utc)
 
 
 class FeedEntryOut(BaseModel):

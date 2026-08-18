@@ -7,6 +7,11 @@ import type { RadarState } from './types'
 
 // How long a closed (destroyed/lost) track lingers on the map before it clears.
 const CLOSED_LINGER_MS = 6000
+// The tail of that linger spent fading out, so a track never blinks out of
+// existence — most visible on «Чисто», which closes dozens at once. The store
+// owns this timeline (not a 6s CSS animation) precisely so the fade can be HELD
+// BACK: a track the user is reading must not dissolve under them.
+const LEAVE_MS = 700
 
 export interface ThreatsSlice {
   threats: Record<number, Threat>
@@ -15,6 +20,13 @@ export interface ThreatsSlice {
    * `threats` (the live layer), so a closed/destroyed track stays visible for
    * as long as the user wants, instead of being evicted after a few seconds. */
   inspectedThreat: Threat | null
+  /** Closed tracks currently playing their exit fade — the last LEAVE_MS before
+   * eviction. Held back while the user is reading one (popup open / inspected). */
+  leavingThreatIds: number[]
+  /** Which track has its map popup open, if any — a marker being read is never
+   * evicted from under the reader. */
+  openPopupThreatId: number | null
+  setOpenPopupThreat: (id: number | null) => void
   setThreats: (t: Threat[]) => void
   setLog: (log: FeedEntry[]) => void
   inspectThreat: (threat: Threat) => void
@@ -28,6 +40,10 @@ export const createThreatsSlice: StateCreator<RadarState, [], [], ThreatsSlice> 
   threats: {},
   log: [],
   inspectedThreat: null,
+  leavingThreatIds: [],
+  openPopupThreatId: null,
+
+  setOpenPopupThreat: (id) => set({ openPopupThreatId: id }),
 
   setThreats: (t) => set({ threats: Object.fromEntries(t.map((x) => [x.id, x])) }),
 
@@ -89,19 +105,41 @@ export const createThreatsSlice: StateCreator<RadarState, [], [], ThreatsSlice> 
     }
 
     if (threat.closed_at && threat.status !== 'impact') {
-      // Let the closed state show briefly, then drop it — but only if it's
-      // still the same closed track (don't delete a threat that changed
+      // Let the closed state show briefly, fade it, then drop it — but only if
+      // it's still the same closed track (don't delete a threat that changed
       // under us). Impacts are closed-on-creation but are confirmed strike
       // locations that must PERSIST on the map, so they're exempt.
       const closedAt = threat.closed_at
-      setTimeout(() => {
+      const stillTheSame = () => {
         const cur = get().threats[threat.id]
-        if (cur && cur.closed_at === closedAt) {
-          const next = { ...get().threats }
-          delete next[threat.id]
-          set({ threats: next })
+        return cur != null && cur.closed_at === closedAt
+      }
+      // Someone reading this target's popup, or inspecting it from the feed,
+      // has said they want it — postpone the whole exit rather than dissolving
+      // it mid-read (the inspected copy is deliberately permanent, see above).
+      const held = () =>
+        get().openPopupThreatId === threat.id || get().inspectedThreat?.id === threat.id
+
+      const startLeave = () => {
+        if (!stillTheSame()) return
+        if (held()) {
+          setTimeout(startLeave, LEAVE_MS)
+          return
         }
-      }, CLOSED_LINGER_MS)
+        set((s) => ({ leavingThreatIds: [...s.leavingThreatIds, threat.id] }))
+        setTimeout(() => {
+          const done = stillTheSame()
+          set((s) => ({
+            leavingThreatIds: s.leavingThreatIds.filter((id) => id !== threat.id),
+            threats: done
+              ? Object.fromEntries(
+                  Object.entries(s.threats).filter(([id]) => Number(id) !== threat.id),
+                )
+              : s.threats,
+          }))
+        }, LEAVE_MS)
+      }
+      setTimeout(startLeave, CLOSED_LINGER_MS - LEAVE_MS)
     }
   },
 })

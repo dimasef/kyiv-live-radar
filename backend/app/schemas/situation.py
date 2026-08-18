@@ -31,6 +31,12 @@ class IncidentOut(BaseModel):
     status: str  # 'active' | 'ended'
     # Aggregates over member threats (computed in serialize.py::incident_out).
     track_count: int = 0        # inbound tracks (excludes impacts and city alerts)
+    # Σ of the stated group sizes over those tracks — what a person means by "how
+    # many targets". Larger than track_count whenever a spotter counted a group
+    # ("3 долітають до Броварів" is ONE track of three), which is why the banner
+    # can't just show track_count under a label that says "цілі". Matches how the
+    # journal totals targets, so the two agree.
+    target_count: int = 0
     impact_count: int = 0       # distinct confirmed strike locations
     citywide: bool = False      # a city-wide alert is part of this attack
     district_count: int = 0     # distinct raions touched (excludes the sentinel)

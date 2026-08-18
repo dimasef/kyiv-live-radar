@@ -101,10 +101,18 @@ setup_observability(app)
 
 @app.get("/health")
 async def health():
-    out = {"status": "ok", "simulator": settings.simulator_enabled}
-    if settings.telegram_enabled:
-        from .models import utcnow
+    from .models import utcnow
 
+    # server_time is the client's clock reference: the map ages targets against
+    # absolute `stale_at` timestamps, and this is what makes that correct on a
+    # device whose own clock is wrong. The WS 'ping' frame refreshes it, but the
+    # first ping is up to ws_keepalive_s away — so hydrate it here.
+    out = {
+        "status": "ok",
+        "simulator": settings.simulator_enabled,
+        "server_time": utcnow().isoformat(),
+    }
+    if settings.telegram_enabled:
         status = get_status()
         status["feed_ok"] = feed_health(utcnow(), settings.feed_silence_warn_minutes)
         out["telegram"] = status

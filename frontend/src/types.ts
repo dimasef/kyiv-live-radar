@@ -90,6 +90,10 @@ export interface WSMessage {
   feed_ok?: boolean | null
   /** 'online' frame payload — how many clients are watching right now. */
   online?: number | null
+  /** Sent on every 'ping' — the server's clock. The map's staleness fade runs
+   * against absolute `stale_at` timestamps, so a device whose own clock is off
+   * needs this to age targets correctly (see store/clockSlice). */
+  server_time?: string | null
 }
 
 /** GET /health — declares no `response_model` (it assembles a plain dict), so
@@ -97,6 +101,8 @@ export interface WSMessage {
 export interface HealthStatus {
   status: string
   simulator: boolean
+  /** Server clock, hydrating the fade's time reference before the first WS ping. */
+  server_time?: string | null
   telegram?: {
     connected: boolean
     last_message_at: string | null

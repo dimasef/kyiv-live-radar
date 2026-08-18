@@ -32,12 +32,28 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.28.1";
+const LATEST = "0.29.0";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "Мапа показує вік даних",
+    date: "2026-08-18",
+    kind: "minor",
+    changes: [
+      "Ціль, про яку давно ніхто не повідомляв, поступово тьмяніє і перестає пульсувати — свіже й застаріле більше не виглядають однаково переконливо",
+      "У попапі такої цілі видно, коли про неї інформували востаннє, а в легенді зʼявився рядок «Затихла ціль»",
+      "Вік цілей рахується за часом сервера, тому мапа правильна навіть на пристрої зі збитим годинником",
+      "Група цілей позначена на мапі числом ×N просто біля мітки — раніше кількість була лише в попапі",
+      "Спостерігачі часто рахують цілі як «3 на Славутич» чи «ще 4 долітають» — тепер такі числа не губляться",
+      "Банер атаки і зведення у стрічці рахують саме цілі, а не позначки на мапі",
+      "Збита ціль плавно згасає замість того, щоб зникнути миттєво, а мітка, попап якої ви читаєте, не зникає з-під рук",
+      "Уніфіковано підписи стану цілі — у стрічці й на мапі вони тепер однакові",
+    ],
+  },
+  {
+    version: "0.28.1",
     title: "Радар на телевізорі",
     date: "2026-08-18",
     kind: "patch",

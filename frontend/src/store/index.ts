@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { createAlertsSlice } from './alertsSlice'
 import { createAuthSlice } from './authSlice'
 import { createAxesSlice } from './axesSlice'
+import { createClockSlice } from './clockSlice'
 import { createConnectionSlice } from './connectionSlice'
 import { createDistrictsSlice } from './districtsSlice'
 import { createFriendsSlice } from './friendsSlice'
@@ -28,6 +29,7 @@ export const useRadar = create<RadarState>()((...a) => ({
   ...createIncidentsSlice(...a),
   ...createAxesSlice(...a),
   ...createAlertsSlice(...a),
+  ...createClockSlice(...a),
   ...createConnectionSlice(...a),
   ...createHomeSlice(...a),
   ...createFriendsSlice(...a),

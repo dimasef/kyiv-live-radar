@@ -3,6 +3,10 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+import { STATUS_LABEL_KEY } from '@/threatLabels'
+
+const CHIP_KEYS = { ...STATUS_LABEL_KEY, allClear: 'status.allClear' }
+
 import en from './en.json'
 import uk from './uk.json'
 
@@ -58,6 +62,20 @@ describe('translation keys', () => {
     const missing = [...KEYS]
       .filter(([key]) => !resolves(bundle, key))
       .map(([key, path]) => `${key}  (${path})`)
+    expect(missing).toEqual([])
+  })
+
+  // The scan above cannot see a key built from a template literal, and that is
+  // precisely where the last gap hid: `t(\`status.${threat.status}\`, fallback)`
+  // shipped the raw English "destroyed"/"tracking" to the Ukrainian popup,
+  // because only `status.impact` was ever translated. Enum-driven labels now
+  // live in a Record whose completeness TypeScript enforces, and every one of
+  // its keys has to exist in both bundles.
+  it.each(['uk', 'en'] as const)('cover every threat status in %s.json', (lang) => {
+    const bundle = lang === 'uk' ? uk : en
+    const missing = Object.entries(CHIP_KEYS)
+      .filter(([, key]) => !resolves(bundle, key))
+      .map(([status, key]) => `${status} -> ${key}`)
     expect(missing).toEqual([])
   })
 })

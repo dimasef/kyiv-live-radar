@@ -108,6 +108,66 @@ def test_target_count_ignores_minutes():
     assert parse_message("Ціль буде через 20хв", M).target_count is None
 
 
+def test_bare_count_heading_for_a_place():
+    # The commonest count form in the feed, and it used to be dropped entirely:
+    # no "х" suffix and no target noun, just a number and where it's going.
+    # All four are real messages.
+    assert parse_message("3 на Славутич", M).target_count == 3
+    assert parse_message("2 на Бровари, уважно", M).target_count == 2
+    assert parse_message("Ще 4 на Бровари", M).target_count == 4
+    assert parse_message("2 на Десну", M).target_count == 2
+
+
+def test_bare_count_needs_a_known_place_after_it():
+    # The number only counts when the gazetteer matched what follows it — a bare
+    # digit before a preposition is far too common to trust on its own.
+    # Real message: the "3" belongs to the bomber designation Ту-22м3.
+    assert (
+        parse_message(
+            "Нагадаю, що загроза по Ту-22м3 на Київщину наразі не поширюється", M
+        ).target_count
+        is None
+    )
+    # A time, and a decimal — neither is a group of targets.
+    assert parse_message("Відбій о 3:00 на Славутич", M).target_count is None
+    assert parse_message("3.5 на Славутич", M).target_count is None
+
+
+def test_count_on_a_moving_number():
+    # Real messages. The verb is the anchor: the place can be several words away
+    # ("3 долітають до Броварів") or absent entirely ("Ще 4 летить"), so the
+    # place-anchored form can't reach these.
+    assert parse_message("Знову 3 долітають до Броварів і нові на Чернігівщині", M).target_count == 3
+    assert parse_message("Ще 4 летить", M).target_count == 4
+    assert parse_message("З Чернігівщини ще штук 5 летить", M).target_count == 5
+
+
+def test_count_verb_form_is_present_tense_only():
+    # The past tense is the voice of recaps and news, where the number is a
+    # whole-night salvo total rather than a group over one district — stamping one
+    # of those on a track is what once inflated the journal. Phrased without a
+    # target noun on purpose: "30 ракет" would be counted by the older noun form,
+    # which is not what this test is about.
+    assert parse_message("Вночі всі 30 летіли на Київ", M).target_count is None
+    assert parse_message("За ніч 12 пройшли повз Бровари", M).target_count is None
+
+
+def test_count_near_a_place():
+    # "біля"/"до" + a known place, also real messages.
+    assert parse_message("Київ наче чисто, 2 біля Броварів", M).target_count == 2
+    assert parse_message("Візуально 1 біля Обухова", M).target_count == 1
+    # A date range must not read as a count: nothing known follows "26 до".
+    assert parse_message("Із 26 до 29 липня буде обмежено рух", M).target_count is None
+
+
+def test_bare_count_keeps_the_largest_stated_group():
+    # Real message: several groups in one text. The count annotates ONE track, so
+    # the largest stated group wins — the same rule the noun form already used,
+    # and the per-district enumeration path still refuses to stamp it (handlers).
+    r = parse_message("6 БпЛА на Вишгород, 2 на Згурівку. По 1 на Бориспіль, Бровари.", M)
+    assert r.target_count == 6
+
+
 def test_all_clear():
     r = parse_message("Відбій тривоги в Києві", M)
     assert r.status == "clear"

@@ -2079,6 +2079,11 @@ export interface components {
             /** Status */
             status: string;
             /**
+             * Target Count
+             * @default 0
+             */
+            target_count: number;
+            /**
              * Target Type
              * @enum {string}
              */
@@ -3128,12 +3133,16 @@ export interface components {
              * @enum {string}
              */
             kind: "track" | "impact";
+            /** Last Event At */
+            last_event_at?: string | null;
             /**
              * Scope
              * @default district
              * @enum {string}
              */
             scope: "district" | "city";
+            /** Stale At */
+            stale_at?: string | null;
             /**
              * Status
              * @enum {string}

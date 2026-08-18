@@ -1512,6 +1512,11 @@
             "title": "Status",
             "type": "string"
           },
+          "target_count": {
+            "default": 0,
+            "title": "Target Count",
+            "type": "integer"
+          },
           "target_type": {
             "enum": [
               "shahed",
@@ -3822,6 +3827,18 @@
             "title": "Kind",
             "type": "string"
           },
+          "last_event_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Event At"
+          },
           "scope": {
             "default": "district",
             "enum": [
@@ -3830,6 +3847,18 @@
             ],
             "title": "Scope",
             "type": "string"
+          },
+          "stale_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stale At"
           },
           "status": {
             "enum": [

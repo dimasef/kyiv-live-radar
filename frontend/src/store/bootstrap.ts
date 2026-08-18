@@ -40,8 +40,12 @@ export async function hydrate(): Promise<void> {
     fetchRecentEvents(store.feedLimit).then(store.setLog).catch(() => {}),
     fetchRecentNotices().then(store.setNotices).catch(() => {}),
     // Hydrate feed health once; live changes arrive via the WS 'health' frame.
+    // `server_time` seeds the fade clock's skew correction before the first ping.
     fetchHealth()
-      .then((h) => store.setFeedOk(h.telegram?.feed_ok ?? null))
+      .then((h) => {
+        store.setFeedOk(h.telegram?.feed_ok ?? null)
+        store.setServerTime(h.server_time)
+      })
       .catch(() => {}),
   ])
   lastHydrateAt = Date.now()
@@ -68,6 +72,9 @@ export function bootstrapApp() {
   hydrate()
   connectWS()
   registerLifecycleListeners()
+  // Drives the map's staleness fade — one timer for the whole app, paused while
+  // the tab is hidden (see clockSlice).
+  store.startClock()
 
   // Poll the friend graph while signed in and foregrounded — friend requests /
   // acceptances have no live WS channel, so this is what surfaces an incoming

@@ -25,6 +25,7 @@ from ..config import settings
 from ..models import Threat, ThreatEvent
 from .fusion import compute_fusion
 from .lifecycle import close_track
+from .staleness import last_event_at, stale_window_minutes
 
 log = logging.getLogger("tracking")
 
@@ -284,19 +285,18 @@ async def close_stale_tracks(
     """Close open tracks with no sighting for `minutes` — a target that just went
     silent (no explicit destroyed/clear) must not linger as 'active' forever.
 
-    `ballistic_minutes` (when set) is a SHORTER window for a district-scoped
-    ballistic dot: sub-minute flight means such a track hangs on the map long
-    after impact. A scope='city' ballistic alert (the barrage banner) keeps the
-    normal window — its waves can lull for minutes."""
+    The per-type window and the "last seen" rule live in domain/staleness.py —
+    the API publishes the same instant as `stale_at` so the map's fade-out lands
+    exactly on this close."""
     stmt = select(Threat).where(Threat.closed_at.is_(None)).options(
         selectinload(Threat.events)
     )
     stale = []
     for t in await session.scalars(stmt):
-        gap_min = minutes
-        if ballistic_minutes is not None and t.target_type == "ballistic" and t.scope != "city":
-            gap_min = ballistic_minutes
-        last = t.events[-1].event_time if t.events else t.created_at
+        gap_min = stale_window_minutes(
+            t.target_type, t.scope, minutes=minutes, ballistic_minutes=ballistic_minutes
+        )
+        last = last_event_at(t)
         if not _within(last, now, timedelta(minutes=gap_min)):
             close_track(t, now, "stale")
             stale.append(t)

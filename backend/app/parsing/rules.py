@@ -32,8 +32,10 @@ from .vocab import (
     _CONDITIONAL_IDIOM_EXCLUDE,
     _CONDITIONAL_PHRASES,
     _CONFIRMED,
+    _COUNT_MOVING_RE,
     _COUNT_NOUN_RE,
     _COUNT_RE,
+    _COUNT_TO_PLACE_RE,
     _DAY_RECAP_WORD,
     _DECOY,
     _DESTROYED,
@@ -258,10 +260,30 @@ def _target_type(norm: str) -> str:
     return "unknown"
 
 
-def _target_count(norm: str) -> int | None:
-    """The largest sane group count stated in the text ("2х"->2, "3 ракети"->3)."""
+def _place_follows(end: int, districts) -> bool:
+    """Whether a gazetteer-matched place starts right where a phrase ended.
+
+    This is what makes the bare-number count form safe: the number only counts
+    when a KNOWN place follows it. The couple of characters of slack absorb a
+    stray quote or double space between the preposition and the name."""
+    return any(0 <= h.position - end <= 2 for h in districts)
+
+
+def _target_count(norm: str, districts) -> int | None:
+    """The largest sane group count stated in the text ("2х"->2, "3 ракети"->3,
+    "3 на Славутич"->3, "3 долітають до Броварів"->3).
+
+    Still the size of ONE group flying together, an annotation on the track — it
+    never fabricates N tracks, and the multi-district enumeration path
+    deliberately refuses to stamp it per district (see handlers.py)."""
     nums = [int(m.group(1)) for m in _COUNT_RE.finditer(norm)]
     nums += [int(m.group(1)) for m in _COUNT_NOUN_RE.finditer(norm)]
+    nums += [
+        int(m.group(1))
+        for m in _COUNT_TO_PLACE_RE.finditer(norm)
+        if _place_follows(m.end(), districts)
+    ]
+    nums += [int(m.group(1)) for m in _COUNT_MOVING_RE.finditer(norm)]
     nums = [n for n in nums if 1 <= n <= 50]  # ignore junk like "100х"/years
     return max(nums) if nums else None
 
@@ -660,8 +682,10 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
     target_type = _target_type(norm)
     status, conf = _status(text, norm)
     is_new = any(k in norm for k in _NEW_TARGET) or bool(_NEW_TARGET_COUNT_RE.search(norm))
-    target_count = _target_count(norm)
     districts = matcher.find(norm)
+    # Counted after the districts: the bare "3 на Славутич" form only counts when
+    # a matched place follows the number.
+    target_count = _target_count(norm, districts)
     # Unconditional modifier flags — computed regardless of matched/
     # suppression status, since a decoy/hypersonic mention is worth
     # accumulating onto the incident even on an otherwise-terse message.

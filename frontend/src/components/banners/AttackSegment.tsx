@@ -25,7 +25,10 @@ export default function AttackSegment({
   // damage report the map deliberately withholds. The journal has it once the
   // alert is over (the server sends impact_count: 0 while it isn't).
   const counts = [
-    { n: incident.track_count, Icon: Crosshair, title: t('incident.targets') },
+    // Targets, not tracks: one track can be a counted group ("3 долітають до
+    // Броварів"), and the label under this crosshair says "цілі". Falls back to
+    // track_count so an older payload still shows something sane.
+    { n: incident.target_count || incident.track_count, Icon: Crosshair, title: t('incident.targets') },
     { n: incident.district_count, Icon: MapPin, title: t('incident.districts') },
   ].filter((c) => c.n > 0)
 

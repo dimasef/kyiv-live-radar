@@ -556,6 +556,52 @@ body::after {
   animation-delay: 1.2s;
 }
 
+/* Group size on the map head: "×3" beside the glyph. A count is read as a
+   number — encoding it as marker area would be both unreadable (×6 vs ×3) and a
+   clash with the size already used for the inspected/highlighted state. Neutral
+   ink chip, so it stays legible over any type colour and over the map. */
+.threat-count {
+  position: absolute;
+  right: -9px;
+  bottom: -7px;
+  padding: 0 3px;
+  border-radius: 4px;
+  border: 1px solid rgba(148, 197, 233, 0.18);
+  background: rgba(5, 8, 13, 0.88);
+  color: #dbe7f1;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 14px;
+  font-variant-numeric: tabular-nums;
+  /* Never eats the click that opens the popup. */
+  pointer-events: none;
+}
+
+/* Staleness fade: a target nobody has re-reported dims toward its auto-close
+   (opacity comes from ThreatLayer's `dim`, stepped every 10s by clockSlice —
+   the transition is what makes those steps invisible). */
+.threat-icon {
+  transition: opacity 800ms linear;
+}
+
+/* Leave animation: the tail of a closed track's linger, so it fades instead of
+   blinking out — most visible on «Чисто»/«Дорозвідка», which close dozens of
+   tracks in one message. Applied only while the store says the track is actually
+   leaving (leavingThreatIds), never derived from closed_at: an inspected or
+   popup-open target is closed too, and must NOT dissolve while it's being read.
+   0.7s === LEAVE_MS in store/threatsSlice.ts. */
+@keyframes threat-leave {
+  to {
+    opacity: 0;
+  }
+}
+.threat-icon--closing,
+.track-closing {
+  /* Beats Leaflet's inline opacity: a running animation outranks inline styles. */
+  animation: threat-leave 700ms var(--ease-out) forwards;
+}
+
 /* City-wide threat: the whole city under threat — every raion boundary
    breathes in the threat colour (see CitywidePulse). */
 @keyframes citywide-pulse {

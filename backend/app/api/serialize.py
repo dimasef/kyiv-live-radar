@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from datetime import datetime
+from typing import cast
 
+from ..config import settings
 from ..domain.attack import classify
 from ..domain.journal import DayStat
 from ..domain.origins import ORIGIN_BY_KEY, bearing_for
+from ..domain.staleness import last_event_at, stale_at
 from ..models import Alert, Incident, Notice, Threat, ThreatAxis, ThreatEvent
 from ..schemas import (
     AlertOut,
@@ -17,6 +21,7 @@ from ..schemas import (
     NoticeOut,
     ThreatEventOut,
     ThreatOut,
+    _as_utc,
 )
 
 
@@ -37,7 +42,32 @@ def event_out(ev: ThreatEvent) -> ThreatEventOut:
 def threat_out(th: Threat) -> ThreatOut:
     out = ThreatOut.model_validate(th)
     out.events = [event_out(ev) for ev in th.events]
+    # Freshness is derived, not stored: one rule, shared with the sweeper that
+    # will actually do the closing (domain/staleness.py).
+    #
+    # _as_utc by hand, because these are ASSIGNED rather than validated:
+    # ThreatOut's field validators only run inside model_validate, so a naive
+    # value set here would serialize without an offset and the frontend would
+    # read it as browser-local time (a Kyiv client showed "186 min ago" for a
+    # 6-minute-old sighting — exactly the +3 offset).
+    out.last_event_at = _utc(last_event_at(th))
+    out.stale_at = _utc(
+        stale_at(
+            th,
+            minutes=settings.track_stale_minutes,
+            ballistic_minutes=settings.ballistic_stale_minutes,
+        )
+    )
     return out
+
+
+def _utc(value: datetime) -> datetime:
+    return cast(datetime, _as_utc(value))
+
+
+# Derived (not ORM) fields, so the introspection in threat_out_shallow can't
+# getattr them off the row.
+_DERIVED_THREAT_FIELDS = frozenset({"events", "last_event_at", "stale_at"})
 
 
 def threat_out_shallow(th: Threat) -> ThreatOut:
@@ -45,10 +75,19 @@ def threat_out_shallow(th: Threat) -> ThreatOut:
     carries its own row (the feed) and loading every track's full event list
     would be wasteful (and would require eager-loading th.events, which isn't
     for a plain event query). Introspects ThreatOut.model_fields (excluding
-    `events`) instead of a hand-written field list, so a new field on the
-    schema is picked up automatically — a mismatched ORM attribute fails
-    loudly (AttributeError) rather than silently serializing as blank."""
-    fields = {name: getattr(th, name) for name in ThreatOut.model_fields if name != "events"}
+    `_DERIVED_THREAT_FIELDS`) instead of a hand-written field list, so a new
+    field on the schema is picked up automatically — a mismatched ORM attribute
+    fails loudly (AttributeError) rather than silently serializing as blank.
+
+    `last_event_at`/`stale_at` stay None here: both need `th.events` loaded
+    (which this path deliberately avoids — touching the lazy relationship would
+    raise MissingGreenlet under async), and a feed row is history anyway. Only
+    the live map cares about freshness."""
+    fields = {
+        name: getattr(th, name)
+        for name in ThreatOut.model_fields
+        if name not in _DERIVED_THREAT_FIELDS
+    }
     return ThreatOut(**fields, events=[])
 
 
@@ -118,7 +157,7 @@ def _is_notable(target_type: str, citywide: bool, impact_count: int, track_count
 def incident_out(inc: Incident, sentinel_district_id: int | None) -> IncidentOut:
     """Requires `inc.threats` (and each threat's `.events`) eagerly loaded —
     see api/routes.py and broadcast.py for the two loading call sites."""
-    track_count = impact_count = 0
+    track_count = impact_count = target_count = 0
     citywide = False
     districts: set[int] = set()
     for th in inc.threats:
@@ -129,6 +168,7 @@ def incident_out(inc: Incident, sentinel_district_id: int | None) -> IncidentOut
             citywide = True
         else:
             track_count += 1
+            target_count += th.target_count or 1
         for ev in th.events:
             if ev.district_id != sentinel_district_id:
                 districts.add(ev.district_id)
@@ -143,6 +183,7 @@ def incident_out(inc: Incident, sentinel_district_id: int | None) -> IncidentOut
         target_type=inc.target_type,
         status="active" if inc.ended_at is None else "ended",
         track_count=track_count,
+        target_count=target_count,
         # Always 0 on the wire. `impact_count` still drives `notable` (a hit is
         # a strong signal the attack deserves a banner) but the NUMBER is never
         # published — "2 влучання" during a raid tells the attacker how they

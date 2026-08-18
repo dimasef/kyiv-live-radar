@@ -1,11 +1,15 @@
 """Unit tests for app/api/serialize.py::threat_out_shallow — a drift guard so
 a new ThreatOut field is never silently dropped from the shallow (feed) path,
 since it's built by introspecting ThreatOut.model_fields rather than a
-hand-written list."""
+hand-written list.
 
-from datetime import UTC, datetime
+The freshness fields are the deliberate exception: they're derived from
+`th.events`, which the shallow path never loads, so they stay NULL there. That
+exclusion is asserted explicitly rather than left implicit."""
 
-from app.api.serialize import threat_out, threat_out_shallow
+from datetime import UTC, datetime, timedelta
+
+from app.api.serialize import _DERIVED_THREAT_FIELDS, threat_out, threat_out_shallow
 from app.models import Threat
 from app.schemas import ThreatOut
 
@@ -23,18 +27,32 @@ def _threat() -> Threat:
     return th
 
 
-def test_shallow_matches_full_output_minus_events():
+def test_shallow_matches_full_output_minus_derived_fields():
     th = _threat()
     full = threat_out(th)
     shallow = threat_out_shallow(th)
-    assert shallow.model_dump(exclude={"events"}) == full.model_dump(exclude={"events"})
+    assert shallow.model_dump(exclude=_DERIVED_THREAT_FIELDS) == full.model_dump(
+        exclude=_DERIVED_THREAT_FIELDS
+    )
     assert shallow.events == []
 
 
-def test_shallow_carries_every_non_events_field():
+def test_shallow_carries_every_stored_field():
     th = _threat()
     shallow = threat_out_shallow(th)
     for name in ThreatOut.model_fields:
-        if name == "events":
+        if name in _DERIVED_THREAT_FIELDS:
             continue
         assert getattr(shallow, name) == getattr(th, name), name
+
+
+def test_only_the_full_serialization_publishes_freshness():
+    th = _threat()
+    shallow = threat_out_shallow(th)
+    assert shallow.last_event_at is None and shallow.stale_at is None
+
+    full = threat_out(th)
+    # No events yet -> last seen is the creation time, and the fade spans the
+    # generic 20-minute stale window (see domain/staleness.py).
+    assert full.last_event_at == th.created_at
+    assert full.stale_at == th.created_at + timedelta(minutes=20)

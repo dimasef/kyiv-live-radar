@@ -2,6 +2,9 @@ import L from "leaflet";
 import { memo, useMemo } from "react";
 import { CircleMarker, Marker, Polyline } from "react-leaflet";
 
+import { fadeFactor, isQuiet } from "@/lib/threatFreshness";
+import { useRadar } from "@/store";
+
 import { threatState } from "../../threatDisplay";
 import { threatColor } from "../../theme";
 import { DIRECTIONAL, DOT_UNTIL_MOVING, threatDivIcon } from "../../threatIcons";
@@ -37,6 +40,16 @@ const ThreatLayer = memo(function ThreatLayer({
   threat: Threat;
   highlighted?: boolean;
 }) {
+  // Ticks every 10s (clockSlice), corrected for a wrong device clock. Selected
+  // as a primitive right here rather than passed down from MapView, so the tick
+  // re-renders only the threat layers and not every other map layer.
+  const now = useRadar((s) => s.nowMs + s.clockSkewMs);
+  // Only the store decides when a track is actually leaving — never derived from
+  // closed_at here. The inspected copy is closed too, and is meant to stay put
+  // for as long as the operator wants it (store/threatsSlice), so deriving the
+  // exit fade from closed_at made a clicked-on target dissolve while being read.
+  const leaving = useRadar((s) => s.leavingThreatIds.includes(threat.id));
+  const setOpenPopupThreat = useRadar((s) => s.setOpenPopupThreat);
   const pts = trackPoints(threat);
   const color = threatColor(threat);
   // Only a track that actually moved over time gets a heading/vector — a single
@@ -72,8 +85,10 @@ const ThreatLayer = memo(function ThreatLayer({
         bearingDeg: heading ?? 0,
         color,
         size: highlighted ? 30 : 26,
+        closing: leaving,
+        count: threat.target_count,
       }),
-    [type, state, heading, color, highlighted],
+    [type, state, heading, color, highlighted, leaving, threat.target_count],
   );
 
   if (pts.length === 0) return null;
@@ -87,23 +102,37 @@ const ThreatLayer = memo(function ThreatLayer({
   // Confidence is a VISUAL WEIGHT, not just popup text: a one-source guess reads
   // fainter than a multi-source confirmation. Floor at 0.5 so a low-confidence
   // marker is still legible. corroboration >= 2 adds a halo ring — real weight.
-  const dim = 0.5 + 0.5 * Math.max(0, Math.min(1, threat.confidence));
+  // Age multiplies on top: our targets always move, so one nobody has re-reported
+  // in a while has almost certainly moved on, and it fades out as its server-side
+  // auto-close approaches (see lib/threatFreshness).
+  const dim =
+    (0.5 + 0.5 * Math.max(0, Math.min(1, threat.confidence))) *
+    fadeFactor(threat, now, highlighted);
+  // Past halfway to its auto-close the live cues switch off: a track nobody is
+  // reporting must not keep pulsing and flowing as if it were being tracked.
+  const quiet = isQuiet(threat, now);
   const corroborated = threat.corroboration_count >= 2;
 
   return (
     <>
       {moved && latlngs.length > 1 && (
         <Polyline
-          // className is applied at creation only — remount when activity flips.
-          key={`${threat.id}-${active ? "live" : "closed"}-${highlighted ? "insp" : ""}`}
+          // className is applied at creation only — remount when activity (or
+          // going quiet, which drops the flow animation) flips.
+          key={`${threat.id}-${active ? "live" : "closed"}-${quiet ? "quiet" : ""}-${highlighted ? "insp" : ""}`}
           positions={latlngs}
           pathOptions={{
             color,
             weight: highlighted ? 5 : 3,
             opacity: (active ? 0.8 : highlighted ? 0.75 : 0.45) * dim,
             className:
-              [active && "track-flow", highlighted && "track-inspect"].filter(Boolean).join(" ") ||
-              undefined,
+              [
+                active && !quiet && "track-flow",
+                highlighted && "track-inspect",
+                leaving && "track-closing",
+              ]
+                .filter(Boolean)
+                .join(" ") || undefined,
             dashArray: !active && threat.has_conflict ? "6 6" : undefined,
           }}
         />
@@ -137,8 +166,9 @@ const ThreatLayer = memo(function ThreatLayer({
           }}
         />
       )}
-      {/* Pulsing rings on the live head of an active track. */}
-      {active && (
+      {/* Pulsing rings on the live head of an active track — off once it goes
+          quiet, so "pulsing" always means "someone is still reporting this". */}
+      {active && !quiet && (
         <Marker
           position={[head.lat, head.lon]}
           icon={pulse}
@@ -146,7 +176,17 @@ const ThreatLayer = memo(function ThreatLayer({
           zIndexOffset={-100}
         />
       )}
-      <Marker position={[head.lat, head.lon]} icon={headIcon} opacity={dim}>
+      <Marker
+        position={[head.lat, head.lon]}
+        icon={headIcon}
+        opacity={dim}
+        // A closed target's popup is exactly what someone reads right after
+        // "мінус" — while it's open the store holds off the eviction.
+        eventHandlers={{
+          popupopen: () => setOpenPopupThreat(threat.id),
+          popupclose: () => setOpenPopupThreat(null),
+        }}
+      >
         <ThreatPopup threat={threat} />
       </Marker>
     </>

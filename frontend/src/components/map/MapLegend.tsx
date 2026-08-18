@@ -15,10 +15,21 @@ function initialOpen(): boolean {
 }
 
 /** A 16px inline SVG (glyph or plain swatch) used for a legend row. */
-function Swatch({ html }: { html: string }) {
+function Swatch({
+  html,
+  faded = false,
+  wide = false,
+}: {
+  html: string
+  faded?: boolean
+  // The group row carries a glyph AND its ×N chip, so it needs room the 16px
+  // square doesn't have — without this the chip overlaps the label.
+  wide?: boolean
+}) {
   return (
     <span
-      className="inline-flex h-4 w-4 flex-none items-center justify-center"
+      className={`inline-flex h-4 flex-none items-center justify-center ${wide ? 'w-8' : 'w-4'}`}
+      style={faded ? { opacity: 0.3 } : undefined}
       aria-hidden
       dangerouslySetInnerHTML={{ __html: html }}
     />
@@ -40,7 +51,7 @@ export default function MapLegend() {
   // marker and labelled every contact's, so a legend entry explains nothing they
   // don't already know by looking.
   const types: TargetType[] = ['shahed', 'jet_drone', 'missile', 'ballistic']
-  const rows: { html: string; label: string }[] = [
+  const rows: { html: string; label: string; faded?: boolean; wide?: boolean }[] = [
     ...types.map((ty) => ({
       html: threatGlyphSvg(ty, { size: 16, color: TYPE_COLORS[ty] }),
       label: t(`target.${ty}`),
@@ -52,6 +63,20 @@ export default function MapLegend() {
     {
       html: threatGlyphSvg('unknown', { size: 16, state: 'destroyed', color: MUTED_COLOR }),
       label: t('legend.destroyed'),
+    },
+    // Without this row a faded marker reads as a rendering defect rather than as
+    // "nobody has reported this one in a while".
+    {
+      html: threatGlyphSvg('shahed', { size: 16, color: TYPE_COLORS.shahed }),
+      label: t('legend.quiet'),
+      faded: true,
+    },
+    {
+      html:
+        threatGlyphSvg('shahed', { size: 16, color: TYPE_COLORS.shahed }) +
+        '<span class="threat-count" style="position:static;margin-left:2px">\u00d73</span>',
+      label: t('legend.group'),
+      wide: true,
     },
   ]
 
@@ -68,9 +93,9 @@ export default function MapLegend() {
             <ChevronDown size={13} className="text-slate-500" />
           </button>
           <ul className="space-y-1.5">
-            {rows.map(({ html, label }) => (
+            {rows.map(({ html, label, faded, wide }) => (
               <li key={label} className="flex items-center gap-2 text-[11px] text-slate-300">
-                <Swatch html={html} />
+                <Swatch html={html} faded={faded} wide={wide} />
                 <span className="truncate">{label}</span>
               </li>
             ))}

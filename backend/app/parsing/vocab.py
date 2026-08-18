@@ -83,6 +83,36 @@ _NEW_TARGET_COUNT_RE = re.compile(
 _COUNT_RE = re.compile(r"(\d+)\s*[хx](?![а-яіїєґa-z])", re.IGNORECASE)
 # A number directly qualifying a target noun ("3 ракети", "2 цілі").
 _COUNT_NOUN_RE = re.compile(r"(\d+)\s+(?:ракет|ціл|шахед|бпла|дрон|баліст)", re.IGNORECASE)
+# A bare number heading for a place: "3 на Славутич", "2 на Бровари", "Ще 4 на
+# Бровари", "2 курсом на Центр". Spotters count targets this way constantly and
+# neither the "3х" nor the "3 ракети" form covers it — 9 real messages lost their
+# count entirely.
+#
+# Deliberately only HALF the rule: the caller additionally requires a
+# gazetteer-matched place to start where this match ends (rules.py::_target_count).
+# A bare digit before a preposition alone is a minefield — "Ту-22м3 на Київщину"
+# would read as 3 targets. The lookbehind rejects a digit glued to a word or to
+# another number ("22м3") and time-ish forms ("о 3:00", "3.5").
+_COUNT_TO_PLACE_RE = re.compile(
+    r"(?<![0-9а-яіїєґa-z:.,])(\d{1,2})\s+"
+    r"(?:на|над|до|біля|курсом\s+на|у\s+напрямку(?:\s+на)?)\s+",
+    re.IGNORECASE,
+)
+# A number that is DOING something: "Знову 3 долітають до Броварів", "Ще 4
+# летить". The verb is the anchor here — a place can sit several words away, or
+# be absent entirely, so the place-anchored form above can't reach these.
+#
+# PRESENT TENSE ONLY, and that is the guard: "3 летять" is a live callout, while
+# the past tense is the voice of recaps and news ("30 ракет летіли", "випустила
+# 8 балістичних ракет") — those numbers are salvo totals for a whole night, and
+# stamping one on a district track is what once had the journal reporting
+# hundreds of phantom targets. Verified against the whole real corpus: 3 matches,
+# all of them genuine live counts, zero false positives.
+_COUNT_MOVING_RE = re.compile(
+    r"(?<![0-9а-яіїєґa-z:.,])(\d{1,2})\s+"
+    r"(?:долітаю|долітає|летят|летить|йдут|ідут|іде\b|рухаю|сунут|заходят|прямую|проходят)",
+    re.IGNORECASE,
+)
 
 # Terse target/launch "pulse" with no location ("Ціль!", "Ще вихід", "3 ракети").
 # Too terse to localize alone; only acted on during an open city-wide alert.

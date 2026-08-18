@@ -13,6 +13,9 @@ export interface WsSlice {
 // there, not here.
 export const createWsSlice: StateCreator<RadarState, [], [], WsSlice> = (_set, get) => ({
   handleWS: (msg) => {
+    // Every keepalive carries the server's clock — the reference the map's
+    // staleness fade is measured against (see clockSlice.clockSkewMs).
+    if (msg.server_time) get().setServerTime(msg.server_time)
     if (msg.type === 'ping') return
     if (msg.type === 'health') {
       get().setFeedOk(msg.feed_ok ?? null)

@@ -26,7 +26,8 @@ export default function AttackSummaryCard({ incident }: { incident: Incident }) 
   // Impacts are withheld from every live surface (see AttackSegment) — this
   // card is part of the feed, so it reports targets and districts only.
   const stats = [
-    incident.track_count > 0 && `${incident.track_count} ${t("incident.targets")}`,
+    incident.track_count > 0 &&
+      `${incident.target_count || incident.track_count} ${t("incident.targets")}`,
     incident.district_count > 0 && `${incident.district_count} ${t("incident.districts")}`,
   ].filter(Boolean) as string[];
 

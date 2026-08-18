@@ -1,12 +1,31 @@
-import type { TargetType, Threat } from './types'
+import type { TargetType, Threat, ThreatStatus } from './types'
 
 export const STATUS_COLORS = {
   confirmed: '#ef4444',
+  unconfirmed: '#eab308',
   destroyed: '#6b7280',
   clear: '#22c55e',
   conflict: '#f97316',
   impact: '#d946ef',
 } as const
+
+/** Chip colour per track status (the popup's lifecycle chip), all from the
+ * shared palette rather than new hues.
+ *
+ * The scale is by OUTCOME, not by "is it still open": live is the confirmed red,
+ * a hedged report the unconfirmed yellow, and a shot-down target the same GREEN
+ * the all-clear uses — a downed target is good news, and grey would read as
+ * merely "gone". Silence/відбій (`lost`) keeps the neutral grey, because nobody
+ * knows what happened to it. An impact keeps its own magenta, matching the feed.
+ */
+export const STATUS_CHIP_COLOR: Record<ThreatStatus, string> = {
+  tracking: STATUS_COLORS.confirmed,
+  unconfirmed: STATUS_COLORS.unconfirmed,
+  destroyed: STATUS_COLORS.clear,
+  lost: STATUS_COLORS.destroyed,
+  impact: STATUS_COLORS.impact,
+  dismissed: STATUS_COLORS.destroyed,
+}
 
 /** The user's "home" marker/circle color — the map's home icon/circle, the
  * legend's home swatch, and the feed's non-clear info-notice accent. */

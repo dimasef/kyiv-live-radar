@@ -88,7 +88,9 @@
     "clear": "All-clear",
     "conflict": "Sources disagree",
     "home": "Home",
-    "launcher": "Ballistic launch (OTRK)"
+    "launcher": "Ballistic launch (OTRK)",
+    "quiet": "Quiet target",
+    "group": "Group of targets"
   },
   "log": {
     "title": "Event feed",
@@ -100,12 +102,6 @@
     "today": "Today",
     "yesterday": "Yesterday",
     "closedMultiple": "Targets closed",
-    "impact": "Incident",
-    "closedReason": {
-      "destroyed": "Destroyed",
-      "allClear": "All clear",
-      "lost": "Lost"
-    },
     "attackChip": "Attack #{{n}}",
     "attackEnded": "Attack ended",
     "rescued": "recovered",
@@ -123,7 +119,13 @@
     "ai": "AI · analysis"
   },
   "status": {
-    "impact": "incident"
+    "impact": "incident",
+    "unconfirmed": "unconfirmed",
+    "tracking": "tracking",
+    "destroyed": "destroyed",
+    "lost": "lost",
+    "dismissed": "dismissed",
+    "allClear": "all clear"
   },
   "target": {
     "shahed": "UAV",
@@ -447,5 +449,8 @@
     "glow": "Marker glow",
     "edit": "Change marker",
     "contactPreviewHint": "This is how this contact's marker looks on your map"
+  },
+  "threat": {
+    "lastSeen": "reported {{n}} min ago"
   }
 }
