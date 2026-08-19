@@ -12,6 +12,7 @@ pure parsers, or stubs the fetch.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -83,22 +84,62 @@ def test_epoch_sentinel_means_never_observed():
 
 # --- aiu: the active-only fallback ---
 
-def test_aiu_marks_listed_raions_and_infers_the_rest_clear():
+def test_aiu_reports_only_what_is_alerting():
+    """It is an ACTIVE-alert source: a zone it doesn't list is merely unlisted,
+    not evidence of an all-clear. Returning quiet zones from here once meant an
+    empty/broken payload read as "everything is clear"."""
     states = az.parse_aiu(_aiu())
-    assert set(states) == {z.id for z in ZONES}
-    alerted = {zid for zid, s in states.items() if s.alert}
-    assert alerted == {"kyiv-city", "kyiv-obl-vyshhorodskyi", "chernihiv-obl-chernihivskyi"}
+    assert set(states) == {"kyiv-city", "kyiv-obl-vyshhorodskyi", "chernihiv-obl-chernihivskyi"}
+    assert all(s.alert for s in states.values())
+
+
+def test_a_broken_active_payload_is_an_error_not_an_all_clear():
+    with pytest.raises(ValueError):
+        az.parse_aiu({})
+    with pytest.raises(ValueError):
+        az.parse_aiu({"raw": {}})
 
 
 def test_aiu_ignores_non_air_raid_alerts():
     """Shelling and urban-fighting alerts exist upstream and say nothing about
     the air situation this map shows."""
-    assert az.parse_aiu(_aiu())["chernihiv-obl-nizhynskyi"].alert is False
+    assert "chernihiv-obl-nizhynskyi" not in az.parse_aiu(_aiu())
 
 
 def test_aiu_reads_iso_utc_timestamps():
     state = az.parse_aiu(_aiu())["chernihiv-obl-chernihivskyi"]
     assert state.changed_at == datetime(2026, 8, 19, 13, 9, 49, tzinfo=UTC)
+
+
+# --- merging the two sources ---
+
+def test_a_live_alert_the_roster_missed_still_shows():
+    """The real disagreement this merge exists for.
+
+    2026-08-19 23:06 Kyiv: alerts.in.ua had Вишгородський район under an air
+    raid running for 14 minutes; the roster source reported відбій with its
+    last transition six hours earlier — it had simply missed it. `stale` cannot
+    catch that, because the provider was up and answering.
+    """
+    zone = "kyiv-obl-boryspilskyi"
+    roster = az.parse_skog(_skog())
+    assert roster[zone].alert is False  # the roster believes it is clear
+    began = datetime(2026, 8, 19, 19, 52, 15, tzinfo=UTC)
+    active = {zone: replace(roster[zone], alert=True, changed_at=began)}
+
+    merged = az.merge_states(roster, active)
+    assert merged[zone].alert is True
+    # …dated by the source that actually knows when it started, not by the
+    # clear the roster still believes in.
+    assert merged[zone].changed_at == began
+
+
+def test_the_merge_never_cancels_an_alert():
+    """Only ever adds. A source that has NOT yet seen an alert must not be able
+    to clear one the other is reporting."""
+    roster = az.parse_skog(_skog())
+    assert roster["kyiv-city"].alert is True
+    assert az.merge_states(roster, {})["kyiv-city"].alert is True
 
 
 # --- diffing ---

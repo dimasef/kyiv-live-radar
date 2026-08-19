@@ -32,12 +32,22 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.30.0";
+const LATEST = "0.30.1";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "Тривоги по районах — з двох джерел",
+    date: "2026-08-19",
+    kind: "patch",
+    changes: [
+      "Стан тривоги в районі тепер збирається з двох незалежних джерел і показується, щойно хоч одне з них повідомляє про тривогу",
+      "Якщо джерела не згодні, шар завжди обирає обережніший варіант — тривогу, а не відбій",
+    ],
+  },
+  {
+    version: "0.30.0",
     title: "Північний напрямок і тривоги по районах",
     date: "2026-08-19",
     kind: "minor",

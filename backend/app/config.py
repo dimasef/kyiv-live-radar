@@ -394,12 +394,17 @@ class Settings(BaseSettings):
     # painting all thirteen shapes needs.
     alert_zones_url: str = "https://ubilling.net.ua/aerialalerts/"
     alert_zones_source: str = "skog"
-    # Fallback source, tried only after `alert_zones_fail_before_fallback`
-    # consecutive failures. It lists ACTIVE alerts only, so a zone it doesn't
-    # mention is inferred clear and loses its "since when" — degraded, but far
-    # better than a blank layer.
-    alert_zones_fallback_source: str = "aiu"
-    alert_zones_fail_before_fallback: int = 3
+    # Second source, polled EVERY tick and merged, not kept as a fallback.
+    # It lists ACTIVE alerts only, so it can't date a quiet raion — but it
+    # catches what the roster source misses, and it does miss things: on
+    # 2026-08-19 `skog` reported відбій for Вишгородський район while an air
+    # raid had been running there for 14 minutes. A zone is shown as alerting
+    # if EITHER source says so (see feeds/alert_zones.merge_states).
+    alert_zones_confirm_source: str = "aiu"
+    # Gap between the two source fetches. The provider rate-limits at 2 req/s
+    # per host and answers in well under half a second, so firing them
+    # back-to-back earns a 429 on the second one — measured, not theoretical.
+    alert_zones_source_gap_s: float = 1.0
     # The provider rate-limits at 2 req/s per host and caches for 3 s; sirens
     # are a minutes-scale signal, so 20 s is responsive with a wide margin.
     alert_zones_interval_s: int = 20

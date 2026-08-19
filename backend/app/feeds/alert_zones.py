@@ -97,13 +97,22 @@ def parse_skog(payload: dict) -> dict[str, ZoneState]:
 
 
 def parse_aiu(payload: dict) -> dict[str, ZoneState]:
-    """Active-alerts list -> {zone_id: state}, every other watched zone clear.
+    """Active-alerts list -> {zone_id: state} for the ALERTING zones only.
+
+    Deliberately not a full roster: this source reports what is on, and a zone
+    it doesn't mention is only "not listed", which is not the same evidence as
+    the roster source's dated «відбій». Returning quiet zones from here once
+    meant an empty/broken payload read as "everything is clear" — the one
+    direction this layer must never fail in.
 
     Only `air_raid` counts: shelling/urban-fighting alerts exist upstream but
     say nothing about the air situation this map is about.
     """
-    states = {z.id: unknown_state(z) for z in ZONES}
-    for row in payload.get("raw") or []:
+    rows = payload.get("raw")
+    if not isinstance(rows, list):
+        raise ValueError("active-alert payload has no 'raw' list")
+    states: dict[str, ZoneState] = {}
+    for row in rows:
         if row.get("alert_type") != "air_raid":
             continue
         oblast = row.get("location_oblast")
@@ -185,16 +194,63 @@ async def _fetch(source: str) -> dict:
         return resp.json()
 
 
-async def poll_once(*, use_fallback: bool = False) -> list[ZoneState]:
-    """One provider round-trip. Returns the zones whose state changed (empty on
-    the first poll's no-op or a quiet minute). Raises on a failed fetch — the
-    loop decides what a failure means."""
+def merge_states(roster: dict[str, ZoneState],
+                 active: dict[str, ZoneState]) -> dict[str, ZoneState]:
+    """Union of two providers: a zone is under alert if EITHER says so.
+
+    The two disagree in practice, and not symmetrically. Live 2026-08-19 23:06:
+    alerts.in.ua had Вишгородський under an air raid that had been running 14
+    minutes, while the roster source still reported відбій with its last
+    transition six hours earlier — it had simply missed the alert. `stale`
+    can't catch that: the provider was up and answering.
+
+    So the merge is deliberately biased. On an air-raid map the two errors are
+    not equal: showing a siren that has already ended is an annoyance, missing
+    one that is sounding is the whole failure this layer exists to prevent.
+    """
+    merged = dict(roster)
+    for zone_id, hot in active.items():
+        if not hot.alert:
+            continue
+        base = merged.get(zone_id)
+        if base is None or not base.alert:
+            # Take the confirming source's start time too — the roster's
+            # `changed_at` describes the clear it wrongly still believes in.
+            merged[zone_id] = replace(hot, alert=True)
+    return merged
+
+
+async def poll_once(*, roster_only: bool = False) -> list[ZoneState]:
+    """One poll of BOTH providers, merged. Returns the zones whose state
+    changed (empty on a quiet minute). Raises only when NEITHER source yielded a
+    watched zone — one of the two failing is survivable and merely logged."""
     global _states, _last_ok
-    source = settings.alert_zones_fallback_source if use_fallback else settings.alert_zones_source
-    payload = await _fetch(source)
-    parsed = parse_aiu(payload) if use_fallback else parse_skog(payload)
-    if not parsed:
-        raise ValueError(f"alert-zone provider '{source}' returned no watched zone")
+    roster: dict[str, ZoneState] = {}
+    active: dict[str, ZoneState] | None = None
+    errors = []
+    try:
+        roster = parse_skog(await _fetch(settings.alert_zones_source))
+    except Exception as ex:
+        errors.append(f"{settings.alert_zones_source}: {ex}")
+    if not roster_only:
+        await asyncio.sleep(settings.alert_zones_source_gap_s)
+        try:
+            active = parse_aiu(await _fetch(settings.alert_zones_confirm_source))
+        except Exception as ex:
+            errors.append(f"{settings.alert_zones_confirm_source}: {ex}")
+
+    if roster:
+        parsed = merge_states(roster, active or {})
+    elif active is not None:
+        # Roster source down: the active-only source can still say WHICH zones
+        # are alerting, it just can't date the quiet ones.
+        parsed = {z.id: unknown_state(z) for z in ZONES} | active
+    else:
+        raise ValueError("no alert-zone provider returned a watched zone: "
+                         + "; ".join(errors or ["empty payload"]))
+    if errors:
+        log.warning("alert zones: degraded, using one source (%s)", "; ".join(errors))
+
     parsed = apply_demo(parsed, _states)
     changed = changed_zones(_states, parsed)
     _states = parsed
@@ -217,8 +273,7 @@ async def run_alert_zones() -> None:
     was_stale = True
     while True:
         try:
-            use_fallback = failures >= settings.alert_zones_fail_before_fallback
-            changed = await poll_once(use_fallback=use_fallback)
+            changed = await poll_once()
             if failures:
                 log.info("alert zones: provider recovered after %d failure(s)", failures)
             failures = 0
