@@ -13,6 +13,7 @@ import { contactMarkerSvg, homeStyleOf } from "../../lib/contactMarker";
 import { homeDanger } from "../../lib/homeDanger";
 import { useRadar } from "../../store";
 import { HOME_DANGER_COLORS } from "../../theme";
+import AlertZoneLayer from "./AlertZoneLayer";
 import AxisLayer from "./AxisLayer";
 import CitywidePulse from "./CitywidePulse";
 import { KYIV_BOUNDS, MIN_ZOOM, WORLD_BOUNDS } from "./constants";
@@ -21,7 +22,7 @@ import DistrictLayer from "./DistrictLayer";
 import FriendLayer from "./FriendLayer";
 import HomeCompass from "./HomeCompass";
 import HomePlacement from "./HomePlacement";
-import MapLegend from "./MapLegend";
+import MapControls from "./MapControls";
 import ThreatLayer from "./ThreatLayer";
 
 const HOME_SIZE = 22;
@@ -52,6 +53,7 @@ export default function MapView() {
   const homeStyle = homeStyleOf(useRadar((s) => s.homeStyle));
   const placingHome = useRadar((s) => s.placingHome);
   const inspectedThreat = useRadar((s) => s.inspectedThreat);
+  const zoneLayerOn = useRadar((s) => s.zoneLayerOn);
   const [map, setMap] = useState<L.Map | null>(null);
 
   // A track being inspected might already be live (in `threats`) — in that
@@ -92,6 +94,9 @@ export default function MapView() {
           noWrap
         />
 
+        {/* Official raion air-alert state — background context, so it goes
+            under the Kyiv raion outlines and every marker. */}
+        {zoneLayerOn && <AlertZoneLayer />}
         {/* Real OSM raion boundaries with hover name tooltips; clicks bubble
             through to the map (pan / home placement). */}
         <DistrictLayer />
@@ -148,7 +153,7 @@ export default function MapView() {
       <AxisLayer map={map} />
       <HomeCompass map={map} />
       <HomePlacement map={map} />
-      <MapLegend />
+      <MapControls />
     </div>
   );
 }

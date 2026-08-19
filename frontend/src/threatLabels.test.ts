@@ -53,7 +53,7 @@ describe('threatChip', () => {
     for (const reason of ['stale', 'stand_down'] as const) {
       expect(threatChip(closed(reason))).toEqual({
         labelKey: 'status.lost',
-        color: STATUS_COLORS.destroyed,
+        color: STATUS_COLORS.unseen,
       })
     }
   })

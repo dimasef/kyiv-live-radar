@@ -62,10 +62,15 @@ export const createThreatsSlice: StateCreator<RadarState, [], [], ThreatsSlice> 
     fetchThreatEvents(threat.id)
       .then((events) => {
         // Guard against a stale response landing after the user picked a
-        // different (or no) track in the meantime.
-        if (get().inspectedThreat?.id === threat.id) {
-          set({ inspectedThreat: { ...threat, events } })
-        }
+        // different (or no) track in the meantime. Merged onto the CURRENT copy,
+        // not the one captured when the fetch started — a status frame (an admin
+        // retype, a «збито») may have landed while it was in flight, and
+        // spreading the old snapshot would silently undo it.
+        set((s) =>
+          s.inspectedThreat?.id === threat.id
+            ? { inspectedThreat: { ...s.inspectedThreat, events } }
+            : {},
+        )
       })
       .catch(() => {})
   },
@@ -79,7 +84,21 @@ export const createThreatsSlice: StateCreator<RadarState, [], [], ThreatsSlice> 
     const existing = get().threats[threat.id]
     if (msg.type === 'event' && existing?.closed_at) return
 
-    set((s) => ({ threats: { ...s.threats, [threat.id]: threat } }))
+    // The feed's cards and the inspected copy each embed their OWN snapshot of
+    // the track, taken when the event arrived — so a later change to it (an
+    // admin retype, a «збито») reached the map instantly while the feed kept
+    // showing the old type until a reload. Every threat-bearing frame refreshes
+    // all three copies together.
+    set((s) => ({
+      threats: { ...s.threats, [threat.id]: threat },
+      log: s.log.map((e) => (e.threat.id === threat.id ? { ...e, threat } : e)),
+      inspectedThreat:
+        s.inspectedThreat?.id === threat.id
+          ? // Keep the inspected event history: inspectThreat fetches the FULL
+            // list, which a broadcast doesn't have to carry.
+            { ...threat, events: threat.events.length ? threat.events : s.inspectedThreat.events }
+          : s.inspectedThreat,
+    }))
 
     if (msg.type === 'event' && msg.event) {
       const entry: FeedEntry = { event: msg.event, threat }
@@ -95,11 +114,13 @@ export const createThreatsSlice: StateCreator<RadarState, [], [], ThreatsSlice> 
 
     if (threat.status === 'dismissed') {
       // Admin manually cancelled a false positive — remove it from the map
-      // immediately (no linger; it shouldn't have been there at all).
+      // immediately (no linger; it shouldn't have been there at all), and from
+      // the feed with it: /events/recent hides a dismissed track's events, so
+      // leaving the cards would only differ from what the next reload shows.
       set((s) => {
         const next = { ...s.threats }
         delete next[threat.id]
-        return { threats: next }
+        return { threats: next, log: s.log.filter((e) => e.threat.id !== threat.id) }
       })
       return
     }

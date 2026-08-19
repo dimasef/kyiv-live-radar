@@ -33,12 +33,12 @@ async def client(tmp_path, monkeypatch):
 
     # A stub reprocess: simulate a wipe (drop all threats) so the before/after
     # diff has something to show, without running the real global-touching one.
-    async def fake_run_reprocess(no_llm: bool = True):
+    async def fake_run_reprocess(no_llm: bool = True, last: int | None = None):
         async with Session() as s:
             await s.execute(delete(ThreatEvent))
             await s.execute(delete(Threat))
             await s.commit()
-        return {"messages": 5, "matched": 3, "tracks": 0, "events": 0}
+        return {"messages": 5, "matched": 3, "tracks": 0, "events": 0, "last": last}
 
     monkeypatch.setattr(reprocess, "run_reprocess", fake_run_reprocess)
 

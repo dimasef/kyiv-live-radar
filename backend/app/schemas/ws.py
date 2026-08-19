@@ -9,12 +9,13 @@ from pydantic import BaseModel, field_validator
 from .base import _as_utc
 from .situation import AlertOut, AxisOut, IncidentOut, NoticeOut
 from .threats import ThreatEventOut, ThreatOut
+from .zones import AlertZoneOut
 
 
 class WSMessage(BaseModel):
     """Envelope broadcast over the WebSocket."""
 
-    # 'event'|'status'|'notice'|'alert'|'attack'|'axis'|'health'|'online'|'hello'|'ping'
+    # 'event'|'status'|'notice'|'alert'|'attack'|'axis'|'zones'|'health'|'online'|'hello'|'ping'
     # 'ping' carries only `server_time` — a heartbeat frame (see pipeline/keepalive.py).
     type: str
     threat: ThreatOut | None = None
@@ -23,6 +24,9 @@ class WSMessage(BaseModel):
     alert: AlertOut | None = None
     incident: IncidentOut | None = None
     axis: AxisOut | None = None
+    # 'zones' frame payload: the raions whose siren state just changed (or the
+    # whole roster after a provider outage). See feeds/alert_zones.py.
+    zones: list[AlertZoneOut] | None = None
     # 'health' frame payload: whether the live Telegram feed looks healthy —
     # see telegram_listener.py::feed_health.
     feed_ok: bool | None = None

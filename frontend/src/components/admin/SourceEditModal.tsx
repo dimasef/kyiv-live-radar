@@ -3,10 +3,13 @@ import { createPortal } from 'react-dom'
 
 import { updateSource, type Source } from '@/api'
 import { useDismissTransition } from '@/lib/useDismissTransition'
+import type { Region } from '@/types'
 
-/** Edit a source's name / role / trust_weight in a modal (mirrors AuthModal's
- * shell). trust_weight is shown only for spotter channels — it's meaningless for
- * alert channels (and inert everywhere, informational for now). */
+import { REGION_LABELS } from './sourceFormat'
+
+/** Edit a source's name / role / region / trust_weight in a modal (mirrors
+ * AuthModal's shell). trust_weight is shown only for spotter channels — it's
+ * meaningless for alert channels (and inert everywhere, informational for now). */
 export default function SourceEditModal({
   source,
   onSaved,
@@ -19,6 +22,7 @@ export default function SourceEditModal({
   const { shown, close } = useDismissTransition(onClose)
   const [name, setName] = useState(source.name)
   const [role, setRole] = useState<Source['role']>(source.role)
+  const [region, setRegion] = useState<Region>(source.region)
   const [weight, setWeight] = useState(String(source.trust_weight))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
@@ -30,6 +34,7 @@ export default function SourceEditModal({
       const updated = await updateSource(source.id, {
         name: name.trim() || source.name,
         role,
+        region,
         trust_weight: Number(weight),
       })
       onSaved(updated)
@@ -68,6 +73,23 @@ export default function SourceEditModal({
             <select className={field} value={role} onChange={(e) => setRole(e.target.value as Source['role'])}>
               <option value="spotter">spotter — канал спостерігачів</option>
               <option value="alert">alert — офіційні тривоги</option>
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-[11px] text-slate-500">
+              Регіон — куди йдуть повідомлення без назви району («Відбій», «Чисто»)
+            </span>
+            <select
+              className={field}
+              value={region}
+              onChange={(e) => setRegion(e.target.value as Region)}
+            >
+              {Object.entries(REGION_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
             </select>
           </label>
 

@@ -12,6 +12,7 @@ from .admin import (
     CoverageGapOut,
     DismissedOut,
     EventDistrictIn,
+    RawNoticeIn,
     ReprocessApplyIn,
     ReprocessDayOut,
     ReprocessPreviewOut,
@@ -122,6 +123,9 @@ from .threats import (
 from .ws import (
     WSMessage,
 )
+from .zones import (
+    AlertZoneOut,
+)
 
 __all__ = [
     "PresencePrefIn",
@@ -130,6 +134,7 @@ __all__ = [
     "_as_utc",
     "AccessTokenOut",
     "AlertOut",
+    "AlertZoneOut",
     "AnalyzeIn",
     "AnalyzeOut",
     "AxisOut",
@@ -190,6 +195,7 @@ __all__ = [
     "RawSourceOut",
     "RefreshIn",
     "RegisterIn",
+    "RawNoticeIn",
     "ReprocessApplyIn",
     "ReprocessDayOut",
     "ReprocessPreviewOut",

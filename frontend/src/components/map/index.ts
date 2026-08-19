@@ -1,2 +1,2 @@
-export { default as MapLegend } from './MapLegend'
+export { default as MapControls } from './MapControls'
 export { default as MapView } from './MapView'

@@ -12,7 +12,7 @@ import logging
 from sqlalchemy import select
 
 from ...config import settings
-from ...domain.origins import target_elsewhere
+from ...domain.origins import target_not_kyiv
 from ...models import RawMessage
 from ...parsing import DistrictMatcher, LlmUsage, ParseResult, normalize, parse_message
 
@@ -58,7 +58,13 @@ def should_fallback(parsed: ParseResult) -> bool:
         return False
     if parsed.districts or parsed.status in ("clear", "destroyed"):
         return False
-    if target_elsewhere(normalize(parsed.raw_text)):
+    # The message names a REGION as the target and no settlement inside it
+    # ("Шахед на Чернігівщині", "Ціль на Дніпро") — there is no place in the
+    # text for the LLM to recover, watched region or not, so the call would be
+    # pure spend. A village we simply don't have yet ("на Пакуль") names no
+    # oblast, so it still reaches the LLM, which is the whole point of having a
+    # gazetteer enum.
+    if target_not_kyiv(normalize(parsed.raw_text)):
         return False
     return parsed.target_type != "unknown" or parsed.status in ("confirmed", "unconfirmed")
 

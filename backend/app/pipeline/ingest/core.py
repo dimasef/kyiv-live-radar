@@ -9,6 +9,7 @@ from datetime import datetime
 
 from sqlalchemy import select
 
+from ...domain.districts import district_regions, resolve_region
 from ...domain.incidents import find_active_incident, incident_type_prior
 from ...models import RawMessage
 from ...observability import ingest_span, metrics
@@ -220,7 +221,12 @@ async def process_parsed(
                          if llm_response is not None and decision_source == "llm" else None),
             type_from_incident=type_from_incident,
             enforce_age=enforce_age,
+            region=await resolve_region(
+                session, [h.district_id for h in parsed.districts], source_id
+            ),
+            region_by_id=await district_regions(session),
         )
+        span.set_attribute("region", ctx.region)
 
         triage_extra = await _maybe_triage(ctx, triage, matcher, allow_llm)
 
@@ -277,6 +283,8 @@ async def process_rescued(session, *, raw: RawMessage, job, verdict: dict,
         reply_to_message_id=job.reply_to_message_id,
         as_of=job.when,
         llm_summary=(verdict.get("summary") or None),
+        region=await resolve_region(session, [h.district_id for h in hits], job.source_id),
+        region_by_id=await district_regions(session),
     )
     if citywide:
         return await _handle_citywide(ctx)

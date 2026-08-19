@@ -96,9 +96,9 @@ describe('alertTimeShare', () => {
 describe('formatting', () => {
   it('formats durations compactly', () => {
     expect(formatHours(0)).toBe('0 хв')
-    expect(formatHours(90 * 60)).toBe('1 г 30 хв')
-    expect(formatHours(2 * 3600)).toBe('2 г')
-    expect(formatHours(40 * 3600)).toBe('40 г')
+    expect(formatHours(90 * 60)).toBe('1 год 30 хв')
+    expect(formatHours(2 * 3600)).toBe('2 год')
+    expect(formatHours(40 * 3600)).toBe('40 год')
   })
 
   it('formats percents at the requested precision', () => {

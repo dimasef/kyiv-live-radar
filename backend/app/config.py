@@ -382,6 +382,44 @@ class Settings(BaseSettings):
     def telegram_login_configured(self) -> bool:
         return bool(self.telegram_login_bot_token)
 
+    # --- Alert-zone layer (app/feeds/alert_zones.py) — which raions of
+    #     Київщина/Чернігівщина currently have a siren, painted on the map.
+    #     READ-ONLY context: it never touches tracks, incidents or the `alerts`
+    #     table, so switching it off (or the provider dying) removes one map
+    #     layer and changes nothing else. ---
+    alert_zones_enabled: bool = True
+    # ubilling.net.ua proxies several alert services into one shape and asks for
+    # no key. `skog` is the only source that returns a FULL snapshot — every
+    # raion, alerted or not, with the instant it last changed — which is what
+    # painting all thirteen shapes needs.
+    alert_zones_url: str = "https://ubilling.net.ua/aerialalerts/"
+    alert_zones_source: str = "skog"
+    # Fallback source, tried only after `alert_zones_fail_before_fallback`
+    # consecutive failures. It lists ACTIVE alerts only, so a zone it doesn't
+    # mention is inferred clear and loses its "since when" — degraded, but far
+    # better than a blank layer.
+    alert_zones_fallback_source: str = "aiu"
+    alert_zones_fail_before_fallback: int = 3
+    # The provider rate-limits at 2 req/s per host and caches for 3 s; sirens
+    # are a minutes-scale signal, so 20 s is responsive with a wide margin.
+    alert_zones_interval_s: int = 20
+    alert_zones_timeout_s: float = 8.0
+    # After this long with no successful poll the layer reports `stale` and the
+    # map greys it out. It must NEVER quietly render as "відбій" — an outage
+    # that looks like an all-clear is the one failure mode worth engineering
+    # against here.
+    alert_zones_stale_after_s: int = 180
+    # Dev-only: comma-separated zone ids to force ALERT on, so the layer can be
+    # looked at without waiting for a real siren (same purpose as
+    # SIMULATOR_ENABLED/REPLAY_REAL_DATA for the spotter feed). Empty = fully
+    # dormant, real provider state only. Ids are in domain/alert_zones.py, e.g.
+    # ALERT_ZONES_DEMO="kyiv-obl-vyshhorodskyi,chernihiv-obl-nizhynskyi".
+    alert_zones_demo: str = ""
+
+    @property
+    def alert_zones_demo_list(self) -> list[str]:
+        return [z.strip() for z in self.alert_zones_demo.split(",") if z.strip()]
+
     # --- Observability (app/observability.py). All opt-in: with the token/DSN
     #     empty the SDKs stay fully dormant — no network calls, no behavior
     #     change — so local dev and the test suite run exactly as before. Set on

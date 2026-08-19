@@ -88,9 +88,7 @@
     "clear": "All-clear",
     "conflict": "Sources disagree",
     "home": "Home",
-    "launcher": "Ballistic launch (OTRK)",
-    "quiet": "Quiet target",
-    "group": "Group of targets"
+    "launcher": "Ballistic launch (OTRK)"
   },
   "log": {
     "title": "Event feed",
@@ -123,7 +121,7 @@
     "unconfirmed": "unconfirmed",
     "tracking": "tracking",
     "destroyed": "destroyed",
-    "lost": "lost",
+    "lost": "not tracked",
     "dismissed": "dismissed",
     "allClear": "all clear"
   },
@@ -237,7 +235,21 @@
   },
   "legendCtl": {
     "show": "Show legend",
-    "hide": "Collapse legend"
+    "hide": "Collapse legend",
+    "fullscreen": "Fullscreen",
+    "exitFullscreen": "Exit fullscreen"
+  },
+  "zones": {
+    "title": "Air alerts by raion",
+    "alert": "alert",
+    "clear": "all clear",
+    "noData": "no data",
+    "hm": "{{h}}h {{m}}m",
+    "m": "{{m}}m"
+  },
+  "zonesCtl": {
+    "show": "Show air alerts by raion",
+    "hide": "Hide air alerts by raion"
   },
   "home": {
     "title": "My home",
@@ -376,19 +388,10 @@
       "type": "Type",
       "share": "Share",
       "onDays": "Days",
-      "durations": "Alert duration",
-      "bucket": {
-        "lt30": "<30m",
-        "30to60": "30–60m",
-        "1to2h": "1–2h",
-        "2to4h": "2–4h",
-        "gt4h": ">4h"
-      },
-      "median": "Median:",
-      "mean": "mean:",
       "topDistricts": "Most often under threat",
       "dayCount": "{{count}} days",
-      "districtNote": "Ranked by the number of days a target was seen over the district. Dimmed: the raw number of reports, which tracks how busy the spotters were that night.",
+      "msgCount": "{{n}} msgs",
+      "districtNote": "Ranked by the number of days a target was seen over the district. The report count tracks how busy the spotters were that night.",
       "heaviestDays": "Heaviest days",
       "dayLine": "{{targets}} targets · {{alert}} of alerts",
       "noData": "No data for this period"
@@ -451,6 +454,18 @@
     "contactPreviewHint": "This is how this contact's marker looks on your map"
   },
   "threat": {
-    "lastSeen": "reported {{n}} min ago"
+    "lastSeen": "updated {{n}} min ago"
+  },
+  "popup": {
+    "movement": "Movement",
+    "data": "Data",
+    "messages": "Messages"
+  },
+  "speed": {
+    "kmh": "km/h",
+    "approxHint": "Typical speed for this target class, not a measurement",
+    "eta": "≈ {{v}} min out",
+    "etaSoon": "less than a minute out",
+    "etaHint": "Estimated from the class speed and the distance to the district centre"
   }
 }

@@ -70,6 +70,15 @@ async def lifespan(app: FastAPI):
 
     tasks.append(asyncio.create_task(run_keepalive()))
 
+    # Air-raid alert zones: poll an external provider for which raions of
+    # Київщина/Чернігівщина have a siren. Read-only map context — it touches no
+    # table, so a provider outage only greys out its own layer.
+    if settings.alert_zones_enabled:
+        from .feeds.alert_zones import run_alert_zones
+
+        log.info("starting alert-zone poller (%s)", settings.alert_zones_url)
+        tasks.append(asyncio.create_task(run_alert_zones()))
+
     # Async LLM triage engine: one consumer draining the in-process queue that
     # ingest fills (directional/forecast/status notices, axis fusion, rescue).
     if settings.triage_enabled:

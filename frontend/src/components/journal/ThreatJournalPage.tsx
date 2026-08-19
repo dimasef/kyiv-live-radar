@@ -24,9 +24,7 @@ export default function ThreatJournalPage() {
 
   return (
     <div className="h-full overflow-y-auto overscroll-contain">
-      <div
-        className={`mx-auto px-4 py-6 sm:px-6 sm:py-10 ${tab === 'stats' ? 'max-w-2xl' : 'max-w-xl'}`}
-      >
+      <div className="page-col px-4 py-6 sm:px-6 sm:py-10">
         <div className="rise" style={riseDelay(1)}>
           <h1 className="font-display text-lg font-bold tracking-wide text-slate-100">
             {t('journal.title')}

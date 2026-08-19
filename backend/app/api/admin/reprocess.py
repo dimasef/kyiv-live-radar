@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 
 from ...auth.deps import require_admin
@@ -65,16 +65,39 @@ async def _reprocess_summary(s) -> dict:
     }
 
 @router.get("/admin/reprocess/preview", response_model=ReprocessPreviewOut)
-async def admin_reprocess_preview(_admin: User = Depends(require_admin)):
+async def admin_reprocess_preview(
+    last: int | None = Query(None, ge=1),
+    _admin: User = Depends(require_admin),
+):
     """Pre-flight scope: how many raw messages will replay, the current counts
     that will be rebuilt, and whether an attack is active (a reprocess would be
     ill-timed). Read-only. Uses reprocess's own SessionLocal so it reads exactly
-    the DB the apply would rebuild."""
+    the DB the apply would rebuild.
+
+    With `last=N`, also reports the real scope of that tail — the widened cutoff
+    and the message count it covers, so the operator sees what "останні N" will
+    actually touch before running it."""
     async with reprocess_mod.SessionLocal() as s:
         raw_count = await s.scalar(select(func.count()).select_from(RawMessage))
         current = await _reprocess_summary(s)
         attack = await _attack_active(s)
-    return ReprocessPreviewOut(raw_messages=raw_count or 0, current=current, attack_active=attack)
+        scope_from = await reprocess_mod.scope_cutoff(s, last) if last else None
+        scope_messages = (
+            await s.scalar(
+                select(func.count())
+                .select_from(RawMessage)
+                .where(RawMessage.event_time >= scope_from)
+            )
+            if scope_from is not None
+            else None
+        )
+    return ReprocessPreviewOut(
+        raw_messages=raw_count or 0,
+        current=current,
+        attack_active=attack,
+        scope_messages=scope_messages,
+        scope_from=scope_from,
+    )
 
 
 @router.post("/admin/reprocess/apply", response_model=ReprocessResultOut)
@@ -82,11 +105,14 @@ async def admin_reprocess_apply(
     body: ReprocessApplyIn,
     _admin: User = Depends(require_admin),
 ):
-    """Wipe + rebuild all tracks/incidents from raw_messages through the current
+    """Wipe + rebuild tracks/incidents from raw_messages through the current
     pipeline. Held under `ingest_lock` so the live listener can't ingest into a
     half-rebuilt DB (messages queue behind it and process after). Refuses while
     an attack is active unless `force`. raw_messages are preserved, so a
-    reprocess is repeatable."""
+    reprocess is repeatable.
+
+    `last` limits the rebuild to the tail of the log (see run_reprocess); the
+    default still rebuilds everything."""
     async with reprocess_mod.SessionLocal() as s:
         if not body.force and await _attack_active(s):
             raise HTTPException(
@@ -95,7 +121,7 @@ async def admin_reprocess_apply(
             )
         before = await _reprocess_summary(s)
     async with ingest_lock:
-        result = await reprocess_mod.run_reprocess(no_llm=body.no_llm)
+        result = await reprocess_mod.run_reprocess(no_llm=body.no_llm, last=body.last)
     async with reprocess_mod.SessionLocal() as s:
         after = await _reprocess_summary(s)
     return ReprocessResultOut(before=before, after=after, result=result)

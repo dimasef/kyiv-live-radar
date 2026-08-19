@@ -57,7 +57,7 @@ export default function ContactPage() {
 
   return (
     <div className="h-full overflow-y-auto bg-ink-950 px-4 py-8 text-slate-200">
-      <div className="mx-auto max-w-md space-y-4 lg:max-w-2xl">
+      <div className="page-col space-y-4">
         <button
           onClick={() => navigate(ACCOUNT_PATH)}
           className="flex items-center gap-1 text-xs text-slate-500 transition-colors hover:text-slate-300"
@@ -65,7 +65,7 @@ export default function ContactPage() {
           <ChevronLeft size={14} /> Контакти
         </button>
 
-        <div className="flex items-center gap-4 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4">
+        <div className="panel flex items-center gap-4 p-4">
           <Avatar
             name={contact ? personLabel(contact) : '—'}
             avatarUrl={contact?.avatar_url}

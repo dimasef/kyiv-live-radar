@@ -24,13 +24,13 @@ export default function AccountPage() {
 
   return (
     <div className="h-full overflow-y-auto bg-ink-950 px-4 py-8 text-slate-200">
-      <div className="mx-auto max-w-md space-y-4 lg:max-w-2xl">
+      <div className="page-col space-y-4">
         <IdentityCard user={user} />
 
         {(gamification || hasCards) && <CollectionSummaryCard collection={collection} />}
 
         {/* Contacts */}
-        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4">
+        <div className="panel p-4">
           <h2 className="panel-title mb-3">Контакти</h2>
           <ContactsSection />
         </div>

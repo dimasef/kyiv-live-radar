@@ -6,14 +6,24 @@ from __future__ import annotations
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.auth.security import encode_access
 from app.config import settings
 from app.db import Base, get_session
 from app.main import app
-from app.models import Alert, District, Incident, Threat, ThreatEvent, User
+from app.models import (
+    Alert,
+    District,
+    Incident,
+    Notice,
+    RawMessage,
+    Source,
+    Threat,
+    ThreatEvent,
+    User,
+)
 
 
 @pytest_asyncio.fixture
@@ -190,6 +200,78 @@ async def test_delete_one_of_two_events_keeps_track(client):
     assert threat.id in await _active_ids(c, headers)
     remaining = list(await s.scalars(select(ThreatEvent).where(ThreatEvent.threat_id == threat.id)))
     assert [e.id for e in remaining] == [ev2.id]
+
+
+async def test_delete_event_recomputes_corroboration(client):
+    # The deleted sighting was one of the two independent sources behind the
+    # track — its corroboration/confidence must not outlive it (the «Весь фід»
+    # chips read exactly these numbers).
+    c, s = client
+    headers = await _admin_headers(s)
+    d = await _district(s)
+    src_a = Source(channel_key="a", name="A")
+    src_b = Source(channel_key="b", name="B")
+    s.add_all([src_a, src_b])
+    await s.commit()
+    threat, ev1 = await _threat_with_event(s, d)
+    ev1.source_id = src_a.id
+    ev2 = ThreatEvent(threat_id=threat.id, district_id=d.id, raw_text="y", source_id=src_b.id)
+    s.add(ev2)
+    threat.corroboration_count = 2
+    await s.commit()
+
+    r = await c.delete(f"/admin/events/{ev1.id}", headers=headers)
+    assert r.status_code == 200
+    assert r.json()["corroboration_count"] == 1
+    await s.refresh(threat)
+    assert threat.corroboration_count == 1
+
+
+async def test_add_notice_from_raw_message(client):
+    c, s = client
+    headers = await _admin_headers(s)
+    src = Source(channel_key="a", name="A")
+    s.add(src)
+    await s.commit()
+    raw = RawMessage(text="Вночі очікуємо другу хвилю", source_id=src.id, message_id=77)
+    s.add(raw)
+    await s.commit()
+
+    r = await c.post(
+        f"/admin/raw_messages/{raw.id}/notice", json={"kind": "forecast"}, headers=headers
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["kind"] == "forecast"
+    # Defaults to the message's own words, and reads as authoritative (not AI).
+    assert body["text"] == "Вночі очікуємо другу хвилю"
+    assert body["generated_by"] == "rule"
+
+    # The raw row now traces to it, so a second would be invisible from there.
+    again = await c.post(
+        f"/admin/raw_messages/{raw.id}/notice", json={"kind": "clear"}, headers=headers
+    )
+    assert again.status_code == 409
+
+    r = await c.delete(f"/admin/notices/{body['id']}", headers=headers)
+    assert r.status_code == 204
+    assert await s.scalar(select(func.count()).select_from(Notice)) == 0
+
+
+async def test_add_notice_uses_given_text(client):
+    c, s = client
+    headers = await _admin_headers(s)
+    raw = RawMessage(text="дуже довгий пост із купою деталей")
+    s.add(raw)
+    await s.commit()
+
+    r = await c.post(
+        f"/admin/raw_messages/{raw.id}/notice",
+        json={"kind": "status", "text": "Ситуація спокійна"},
+        headers=headers,
+    )
+    assert r.status_code == 200
+    assert r.json()["text"] == "Ситуація спокійна"
 
 
 async def test_move_event_changes_district(client):

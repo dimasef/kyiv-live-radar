@@ -2,10 +2,11 @@ import { ExternalLink } from 'lucide-react'
 
 import type { Source } from '@/api'
 
-import { telegramUrl } from './sourceFormat'
+import { REGION_LABELS, telegramUrl } from './sourceFormat'
 
-/** Shared row header: active dot, name, and the @handle linking out to the
- * channel on Telegram (when the ref maps to a public URL). */
+/** Shared row header: active dot, name, the @handle linking out to the channel
+ * on Telegram (when the ref maps to a public URL), and — for a channel outside
+ * the home region — which region its district-less messages fall back to. */
 export default function SourceHeader({ source }: { source: Source }) {
   const url = telegramUrl(source)
   const handle = source.subscribe_ref ?? source.channel_key
@@ -29,6 +30,11 @@ export default function SourceHeader({ source }: { source: Source }) {
         </a>
       ) : (
         <span className="shrink-0 text-[11px] text-slate-500">@{handle}</span>
+      )}
+      {source.region !== 'kyiv' && (
+        <span className="shrink-0 rounded border border-white/10 px-1 py-px text-[10px] text-slate-400">
+          {REGION_LABELS[source.region]}
+        </span>
       )}
     </div>
   )

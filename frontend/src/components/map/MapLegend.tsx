@@ -3,9 +3,11 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { safeGet, safeSet, STORAGE_KEYS } from '../../lib/storage'
+import { useRadar } from '../../store'
 import { MUTED_COLOR, TYPE_COLORS } from '../../theme'
 import { launcherGlyphSvg, threatGlyphSvg } from '../../threatIcons'
 import type { TargetType } from '../../types'
+import { ZONE_STYLES } from './constants'
 
 function initialOpen(): boolean {
   const saved = safeGet(STORAGE_KEYS.legendOpen)
@@ -14,32 +16,34 @@ function initialOpen(): boolean {
   return window.matchMedia('(min-width: 1024px)').matches
 }
 
+/** A filled square in a zone tone — the alert layer paints areas, not markers,
+ * so its legend rows can't reuse the threat glyphs. */
+function zoneSwatch(style: { color: string; fillColor: string; dashArray?: string }): string {
+  const dash = style.dashArray ? ` stroke-dasharray="${style.dashArray}"` : ''
+  return (
+    `<svg width="16" height="16" viewBox="0 0 16 16">` +
+    `<rect x="2.5" y="2.5" width="11" height="11" rx="1.5" fill="${style.fillColor}" ` +
+    `fill-opacity="0.35" stroke="${style.color}"${dash}/></svg>`
+  )
+}
+
 /** A 16px inline SVG (glyph or plain swatch) used for a legend row. */
-function Swatch({
-  html,
-  faded = false,
-  wide = false,
-}: {
-  html: string
-  faded?: boolean
-  // The group row carries a glyph AND its ×N chip, so it needs room the 16px
-  // square doesn't have — without this the chip overlaps the label.
-  wide?: boolean
-}) {
+function Swatch({ html }: { html: string }) {
   return (
     <span
-      className={`inline-flex h-4 flex-none items-center justify-center ${wide ? 'w-8' : 'w-4'}`}
-      style={faded ? { opacity: 0.3 } : undefined}
+      className="inline-flex h-4 w-4 flex-none items-center justify-center"
       aria-hidden
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )
 }
 
-/** Collapsible legend floating over the map (bottom-left, above leaflet UI). */
+/** Collapsible legend — what a marker's shape and colour mean. Positioned by
+ * MapControls, not by itself. */
 export default function MapLegend() {
   const { t } = useTranslation()
   const [open, setOpen] = useState(initialOpen)
+  const zoneLayerOn = useRadar((s) => s.zoneLayerOn)
 
   const toggle = () => {
     safeSet(STORAGE_KEYS.legendOpen, open ? '0' : '1')
@@ -51,7 +55,7 @@ export default function MapLegend() {
   // marker and labelled every contact's, so a legend entry explains nothing they
   // don't already know by looking.
   const types: TargetType[] = ['shahed', 'jet_drone', 'missile', 'ballistic']
-  const rows: { html: string; label: string; faded?: boolean; wide?: boolean }[] = [
+  const rows: { html: string; label: string }[] = [
     ...types.map((ty) => ({
       html: threatGlyphSvg(ty, { size: 16, color: TYPE_COLORS[ty] }),
       label: t(`target.${ty}`),
@@ -64,24 +68,19 @@ export default function MapLegend() {
       html: threatGlyphSvg('unknown', { size: 16, state: 'destroyed', color: MUTED_COLOR }),
       label: t('legend.destroyed'),
     },
-    // Without this row a faded marker reads as a rendering defect rather than as
-    // "nobody has reported this one in a while".
-    {
-      html: threatGlyphSvg('shahed', { size: 16, color: TYPE_COLORS.shahed }),
-      label: t('legend.quiet'),
-      faded: true,
-    },
-    {
-      html:
-        threatGlyphSvg('shahed', { size: 16, color: TYPE_COLORS.shahed }) +
-        '<span class="threat-count" style="position:static;margin-left:2px">\u00d73</span>',
-      label: t('legend.group'),
-      wide: true,
-    },
   ]
+  // The raion-alert layer has its own visual language (a filled area, not a
+  // marker), so its rows only appear while it is switched on.
+  if (zoneLayerOn) {
+    rows.push(
+      { html: zoneSwatch(ZONE_STYLES.alert), label: t('zones.alert') },
+      { html: zoneSwatch(ZONE_STYLES.clear), label: t('zones.clear') },
+      { html: zoneSwatch(ZONE_STYLES.stale), label: t('zones.noData') },
+    )
+  }
 
   return (
-    <div className="pointer-events-auto absolute bottom-[4.2rem] left-3 z-[900] lg:bottom-3">
+    <>
       {open ? (
         <div className="panel w-44 p-3">
           <button
@@ -93,9 +92,9 @@ export default function MapLegend() {
             <ChevronDown size={13} className="text-slate-500" />
           </button>
           <ul className="space-y-1.5">
-            {rows.map(({ html, label, faded, wide }) => (
+            {rows.map(({ html, label }) => (
               <li key={label} className="flex items-center gap-2 text-[11px] text-slate-300">
-                <Swatch html={html} faded={faded} wide={wide} />
+                <Swatch html={html} />
                 <span className="truncate">{label}</span>
               </li>
             ))}
@@ -110,6 +109,6 @@ export default function MapLegend() {
           <Layers size={17} />
         </button>
       )}
-    </div>
+    </>
   )
 }

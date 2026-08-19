@@ -92,5 +92,36 @@ export function useRawMessages(filters: RawMessageFilters) {
       .catch(() => {})
   }, [fetchPage, apiFilter])
 
-  return { items, loading, done, total, loadMore, apiFilter }
+  /** Drop a deleted sighting from the row that produced it, in place — a
+   * refetch here would restart the cursor and throw away everything the admin
+   * scrolled to. `outcome` is the server's own diagnosis, so it isn't
+   * recomputed: the row is just relabelled as one an admin took the event off,
+   * until the next real fetch says otherwise. */
+  const dropEvent = useCallback((messageId: number, eventId: number) => {
+    setItems((prev) =>
+      prev.map((m) => {
+        if (m.id !== messageId) return m
+        const events = m.events.filter((e) => e.event_id !== eventId)
+        const emptied = events.length === 0 && m.notice_id == null
+        return { ...m, events, outcome: emptied ? 'знято' : m.outcome }
+      }),
+    )
+  }, [])
+
+  /** Attach or clear the notice a row traces to, in place — same reason as
+   * `dropEvent`: a refetch would throw away the scroll position. */
+  const setNotice = useCallback(
+    (messageId: number, notice: { id: number; kind: string } | null) => {
+      setItems((prev) =>
+        prev.map((m) =>
+          m.id === messageId
+            ? { ...m, notice_id: notice?.id ?? null, notice_kind: notice?.kind ?? null }
+            : m,
+        ),
+      )
+    },
+    [],
+  )
+
+  return { items, loading, done, total, loadMore, apiFilter, dropEvent, setNotice }
 }

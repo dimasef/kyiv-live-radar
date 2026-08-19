@@ -24,7 +24,7 @@ def utcnow() -> datetime:
 
 
 class District(Base):
-    """Gazetteer entry: a Kyiv district/microdistrict with a representative point.
+    """Gazetteer entry: a watched district/microdistrict with a representative point.
 
     NOTE: lat/lon is a single representative point (centroid), not a polygon.
     Bearing/vector math built on centroids is coarse — treat it as indicative
@@ -40,7 +40,11 @@ class District(Base):
     aliases: Mapped[list] = mapped_column(JSON, default=list)
     lat: Mapped[float] = mapped_column(Float)
     lon: Mapped[float] = mapped_column(Float)
-    city: Mapped[str] = mapped_column(String(80), default="Kyiv")
+    # Which watched region this entry belongs to (see REGIONS). Region is a
+    # property of the PLACE, not of the channel that named it, so one channel
+    # reporting both sides of the oblast border still lands each sighting in the
+    # right track pool. Re-synced onto existing rows by seed_districts.
+    region: Mapped[str] = mapped_column(String(20), default="kyiv")
     # Real OSM boundary (GeoJSON Polygon/MultiPolygon geometry) for the 10
     # administrative raions; SQL NULL for microdistricts/approach towns (points
     # only). none_as_null keeps Python None as SQL NULL so IS NOT NULL filters work.
@@ -68,9 +72,22 @@ THREAT_STATUSES: tuple[ThreatStatus, ...] = get_args(ThreatStatus)
 ThreatKind = Literal["track", "impact"]
 THREAT_KINDS: tuple[ThreatKind, ...] = get_args(ThreatKind)
 # A localized track over a raion, vs a city-wide "ціль на місто" that renders as
-# a banner rather than a map point.
-ThreatScope = Literal["district", "city"]
+# a banner rather than a map point, vs an oblast-wide sighting outside Kyiv
+# ("група БпЛА над Чернігівщиною") that has no settlement to pin.
+ThreatScope = Literal["district", "city", "region"]
 THREAT_SCOPES: tuple[ThreatScope, ...] = get_args(ThreatScope)
+# Watched regions. 'kyiv' = м. Київ + Київська обл. (everything the radar was
+# built for); 'chernihiv' = the northern early-warning approach. A region owns
+# its own track pool: corroboration, an all-clear and stale closure never reach
+# across one, so a northern sighting can't join or close a Kyiv track. Only
+# 'kyiv' feeds incidents, the city alert, the journal and home-danger push.
+Region = Literal["kyiv", "chernihiv"]
+REGIONS: tuple[Region, ...] = get_args(Region)
+# The region the radar is actually ABOUT. It is both the default for anything
+# that doesn't say (every pre-region row is Kyiv, which is what it implicitly
+# was) and the gate for the Kyiv-only layers: incidents, the city alert, the
+# journal/statistics and danger-near-home push.
+HOME_REGION: Region = "kyiv"
 # Explicit reason a track closed, replacing `status='lost'`'s three overloaded
 # meanings (відбій / дорозвідка stand-down / silence timeout). NULL while open.
 ClosedReason = Literal["destroyed", "all_clear", "stand_down", "stale", "dismissed"]
@@ -175,6 +192,11 @@ class Source(Base):
     # 'spotter' | 'alert' — see SOURCE_ROLES. Determines which parser/ingest
     # path a channel's messages go through.
     role: Mapped[str] = mapped_column(String(10), default="spotter")
+    # Fallback region for THIS channel's messages that name no district at all
+    # ("Відбій", "Чисто!") — those have no place to read a region off, and a
+    # northern channel's stand-down must not close Kyiv tracks. A message that
+    # DOES name a district always takes the district's region instead.
+    region: Mapped[str] = mapped_column(String(20), default="kyiv")
     # Raw string the listener resolves this channel by (username without @, a
     # numeric id, or a t.me/+ invite link). NULL -> resolve by channel_key.
     subscribe_ref: Mapped[str | None] = mapped_column(String(200), nullable=True)
@@ -439,7 +461,12 @@ class Threat(Base):
     # /threats/active filters open tracks AND excludes admin-dismissed ones in
     # the same query, so one composite serves both — and its leading column
     # serves the plain closed_at lookups too.
-    __table_args__ = (Index("ix_threats_closed_at_reason", "closed_at", "closed_reason"),)
+    __table_args__ = (
+        Index("ix_threats_closed_at_reason", "closed_at", "closed_reason"),
+        # Every track lookup is region-scoped now (corroboration, all-clear,
+        # stale sweep), and they all filter open tracks first.
+        Index("ix_threats_region_closed_at", "region", "closed_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -457,10 +484,16 @@ class Threat(Base):
     # THREAT_KINDS) — status still carries destroyed/lost/tracking/unconfirmed
     # for backwards-compat with existing serializer/frontend consumers.
     kind: Mapped[str] = mapped_column(String(10), default="track")
-    # 'district' (a normal localized track) or 'city' (a city-wide threat with
-    # no raion — "ціль на місто"). City-wide threats render as a banner, not a
-    # map point; see the CITYWIDE_NAME_EN sentinel district their events attach to.
+    # 'district' (a normal localized track), 'city' (a city-wide threat with no
+    # raion — "ціль на місто") or 'region' (an oblast-wide sighting outside
+    # Kyiv). City-wide threats render as a banner, not a map point; see the
+    # CITYWIDE_NAME_EN sentinel district their events attach to.
     scope: Mapped[str] = mapped_column(String(10), default="district")
+    # Which watched region's pool this track lives in (see REGIONS). Follows the
+    # target: a track that starts over Чернігівщина and is next reported over
+    # Вишгород becomes 'kyiv' and joins the Kyiv pool from then on — that
+    # hand-off is the whole point of watching the northern approach.
+    region: Mapped[str] = mapped_column(String(20), default="kyiv")
     # Stated size of the group flying together ("2х" -> 2, "їх вже 3х" -> 3);
     # grows within the reply-chain as spotters revise it. 1 when unstated.
     target_count: Mapped[int] = mapped_column(default=1)

@@ -9,7 +9,7 @@ from .config import settings
 from .db import SessionLocal
 from .domain.geometry import centroid
 from .gazetteer import DISTRICTS, SOURCES
-from .models import District, Source
+from .models import HOME_REGION, District, Source
 
 _BOUNDARIES_FILE = Path(__file__).parent / "data" / "boundaries.json"
 
@@ -32,6 +32,7 @@ async def seed_sources() -> int:
                 name=s["name"],
                 trust_weight=s.get("trust_weight", 1.0),
                 role=s.get("role", "spotter"),
+                region=s.get("region", HOME_REGION),
             )
             for s in SOURCES
         )
@@ -74,19 +75,23 @@ async def seed_districts() -> int:
 
     Inserts any gazetteer entry (keyed by name_en) not already present, so a
     grown gazetteer picks up new localities on the next startup without a wipe —
-    and re-syncs ALIASES on existing rows, which otherwise never reached a DB
-    seeded before the alias was added (the reason prod missed «Солома!» on
-    07-18 while the code had the alias). Returns the number inserted.
+    and re-syncs ALIASES and REGION on existing rows, which otherwise never
+    reached a DB seeded before the value changed (the reason prod missed
+    «Солома!» on 07-18 while the code had the alias; re-labelling an entry's
+    region would go the same way). Returns the number inserted.
     """
     async with SessionLocal() as session:
         have = {d.name_en: d for d in await session.scalars(select(District))}
         boundaries = _load_boundaries()
         rows = []
         for d in DISTRICTS:
+            region = d.get("region", HOME_REGION)
             if d["name_en"] in have:
                 row = have[d["name_en"]]
                 if (row.aliases or []) != d.get("aliases", []):
                     row.aliases = d.get("aliases", [])
+                if row.region != region:
+                    row.region = region
                 continue
             geom = boundaries.get(d["name_en"])
             lat, lon = d["lat"], d["lon"]
@@ -99,6 +104,7 @@ async def seed_districts() -> int:
                 lon=lon,
                 aliases=d.get("aliases", []),
                 boundary=geom,
+                region=region,
             ))
         session.add_all(rows)
         await session.commit()

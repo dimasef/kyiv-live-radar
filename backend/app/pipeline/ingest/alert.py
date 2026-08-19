@@ -14,7 +14,7 @@ from sqlalchemy import select
 from ...domain.alerts import AlertSignal, apply_alert_signal
 from ...domain.incidents import end_active_incidents
 from ...domain.tracking import close_all_active
-from ...models import Notice, RawMessage
+from ...models import HOME_REGION, Notice, RawMessage
 from ...parsing.alert_parser import parse_alert_message
 from ..lock import ingest_lock
 from ..results import Broadcast
@@ -119,7 +119,9 @@ async def process_parsed_alert(
     # nothing is open — so an official + spotter відбій seconds apart dedupe
     # instead of double-firing.
     if parsed.action == "end" and parsed.scope == "city":
-        closed_tracks = await close_all_active(session, when, "all_clear")
+        # The official city siren speaks for Kyiv only — a northern track it
+        # never covered stays open until its own region clears it.
+        closed_tracks = await close_all_active(session, when, "all_clear", region=HOME_REGION)
         broadcasts += [Broadcast("status", t) for t in closed_tracks]
         ended_incidents = await end_active_incidents(session, when, "alert_end")
         broadcasts += [Broadcast("attack", incident=inc) for inc in ended_incidents]

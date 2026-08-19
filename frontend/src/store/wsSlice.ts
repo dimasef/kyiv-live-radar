@@ -41,6 +41,10 @@ export const createWsSlice: StateCreator<RadarState, [], [], WsSlice> = (_set, g
       get().upsertAxis(msg.axis)
       return
     }
+    if (msg.type === 'zones' && msg.zones) {
+      get().setZones(msg.zones)
+      return
+    }
     if (msg.threat) {
       get().applyThreatMessage({ type: msg.type, threat: msg.threat, event: msg.event })
     }

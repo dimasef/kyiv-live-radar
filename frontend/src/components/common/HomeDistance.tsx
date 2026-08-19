@@ -42,10 +42,12 @@ export default function HomeDistance({
       ? 'text-amber-400'
       : 'text-slate-400'
 
+  // Font size comes from the caller: the same line sits in a dense feed row and
+  // in the roomier map popup, and one size can't serve both.
   return (
     <span
       title={t('home.approxHint')}
-      className={`flex items-center gap-1 font-mono text-[10px] ${tone} ${className}`}
+      className={`flex items-center gap-1 font-mono ${tone} ${className}`}
     >
       <Navigation
         size={10}

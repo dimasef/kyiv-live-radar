@@ -79,6 +79,43 @@ describe('closed-track eviction', () => {
   })
 })
 
+describe('the feed follows the track it embeds', () => {
+  const entry = (threat: Threat) => ({ event: { id: 1, threat_id: threat.id } as never, threat })
+
+  it('re-types a feed card when the track is retyped', () => {
+    // The reported bug: an admin retype (БПЛА -> реактивний) changed the map at
+    // once but the feed only after a reload, because each card holds its own
+    // snapshot of the track.
+    const original = closedThreat({ status: 'tracking', closed_at: null, closed_reason: null })
+    const { get } = makeStore({ log: [entry(original)] } as never)
+
+    get().applyThreatMessage({
+      type: 'status',
+      threat: { ...original, target_type: 'jet_drone' },
+    })
+    expect(get().log[0].threat.target_type).toBe('jet_drone')
+  })
+
+  it('keeps the inspected copy in sync, event history and all', () => {
+    const original = closedThreat({ status: 'tracking', closed_at: null, closed_reason: null })
+    const { get } = makeStore()
+    get().inspectThreat({ ...original, events: [{ id: 4 } as never] })
+
+    get().applyThreatMessage({ type: 'status', threat: { ...original, target_type: 'ballistic' } })
+    expect(get().inspectedThreat?.target_type).toBe('ballistic')
+    // A broadcast without the full history must not erase what was fetched.
+    expect(get().inspectedThreat?.events).toHaveLength(1)
+  })
+
+  it('takes a dismissed track out of the feed too', () => {
+    const original = closedThreat({ status: 'tracking', closed_at: null, closed_reason: null })
+    const { get } = makeStore({ log: [entry(original)] } as never)
+
+    get().applyThreatMessage({ type: 'status', threat: closedThreat({ status: 'dismissed' }) })
+    expect(get().log).toEqual([])
+  })
+})
+
 describe('a target being read is never yanked away', () => {
   it('holds the whole exit while its popup is open, and releases on close', () => {
     // The reported bug: clicking a destroyed target and watching it dissolve a

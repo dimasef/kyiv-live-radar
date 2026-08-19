@@ -4,12 +4,12 @@ start/continue-a-track bits (`_new_track` / `_apply_update`)."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from ...config import settings
 from ...domain.lifecycle import promote_track
-from ...models import RawMessage, Threat, utcnow
+from ...models import HOME_REGION, RawMessage, Threat, utcnow
 from ...parsing import ParseResult
 from ...timeutil import naive
 
@@ -179,9 +179,20 @@ class IngestContext:
     # messages at their own timestamps, where every message is "old" and the
     # gate would drop the entire corpus.
     enforce_age: bool = False
+    # Which track pool this message acts on (domain/districts.resolve_region):
+    # the region of the LAST district it named, else the reporting channel's own
+    # region. Everything that finds or closes a track is scoped by it.
+    region: str = HOME_REGION
+    # {district_id: region} for the whole gazetteer — a multi-district message
+    # can straddle the oblast border, and _handle_multi_targets opens one track
+    # per district, each in its own pool.
+    region_by_id: dict[int, str] = field(default_factory=dict)
 
     def arrived_late(self) -> bool:
         return self.enforce_age and is_late(self.when)
+
+    def region_of(self, district_id: int) -> str:
+        return self.region_by_id.get(district_id, self.region)
 
     async def done(self) -> None:
         self.raw.processed = True

@@ -17,9 +17,11 @@ def test_should_fallback_for_unlocalized_kyiv_relevant_message():
 
 
 def test_should_not_fallback_when_target_is_in_another_oblast():
-    # A target whose LOCATION is another oblast ("на Чернігівщині", "на Дніпро"),
-    # with no Kyiv-area place named — an LLM call can't recover a Kyiv district
-    # that isn't in the text, so it stays suppressed.
+    # A target whose LOCATION is a whole REGION with no settlement named — the
+    # LLM cannot recover a place that isn't in the text, so the call would be
+    # pure spend. True for someone else's oblast ("на Дніпро") AND for the
+    # watched north ("на Чернігівщині"): watching a region doesn't conjure a
+    # settlement out of a message that names none.
     for txt in [
         "Знову 2х реактивних БПЛА на Чернігівщині, вектор такий самий.",
         "Шахед на Чернігівщині",
@@ -29,6 +31,14 @@ def test_should_not_fallback_when_target_is_in_another_oblast():
     ]:
         r = parse_message(txt, M)
         assert not should_fallback(r), txt
+
+
+def test_an_unknown_village_in_a_watched_region_still_reaches_the_llm():
+    """The counterpart of the rule above: a place we simply don't have in the
+    gazetteer yet names no oblast, so it is exactly the case the LLM enum
+    exists for — suppressing it would freeze northern coverage at whatever the
+    gazetteer happened to contain."""
+    assert should_fallback(parse_message("Реактивний на Пакуль", M))
 
 
 def test_inbound_from_another_oblast_is_a_directional_axis():

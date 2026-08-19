@@ -16,7 +16,9 @@ from ...domain.districts import citywide_district_id
 from ...domain.journal import KYIV, build_journal
 from ...models import (
     ANALYTICS_PERIODS,
+    HOME_REGION,
     Alert,
+    District,
     Incident,
     Threat,
     ThreatEvent,
@@ -63,6 +65,12 @@ async def _load_window(session: AsyncSession, start: date, end: date, today: dat
     still sees every row that could bucket into [start, end] — it drops anything
     outside the range itself. Without this the endpoint read whole tables on
     every calendar load.
+
+    The journal is about KYIV. Northern early-warning tracks and the districts
+    they pass over are watched to see what is coming, not to be counted as
+    nights this city lived through — so both the threat rows and the district
+    histogram are filtered to HOME_REGION here rather than in build_journal,
+    which stays a pure function over whatever it is handed.
     """
     window_start = datetime.combine(start, time.min) - timedelta(days=1)
     window_end = datetime.combine(end, time.min) + timedelta(days=2)
@@ -70,7 +78,9 @@ async def _load_window(session: AsyncSession, start: date, end: date, today: dat
     threats = list(
         await session.scalars(
             select(Threat).where(
-                Threat.created_at >= window_start, Threat.created_at < window_end
+                Threat.region == HOME_REGION,
+                Threat.created_at >= window_start,
+                Threat.created_at < window_end,
             )
         )
     )
@@ -98,8 +108,11 @@ async def _load_window(session: AsyncSession, start: date, end: date, today: dat
                 Threat.kind == "impact",
             )
             .join(Threat, ThreatEvent.threat_id == Threat.id)
+            .join(District, ThreatEvent.district_id == District.id)
             .where(
                 Threat.closed_reason.is_distinct_from("dismissed"),
+                Threat.region == HOME_REGION,
+                District.region == HOME_REGION,
                 ThreatEvent.event_time >= window_start,
                 ThreatEvent.event_time < window_end,
             )
@@ -207,6 +220,7 @@ async def journal_stats(
             .join(Threat, ThreatEvent.threat_id == Threat.id)
             .where(
                 Threat.closed_reason.is_distinct_from("dismissed"),
+                Threat.region == HOME_REGION,
                 Threat.kind != "impact",
                 Threat.scope != "city",
                 ThreatEvent.event_time >= w.window_start,
@@ -271,11 +285,19 @@ async def journal_stats(
 
 
 async def _first_data_day(session: AsyncSession) -> date | None:
-    """The earliest Kyiv day with any activity at all — the 'all time' start."""
+    """The earliest Kyiv day with any activity at all — the 'all time' start.
+
+    Scoped exactly like the journal itself (Kyiv tracks, city alerts): an
+    oblast-scope alert or a northern track must not stretch the range back to a
+    day the statistics then render as empty."""
     firsts = [
-        await session.scalar(select(func.min(Threat.created_at))),
+        await session.scalar(
+            select(func.min(Threat.created_at)).where(Threat.region == HOME_REGION)
+        ),
         await session.scalar(select(func.min(Incident.started_at))),
-        await session.scalar(select(func.min(Alert.started_at))),
+        await session.scalar(
+            select(func.min(Alert.started_at)).where(Alert.scope == "city")
+        ),
     ]
     known = [dt for dt in firsts if dt is not None]
     return min(kyiv_date(dt) for dt in known) if known else None

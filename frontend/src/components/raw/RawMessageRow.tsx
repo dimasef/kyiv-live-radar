@@ -1,84 +1,149 @@
-import { useTranslation } from 'react-i18next'
+import { useTranslation } from "react-i18next";
 
-import { kyivStamp } from '@/lib/kyivTime'
-import { TYPE_COLORS } from '@/theme'
-import type { RawMessage, TargetType } from '@/types'
+import { deleteEvent, deleteNotice } from "@/api";
+import AdminActionButton from "@/components/admin/AdminActionButton";
+import { kyivStamp } from "@/lib/kyivTime";
+import { TYPE_COLORS } from "@/theme";
+import type { RawMessage, TargetType } from "@/types";
 
-import LlmTriageBadge from './LlmTriageBadge'
-import LlmUsageBadge from './LlmUsageBadge'
-import OutcomeBadge from './OutcomeBadge'
+import LlmTriageBadge from "./LlmTriageBadge";
+import NoticeControl, { type NoticeSet } from "./NoticeControl";
+import LlmUsageBadge from "./LlmUsageBadge";
+import OutcomeBadge from "./OutcomeBadge";
+
+/** Tell the list a sighting is gone, so the row stops advertising it. */
+export type DropEvent = (messageId: number, eventId: number) => void;
 
 // Same condition as OutcomeBadge's tone: a real ThreatEvent/Notice matched,
 // i.e. this message actually became a card in the main feed (ThreatLog) —
 // not just a best-effort "outcome" guess.
 function inMainFeed(item: RawMessage) {
-  return item.events.length > 0 || item.notice_id != null
+  return item.events.length > 0 || item.notice_id != null;
 }
 
 /** The T/M code chips for the ThreatEvents this message produced, each tagged
  * with the target type stamped on it (colour + label). Wraps, so a "чисто" that
- * closed a dozen tracks lays out as rows instead of overflowing the card. */
-function EventChips({ item }: { item: RawMessage }) {
-  const { t } = useTranslation()
-  if (item.events.length === 0 && item.notice_id == null) return null
+ * closed a dozen tracks lays out as rows instead of overflowing the card.
+ *
+ * Each chip carries the one write this view allows: taking the sighting off the
+ * message it was parsed from. This is where a wrong parse is actually SEEN —
+ * next to the text that caused it — and sending the admin to hunt the same track
+ * down on the «Керування» tab was how bad parses stayed on the map. */
+function EventChips({
+  item,
+  onDropEvent,
+  onSetNotice,
+}: {
+  item: RawMessage;
+  onDropEvent: DropEvent;
+  onSetNotice: NoticeSet;
+}) {
+  const { t } = useTranslation();
+  if (item.events.length === 0 && item.notice_id == null) return null;
   return (
     <div className="mt-1.5 flex flex-wrap gap-1">
       {item.events.map((e) => {
-        const known = e.target_type != null && e.target_type in TYPE_COLORS
-        const color = known ? TYPE_COLORS[e.target_type as TargetType] : TYPE_COLORS.unknown
+        const known = e.target_type != null && e.target_type in TYPE_COLORS;
+        const color = known
+          ? TYPE_COLORS[e.target_type as TargetType]
+          : TYPE_COLORS.unknown;
         return (
           <span
             key={e.event_id}
             className="inline-flex items-center gap-1 rounded bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-slate-400"
           >
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: color }} />
+            <span
+              className="h-1.5 w-1.5 shrink-0 rounded-full"
+              style={{ background: color }}
+            />
             {e.target_type && (
-              <span className="text-slate-300">{t(`target.${e.target_type}`)}</span>
+              <span className="text-slate-300">
+                {t(`target.${e.target_type}`)}
+              </span>
             )}
-            {e.district_name && <span className="text-slate-300">{e.district_name}</span>}
+            {e.district_name && (
+              <span className="text-slate-300">{e.district_name}</span>
+            )}
             <span className="opacity-70">
               T{e.threat_id}/M{e.event_id}
             </span>
-            {e.incident_id != null && <span className="text-slate-500">I{e.incident_id}</span>}
+            {e.incident_id != null && (
+              <span className="text-slate-500">I{e.incident_id}</span>
+            )}
             {e.corroboration_count != null && (
               <span className="text-slate-500">
-                {e.corroboration_count} {t('log.corroboration')}
+                {e.corroboration_count} {t("log.corroboration")}
               </span>
             )}
             {e.confidence != null && (
-              <span className="text-slate-500">{Math.round(e.confidence * 100)}%</span>
+              <span className="text-slate-500">
+                {Math.round(e.confidence * 100)}%
+              </span>
             )}
+            <AdminActionButton
+              label="×"
+              title="Зняти подію з повідомлення"
+              tone="danger"
+              compact
+              confirm={`Зняти подію M${e.event_id} з треку T${e.threat_id}? Якщо вона в треку остання, трек буде скасовано.`}
+              onRun={() =>
+                deleteEvent(e.event_id).then(() =>
+                  onDropEvent(item.id, e.event_id),
+                )
+              }
+            />
           </span>
-        )
+        );
       })}
       {item.notice_id != null && (
-        <span className="inline-flex items-center rounded bg-sky-400/10 px-1.5 py-0.5 font-mono text-[10px] text-sky-300/80">
+        <span className="inline-flex items-center gap-1 rounded bg-sky-400/10 px-1.5 py-0.5 font-mono text-[10px] text-sky-300/80">
           N{item.notice_id}
+          {item.notice_kind && (
+            <span className="opacity-70">
+              {t(`notice.${item.notice_kind}`)}
+            </span>
+          )}
+          <AdminActionButton
+            label="×"
+            title="Прибрати нотіс зі стрічки"
+            tone="danger"
+            compact
+            confirm={`Прибрати нотіс N${item.notice_id} зі стрічки?`}
+            onRun={() =>
+              deleteNotice(item.notice_id!).then(() =>
+                onSetNotice(item.id, null),
+              )
+            }
+          />
         </span>
       )}
     </div>
-  )
+  );
 }
 
 export default function RawMessageRow({
   item,
   selected,
   onToggleSelect,
+  onDropEvent,
+  onSetNotice,
 }: {
-  item: RawMessage
-  selected: boolean
-  onToggleSelect: (id: number) => void
+  item: RawMessage;
+  selected: boolean;
+  onToggleSelect: (id: number) => void;
+  onDropEvent: DropEvent;
+  onSetNotice: NoticeSet;
 }) {
   const borderClass = inMainFeed(item)
     ? item.events.length > 0
-      ? 'border-emerald-400/40'
-      : 'border-sky-400/40'
-    : 'border-white/[0.05]'
+      ? "border-emerald-400/40"
+      : "border-sky-400/40"
+    : "border-white/[0.05]";
 
   return (
     <li
       className={`flex gap-2.5 rounded-lg border ${borderClass} bg-white/[0.02] px-3 py-2.5 text-xs ${
-        selected ? 'ring-1 ring-phosphor/50' : ''
+        selected ? "ring-1 ring-phosphor/50" : ""
       }`}
     >
       <input
@@ -92,7 +157,9 @@ export default function RawMessageRow({
         <div className="flex items-baseline justify-between gap-2">
           <span className="flex items-center gap-1.5 font-mono text-[10px] text-slate-500">
             #{item.id}
-            {item.source_name && <span className="text-slate-400">{item.source_name}</span>}
+            {item.source_name && (
+              <span className="text-slate-400">{item.source_name}</span>
+            )}
           </span>
           <span className="flex items-center gap-1.5">
             {item.llm_response && (
@@ -108,12 +175,16 @@ export default function RawMessageRow({
                 costUsd={item.llm_cost_usd}
               />
             )}
-            {item.triage_action && item.triage_action !== 'none' && (
+            {item.triage_action && item.triage_action !== "none" && (
               <span className="whitespace-nowrap rounded bg-fuchsia-400/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-fuchsia-300">
                 {item.triage_action}
               </span>
             )}
-            <OutcomeBadge outcome={item.outcome} events={item.events} noticeId={item.notice_id} />
+            <OutcomeBadge
+              outcome={item.outcome}
+              events={item.events}
+              noticeId={item.notice_id}
+            />
             <time className="font-mono text-[10px] tabular-nums text-slate-500">
               {kyivStamp(item.event_time)}
             </time>
@@ -122,7 +193,12 @@ export default function RawMessageRow({
         <p className="mt-1.5 whitespace-pre-wrap break-words leading-snug text-slate-300">
           {item.text}
         </p>
-        <EventChips item={item} />
+        <EventChips
+          item={item}
+          onDropEvent={onDropEvent}
+          onSetNotice={onSetNotice}
+        />
+        <NoticeControl item={item} onSetNotice={onSetNotice} />
         {item.llm_response?.surface && item.llm_response.summary && (
           <p className="mt-1.5 rounded border border-phosphor/25 bg-phosphor/[0.06] px-2 py-1 text-[11px] leading-snug text-phosphor/90">
             {item.llm_response.summary}
@@ -130,5 +206,5 @@ export default function RawMessageRow({
         )}
       </div>
     </li>
-  )
+  );
 }

@@ -59,7 +59,7 @@ export default function IdentityCard({ user }: { user: AuthUser }) {
   }
 
   return (
-    <div className="flex items-center gap-4 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4">
+    <div className="panel flex items-center gap-4 p-4">
       <AvatarPicker name={fallbackName} editing={editing} size={80} />
 
       <div className="min-w-0 flex-1">

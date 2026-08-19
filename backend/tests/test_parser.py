@@ -552,6 +552,90 @@ def test_street_name_collision_is_not_a_district():
     assert not r.matched and r.districts == []
 
 
+def test_overlap_is_won_by_the_stem_that_actually_matched():
+    """Two entries matching the same word: the one that explained MORE of it wins.
+
+    Ranking by an entry's LONGEST stem instead let a short alias borrow the
+    specificity of an unrelated long one — «Трипільська ТЕС» (stem
+    «трипільськатес») outranked «Трипілля» on the bare word «Трипілля», putting
+    a village callout on the power plant.
+    """
+    r = parse_message("З них штук 3х у бік Трипілля 🔴", M)
+    assert names(r) == ["Трипілля"]
+
+
+def test_a_villages_name_is_not_swallowed_by_a_short_alias():
+    """«Морівськ» (Chernihiv oblast, on the northern corridor) starts with
+    «морі» — an alias of «Район моря». It must resolve to the village, not to
+    the Kyiv reservoir 60 km away; the bare noun still resolves normally."""
+    assert names(parse_message("Морівськ на Остер", M)) == ["Морівськ", "Остер"]
+    assert names(parse_message("З моря на Троєщину", M)) == ["Район моря", "Троєщина"]
+
+
+def test_an_empty_keyword_list_matches_nothing_not_everything():
+    """`"|".join([])` is the EMPTY pattern, which matches at every position —
+    an emptied keyword list would silently label every message with that type.
+    Found while measuring a vocabulary change on real data."""
+    from app.parsing.rules import _kw_regex
+
+    assert _kw_regex(()).search("будь-який текст") is None
+    assert _kw_regex(("ракет",)).search("3 ракети") is not None
+
+
+def test_banderol_is_a_jet_drone_however_the_message_words_it():
+    """Real messages from one night (2026-08-19), all naming the same weapon.
+
+    С8000 «Бандероль» is formally a small jet-engined cruise missile, but on
+    this map the type means how the target BEHAVES: ~620 km/h, manoeuvring, and
+    tracked position by position — the jet-drone profile the vector rendering
+    exists for. It has to beat the generic missile list, because the SAME feed
+    calls it «10 ракет Бандероль» and «баражуючий боєприпас типу Бандероль» in
+    one night; without the priority the generic "ракет" would label it cruise.
+    """
+    for txt in [
+        "Бандероль Бахмач",
+        "До 10 ракет Бандероль повз північ області в бік Коростеня",
+        "2х баражаючих боєприпаса типу «Бандероль» на північ від Носівки.",
+        "Ніжин у вашому районі Бандероль",
+        "Ймовірність бандеролей",
+    ]:
+        assert parse_message(txt, M).target_type == "jet_drone", txt
+    # The generic loitering-munition class word, with no model named.
+    assert parse_message("Баражуючий боєприпас над Броварами", M).target_type == "shahed"
+    # A named model is still negatable like every other type (2.9).
+    assert parse_message("це не бандероль, воно тихе", M).target_type == "unknown"
+    # …and it must not shadow the types above it in the chain.
+    assert parse_message("Балістична ракета на Київ", M).target_type == "ballistic"
+    assert parse_message("Одна ракета в бік Гостомеля", M).target_type == "missile"
+
+
+def test_a_metro_station_named_after_a_far_city_is_not_that_city():
+    """Kyiv names metro stations after other cities. «район метро
+    "Чернігівська"» is Дніпровський raion, not Чернігів 130 km north — the
+    collision that kept «житомир» («станція метро "Житомирська"») out of the
+    gazetteer entirely. Note the quotes: the veto has to see past them."""
+    r = parse_message('❗️Росія балістикою атакувала район метро «Чернігівська» у Києві', M)
+    assert r.districts == []
+    assert names(parse_message("Чернігів увага ‼️", M)) == ["Чернігів"]
+
+
+def test_an_oblast_is_not_its_city():
+    """«з Чернігівщини» is a DIRECTION targets come from — the axis layer owns
+    it. Pinning it to Чернігів the city would turn every northern axis into a
+    phantom sighting 130 km from anything. A place whose own name ends in
+    -щина is unaffected."""
+    assert parse_message("4х БПЛА йшло з Чернігівщини", M).districts == []
+    assert parse_message("Удари по Чернігівській області", M).districts == []
+    # …even with «область» left out, as spotters write it.
+    assert parse_message("Другий мандрує Чернігівською", M).districts == []
+    assert names(parse_message("Чернігів увага", M)) == ["Чернігів"]
+    # A raion whose own name IS the adjective keeps matching — the veto is
+    # scoped to cities that share their name with an oblast, not to every -ськ-.
+    assert names(parse_message("Ціль на Троєщину", M)) == ["Троєщина"]
+    assert names(parse_message("Вибухи в Оболонському районі", M)) == ["Оболонський"]
+    assert names(parse_message("БпЛА над Білоцерківським районом", M)) == ["Біла Церква"]
+
+
 def test_street_name_collision_does_not_hide_a_real_district_elsewhere():
     # If the street-collision word occurs but the SAME message also names a
     # real district elsewhere, the real district must still be found.
@@ -731,6 +815,17 @@ def test_pulse_scoped_to_another_oblast_does_not_pulse():
     # An ORIGIN mention is the opposite case — that target is heading here.
     assert parse_message("Ціль з Курщини", M).target_pulse
     assert parse_message("Ціль!", M).target_pulse
+
+
+def test_a_watched_region_is_still_not_the_kyiv_city_alert():
+    """Чернігівщина is tracked now, but a pulse corroborates the KYIV city-wide
+    alert specifically — «Цілі на Чернігівщині» must not raise its confidence,
+    and «По Чернігівщині тихо» is not a Kyiv threat-level bulletin. That's the
+    line between `target_elsewhere` (someone else's) and `target_not_kyiv`."""
+    assert not parse_message("Цілі на Чернігівщині", M).target_pulse
+    assert parse_message("По Чернігівщині поки тихо, балістики немає", M).notice_kind is None
+    # …while a stand-down there is now meaningful: it stands down ITS region.
+    assert parse_message("По Чернігівщині чисто", M).lost_signal
 
 
 def test_vinnytsia_oblast_spelling_variants_are_elsewhere():

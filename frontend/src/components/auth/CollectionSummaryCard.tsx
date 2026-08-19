@@ -23,7 +23,7 @@ export default function CollectionSummaryCard({
   return (
     <button
       onClick={() => navigate(collectionPath(userId))}
-      className="w-full rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4 text-left transition-colors hover:border-phosphor/30"
+      className="panel w-full p-4 text-left transition-colors hover:border-phosphor/30"
     >
       <div className="flex items-center justify-between">
         <span className="panel-title">Колекція карток</span>

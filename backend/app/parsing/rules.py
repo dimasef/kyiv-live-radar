@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from ..domain.origins import Origin, match_origin, target_elsewhere
+from ..domain.origins import Origin, match_origin, target_elsewhere, target_not_kyiv
 from .matcher import DistrictHit, DistrictMatcher, normalize
 from .vocab import (
     _AD_ACTION,
@@ -48,6 +48,7 @@ from .vocab import (
     _HYPERSONIC,
     _IMPACT,
     _JET,
+    _JET_MODEL,
     _LEVEL_OBLAST,
     _LEVEL_QUIET,
     _LEVEL_RAISED,
@@ -222,11 +223,17 @@ def _kw_regex(words) -> re.Pattern:
             parts.append(r"(?<![а-яіїєґ])" + esc + r"(?![а-яіїєґ])")
         else:
             parts.append(r"(?<![а-яіїєґ])" + esc)
+    if not parts:
+        # "|".join([]) is the EMPTY pattern, which matches at every position —
+        # an emptied keyword list would silently label every message with that
+        # type. Fail closed instead: match nothing.
+        return re.compile(r"(?!)")
     return re.compile("|".join(parts))
 
 
 _BALLISTIC_RE = _kw_regex(_BALLISTIC)
 _MISSILE_RE = _kw_regex(_MISSILE)
+_JET_MODEL_RE = _kw_regex(_JET_MODEL)
 _JET_RE = _kw_regex(_JET)
 _SHAHED_RE = _kw_regex(_SHAHED)
 _DECOY_RE = _kw_regex(_DECOY)
@@ -240,7 +247,7 @@ _HYPERSONIC_RE = _kw_regex(_HYPERSONIC)
 # не притаманна для «Іскандер-М»") still talks about that type for real.
 _NEGATED_TYPE_RE = re.compile(
     r"(?<![а-яіїєґ])не\s+(?:"
-    + "|".join(re.escape(w) for w in (*_BALLISTIC, *_MISSILE, *_JET, *_SHAHED))
+    + "|".join(re.escape(w) for w in (*_BALLISTIC, *_MISSILE, *_JET_MODEL, *_JET, *_SHAHED))
     + r")[а-яіїєґ]*"
 )
 
@@ -249,6 +256,11 @@ def _target_type(norm: str) -> str:
     norm = _NEGATED_TYPE_RE.sub(" ", norm)
     if _BALLISTIC_RE.search(norm):
         return "ballistic"
+    # A named jet model beats the generic missile list — the same message often
+    # carries both ("10 ракет Бандероль"), and the model is the more specific
+    # statement. Mirrors why ballistic is checked first.
+    if _JET_MODEL_RE.search(norm):
+        return "jet_drone"
     if _MISSILE_RE.search(norm):
         return "missile"
     if _JET_RE.search(norm):
@@ -550,7 +562,10 @@ def _level_notice(target_type: str, districts, citywide: bool, directional: bool
     if (aftermath or negated or siren_only or political_quote or lost_signal
             or summary or ad_action or civic_notice or eppo_marks or promo):
         return None
-    if target_elsewhere(norm):  # "по Чернігівщині тихо" — someone else's bulletin
+    # "по Житомирщині тихо" — someone else's bulletin. `target_not_kyiv`, not
+    # `target_elsewhere`: a bulletin about the watched north is still not a
+    # bulletin about Kyiv, which is what this feed card claims to be.
+    if target_not_kyiv(norm):
         return None
     if any(p in norm for p in _LEVEL_RAISED):
         return "forecast"
@@ -618,7 +633,10 @@ def _target_pulse(districts, citywide: bool, status: str, norm: str, aftermath: 
                  or eppo_marks)
         and len(norm.split()) <= 3
         and any(any(p in w for p in _PULSE_WORD) for w in norm.split())
-        and not target_elsewhere(norm)
+        # A pulse corroborates the KYIV city-wide alert, so anything scoped to
+        # another region — watched or not — must not pulse (live 2026-08-01:
+        # "Ціль на Сумщині" pushed a Kyiv card's confidence to 0.7).
+        and not target_not_kyiv(norm)
     )
 
 

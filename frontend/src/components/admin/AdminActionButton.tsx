@@ -21,11 +21,17 @@ export default function AdminActionButton({
   onRun,
   tone = 'neutral',
   confirm,
+  compact = false,
+  title,
 }: {
   label: string
   onRun: () => Promise<unknown>
   tone?: Tone
   confirm?: string
+  /** Sized to sit inside a chip rather than in a row of its own. */
+  compact?: boolean
+  /** Tooltip — worth setting when `compact` shrinks the label to a glyph. */
+  title?: string
 }) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState(false)
@@ -48,11 +54,12 @@ export default function AdminActionButton({
       <button
         onClick={() => (confirm ? setAsking(true) : execute())}
         disabled={pending}
-        className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors duration-150 disabled:opacity-40 ${
-          error ? TONE.danger : TONE[tone]
-        }`}
+        title={title}
+        className={`rounded-md border font-medium transition-colors duration-150 disabled:opacity-40 ${
+          compact ? 'px-1 py-0 text-[10px] leading-4' : 'px-2.5 py-1 text-xs'
+        } ${error ? TONE.danger : TONE[tone]}`}
       >
-        {error ? 'Помилка' : pending ? '…' : label}
+        {error ? (compact ? '!' : 'Помилка') : pending ? '…' : label}
       </button>
       {asking && confirm && (
         <ConfirmModal

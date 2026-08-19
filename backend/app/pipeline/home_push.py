@@ -24,7 +24,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from ..config import settings
 from ..domain.geometry import haversine_km
 from ..domain.home_danger import DangerLevel, HomeZone, assess
-from ..models import PushSubscription, Threat, utcnow
+from ..models import HOME_REGION, PushSubscription, Threat, utcnow
 from ..timeutil import naive
 from .webpush import send_push
 
@@ -57,6 +57,12 @@ async def evaluate_home_danger(session, threat: Threat) -> None:
     push on escalation. Requires threat.events with districts eager-loaded
     (broadcast_results' _load_full already does)."""
     if not (settings.home_danger_enabled and settings.push_configured):
+        return
+    # Homes are in Kyiv. A northern early-warning track is 100+ km away by
+    # construction, so the geometry would say "safe" anyway — but this is a
+    # phone waking someone at 3am, so the region gate is explicit rather than
+    # left to the distance math.
+    if threat.region != HOME_REGION:
         return
     if threat.scope == "city":
         await _evaluate_citywide(session, threat)

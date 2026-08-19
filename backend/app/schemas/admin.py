@@ -7,10 +7,21 @@ from typing import Literal
 
 from pydantic import BaseModel, field_validator
 
-from ..models import CorrectionKind, TargetType
+from ..models import CorrectionKind, NoticeKind, TargetType
 from .base import _as_utc
 from .situation import AlertOut, IncidentOut
 from .threats import ThreatOut
+
+
+class RawNoticeIn(BaseModel):
+    """POST /admin/raw_messages/{id}/notice — publish a message the parser left
+    out as a feed notice (a forecast, an all-clear, a situation summary).
+
+    `text` defaults to the message's own text: most of the time the spotter
+    already said it well, and retyping it invites drift from the original."""
+
+    kind: NoticeKind
+    text: str | None = None
 
 
 class ThreatTypeIn(BaseModel):
@@ -83,14 +94,22 @@ class ReprocessSummaryOut(BaseModel):
 class ReprocessPreviewOut(BaseModel):
     """GET /admin/reprocess/preview — pre-flight scope, no mutation."""
 
-    raw_messages: int
+    raw_messages: int  # everything stored, whatever the requested scope
     current: ReprocessSummaryOut
     attack_active: bool  # refuse-by-default guard: don't rebuild mid-attack
+    # With `?last=N`: how many messages that tail ACTUALLY replays (N widened so
+    # no track/alert is cut in half — see pipeline/reprocess.scope_cutoff) and
+    # the instant it starts from. Both None when rebuilding everything.
+    scope_messages: int | None = None
+    scope_from: datetime | None = None
 
 
 class ReprocessApplyIn(BaseModel):
     no_llm: bool = True  # match the boot path; True is fast + free
     force: bool = False  # override the mid-attack guard
+    # Rebuild only the last N stored messages, keeping older history. None =
+    # everything (the old behaviour).
+    last: int | None = None
 
 
 class ReprocessResultOut(BaseModel):

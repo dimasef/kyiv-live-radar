@@ -7,6 +7,13 @@ export const STATUS_COLORS = {
   clear: '#22c55e',
   conflict: '#f97316',
   impact: '#d946ef',
+  /** Nobody is reporting this target any more — a state, not an outcome. Blue
+   * because it must not read as either alarm or all-clear, and grey (which it
+   * used to be) read as "resolved, ignore it" for a target that may well still
+   * be flying. Same sky hue as HOME_COLOR, deliberately: the two never appear as
+   * peers (one labels a place, the other a track's state), and one blue in the
+   * palette beats two that differ just enough to look like a mistake. */
+  unseen: '#38bdf8',
 } as const
 
 /** Chip colour per track status (the popup's lifecycle chip), all from the
@@ -15,14 +22,15 @@ export const STATUS_COLORS = {
  * The scale is by OUTCOME, not by "is it still open": live is the confirmed red,
  * a hedged report the unconfirmed yellow, and a shot-down target the same GREEN
  * the all-clear uses — a downed target is good news, and grey would read as
- * merely "gone". Silence/відбій (`lost`) keeps the neutral grey, because nobody
- * knows what happened to it. An impact keeps its own magenta, matching the feed.
+ * merely "gone". A target nobody is reporting any more (`lost` — «не фіксується»)
+ * gets the blue: its fate is unknown, which is neither good news nor bad. An
+ * impact keeps its own magenta, matching the feed.
  */
 export const STATUS_CHIP_COLOR: Record<ThreatStatus, string> = {
   tracking: STATUS_COLORS.confirmed,
   unconfirmed: STATUS_COLORS.unconfirmed,
   destroyed: STATUS_COLORS.clear,
-  lost: STATUS_COLORS.destroyed,
+  lost: STATUS_COLORS.unseen,
   impact: STATUS_COLORS.impact,
   dismissed: STATUS_COLORS.destroyed,
 }

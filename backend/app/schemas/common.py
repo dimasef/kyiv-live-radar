@@ -7,7 +7,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from ..models import SourceRole
+from ..models import Region, SourceRole
 from .base import _as_utc
 
 
@@ -20,6 +20,7 @@ class DistrictOut(BaseModel):
     lat: float
     lon: float
     aliases: list[str] = []
+    region: Region = "kyiv"
 
 
 class SourceOut(BaseModel):
@@ -55,6 +56,7 @@ class SourceAdminOut(BaseModel):
     name: str
     subscribe_ref: str | None
     role: SourceRole
+    region: Region
     is_active: bool
     trust_weight: float
     last_listener_error: str | None
@@ -70,12 +72,16 @@ class SourceIn(BaseModel):
     subscribe_ref: str = Field(min_length=1, max_length=200)
     name: str | None = Field(default=None, max_length=120)
     role: Literal["spotter", "alert"] = "spotter"
+    # Fallback region for this channel's district-less messages (a «Відбій» has
+    # no place to read a region off) — see models.Source.region.
+    region: Region = "kyiv"
     trust_weight: float = 1.0
 
 
 class SourceUpdateIn(BaseModel):
     name: str | None = Field(default=None, max_length=120)
     role: Literal["spotter", "alert"] | None = None
+    region: Region | None = None
     trust_weight: float | None = None
     is_active: bool | None = None
 

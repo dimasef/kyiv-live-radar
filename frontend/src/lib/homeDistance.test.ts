@@ -33,6 +33,7 @@ function threat(
     status: 'tracking',
     kind: 'track',
     scope,
+    region: 'kyiv',
     target_count: 1,
     confidence: 0.8,
     corroboration_count: 1,

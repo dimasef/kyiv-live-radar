@@ -73,6 +73,15 @@ body::after {
     0 12px 32px -16px rgba(0, 0, 0, 0.55);
 }
 
+/* The reading column every standalone page shares (журнал, статистика, профіль).
+   One number in one place — those pages sat at three different widths, and
+   switching between them shifted the whole layout sideways. */
+.page-col {
+  width: 100%;
+  max-width: 42rem;
+  margin-inline: auto;
+}
+
 .panel-title {
   font-family: 'Unbounded', sans-serif;
   font-weight: 500;
@@ -666,6 +675,15 @@ body::after {
   backdrop-filter: blur(10px);
   box-shadow: 0 14px 38px -14px rgba(0, 0, 0, 0.7) !important;
 }
+/* One fixed column for every popup, whatever is in it: Leaflet otherwise sizes
+   each one to its own content, so opening two targets in a row makes the panel
+   jump between widths. min = max, and !important because Leaflet writes the
+   measured width inline (_updateLayout) — the clamp is what survives that. */
+.leaflet-popup-content {
+  margin: 8px !important;
+  min-width: 270px !important;
+  max-width: 270px !important;
+}
 .leaflet-popup-tip {
   background: rgba(10, 17, 24, 0.92) !important;
   border: 1px solid var(--panel-border);
@@ -729,6 +747,44 @@ body::after {
     0 1px 3px rgba(0, 0, 0, 0.9),
     0 0 10px rgba(0, 0, 0, 0.7);
   pointer-events: none;
+}
+
+/* Zone polygons keep the map's own pan cursor — they are background context,
+   not something to click. */
+.zone-hit {
+  cursor: grab;
+}
+/* Alert-zone label: same bare-text treatment as .district-label (no tooltip
+   chrome, pinned to the polygon center), with an optional second line for a
+   siren's state + duration. */
+.leaflet-tooltip.zone-label {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none;
+  padding: 0;
+  text-align: center;
+  pointer-events: none;
+  text-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.9),
+    0 0 10px rgba(0, 0, 0, 0.7);
+}
+.zone-label .zone-label-name,
+.zone-label .zone-label-state {
+  display: block;
+  line-height: 1.25;
+}
+.zone-label .zone-label-name {
+  color: #8fa3b5;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+}
+.zone-label .zone-label-state {
+  color: #fca5a5;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
 /* Home-placement mode: crosshair cursor over the whole map. */

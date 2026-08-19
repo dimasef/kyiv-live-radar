@@ -29,7 +29,7 @@ from ...domain.tracking import (
     find_stood_down_track,
     find_track_by_reply,
 )
-from ...models import Alert, Notice, Threat, ThreatEvent
+from ...models import HOME_REGION, Alert, Notice, Threat, ThreatEvent
 from ...parsing import DistrictHit, ParseResult
 from ..results import Broadcast
 from .context import IngestContext, _apply_update, _new_track, _upgrade_type
@@ -63,12 +63,40 @@ async def _raise_axis_from_parsed(ctx: IngestContext) -> Broadcast | None:
     return Broadcast("axis", axis=axis) if axis is not None else None
 
 
-async def _incident_broadcast(ctx: IngestContext, track: Threat) -> Broadcast:
+async def _incident_broadcast(ctx: IngestContext, track: Threat) -> Broadcast | None:
     """Attach `track` to the live incident and wrap it as an 'attack' broadcast —
-    folds the repeated decoy/hypersonic threading into one place."""
+    folds the repeated decoy/hypersonic threading into one place.
+
+    An incident is a KYIV attack: its banner, its raion highlight and the
+    journal's attack count all speak about the city. A track in the northern
+    early-warning region is deliberately incident-less (None) — it may still
+    become one later, when it crosses the border and adopts region='kyiv'."""
+    if track.region != HOME_REGION:
+        return None
     inc = await attach_to_incident(ctx.session, track, ctx.when,
                                    decoy=ctx.parsed.decoy, hypersonic=ctx.parsed.hypersonic)
     return Broadcast("attack", incident=inc)
+
+
+async def _append_incident(ctx: IngestContext, track: Threat,
+                           broadcasts: list[Broadcast]) -> None:
+    """Append the 'attack' broadcast for `track`, if its region has incidents."""
+    attack_bc = await _incident_broadcast(ctx, track)
+    if attack_bc is not None:
+        broadcasts.append(attack_bc)
+
+
+def _hand_over_region(ctx: IngestContext, track: Threat) -> None:
+    """Move a continuing track into the region it was just reported over.
+
+    A target crossing the oblast border is the reason the northern watch exists:
+    the same drone called in over Козелець and then over Вишгород must stop
+    being an early-warning blip and become a Kyiv track — counted, incident-
+    attached and journalled from that point on. Only a message that actually
+    named a place may hand it over; a district-less follow-up carries only its
+    channel's region, which says nothing about where the target is."""
+    if ctx.parsed.districts:
+        track.region = ctx.region
 
 
 async def _append_axis(ctx: IngestContext, broadcasts: list[Broadcast]) -> None:
@@ -105,7 +133,8 @@ async def _handle_clear(ctx: IngestContext) -> list[Broadcast]:
     open tracks of that type, so an unrelated active shahed/jet track isn't
     incorrectly closed by a clear that never mentioned it."""
     session, parsed, when = ctx.session, ctx.parsed, ctx.when
-    closed = await close_all_active(session, when, "all_clear", target_type=parsed.clear_scope)
+    closed = await close_all_active(session, when, "all_clear", target_type=parsed.clear_scope,
+                                    region=ctx.region)
     # A FULL all-clear ("Відбій тривоги") ends the attack — close its
     # incident too. A type-scoped clear ("Відбій балістики") ends an incident
     # only when it leaves NO open tracks: with the scoped type stood down and
@@ -135,7 +164,8 @@ async def _handle_lost_signal(ctx: IngestContext) -> list[Broadcast]:
     instead of vanishing as a bare status broadcast."""
     session, parsed, when = ctx.session, ctx.parsed, ctx.when
     target = parsed.target_type if parsed.target_type != "unknown" else None
-    closed = await close_all_active(session, when, "stand_down", target_type=target)
+    closed = await close_all_active(session, when, "stand_down", target_type=target,
+                                    region=ctx.region)
     pairs: list[tuple[Threat, ThreatEvent | None]] = []
     for t in closed:
         hit = _last_district_hit(t)
@@ -213,9 +243,10 @@ async def _handle_target_pulse(ctx: IngestContext) -> list[Broadcast] | None:
     session.add(ev)
     await session.commit()
     await apply_fusion(session, city)
-    attack_bc = await _incident_broadcast(ctx, city)
+    out = [Broadcast("event", city, ev)]
+    await _append_incident(ctx, city, out)
     await ctx.done()
-    return [Broadcast("event", city, ev), attack_bc]
+    return out
 
 
 async def _handle_summary(ctx: IngestContext) -> list[Broadcast]:
@@ -253,7 +284,8 @@ async def _handle_destroyed(ctx: IngestContext) -> list[Broadcast]:
         # window, so a reply-less "знищено" in that gap still finds its
         # track instead of silently matching nothing.
         track = await find_open_track(
-            session, when, prefer_districts=prefer, gap_minutes=settings.track_stale_minutes
+            session, when, prefer_districts=prefer, gap_minutes=settings.track_stale_minutes,
+            region=ctx.region,
         )
     if track is None:
         await ctx.done()
@@ -319,6 +351,7 @@ async def _handle_impact(ctx: IngestContext) -> list[Broadcast]:
                 target_count=parsed.target_count or 1,
                 created_at=when,
                 closed_at=when,
+                region=ctx.region_of(hit.district_id),
             )
             session.add(track)
             await session.flush()
@@ -336,7 +369,7 @@ async def _handle_impact(ctx: IngestContext) -> list[Broadcast]:
     # hits); broadcast the incident once after the last attach.
     attack_bc = None
     for track in tracks_seen:
-        attack_bc = await _incident_broadcast(ctx, track)
+        attack_bc = await _incident_broadcast(ctx, track) or attack_bc
     if attack_bc is not None:
         impacts.append(attack_bc)
     await ctx.done()
@@ -370,7 +403,7 @@ async def _handle_citywide(ctx: IngestContext) -> list[Broadcast]:
         if stood is not None:
             track = reopen_track(stood)
     if track is None:
-        track = _new_track(parsed, when, scope="city")
+        track = _new_track(parsed, when, scope="city", region=HOME_REGION)
         session.add(track)
         await session.commit()
         log.info("track %s created (scope=city, target_type=%s)", track.id, track.target_type)
@@ -380,7 +413,8 @@ async def _handle_citywide(ctx: IngestContext) -> list[Broadcast]:
     session.add(ev)
     await session.commit()
     await apply_fusion(session, track)
-    out = [Broadcast("event", track, ev), await _incident_broadcast(ctx, track)]
+    out = [Broadcast("event", track, ev)]
+    await _append_incident(ctx, track, out)
     await _append_axis(ctx, out)
     await ctx.done()
     return out
@@ -406,19 +440,22 @@ async def _handle_sighting(ctx: IngestContext) -> list[Broadcast]:
     track = await find_track_by_reply(session, ctx.source_id, ctx.reply_to_message_id)
     if track is None and not parsed.is_new_target:
         district_ids = {h.district_id for h in parsed.districts}
-        track = await find_corroborating_track(session, when, district_ids, as_of=ctx.as_of)
+        track = await find_corroborating_track(session, when, district_ids, as_of=ctx.as_of,
+                                               region=ctx.region)
         if track is None:
-            stood = await find_stood_down_track(session, when, district_ids)
+            stood = await find_stood_down_track(session, when, district_ids, region=ctx.region)
             if stood is not None:
                 track = reopen_track(stood)
     if track is None:
-        track = _new_track(parsed, when)
+        track = _new_track(parsed, when, region=ctx.region)
         session.add(track)
         await session.commit()
-        log.info("track %s created (target_type=%s)", track.id, track.target_type)
+        log.info("track %s created (target_type=%s, region=%s)",
+                 track.id, track.target_type, track.region)
     else:
         # Group size only grows within a chain (2х -> "їх вже 3х").
         _apply_update(parsed, track)
+        _hand_over_region(ctx, track)
 
     broadcasts: list[Broadcast] = []
     # One event per mentioned district, in movement order. Add them all, then
@@ -432,7 +469,7 @@ async def _handle_sighting(ctx: IngestContext) -> list[Broadcast]:
         broadcasts.append(Broadcast("event", track, ev))
     await apply_fusion(session, track)
 
-    broadcasts.append(await _incident_broadcast(ctx, track))
+    await _append_incident(ctx, track, broadcasts)
     await _append_axis(ctx, broadcasts)
     await ctx.done()
     return broadcasts
@@ -450,12 +487,14 @@ async def _handle_multi_targets(ctx: IngestContext) -> list[Broadcast]:
     broadcasts: list[Broadcast] = []
     attack_bc = None
     for hit in parsed.districts:
+        region = ctx.region_of(hit.district_id)
         track = None
         if not parsed.is_new_target:
             track = await find_corroborating_track(session, when, {hit.district_id},
-                                                   as_of=ctx.as_of)
+                                                   as_of=ctx.as_of, region=region)
             if track is None:
-                stood = await find_stood_down_track(session, when, {hit.district_id})
+                stood = await find_stood_down_track(session, when, {hit.district_id},
+                                                    region=region)
                 if stood is not None:
                     track = reopen_track(stood)
         if track is None:
@@ -466,19 +505,20 @@ async def _handle_multi_targets(ctx: IngestContext) -> list[Broadcast]:
             # every district track — that multiplied 35× per raion and the
             # journal, summing target_count across tracks, reported hundreds of
             # phantom targets for one bulletin.
-            track = _new_track(parsed, when, target_count=1)
+            track = _new_track(parsed, when, target_count=1, region=region)
             session.add(track)
             await session.flush()
             log.info("track %s created (target_type=%s, multi-target enumeration)",
                      track.id, track.target_type)
         else:
             _apply_update(parsed, track, grow_count=False)
+            track.region = region
         ev = _make_event(ctx, track.id, hit, target_count=track.target_count)
         session.add(ev)
         # apply_fusion autoflushes the new track+event and commits them together.
         await apply_fusion(session, track)
         broadcasts.append(Broadcast("event", track, ev))
-        attack_bc = await _incident_broadcast(ctx, track)
+        attack_bc = await _incident_broadcast(ctx, track) or attack_bc
     if attack_bc is not None:
         broadcasts.append(attack_bc)
     await _append_axis(ctx, broadcasts)
@@ -559,8 +599,10 @@ async def _dispatch(ctx: IngestContext) -> list[Broadcast]:
         return await _handle_lost_signal(ctx)
 
     # 2a-ter. Terse target/launch pulse — falls through to the checks below
-    #     when there's no open city-wide alert to corroborate.
-    if parsed.target_pulse:
+    #     when there's no open city-wide alert to corroborate. Kyiv-only: the
+    #     thing a pulse corroborates IS the city alert, and a bare "Ціль!" from
+    #     a northern channel names neither a place nor a city we model.
+    if parsed.target_pulse and ctx.region == HOME_REGION:
         result = await _handle_target_pulse(ctx)
         if result is not None:
             return result
@@ -593,8 +635,14 @@ async def _dispatch(ctx: IngestContext) -> list[Broadcast]:
     if parsed.impact:
         return await _handle_impact(ctx)
 
-    # 2c-ter. City-wide threat.
+    # 2c-ter. City-wide threat. "The city" is Kyiv by construction — one
+    #     sentinel district, one banner — so a city-wide callout from a channel
+    #     watching another region is about a city we don't model. Dropped
+    #     rather than mislocated onto Kyiv.
     if parsed.citywide:
+        if ctx.region != HOME_REGION:
+            await ctx.done()
+            return []
         return await _handle_citywide(ctx)
 
     # 2d. Sighting / confirmed / unconfirmed -> continue or start a track.

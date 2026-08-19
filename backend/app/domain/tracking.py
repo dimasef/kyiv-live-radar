@@ -11,6 +11,12 @@ Grouping rule (in priority order):
 We deliberately do NOT "continue the newest open track" for non-threaded
 messages: that collapsed many independent targets from prose/point channels into
 one giant zigzag during busy alerts.
+
+Every lookup here is REGION-scoped (see models.REGIONS). Tracks in different
+regions are separate populations that never corroborate, continue or close each
+other — without that, `find_open_track`'s "newest open track" fallback would
+attach a northern «збито» to whatever Kyiv track opened last, and one channel's
+«Відбій» would close both regions at once.
 """
 
 from __future__ import annotations
@@ -22,8 +28,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from ..config import settings
-from ..models import Threat, ThreatEvent
-from .fusion import compute_fusion
+from ..models import HOME_REGION, Threat, ThreatEvent
+from ..timeutil import naive
+from .fusion import FusionResult, compute_fusion
 from .lifecycle import close_track
 from .staleness import last_event_at, stale_window_minutes
 
@@ -58,7 +65,8 @@ async def find_track_by_reply(
 
 
 async def find_corroborating_track(
-    session, when: datetime, district_ids: set[int], as_of: datetime | None = None
+    session, when: datetime, district_ids: set[int], as_of: datetime | None = None,
+    *, region: str = HOME_REGION,
 ) -> Threat | None:
     """Newest open track whose MOST RECENT sighting was over one of `district_ids`.
 
@@ -86,7 +94,7 @@ async def find_corroborating_track(
     window = timedelta(minutes=settings.corroboration_window_minutes)
     stmt = (
         select(Threat)
-        .where(Threat.closed_at.is_(None))
+        .where(Threat.closed_at.is_(None), Threat.region == region)
         .options(selectinload(Threat.events))
         .order_by(Threat.created_at.desc())
     )
@@ -96,10 +104,10 @@ async def find_corroborating_track(
             events = [e for e in events if not _after(e.event_time, as_of)]
         if not events:
             continue
-        latest_time = max(e.event_time for e in events)
+        latest_time = max(naive(e.event_time) for e in events)
         if not _within(latest_time, when, window):
             continue
-        latest_districts = {e.district_id for e in events if e.event_time == latest_time}
+        latest_districts = {e.district_id for e in events if naive(e.event_time) == latest_time}
         if latest_districts & district_ids:
             return threat
     return None
@@ -113,7 +121,7 @@ def _after(a: datetime, b: datetime) -> bool:
 
 
 async def find_stood_down_track(
-    session, when: datetime, district_ids: set[int]
+    session, when: datetime, district_ids: set[int], *, region: str = HOME_REGION
 ) -> Threat | None:
     """Newest track closed by a stand-down within the grace window whose latest
     sighting was over one of `district_ids` — the district-track twin of
@@ -125,7 +133,8 @@ async def find_stood_down_track(
     grace = timedelta(minutes=settings.standdown_grace_minutes)
     stmt = (
         select(Threat)
-        .where(Threat.closed_reason == "stand_down", Threat.scope != "city")
+        .where(Threat.closed_reason == "stand_down", Threat.scope != "city",
+               Threat.region == region)
         .options(selectinload(Threat.events))
         .order_by(Threat.closed_at.desc())
     )
@@ -134,8 +143,10 @@ async def find_stood_down_track(
             break  # ordered by closed_at — everything after is older still
         if not threat.events:
             continue
-        latest_time = max(e.event_time for e in threat.events)
-        latest_districts = {e.district_id for e in threat.events if e.event_time == latest_time}
+        latest_time = max(naive(e.event_time) for e in threat.events)
+        latest_districts = {
+            e.district_id for e in threat.events if naive(e.event_time) == latest_time
+        }
         if latest_districts & district_ids:
             return threat
     return None
@@ -146,6 +157,8 @@ async def find_open_track(
     when: datetime,
     prefer_districts: set[int] | None = None,
     gap_minutes: int | None = None,
+    *,
+    region: str = HOME_REGION,
 ) -> Threat | None:
     """Open track whose last sighting is within the gap window.
 
@@ -160,10 +173,15 @@ async def find_open_track(
     sighting (past the 15-minute grouping gap but within the 20-minute stale
     window) would find no track to close, even though the sweeper hasn't
     closed it yet either.
+
+    The `region` scope matters most here: this is the one lookup that falls back
+    to "the newest open track" when nothing matches `prefer_districts`, so
+    without it a district-less «збито» from a northern channel would close an
+    unrelated Kyiv track.
     """
     stmt = (
         select(Threat)
-        .where(Threat.closed_at.is_(None))
+        .where(Threat.closed_at.is_(None), Threat.region == region)
         .options(selectinload(Threat.events))
         .order_by(Threat.created_at.desc())
     )
@@ -200,7 +218,7 @@ async def find_recent_impact(session, district_id: int, when: datetime) -> Threa
     for threat in await session.scalars(stmt):
         if not threat.events:
             continue
-        latest = max(e.event_time for e in threat.events)
+        latest = max(naive(e.event_time) for e in threat.events)
         if not _within(latest, when, window):
             continue
         if any(e.district_id == district_id for e in threat.events):
@@ -261,13 +279,19 @@ def _within(a: datetime, b: datetime, gap: timedelta) -> bool:
 
 
 async def close_all_active(
-    session, when: datetime, reason: str, target_type: str | None = None
+    session, when: datetime, reason: str, target_type: str | None = None,
+    *, region: str = HOME_REGION,
 ) -> list[Threat]:
-    """Close every open track — or, with `target_type`, only open tracks of
-    that type. Used both for a full all-clear ("відбій", `reason='all_clear'`)
-    and for a scoped "дорозвідка" stand-down (`reason='stand_down'`, ППО lost
-    tracking for one target type)."""
-    stmt = select(Threat).where(Threat.closed_at.is_(None)).options(
+    """Close every open track IN `region` — or, with `target_type`, only open
+    tracks of that type. Used both for a full all-clear ("відбій",
+    `reason='all_clear'`) and for a scoped "дорозвідка" stand-down
+    (`reason='stand_down'`, ППО lost tracking for one target type).
+
+    An all-clear is always regional: sirens end per oblast, and a northern
+    channel's «Чисто!» says nothing about what is still flying over Kyiv."""
+    stmt = select(Threat).where(
+        Threat.closed_at.is_(None), Threat.region == region
+    ).options(
         selectinload(Threat.events)
     )
     if target_type is not None:
@@ -280,17 +304,23 @@ async def close_all_active(
 
 
 async def close_stale_tracks(
-    session, now: datetime, minutes: int, ballistic_minutes: int | None = None
+    session, now: datetime, minutes: int, ballistic_minutes: int | None = None,
+    *, region: str | None = None,
 ) -> list[Threat]:
     """Close open tracks with no sighting for `minutes` — a target that just went
     silent (no explicit destroyed/clear) must not linger as 'active' forever.
 
     The per-type window and the "last seen" rule live in domain/staleness.py —
     the API publishes the same instant as `stale_at` so the map's fade-out lands
-    exactly on this close."""
+    exactly on this close.
+
+    `region=None` (the sweeper) sweeps every region: staleness is a property of
+    the individual track, not of its pool."""
     stmt = select(Threat).where(Threat.closed_at.is_(None)).options(
         selectinload(Threat.events)
     )
+    if region is not None:
+        stmt = stmt.where(Threat.region == region)
     stale = []
     for t in await session.scalars(stmt):
         gap_min = stale_window_minutes(
@@ -305,13 +335,24 @@ async def close_stale_tracks(
     return stale
 
 
-async def apply_fusion(session, threat: Threat) -> None:
-    """Recompute derived multi-source signals from the track's events."""
-    await session.refresh(threat, ["events"])
+def set_fusion(threat: Threat) -> FusionResult:
+    """Recompute the derived multi-source signals onto the track, no I/O.
+
+    Split out of `apply_fusion` for callers that already hold loaded events and
+    commit on their own schedule (admin/moderation.py deletes a sighting inside
+    one transaction) — the numbers must not survive the events they were derived
+    from."""
     r = compute_fusion(threat.events)
     threat.corroboration_count = r.corroboration_count
     threat.has_conflict = r.has_conflict
     threat.confidence = r.confidence
+    return r
+
+
+async def apply_fusion(session, threat: Threat) -> None:
+    """Recompute derived multi-source signals from the track's events."""
+    await session.refresh(threat, ["events"])
+    r = set_fusion(threat)
     await session.commit()
     await session.refresh(threat, ["events"])
     log.debug("track %s fusion: corroboration=%d confidence=%.2f",

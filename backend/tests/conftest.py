@@ -1,4 +1,11 @@
 import asyncio
+import os
+
+# BEFORE app.config is imported (which is what every `import app.*` below does):
+# the local .env carries the real Sentry DSN, so a failing test used to ship its
+# traceback to the production issue stream and page the maintainer about a bug
+# that only ever existed in a test stub. Tests must never talk to Sentry.
+os.environ["SENTRY_DSN"] = ""
 
 import pytest
 

@@ -1,35 +1,35 @@
-import { useState } from 'react'
+import { useState } from "react";
 
 export interface ColumnSegment {
-  key: string
-  label: string
-  value: number
-  color: string
+  key: string;
+  label: string;
+  value: number;
+  color: string;
 }
 
 export interface Column {
-  key: string
+  key: string;
   /** x-axis tick text; rendered for every `tickEvery`-th column. */
-  label: string
-  value: number
+  label: string;
+  value: number;
   /** Stacked parts, bottom-first. Omit for a single-hue column. */
-  segments?: ColumnSegment[]
+  segments?: ColumnSegment[];
 }
 
 interface Props {
-  columns: Column[]
+  columns: Column[];
   /** Single-series fill; ignored for columns that carry `segments`. */
-  color?: string
-  format: (value: number) => string
+  color?: string;
+  format: (value: number) => string;
   /** Label every n-th column, so a 24- or 90-column axis stays readable. */
-  tickEvery?: number
-  heightClass?: string
+  tickEvery?: number;
+  heightClass?: string;
   /** Screen-reader table caption — the WCAG-clean twin of the chart. */
-  tableLabel: string
-  valueHeader: string
+  tableLabel: string;
+  valueHeader: string;
 }
 
-const PHOSPHOR = '#22d3ee'
+const PHOSPHOR = "#22d3ee";
 
 /** Column chart, single-hue or stacked, built from divs like the rest of this
  * page's visuals. Hover/focus drives one readout line above the plot instead of
@@ -40,22 +40,24 @@ export default function ColumnChart({
   color = PHOSPHOR,
   format,
   tickEvery = 1,
-  heightClass = 'h-28',
+  heightClass = "h-28",
   tableLabel,
   valueHeader,
 }: Props) {
-  const [activeKey, setActiveKey] = useState<string | null>(null)
-  const max = columns.reduce((n, c) => Math.max(n, c.value), 0)
-  const peak = columns.find((c) => c.value === max && max > 0) ?? null
-  const active = columns.find((c) => c.key === activeKey) ?? peak
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const max = columns.reduce((n, c) => Math.max(n, c.value), 0);
+  const peak = columns.find((c) => c.value === max && max > 0) ?? null;
+  const active = columns.find((c) => c.key === activeKey) ?? peak;
 
   return (
     <div>
-      <div className="mb-2 flex min-h-[18px] items-baseline gap-2 text-[11px]">
+      <div className="mb-2 flex min-h-[18px] items-baseline gap-2 text-xs">
         {active && (
           <>
             <span className="text-slate-400">{active.label}</span>
-            <span className="font-mono tabular-nums text-slate-100">{format(active.value)}</span>
+            <span className="font-mono tabular-nums text-slate-100">
+              {format(active.value)}
+            </span>
             {active.segments?.length ? (
               <span className="flex flex-wrap gap-x-2 text-slate-500">
                 {active.segments.map((s) => (
@@ -78,7 +80,7 @@ export default function ColumnChart({
         onMouseLeave={() => setActiveKey(null)}
       >
         {columns.map((c) => {
-          const isActive = active?.key === c.key
+          const isActive = active?.key === c.key;
           return (
             <button
               key={c.key}
@@ -95,24 +97,33 @@ export default function ColumnChart({
                 // proportional split, so the gaps come out of the height instead
                 // of overflowing it.
                 className={`flex w-full max-w-[24px] flex-col-reverse gap-[2px] rounded-t transition-opacity ${
-                  isActive ? 'opacity-100' : 'opacity-80 group-hover:opacity-100'
+                  isActive
+                    ? "opacity-100"
+                    : "opacity-80 group-hover:opacity-100"
                 }`}
-                style={{ height: max ? `${(c.value / max) * 100}%` : '0%' }}
+                style={{ height: max ? `${(c.value / max) * 100}%` : "0%" }}
               >
                 {c.segments?.length ? (
                   c.segments.map((s) => (
                     <span
                       key={s.key}
                       className="w-full min-h-0 last:rounded-t"
-                      style={{ flexGrow: s.value, flexBasis: 0, background: s.color }}
+                      style={{
+                        flexGrow: s.value,
+                        flexBasis: 0,
+                        background: s.color,
+                      }}
                     />
                   ))
                 ) : (
-                  <span className="h-full w-full rounded-t" style={{ background: color }} />
+                  <span
+                    className="h-full w-full rounded-t"
+                    style={{ background: color }}
+                  />
                 )}
               </span>
             </button>
-          )
+          );
         })}
       </div>
 
@@ -120,9 +131,9 @@ export default function ColumnChart({
         {columns.map((c, i) => (
           <span
             key={c.key}
-            className="flex-1 text-center font-mono text-[9px] tabular-nums text-slate-600"
+            className="flex-1 text-center font-mono text-[10px] tabular-nums text-slate-600"
           >
-            {i % tickEvery === 0 ? c.label : ''}
+            {i % tickEvery === 0 ? c.label : ""}
           </span>
         ))}
       </div>
@@ -145,5 +156,5 @@ export default function ColumnChart({
         </tbody>
       </table>
     </div>
-  )
+  );
 }

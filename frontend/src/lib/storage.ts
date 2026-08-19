@@ -3,6 +3,9 @@
 export const STORAGE_KEYS = {
   home: 'klr-home',
   legendOpen: 'klr-legend-open',
+  // Whether the raion air-alert layer is switched on. Off by default: it's
+  // extra context, and it costs a lazy 76 KB of polygons on first use.
+  zoneLayer: 'klr-zone-layer',
   // The episode the status banner was collapsed on ({alert, incident} ids).
   // Survives reloads because an alert outlives the page — but only for that
   // episode; see banners/status.ts stillCollapsed.

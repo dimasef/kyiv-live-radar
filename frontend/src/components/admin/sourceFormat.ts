@@ -1,10 +1,18 @@
 import type { Source, SourceStats } from '@/api'
 import { kyivStamp } from '@/lib/kyivTime'
+import type { Region } from '@/types'
 
 /** Pure formatting/derivation helpers for the Sources admin tab (kept out of the
  * JSX so they're trivially testable and the row components stay lean). */
 
 export const pct = (v: number | null): string => (v == null ? '—' : `${Math.round(v * 100)}%`)
+
+/** Region labels for the admin console. This is an operator-facing service
+ * tool, so the labels stay Ukrainian-only rather than going through i18n. */
+export const REGION_LABELS: Record<Region, string> = {
+  kyiv: 'Київщина',
+  chernihiv: 'Чернігівщина',
+}
 
 /** Tailwind text-color band for the 0..100 quality score. */
 export const scoreColor = (score: number | null): string => {

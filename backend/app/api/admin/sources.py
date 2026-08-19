@@ -36,6 +36,7 @@ def _source_admin_out(src: Source, stats: dict[int, SourceStats]) -> SourceAdmin
         name=src.name,
         subscribe_ref=src.subscribe_ref,
         role=src.role,
+        region=src.region,
         is_active=src.is_active,
         trust_weight=src.trust_weight,
         last_listener_error=src.last_listener_error,
@@ -82,6 +83,7 @@ async def admin_add_source(
         subscribe_ref=body.subscribe_ref,
         name=body.name,
         role=body.role,
+        region=body.region,
         trust_weight=body.trust_weight,
         user_id=admin.id,
     )
@@ -98,8 +100,9 @@ async def admin_update_source(
     session: AsyncSession = Depends(get_session),
     _admin: User = Depends(require_admin),
 ):
-    """Edit a source's name / role / trust_weight / active flag. Only a change that
-    affects what's watched (role or is_active) triggers a listener reload."""
+    """Edit a source's name / role / region / trust_weight / active flag. Only a
+    change that affects what's watched (role or is_active) triggers a listener
+    reload — `region` only steers already-arriving messages."""
     src = await session.get(Source, source_id)
     if src is None:
         raise HTTPException(status_code=404, detail="source not found")
@@ -109,6 +112,8 @@ async def admin_update_source(
     if body.role is not None and body.role != src.role:
         src.role = body.role
         reload_needed = True
+    if body.region is not None:
+        src.region = body.region
     if body.trust_weight is not None:
         src.trust_weight = body.trust_weight
     if body.is_active is not None and body.is_active != src.is_active:

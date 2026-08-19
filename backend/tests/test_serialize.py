@@ -17,7 +17,7 @@ from app.schemas import ThreatOut
 def _threat() -> Threat:
     th = Threat(
         target_type="shahed", status="tracking", kind="track",
-        closed_reason=None, scope="district", incident_id=None,
+        closed_reason=None, scope="district", region="kyiv", incident_id=None,
         target_count=2, closed_at=None, corroboration_count=2,
         has_conflict=True, confidence=0.75,
     )

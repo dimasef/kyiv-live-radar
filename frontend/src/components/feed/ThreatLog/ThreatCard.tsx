@@ -68,7 +68,7 @@ export default function ThreatCard({ event, threat }: FeedEntry) {
             className="ml-1 font-mono font-semibold text-amber-400"
           />
           {/* Only for targets near home or closing on it — see HomeDistance. */}
-          <HomeDistance threat={threat} notableOnly className="ml-0.5 flex-none" />
+          <HomeDistance threat={threat} notableOnly className="ml-0.5 flex-none text-[10px]" />
         </span>
         <span className="flex items-center gap-1.5">
           {rescued && (

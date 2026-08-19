@@ -135,34 +135,63 @@ def match_origin(norm: str) -> Origin | None:
 #   "рівне"   — too close to the adjective;
 #   "вологд"  — appears only as a launch ORIGIN ("пуски з району Вологди"),
 #               which must stay Kyiv-relevant.
-_OTHER_OBLAST = ("чернігівщин", "чернігів", "брянщин", "курщин", "ростов", "воронеж", "воронєж",
+#
+# Чернігівщина USED to be in this list (with its city and the towns Ніжин /
+# Прилуки). It no longer is: it is a WATCHED region now — targets over it are
+# the early warning this radar exists for, and suppressing them threw away the
+# 20 minutes of notice the northern corridor buys. Removing it costs nothing
+# elsewhere, because a message naming ONLY Чернігівщина as a target has always
+# had somewhere to go: its own region's track pool. What still has to hold is
+# that «з Чернігівщини курсом на Дніпро» stays suppressed — Дніпро is in this
+# list and is not in origin position, so the count below still catches it.
+_OTHER_OBLAST = ("брянщин", "курщин", "ростов", "воронеж", "воронєж",
                  "дніпропетровщин", "дніпро", "запоріжж", "миколаївщин", "сумщин",
                  "полтавщин", "харківщин", "харков", "білорус", "крим",
                  "житомирщин", "вінницьк", "вінниччин", "вінничин",
                  "черкащин", "одещин", "херсонщин",
                  "черкас", "полтав", "суми", "сумах", "житомирську обл",
-                 "житомирської обл", "ніжин", "прилук", "жашків", "одес", "миколаїв",
+                 "житомирської обл", "жашків", "одес", "миколаїв",
                  "львівщин", "дрогобич", "самбір", "стрий", "рівненщин", "волин",
                  "тернопільщин", "тернопіл", "закарпат", "франківськ",
                  "хмельниччин", "хмельницьк", "кіровоградщин", "донеччин",
                  "луганщин", "чернівц", "буковин",
                  "польщ", "люблін", "молдов", "румун")
-_OBLAST_ALT_ANY = "|".join(sorted(map(re.escape, _OTHER_OBLAST), key=len, reverse=True))
+# Regions we WATCH but that are still not Kyiv. A target over one of them is
+# ours to track (its own pool) — but it is not a Kyiv target, so anything that
+# speaks specifically about the KYIV city alert must keep ignoring it: a terse
+# «Цілі на Чернігівщині» must not corroborate the city-wide alert, and a
+# «По Чернігівщині тихо» bulletin is not a Kyiv bulletin.
+_WATCHED_OBLAST = ("чернігівщин", "чернігів", "ніжин", "прилук")
+
+
+def _alt(forms) -> str:
+    return "|".join(sorted(map(re.escape, forms), key=len, reverse=True))
+
+
+_OBLAST_ALT_ANY = _alt(_OTHER_OBLAST)
+_OBLAST_ALT_NON_KYIV = _alt(_OTHER_OBLAST + _WATCHED_OBLAST)
 # Any other-oblast mention.
 _OBLAST_ANY_RE = re.compile(r"(?<![а-яіїєґ])(?:" + _OBLAST_ALT_ANY + r")")
+# The same, widened to every non-Kyiv region including the watched ones.
+_NON_KYIV_ANY_RE = re.compile(r"(?<![а-яіїєґ])(?:" + _OBLAST_ALT_NON_KYIV + r")")
 # An other-oblast in ORIGIN position ("з боку Сумщини", "з району Ростова"). Same
 # from-preposition + bridge shape as _FROM_PREFIX above. One preposition can
 # govern a coordinated LIST ("загроза балістики з Брянщини, Курщини та з району
 # Ростова" — all three are origins) — the tail alternation swallows the
 # continuation so those oblasts count as origin-form too.
 _OBLAST_BRIDGE = r"(?:боку\s+|напрямку\s+|район\w*\s+|р-ну\s+|межах\s+|межа\w*\s+)?"
-_OBLAST_ORIGIN_RE = re.compile(
-    r"(?<![а-яіїєґ])(?:з|зі|із|від)\s+"
-    + _OBLAST_BRIDGE
-    + r"(?:" + _OBLAST_ALT_ANY + r")[а-яіїєґ]*"
-    r"(?:\s*(?:,|та|і|й)\s+(?:(?:з|зі|із|від)\s+)?" + _OBLAST_BRIDGE
-    + r"(?:" + _OBLAST_ALT_ANY + r")[а-яіїєґ]*)*"
-)
+def _origin_re(alt: str) -> re.Pattern:
+    return re.compile(
+        r"(?<![а-яіїєґ])(?:з|зі|із|від)\s+"
+        + _OBLAST_BRIDGE
+        + r"(?:" + alt + r")[а-яіїєґ]*"
+        r"(?:\s*(?:,|та|і|й)\s+(?:(?:з|зі|із|від)\s+)?" + _OBLAST_BRIDGE
+        + r"(?:" + alt + r")[а-яіїєґ]*)*"
+    )
+
+
+_OBLAST_ORIGIN_RE = _origin_re(_OBLAST_ALT_ANY)
+_NON_KYIV_ORIGIN_RE = _origin_re(_OBLAST_ALT_NON_KYIV)
 
 
 # A far city's name used for a road/street that runs through OUR area is not
@@ -193,15 +222,28 @@ def target_elsewhere(norm: str) -> bool:
         # Ніжин, далі ймовірно на Київщину") — whatever else it names on the way,
         # it is exactly the message this feed exists for.
         return False
-    total = len(_OBLAST_ANY_RE.findall(norm))
+    return _targets_a_region(norm, _OBLAST_ANY_RE, _OBLAST_ORIGIN_RE)
+
+
+def target_not_kyiv(norm: str) -> bool:
+    """Like `target_elsewhere`, but the WATCHED regions count as elsewhere too.
+
+    For anything scoped to the Kyiv city alert specifically — a terse pulse
+    corroborating it, a threat-level bulletin about it — «Чернігівщина» is not
+    Kyiv, even though it is now a region we track."""
+    norm = _ROAD_USE_RE.sub(" ", norm)
+    if _KYIV_DESTINATION_RE.search(norm):
+        return False
+    return _targets_a_region(norm, _NON_KYIV_ANY_RE, _NON_KYIV_ORIGIN_RE)
+
+
+def _targets_a_region(norm: str, any_re: re.Pattern, origin_re: re.Pattern) -> bool:
+    total = len(any_re.findall(norm))
     if total == 0:
         return False
     # Count oblasts INSIDE each origin-form span (a coordinated list is one
     # match carrying several oblasts), so it compares apples to `total`.
-    origins = sum(
-        len(_OBLAST_ANY_RE.findall(m.group(0)))
-        for m in _OBLAST_ORIGIN_RE.finditer(norm)
-    )
+    origins = sum(len(any_re.findall(m.group(0))) for m in origin_re.finditer(norm))
     return origins < total
 
 

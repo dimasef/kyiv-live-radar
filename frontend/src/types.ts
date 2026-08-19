@@ -57,6 +57,10 @@ export type ThreatAnalysisState = Schemas['ThreatAnalysisStateOut']
 export type TargetType = Threat['target_type']
 export type ThreatStatus = Threat['status']
 export type ThreatKind = Threat['kind']
+/** Watched region — 'kyiv' (м. Київ + Київська обл., what the journal, the
+ * attack banner and home-danger push are about) or 'chernihiv' (the northern
+ * early-warning approach). */
+export type Region = Threat['region']
 export type ClosedReason = NonNullable<Threat['closed_reason']>
 /** Weapon-family classification of an attack, derived server-side (never
  * stored) from its accumulated member types — see backend domain/attack.py. */
@@ -64,6 +68,15 @@ export type AttackClassification = Incident['classification']
 export type NoticeKind = Notice['kind']
 export type AlertScope = Alert['scope']
 export type AxisStatus = ThreatAxis['status']
+export type AlertZone = Schemas['AlertZoneOut']
+
+/** GET /alert-zones/geometry — `response_model`-less for the same reason as
+ * /districts/boundaries: the GeoJSON geometry is passed through verbatim, and
+ * OpenAPI can only call it "an object". Keyed by zone_id. */
+export type AlertZoneGeometry = Record<
+  string,
+  { name_uk: string; oblast: string; geojson: GeoJSON.Polygon | GeoJSON.MultiPolygon }
+>
 
 /** Envelope pushed over `/ws/threats`. Not part of OpenAPI — FastAPI only
  * documents HTTP routes — so this one mirror stays manual. Its payload types
@@ -76,6 +89,7 @@ export interface WSMessage {
     | 'alert'
     | 'attack'
     | 'axis'
+    | 'zones'
     | 'health'
     | 'online'
     | 'hello'
@@ -86,6 +100,8 @@ export interface WSMessage {
   alert?: Alert
   incident?: Incident
   axis?: ThreatAxis
+  /** 'zones' frame payload — the raions whose siren state just changed. */
+  zones?: AlertZone[]
   /** 'health' frame payload — whether the live Telegram feed looks healthy. */
   feed_ok?: boolean | null
   /** 'online' frame payload — how many clients are watching right now. */

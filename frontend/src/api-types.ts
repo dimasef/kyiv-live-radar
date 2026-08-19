@@ -200,6 +200,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/notices/{notice_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Admin Delete Notice
+         * @description Take a notice off the feed — a wrong all-clear, or one added by hand and
+         *     thought better of. Nothing is broadcast: the feed has no "notice removed"
+         *     frame, and a card that disappears only on the next load is better than one
+         *     that vanishes under a reader mid-raid.
+         */
+        delete: operations["admin_delete_notice_admin_notices__notice_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/raw_messages/{raw_id}/notice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Add Notice
+         * @description Publish a raw message to the feed as a notice — the counterpart of taking
+         *     an event off one.
+         *
+         *     The suppression filters are tuned to keep the feed clean, so they also drop
+         *     things worth reading: a forecast of the next wave, a channel's own «відбій»
+         *     phrased unusually, a situation summary. Rather than loosening a filter for
+         *     one phrasing, the operator publishes that message by hand.
+         *
+         *     `generated_by` stays 'rule': that flag drives the feed's "AI · неперевірено"
+         *     badge, and a human decision is not the thing that badge warns about.
+         */
+        post: operations["admin_add_notice_admin_raw_messages__raw_id__notice_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/reprocess/apply": {
         parameters: {
             query?: never;
@@ -211,11 +263,14 @@ export interface paths {
         put?: never;
         /**
          * Admin Reprocess Apply
-         * @description Wipe + rebuild all tracks/incidents from raw_messages through the current
+         * @description Wipe + rebuild tracks/incidents from raw_messages through the current
          *     pipeline. Held under `ingest_lock` so the live listener can't ingest into a
          *     half-rebuilt DB (messages queue behind it and process after). Refuses while
          *     an attack is active unless `force`. raw_messages are preserved, so a
          *     reprocess is repeatable.
+         *
+         *     `last` limits the rebuild to the tail of the log (see run_reprocess); the
+         *     default still rebuilds everything.
          */
         post: operations["admin_reprocess_apply_admin_reprocess_apply_post"];
         delete?: never;
@@ -237,6 +292,10 @@ export interface paths {
          *     that will be rebuilt, and whether an attack is active (a reprocess would be
          *     ill-timed). Read-only. Uses reprocess's own SessionLocal so it reads exactly
          *     the DB the apply would rebuild.
+         *
+         *     With `last=N`, also reports the real scope of that tail — the widened cutoff
+         *     and the message count it covers, so the operator sees what "останні N" will
+         *     actually touch before running it.
          */
         get: operations["admin_reprocess_preview_admin_reprocess_preview_get"];
         put?: never;
@@ -297,8 +356,9 @@ export interface paths {
         head?: never;
         /**
          * Admin Update Source
-         * @description Edit a source's name / role / trust_weight / active flag. Only a change that
-         *     affects what's watched (role or is_active) triggers a listener reload.
+         * @description Edit a source's name / role / region / trust_weight / active flag. Only a
+         *     change that affects what's watched (role or is_active) triggers a listener
+         *     reload — `region` only steers already-arriving messages.
          */
         patch: operations["admin_update_source_admin_sources__source_id__patch"];
         trace?: never;
@@ -386,6 +446,48 @@ export interface paths {
         put?: never;
         /** Admin Restore Threat */
         post: operations["admin_restore_threat_admin_threats__threat_id__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alert-zones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Alert Zones
+         * @description Current siren state of every watched raion, in roster order.
+         */
+        get: operations["alert_zones_alert_zones_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alert-zones/geometry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Alert Zone Geometry
+         * @description The zone polygons, passed through verbatim — same `response_model`-less
+         *     shape (and reason) as /districts/boundaries: GeoJSON geometry OpenAPI can
+         *     only describe as "an object".
+         */
+        get: operations["alert_zone_geometry_alert_zones_geometry_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1389,6 +1491,27 @@ export interface components {
             started_at: string;
         };
         /**
+         * AlertZoneOut
+         * @description One raion's current siren state.
+         */
+        AlertZoneOut: {
+            /** Alert */
+            alert: boolean;
+            /** Changed At */
+            changed_at?: string | null;
+            /** Name Uk */
+            name_uk: string;
+            /** Oblast */
+            oblast: string;
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
+            /** Zone Id */
+            zone_id: string;
+        };
+        /**
          * AnalyzeIn
          * @description POST /analysis — analyse a target for a card.
          */
@@ -1770,6 +1893,12 @@ export interface components {
             name_en: string;
             /** Name Uk */
             name_uk: string;
+            /**
+             * Region
+             * @default kyiv
+             * @enum {string}
+             */
+            region: "kyiv" | "chernihiv";
         };
         /**
          * DistrictStatOut
@@ -2628,6 +2757,23 @@ export interface components {
             next_before_id?: number | null;
         };
         /**
+         * RawNoticeIn
+         * @description POST /admin/raw_messages/{id}/notice — publish a message the parser left
+         *     out as a feed notice (a forecast, an all-clear, a situation summary).
+         *
+         *     `text` defaults to the message's own text: most of the time the spotter
+         *     already said it well, and retyping it invites drift from the original.
+         */
+        RawNoticeIn: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "clear" | "summary" | "directional" | "forecast" | "status";
+            /** Text */
+            text?: string | null;
+        };
+        /**
          * RawParsedOut
          * @description What the CURRENT rule parser makes of this message, re-run read-only.
          *
@@ -2724,6 +2870,8 @@ export interface components {
              * @default false
              */
             force: boolean;
+            /** Last */
+            last?: number | null;
             /**
              * No Llm
              * @default true
@@ -2749,6 +2897,10 @@ export interface components {
             current: components["schemas"]["ReprocessSummaryOut"];
             /** Raw Messages */
             raw_messages: number;
+            /** Scope From */
+            scope_from?: string | null;
+            /** Scope Messages */
+            scope_messages?: number | null;
         };
         /**
          * ReprocessResultOut
@@ -2814,6 +2966,11 @@ export interface components {
             /** Name */
             name: string;
             /**
+             * Region
+             * @enum {string}
+             */
+            region: "kyiv" | "chernihiv";
+            /**
              * Role
              * @enum {string}
              */
@@ -2849,6 +3006,12 @@ export interface components {
         SourceIn: {
             /** Name */
             name?: string | null;
+            /**
+             * Region
+             * @default kyiv
+             * @enum {string}
+             */
+            region: "kyiv" | "chernihiv";
             /**
              * Role
              * @default spotter
@@ -2895,6 +3058,8 @@ export interface components {
             is_active?: boolean | null;
             /** Name */
             name?: string | null;
+            /** Region */
+            region?: ("kyiv" | "chernihiv") | null;
             /** Role */
             role?: ("spotter" | "alert") | null;
             /** Trust Weight */
@@ -3136,11 +3301,17 @@ export interface components {
             /** Last Event At */
             last_event_at?: string | null;
             /**
+             * Region
+             * @default kyiv
+             * @enum {string}
+             */
+            region: "kyiv" | "chernihiv";
+            /**
              * Scope
              * @default district
              * @enum {string}
              */
-            scope: "district" | "city";
+            scope: "district" | "city" | "region";
             /** Stale At */
             stale_at?: string | null;
             /**
@@ -3649,6 +3820,74 @@ export interface operations {
             };
         };
     };
+    admin_delete_notice_admin_notices__notice_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                notice_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_add_notice_admin_raw_messages__raw_id__notice_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                raw_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RawNoticeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoticeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     admin_reprocess_apply_admin_reprocess_apply_post: {
         parameters: {
             query?: never;
@@ -3686,7 +3925,9 @@ export interface operations {
     };
     admin_reprocess_preview_admin_reprocess_preview_get: {
         parameters: {
-            query?: never;
+            query?: {
+                last?: number | null;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -4019,6 +4260,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    alert_zones_alert_zones_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertZoneOut"][];
+                };
+            };
+        };
+    };
+    alert_zone_geometry_alert_zones_geometry_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };

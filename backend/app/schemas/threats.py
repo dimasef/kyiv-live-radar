@@ -6,7 +6,15 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from ..models import ClosedReason, DecisionSource, TargetType, ThreatKind, ThreatScope, ThreatStatus
+from ..models import (
+    ClosedReason,
+    DecisionSource,
+    Region,
+    TargetType,
+    ThreatKind,
+    ThreatScope,
+    ThreatStatus,
+)
 from .base import _as_utc
 
 
@@ -58,6 +66,9 @@ class ThreatOut(BaseModel):
     # NULL while open. Optional for the same reason as `kind`.
     closed_reason: ClosedReason | None = None
     scope: ThreatScope = "district"
+    # Which watched region this track is in (see models.REGIONS). Defaulted so
+    # clients built before regions existed keep parsing.
+    region: Region = "kyiv"
     incident_id: int | None = None
     target_count: int = 1
     closed_at: datetime | None = None

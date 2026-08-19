@@ -34,6 +34,20 @@ export const WORLD_BOUNDS: [[number, number], [number, number]] = [
 export const INSPECT_ZOOM = 11;
 export const INSPECT_MAX_ZOOM = 12;
 
+/** Raion air-alert fill (AlertZoneLayer). Drawn UNDER the Kyiv raion outlines
+ * and every marker, so the fill has to read at a glance while staying quiet
+ * enough that a target on top of it is still the loudest thing on the map. */
+export const ZONE_STYLES = {
+  alert: { color: '#ef4444', weight: 1, opacity: 0.5, fillColor: '#ef4444', fillOpacity: 0.14 },
+  clear: { color: '#475569', weight: 1, opacity: 0.28, fillColor: '#475569', fillOpacity: 0.03 },
+  // Provider unreachable: dashed and colourless — visibly "no data", never a
+  // silent all-clear.
+  stale: {
+    color: '#64748b', weight: 1, opacity: 0.3, dashArray: '4 4',
+    fillColor: '#64748b', fillOpacity: 0.02,
+  },
+} as const
+
 export const DISTRICT_STYLE = {
   color: "#64748b",
   weight: 1,

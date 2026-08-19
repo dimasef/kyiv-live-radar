@@ -1,5 +1,7 @@
 import type {
   Alert,
+  AlertZone,
+  AlertZoneGeometry,
   AnalyticsPeriod,
   District,
   DistrictBoundary,
@@ -9,12 +11,14 @@ import type {
   Journal,
   JournalStats,
   Notice,
+  NoticeKind,
   RawCount,
   RawExportResponse,
   RawLlmStats,
   RawMessagesPage,
   RawOutcomeFilter,
   RawSource,
+  Region,
   TargetType,
   Threat,
   ThreatAxis,
@@ -110,6 +114,9 @@ export const fetchRecentIncidents = (limit = 20) =>
   get<Incident[]>(`/incidents/recent?limit=${limit}`)
 export const fetchActiveAxes = () => get<ThreatAxis[]>('/axes/active')
 export const fetchActiveAlerts = () => get<Alert[]>('/alerts/active')
+export const fetchAlertZones = () => get<AlertZone[]>('/alert-zones')
+/** Lazy: only fetched when the raion-alert layer is first switched on. */
+export const fetchAlertZoneGeometry = () => get<AlertZoneGeometry>('/alert-zones/geometry')
 export const fetchHealth = () => get<HealthStatus>('/health')
 export const fetchRecentNotices = (limit = 30) =>
   get<Notice[]>(`/notices/recent?limit=${limit}`)
@@ -187,6 +194,12 @@ export const deleteEvent = (id: number) => send<Threat>(`/admin/events/${id}`, '
 export const setEventDistrict = (id: number, districtId: number) =>
   send<Threat>(`/admin/events/${id}`, 'PATCH', { district_id: districtId })
 
+/** Publish a raw message to the feed as a notice by hand — for the ones the
+ * suppression filters were right to drop in general but wrong to drop here. */
+export const addRawNotice = (rawId: number, kind: NoticeKind, text?: string) =>
+  send<Notice>(`/admin/raw_messages/${rawId}/notice`, 'POST', { kind, text: text ?? null })
+export const deleteNotice = (id: number) => send<void>(`/admin/notices/${id}`, 'DELETE')
+
 export type Dismissed = Schemas['DismissedOut']
 export const fetchDismissed = () => get<Dismissed>('/admin/dismissed')
 
@@ -207,9 +220,12 @@ export interface SourceCreateBody {
   subscribe_ref: string
   name?: string
   role?: 'spotter' | 'alert'
+  region?: Region
   trust_weight?: number
 }
-export type SourcePatch = Partial<Pick<Source, 'name' | 'role' | 'trust_weight' | 'is_active'>>
+export type SourcePatch = Partial<
+  Pick<Source, 'name' | 'role' | 'region' | 'trust_weight' | 'is_active'>
+>
 export type SourceDeleteResult = Schemas['SourceDeleteOut']
 export const fetchSources = () => get<Source[]>('/admin/sources')
 export const createSource = (body: SourceCreateBody) => send<Source>('/admin/sources', 'POST', body)
@@ -229,9 +245,17 @@ export type ReprocessDay = Schemas['ReprocessDayOut']
 export type ReprocessSummary = Schemas['ReprocessSummaryOut']
 export type ReprocessPreview = Schemas['ReprocessPreviewOut']
 export type ReprocessResult = Schemas['ReprocessResultOut']
-export const fetchReprocessPreview = () => get<ReprocessPreview>('/admin/reprocess/preview')
-export const applyReprocess = (force = false, noLlm = true) =>
-  send<ReprocessResult>('/admin/reprocess/apply', 'POST', { force, no_llm: noLlm })
+/** `last` previews the "rebuild only the tail" scope: the response's
+ * `scope_messages`/`scope_from` say what that tail really covers (the server
+ * widens it so no track is cut in half). */
+export const fetchReprocessPreview = (last?: number) =>
+  get<ReprocessPreview>(`/admin/reprocess/preview${last ? `?last=${last}` : ''}`)
+export const applyReprocess = (force = false, noLlm = true, last?: number) =>
+  send<ReprocessResult>('/admin/reprocess/apply', 'POST', {
+    force,
+    no_llm: noLlm,
+    last: last ?? null,
+  })
 
 // --- Web Push (danger near home) — see lib/push.ts for the browser side. ---
 export type PushConfig = Schemas['PushConfigOut']

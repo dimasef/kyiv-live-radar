@@ -15,6 +15,7 @@ import type { PwaSlice } from './pwaSlice'
 import type { ThreatsSlice } from './threatsSlice'
 import type { UiSlice } from './uiSlice'
 import type { WsSlice } from './wsSlice'
+import type { ZonesSlice } from './zonesSlice'
 
 export type RadarState = DistrictsSlice &
   ThreatsSlice &
@@ -22,6 +23,7 @@ export type RadarState = DistrictsSlice &
   IncidentsSlice &
   AxesSlice &
   AlertsSlice &
+  ZonesSlice &
   ClockSlice &
   ConnectionSlice &
   HomeSlice &

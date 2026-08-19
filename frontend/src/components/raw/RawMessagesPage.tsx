@@ -1,44 +1,44 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import { fetchRawSources, isAdminRole } from '@/api'
-import { AuthModal } from '@/components/auth'
-import { observeVisible } from '@/lib/observers'
-import { useRadar } from '@/store'
-import type { RawOutcomeFilter, RawSource } from '@/types'
+import { fetchRawSources, isAdminRole } from "@/api";
+import { AuthModal } from "@/components/auth";
+import { observeVisible } from "@/lib/observers";
+import { useRadar } from "@/store";
+import type { RawOutcomeFilter, RawSource } from "@/types";
 
-import LlmStatsStrip from './LlmStatsStrip'
-import RawFilterBar from './RawFilterBar'
-import RawMessageRow from './RawMessageRow'
-import RawToolbar from './RawToolbar'
-import { useRawMessages } from './useRawMessages'
-import { useRawSelection } from './useRawSelection'
+import LlmStatsStrip from "./LlmStatsStrip";
+import RawFilterBar from "./RawFilterBar";
+import RawMessageRow from "./RawMessageRow";
+import RawToolbar from "./RawToolbar";
+import { useRawMessages } from "./useRawMessages";
+import { useRawSelection } from "./useRawSelection";
 
-const SEARCH_DEBOUNCE_MS = 300
+const SEARCH_DEBOUNCE_MS = 300;
 
 /** Admin gate for /raw — the backend also enforces this (401/403), so this is
  * UX only. Non-admins never mount the data view (and never fire its fetches). */
 export default function RawMessagesPage() {
-  const status = useRadar((s) => s.authStatus)
-  const isAdmin = useRadar((s) => isAdminRole(s.user?.role))
-  const [loginOpen, setLoginOpen] = useState(false)
+  const status = useRadar((s) => s.authStatus);
+  const isAdmin = useRadar((s) => isAdminRole(s.user?.role));
+  const [loginOpen, setLoginOpen] = useState(false);
 
-  if (status === 'unknown') {
+  if (status === "unknown") {
     return (
       <div className="flex h-full items-center justify-center bg-ink-950 text-xs text-slate-500">
         Завантаження…
       </div>
-    )
+    );
   }
 
   if (!isAdmin) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 bg-ink-950 px-4 text-center text-slate-300">
         <p className="max-w-xs text-sm text-slate-400">
-          {status === 'authed'
-            ? 'Ця сторінка доступна лише адміністраторам.'
-            : 'Увійдіть як адміністратор, щоб переглянути сирі повідомлення.'}
+          {status === "authed"
+            ? "Ця сторінка доступна лише адміністраторам."
+            : "Увійдіть як адміністратор, щоб переглянути сирі повідомлення."}
         </p>
-        {status !== 'authed' && (
+        {status !== "authed" && (
           <button
             onClick={() => setLoginOpen(true)}
             className="rounded-lg bg-phosphor px-4 py-2 text-sm font-semibold text-ink-950 hover:opacity-90"
@@ -48,10 +48,10 @@ export default function RawMessagesPage() {
         )}
         {loginOpen && <AuthModal onClose={() => setLoginOpen(false)} />}
       </div>
-    )
+    );
   }
 
-  return <RawMessagesView />
+  return <RawMessagesView />;
 }
 
 /** The raw-message log itself (every ingested message, including ones the
@@ -60,32 +60,46 @@ export default function RawMessagesPage() {
  * so the admin console can host it as its "Весь Фід" tab; it assumes the caller
  * already gated on admin. */
 export function RawMessagesView() {
-  const [searchInput, setSearchInput] = useState('')
-  const [q, setQ] = useState('')
-  const [outcome, setOutcome] = useState<RawOutcomeFilter | 'all'>('all')
-  const [llm, setLlm] = useState<'all' | 'yes' | 'no'>('all')
-  const [sourceId, setSourceId] = useState<number | 'all'>('all')
-  const [sources, setSources] = useState<RawSource[]>([])
+  const [searchInput, setSearchInput] = useState("");
+  const [q, setQ] = useState("");
+  const [outcome, setOutcome] = useState<RawOutcomeFilter | "all">("all");
+  const [llm, setLlm] = useState<"all" | "yes" | "no">("all");
+  const [sourceId, setSourceId] = useState<number | "all">("all");
+  const [sources, setSources] = useState<RawSource[]>([]);
 
   useEffect(() => {
-    const t = setTimeout(() => setQ(searchInput.trim()), SEARCH_DEBOUNCE_MS)
-    return () => clearTimeout(t)
-  }, [searchInput])
+    const t = setTimeout(() => setQ(searchInput.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   useEffect(() => {
-    fetchRawSources().then(setSources).catch(() => {})
-  }, [])
+    fetchRawSources()
+      .then(setSources)
+      .catch(() => {});
+  }, []);
 
-  const filters = useMemo(() => ({ q, outcome, llm, sourceId }), [q, outcome, llm, sourceId])
-  const { items, loading, done, total, loadMore, apiFilter } = useRawMessages(filters)
-  const selection = useRawSelection({ items, filters, apiFilter, sources })
-  const sentinelRef = useRef<HTMLDivElement>(null)
+  const filters = useMemo(
+    () => ({ q, outcome, llm, sourceId }),
+    [q, outcome, llm, sourceId],
+  );
+  const {
+    items,
+    loading,
+    done,
+    total,
+    loadMore,
+    apiFilter,
+    dropEvent,
+    setNotice,
+  } = useRawMessages(filters);
+  const selection = useRawSelection({ items, filters, apiFilter, sources });
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const el = sentinelRef.current
-    if (!el) return
-    return observeVisible(el, loadMore, { rootMargin: '400px' })
-  }, [loadMore])
+    const el = sentinelRef.current;
+    if (!el) return;
+    return observeVisible(el, loadMore, { rootMargin: "400px" });
+  }, [loadMore]);
 
   return (
     <div className="flex h-full flex-col bg-ink-950 text-slate-200">
@@ -93,9 +107,12 @@ export function RawMessagesView() {
           the message list below scrolls. */}
       <div className="shrink-0 border-b border-white/[0.06] px-4 pt-6 pb-3">
         <div className="mx-auto max-w-3xl">
-          <h1 className="font-display text-lg font-bold text-slate-100">Сирі повідомлення</h1>
+          <h1 className="font-display text-lg font-bold text-slate-100">
+            Сирі повідомлення
+          </h1>
           <p className="mt-1 text-xs text-slate-500">
-            Усі вхідні повідомлення, включно з тими, що не потрапили у Стрічку подій.
+            Усі вхідні повідомлення, включно з тими, що не потрапили у Стрічку
+            подій.
           </p>
 
           <LlmStatsStrip />
@@ -137,21 +154,31 @@ export function RawMessagesView() {
                 item={item}
                 selected={selection.selectedIds.has(item.id)}
                 onToggleSelect={selection.toggleSelect}
+                onDropEvent={dropEvent}
+                onSetNotice={setNotice}
               />
             ))}
           </ul>
 
           {!loading && items.length === 0 && (
-            <div className="py-10 text-center text-xs text-slate-500">Нічого не знайдено.</div>
+            <div className="py-10 text-center text-xs text-slate-500">
+              Нічого не знайдено.
+            </div>
           )}
 
           <div ref={sentinelRef} className="h-10" />
-          {loading && <div className="py-4 text-center text-xs text-slate-500">Завантаження…</div>}
+          {loading && (
+            <div className="py-4 text-center text-xs text-slate-500">
+              Завантаження…
+            </div>
+          )}
           {done && items.length > 0 && (
-            <div className="py-4 text-center text-xs text-slate-600">Це все.</div>
+            <div className="py-4 text-center text-xs text-slate-600">
+              Це все.
+            </div>
           )}
         </div>
       </div>
     </div>
-  )
+  );
 }

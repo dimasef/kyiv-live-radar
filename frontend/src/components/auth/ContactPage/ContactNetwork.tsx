@@ -18,7 +18,7 @@ export default function ContactNetwork({ contacts }: { contacts: PublicUser[] | 
   const myFriends = useRadar((s) => s.friends)
 
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4">
+    <div className="panel p-4">
       <h2 className="panel-title mb-3">Контакти</h2>
       {contacts == null ? (
         <p className="text-xs text-slate-600">Завантаження…</p>

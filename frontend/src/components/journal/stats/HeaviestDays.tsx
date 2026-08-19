@@ -1,34 +1,43 @@
-import { ChevronRight } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
+import { ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
-import type { StatsDay } from '@/types'
+import type { StatsDay } from "@/types";
 
-import { INTENSITY_BG, intensityBucket, intensityScore } from '../journalStats'
-import { formatHours } from './statsMath'
+import { INTENSITY_BG, intensityBucket, intensityScore } from "../journalStats";
+import { formatHours } from "./statsMath";
 
 interface Props {
-  days: StatsDay[]
-  locale: string
-  onOpenDay: (date: string) => void
-  limit?: number
+  days: StatsDay[];
+  locale: string;
+  onOpenDay: (date: string) => void;
+  limit?: number;
 }
 
 /** The period's worst nights, ranked by the same intensity weighting the
  * calendar colors its cells with. Each row opens that day in the calendar tab. */
-export default function HeaviestDays({ days, locale, onOpenDay, limit = 5 }: Props) {
-  const { t } = useTranslation()
+export default function HeaviestDays({
+  days,
+  locale,
+  onOpenDay,
+  limit = 5,
+}: Props) {
+  const { t } = useTranslation();
   const top = [...days]
     .map((d) => ({ day: d, score: intensityScore(d) }))
     .filter((r) => r.score > 0)
     .sort((a, b) => b.score - a.score)
-    .slice(0, limit)
-  if (!top.length) return null
+    .slice(0, limit);
+  if (!top.length) return null;
 
-  const fmt = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', weekday: 'short' })
+  const fmt = new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    month: "short",
+    weekday: "short",
+  });
 
   return (
     <div>
-      <div className="panel-title mb-2">{t('journal.stats.heaviestDays')}</div>
+      <div className="panel-title mb-2">{t("journal.stats.heaviestDays")}</div>
       <ul className="flex flex-col">
         {top.map(({ day }) => (
           <li key={day.date}>
@@ -42,11 +51,11 @@ export default function HeaviestDays({ days, locale, onOpenDay, limit = 5 }: Pro
                 className="h-2.5 w-2.5 flex-none rounded-sm"
                 style={{ background: INTENSITY_BG[intensityBucket(day)] }}
               />
-              <span className="w-24 flex-none text-[11px] capitalize text-slate-300">
+              <span className="w-24 flex-none text-xs capitalize text-slate-300">
                 {fmt.format(new Date(`${day.date}T00:00:00`))}
               </span>
-              <span className="flex-1 font-mono text-[11px] tabular-nums text-slate-500">
-                {t('journal.stats.dayLine', {
+              <span className="flex-1 font-mono text-xs tabular-nums text-slate-500">
+                {t("journal.stats.dayLine", {
                   targets: day.target_count + day.impact_count,
                   alert: formatHours(day.alert_seconds),
                 })}
@@ -57,5 +66,5 @@ export default function HeaviestDays({ days, locale, onOpenDay, limit = 5 }: Pro
         ))}
       </ul>
     </div>
-  )
+  );
 }

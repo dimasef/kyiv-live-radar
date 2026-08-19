@@ -53,20 +53,28 @@ def _get_client() -> AsyncAnthropic:
     return _client
 
 
+# How each watched region is named to the model — Ukrainian, because every
+# other word in the prompt's examples is.
+_REGION_LABEL = {"kyiv": "Київщина", "chernihiv": "Чернігівщина"}
+
 _SYSTEM = (
     "You extract structured aerial-threat data from short Ukrainian Telegram "
-    "messages by volunteer spotters watching drones/missiles over Kyiv region. "
+    "messages by volunteer spotters watching drones/missiles over the Kyiv "
+    "region AND over Чернігівщина, the northern approach corridor toward it. "
     "Return ONLY districts from the provided list, choosing their numeric ids. "
     "If the message names a place not in the list, or is not a sighting/status "
     "report (ads, casualty news, commentary), return an empty district list. "
     "Do not guess coordinates or invent locations. Preserve movement order: "
     "list district ids in the order they appear in the text.\n"
-    "CRITICAL — do NOT map other cities/oblasts onto Kyiv districts. A target "
-    "'на Дніпро' / 'Дніпропетровщина' is the CITY Dnipro (~300km away), NOT "
-    "Kyiv's 'Дніпровський' district — return empty. Likewise Харків, Запоріжжя, "
-    "Миколаїв, Чернігів/Чернігівщина, Суми, Полтава and any other city or oblast "
-    "are outside Kyiv — return empty. Only localize targets over the Kyiv area "
-    "itself; a bare 'на Київ' with no district is also empty.\n"
+    "CRITICAL — do NOT map an out-of-scope city/oblast onto a same-sounding "
+    "district. A target 'на Дніпро' / 'Дніпропетровщина' is the CITY Dnipro "
+    "(~300km away), NOT 'Дніпровський' district — return empty. Likewise "
+    "Харків, Запоріжжя, Миколаїв, Суми, Полтава and any oblast other than the "
+    "two watched ones are out of scope — return empty. Each place in the list "
+    "is tagged with its region; when a name exists on both sides of the border "
+    "(Лебедівка, Рокитне, Дніпровське) pick the region of the places named "
+    "around it. A bare 'на Київ' with no district is empty, and so is a bare "
+    "'на Чернігівщину' with no settlement named.\n"
     "ORIGIN is different from a target location: an INBOUND threat's launch/"
     "approach zone ('з Брянщини', 'з боку Чорного моря', 'курсом з півночі') is "
     "reported via origin_place / origin_sector, NEVER as a Kyiv district. Pick "
@@ -106,7 +114,8 @@ _PROMPT = (
     "| status (PPO-working / operational-status / calm note / a recap or count of "
     "what already hit — 'спокійно по балістиці', 'сили ППО працюють', 'це вже "
     "десь під 40 ракет', 'загалом було до 35 ракет') | noise (ads, "
-    "aftermath/casualty news, commentary, other oblasts as the TARGET).\n"
+    "aftermath/casualty news, commentary, an UNWATCHED oblast as the TARGET — "
+    "Чернігівщина is watched, so a target there is a sighting, not noise).\n"
     "- origin_place: an origin key from the list when category is directional and "
     "a listed origin is named as the source; else 'none'.\n"
     "- origin_sector: N|NE|E|SE|S|SW|W|NW when the text states a compass bearing "
@@ -167,7 +176,12 @@ async def _call(text: str, matcher: DistrictMatcher) -> tuple[dict | None, LlmUs
     raw structured JSON (enum-constrained by the schema) or None when nothing
     usable came back."""
     index = matcher.districts_index
-    listing = "\n".join(f"{i}: {n}" for i, n in index)
+    # Each line carries its region: two watched regions share the enum, and
+    # several names exist in both, so the id alone is ambiguous to the model.
+    listing = "\n".join(
+        f"{i}: {n} [{_REGION_LABEL.get(matcher.region_by_id.get(i, ''), 'Київщина')}]"
+        for i, n in index
+    )
     id_enum = [i for i, _ in index]
     content = _PROMPT.format(listing=listing, origins=", ".join(ORIGIN_KEYS), text=text)
     schema = _schema(id_enum)

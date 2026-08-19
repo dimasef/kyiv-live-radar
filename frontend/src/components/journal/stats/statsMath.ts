@@ -80,13 +80,13 @@ export function formatPercent(share: number, digits = 0): string {
   return `${(share * 100).toFixed(digits)}%`
 }
 
-/** "5 г 20 хв" — compact and never zero-padded; hours-only past a day. */
+/** "5 год 20 хв" — compact and never zero-padded; hours-only past a day. */
 export function formatHours(seconds: number): string {
   const h = Math.floor(seconds / 3600)
   const m = Math.round((seconds % 3600) / 60)
-  if (h >= 24) return `${h} г`
-  if (h && m) return `${h} г ${m} хв`
-  if (h) return `${h} г`
+  if (h >= 24) return `${h} год`
+  if (h && m) return `${h} год ${m} хв`
+  if (h) return `${h} год`
   return `${m} хв`
 }
 

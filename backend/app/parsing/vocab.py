@@ -25,11 +25,26 @@ _BALLISTIC = ("баліст", "іскандер", "кинджал", "кн-23", "
 # an explicit ballistic marker above promotes it.
 _MISSILE = ("ракет", "крилат", "калібр", "х-101", "х-59", "х-22",
             "каб", "авіабомб", "керован авіа")
+# Named JET models. Checked BEFORE _MISSILE, for the same reason ballistic is:
+# one night's feed called С8000 «Бандероль» a «ракета», a «баражуючий
+# боєприпас» and a bare «бандероль» — and the generic "ракет" would win the
+# priority chain and label it cruise.
+#
+# It is formally a small cruise missile with a jet engine, but on this map the
+# type means how the target BEHAVES: ~620 km/h, manoeuvres, and the northern
+# spotters track it position by position, which is exactly the jet-drone
+# profile the vector rendering is built for. 14 callouts in one night
+# (2026-08-19) stayed `unknown` before it was listed at all.
+_JET_MODEL = ("бандерол",)
 # Bare "реактив", not "реактивн" — the noun form is used too ("3 реактива повз
 # Славутич"); on 08-04 those stayed unknown and inherited ballistic.
 _JET = ("реактив", "швидкісн")
+# "баражуюч"/"баражаюч" = loitering munition, both spellings in the feed. It is
+# the generic class word the alert channel uses when it names no model
+# ("двом баражаючим боєприпасам"); with a model named, the more specific list
+# above wins the priority chain.
 _SHAHED = ("шахед", "shahed", "мопед", "герань", "герані", "дрон", "бпла",
-           "безпілотник", "безпілотн")
+           "безпілотник", "безпілотн", "баражуюч", "баражаюч")
 
 # Gender fallback: a bare masculine numeral implies a drone, since шахед/дрон/
 # БПЛА are masculine and "ракета" is feminine ("Один на водосховище"). Corpus:
@@ -504,8 +519,20 @@ _APOSTROPHES = "'ʼ`’‘"
 # Same class as the Остер/"остерігайтеся" collision, fixed contextually instead
 # of dropping the toponym: a district stem adjacent to one of these street nouns
 # is a street, so DistrictMatcher discards it and keeps looking.
+# "метро" is here for the same reason as the street words: Kyiv names metro
+# stations after far-away cities, and the station is a Kyiv landmark, not the
+# city it is named for. «район метро "Чернігівська"» is Дніпровський raion, not
+# Чернігів 130 km north — the exact collision that kept "житомир"
+# («станція метро "Житомирська"») out of the gazetteer for years.
 _STREET_WORDS = ("проспект", "вулиц", "вул", "провулок", "бульвар", "узвіз", "шосе",
-                  "набережн", "площ")
+                  "набережн", "площ", "метро")
+
+# Gazetteer entries that are a CITY sharing its name with an OBLAST. For these
+# the adjectival form is the oblast, never the city — «мандрує Чернігівською»
+# (область elided) is a direction, not a sighting over Чернігів. Kept as an
+# explicit registry rather than a general "-ськ- in the tail" rule, because for
+# most entries the adjective IS the place («Оболонський», «Білоцерківський»).
+_OBLAST_CITY_STEMS = frozenset({"черніг"})
 
 # Gazetteer aliases that must match as WHOLE words with no case tail — the same
 # discipline rules.py::_WHOLE_WORD uses for "каб"/"реб", so a short alias can
@@ -515,8 +542,15 @@ _STREET_WORDS = ("проспект", "вулиц", "вул", "провулок",
 #   "пох"   -> "похолодання", "поховались", "походу"
 #   "голос" -> "голосно", "проголосуйте", "оголосили"
 #   "пущею" -> stems to "пуще", which fires inside "Пущено ракети"
+#   "морі"  -> a prefix of "Морівськ", a real village on the northern corridor,
+#              so «Район моря» swallowed it (all 10 real uses of море/моря/морі
+#              in the corpus are the bare noun — "на море", "з моря")
+#   "остер" -> fires inside "остерігайтеся"=beware. The town was left out of the
+#              gazetteer for years because of it; as a whole word it is safe,
+#              and it is the 3rd most-named place on the Chernihiv feed (16/300)
 # Keep this set tiny: only forms the spotters really use as a standalone toponym.
-_WHOLE_WORD_ALIASES = frozenset({"чзв", "пох", "бц", "голос", "пущею"})
+_WHOLE_WORD_ALIASES = frozenset({"чзв", "пох", "бц", "голос", "пущею",
+                                 "море", "моря", "морі", "остер"})
 
 # An alias that is also part of a PROPER NAME, keyed to the word that follows it.
 # "Голос Києва" is a Telegram channel other channels quote ("Голос Києва —

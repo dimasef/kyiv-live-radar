@@ -1,9 +1,9 @@
-import { useTranslation } from 'react-i18next'
+import { useTranslation } from "react-i18next";
 
-import type { HourBucket } from '@/types'
+import type { HourBucket } from "@/types";
 
-import ColumnChart from './charts/ColumnChart'
-import { formatPercent, hourLabel } from './statsMath'
+import ColumnChart from "./charts/ColumnChart";
+import { formatPercent, hourLabel } from "./statsMath";
 
 /** Hour-of-day rhythm, as two small multiples over one shared 0-23 Kyiv axis:
  * the chance of being under alert, and how many targets appear. Two charts, not
@@ -12,16 +12,18 @@ export default function HourOfDay({
   hours,
   alertDaysObserved,
 }: {
-  hours: HourBucket[]
-  alertDaysObserved: number
+  hours: HourBucket[];
+  alertDaysObserved: number;
 }) {
-  const { t } = useTranslation()
+  const { t } = useTranslation();
 
   return (
     <div className="flex flex-col gap-6">
       {alertDaysObserved > 0 && (
         <div>
-          <div className="panel-title mb-2">{t('journal.stats.hourAlertShare')}</div>
+          <div className="panel-title mb-2">
+            {t("journal.stats.hourAlertShare")}
+          </div>
           <ColumnChart
             columns={hours.map((h) => ({
               key: `a${h.hour}`,
@@ -30,14 +32,14 @@ export default function HourOfDay({
             }))}
             format={(v) => formatPercent(v / 100, 1)}
             tickEvery={3}
-            tableLabel={t('journal.stats.hourAlertShare')}
-            valueHeader={t('journal.stats.hourAlertShare')}
+            tableLabel={t("journal.stats.hourAlertShare")}
+            valueHeader={t("journal.stats.hourAlertShare")}
           />
         </div>
       )}
 
       <div>
-        <div className="panel-title mb-2">{t('journal.stats.hourTargets')}</div>
+        <div className="panel-title mb-2">{t("journal.stats.hourTargets")}</div>
         <ColumnChart
           columns={hours.map((h) => ({
             key: `t${h.hour}`,
@@ -46,12 +48,14 @@ export default function HourOfDay({
           }))}
           format={(v) => String(v)}
           tickEvery={3}
-          tableLabel={t('journal.stats.hourTargets')}
-          valueHeader={t('journal.targets')}
+          tableLabel={t("journal.stats.hourTargets")}
+          valueHeader={t("journal.targets")}
         />
       </div>
 
-      <p className="text-[11px] leading-relaxed text-slate-500">{t('journal.stats.hourNote')}</p>
+      <p className="text-xs leading-relaxed text-slate-500">
+        {t("journal.stats.hourNote")}
+      </p>
     </div>
-  )
+  );
 }

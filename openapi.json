@@ -87,6 +87,52 @@
         "title": "AlertOut",
         "type": "object"
       },
+      "AlertZoneOut": {
+        "description": "One raion's current siren state.",
+        "properties": {
+          "alert": {
+            "title": "Alert",
+            "type": "boolean"
+          },
+          "changed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changed At"
+          },
+          "name_uk": {
+            "title": "Name Uk",
+            "type": "string"
+          },
+          "oblast": {
+            "title": "Oblast",
+            "type": "string"
+          },
+          "stale": {
+            "default": false,
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "zone_id": {
+            "title": "Zone Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "zone_id",
+          "name_uk",
+          "oblast",
+          "alert"
+        ],
+        "title": "AlertZoneOut",
+        "type": "object"
+      },
       "AnalyzeIn": {
         "description": "POST /analysis — analyse a target for a card.",
         "properties": {
@@ -916,6 +962,15 @@
           },
           "name_uk": {
             "title": "Name Uk",
+            "type": "string"
+          },
+          "region": {
+            "default": "kyiv",
+            "enum": [
+              "kyiv",
+              "chernihiv"
+            ],
+            "title": "Region",
             "type": "string"
           }
         },
@@ -2714,6 +2769,38 @@
         "title": "RawMessagesPage",
         "type": "object"
       },
+      "RawNoticeIn": {
+        "description": "POST /admin/raw_messages/{id}/notice — publish a message the parser left\nout as a feed notice (a forecast, an all-clear, a situation summary).\n\n`text` defaults to the message's own text: most of the time the spotter\nalready said it well, and retyping it invites drift from the original.",
+        "properties": {
+          "kind": {
+            "enum": [
+              "clear",
+              "summary",
+              "directional",
+              "forecast",
+              "status"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "RawNoticeIn",
+        "type": "object"
+      },
       "RawParsedOut": {
         "description": "What the CURRENT rule parser makes of this message, re-run read-only.\n\nPresent on every row, including ones that produced nothing — that's the\npoint: \"не про загрозу\" alone never said whether the parser saw a target,\na place, or neither. Not a record of what ran at ingest time (see\napi/raw_diagnosis.py) — after a parser change this can disagree with the\nevents the row actually produced, which is itself the useful signal.",
         "properties": {
@@ -2882,6 +2969,17 @@
             "title": "Force",
             "type": "boolean"
           },
+          "last": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last"
+          },
           "no_llm": {
             "default": true,
             "title": "No Llm",
@@ -2927,6 +3025,29 @@
           "raw_messages": {
             "title": "Raw Messages",
             "type": "integer"
+          },
+          "scope_from": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope From"
+          },
+          "scope_messages": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Messages"
           }
         },
         "required": [
@@ -3062,6 +3183,14 @@
             "title": "Name",
             "type": "string"
           },
+          "region": {
+            "enum": [
+              "kyiv",
+              "chernihiv"
+            ],
+            "title": "Region",
+            "type": "string"
+          },
           "role": {
             "enum": [
               "spotter",
@@ -3095,6 +3224,7 @@
           "name",
           "subscribe_ref",
           "role",
+          "region",
           "is_active",
           "trust_weight",
           "last_listener_error",
@@ -3157,6 +3287,15 @@
               }
             ],
             "title": "Name"
+          },
+          "region": {
+            "default": "kyiv",
+            "enum": [
+              "kyiv",
+              "chernihiv"
+            ],
+            "title": "Region",
+            "type": "string"
           },
           "role": {
             "default": "spotter",
@@ -3306,6 +3445,21 @@
               }
             ],
             "title": "Name"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "enum": [
+                  "kyiv",
+                  "chernihiv"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
           },
           "role": {
             "anyOf": [
@@ -3839,11 +3993,21 @@
             ],
             "title": "Last Event At"
           },
+          "region": {
+            "default": "kyiv",
+            "enum": [
+              "kyiv",
+              "chernihiv"
+            ],
+            "title": "Region",
+            "type": "string"
+          },
           "scope": {
             "default": "district",
             "enum": [
               "district",
-              "city"
+              "city",
+              "region"
             ],
             "title": "Scope",
             "type": "string"
@@ -4803,9 +4967,124 @@
         "summary": "Admin Restore Incident"
       }
     },
+    "/admin/notices/{notice_id}": {
+      "delete": {
+        "description": "Take a notice off the feed — a wrong all-clear, or one added by hand and\nthought better of. Nothing is broadcast: the feed has no \"notice removed\"\nframe, and a card that disappears only on the next load is better than one\nthat vanishes under a reader mid-raid.",
+        "operationId": "admin_delete_notice_admin_notices__notice_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notice_id",
+            "required": true,
+            "schema": {
+              "title": "Notice Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Delete Notice"
+      }
+    },
+    "/admin/raw_messages/{raw_id}/notice": {
+      "post": {
+        "description": "Publish a raw message to the feed as a notice — the counterpart of taking\nan event off one.\n\nThe suppression filters are tuned to keep the feed clean, so they also drop\nthings worth reading: a forecast of the next wave, a channel's own «відбій»\nphrased unusually, a situation summary. Rather than loosening a filter for\none phrasing, the operator publishes that message by hand.\n\n`generated_by` stays 'rule': that flag drives the feed's \"AI · неперевірено\"\nbadge, and a human decision is not the thing that badge warns about.",
+        "operationId": "admin_add_notice_admin_raw_messages__raw_id__notice_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "raw_id",
+            "required": true,
+            "schema": {
+              "title": "Raw Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RawNoticeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Add Notice"
+      }
+    },
     "/admin/reprocess/apply": {
       "post": {
-        "description": "Wipe + rebuild all tracks/incidents from raw_messages through the current\npipeline. Held under `ingest_lock` so the live listener can't ingest into a\nhalf-rebuilt DB (messages queue behind it and process after). Refuses while\nan attack is active unless `force`. raw_messages are preserved, so a\nreprocess is repeatable.",
+        "description": "Wipe + rebuild tracks/incidents from raw_messages through the current\npipeline. Held under `ingest_lock` so the live listener can't ingest into a\nhalf-rebuilt DB (messages queue behind it and process after). Refuses while\nan attack is active unless `force`. raw_messages are preserved, so a\nreprocess is repeatable.\n\n`last` limits the rebuild to the tail of the log (see run_reprocess); the\ndefault still rebuilds everything.",
         "operationId": "admin_reprocess_apply_admin_reprocess_apply_post",
         "parameters": [
           {
@@ -4862,9 +5141,26 @@
     },
     "/admin/reprocess/preview": {
       "get": {
-        "description": "Pre-flight scope: how many raw messages will replay, the current counts\nthat will be rebuilt, and whether an attack is active (a reprocess would be\nill-timed). Read-only. Uses reprocess's own SessionLocal so it reads exactly\nthe DB the apply would rebuild.",
+        "description": "Pre-flight scope: how many raw messages will replay, the current counts\nthat will be rebuilt, and whether an attack is active (a reprocess would be\nill-timed). Read-only. Uses reprocess's own SessionLocal so it reads exactly\nthe DB the apply would rebuild.\n\nWith `last=N`, also reports the real scope of that tail — the widened cutoff\nand the message count it covers, so the operator sees what \"останні N\" will\nactually touch before running it.",
         "operationId": "admin_reprocess_preview_admin_reprocess_preview_get",
         "parameters": [
+          {
+            "in": "query",
+            "name": "last",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last"
+            }
+          },
           {
             "in": "header",
             "name": "authorization",
@@ -5081,7 +5377,7 @@
         "summary": "Admin Delete Source"
       },
       "patch": {
-        "description": "Edit a source's name / role / trust_weight / active flag. Only a change that\naffects what's watched (role or is_active) triggers a listener reload.",
+        "description": "Edit a source's name / role / region / trust_weight / active flag. Only a\nchange that affects what's watched (role or is_active) triggers a listener\nreload — `region` only steers already-arriving messages.",
         "operationId": "admin_update_source_admin_sources__source_id__patch",
         "parameters": [
           {
@@ -5429,6 +5725,46 @@
           }
         },
         "summary": "Admin Restore Threat"
+      }
+    },
+    "/alert-zones": {
+      "get": {
+        "description": "Current siren state of every watched raion, in roster order.",
+        "operationId": "alert_zones_alert_zones_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AlertZoneOut"
+                  },
+                  "title": "Response Alert Zones Alert Zones Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Alert Zones"
+      }
+    },
+    "/alert-zones/geometry": {
+      "get": {
+        "description": "The zone polygons, passed through verbatim — same `response_model`-less\nshape (and reason) as /districts/boundaries: GeoJSON geometry OpenAPI can\nonly describe as \"an object\".",
+        "operationId": "alert_zone_geometry_alert_zones_geometry_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Alert Zone Geometry"
       }
     },
     "/alerts/active": {

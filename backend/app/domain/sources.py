@@ -26,6 +26,7 @@ async def upsert_source(
     subscribe_ref: str,
     name: str | None,
     role: str,
+    region: str,
     trust_weight: float | None,
     user_id: int | None,
 ) -> Source:
@@ -47,6 +48,7 @@ async def upsert_source(
     if existing is not None:
         existing.is_active = True
         existing.role = role
+        existing.region = region
         existing.subscribe_ref = ref
         if name:
             existing.name = name
@@ -60,6 +62,7 @@ async def upsert_source(
         subscribe_ref=ref,
         name=(name or ref),
         role=role,
+        region=region,
         trust_weight=trust_weight if trust_weight is not None else 1.0,
         is_active=True,
         added_by_user_id=user_id,

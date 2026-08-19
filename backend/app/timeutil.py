@@ -24,6 +24,17 @@ def kyiv_date(dt: datetime, tz: ZoneInfo = KYIV) -> date:
     return kyiv_local(dt, tz).date()
 
 
+def from_kyiv_local(dt: datetime, tz: ZoneInfo = KYIV) -> datetime:
+    """A naive wall-clock time GIVEN in Kyiv local time -> the same instant, UTC.
+
+    The inverse of `kyiv_local`, for data that arrives stamped in local time with
+    no offset (the alert-zone provider does exactly that). The one hour a year
+    that repeats at the autumn DST fold resolves to the first pass — a siren
+    timestamp an hour out once a year is not worth more machinery.
+    """
+    return dt.replace(tzinfo=tz).astimezone(UTC)
+
+
 def naive(dt: datetime) -> datetime:
     """Normalize to naive UTC for comparisons. Rows loaded from SQLite come back
     naive, but an object added in the CURRENT session still carries its aware
