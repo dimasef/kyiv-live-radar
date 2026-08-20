@@ -96,6 +96,23 @@ export const ZONE_GLOW = {
   style: { fillColor: '#ef4444', fillOpacity: 1, stroke: false, interactive: false },
 } as const
 
+/** The all-clear flash: the same lit edge in green, shown for a few seconds when
+ * a raion's siren is called off and then taken away (see store/zonesSlice
+ * `zoneAllClear`).
+ *
+ * A moment, not a state — deliberately so. «Відбій» is the one transition worth
+ * interrupting a glance for, but a raion that has been quiet for an hour must
+ * look like the basemap, or the map fills with reassurance and the sirens stop
+ * standing out. Brighter than the red glow because it only ever exists for six
+ * seconds, against a border that has just gone dark.
+ */
+export const ZONE_ALL_CLEAR = {
+  color: '#22c55e',
+  opacity: 0.7,
+  spreadPx: 7,
+  style: { fillColor: '#22c55e', fillOpacity: 1, stroke: false, interactive: false },
+} as const
+
 export const DISTRICT_STYLE = {
   color: "#64748b",
   weight: 1,

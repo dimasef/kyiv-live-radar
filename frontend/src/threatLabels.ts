@@ -1,5 +1,5 @@
 import { STATUS_CHIP_COLOR, STATUS_COLORS } from './theme'
-import type { ClosedReason, Threat, ThreatStatus } from './types'
+import type { ClosedReason, TargetType, Threat, ThreatStatus } from './types'
 
 /** Label key per track status.
  *
@@ -17,6 +17,27 @@ export const STATUS_LABEL_KEY: Record<ThreatStatus, string> = {
   lost: 'status.lost',
   impact: 'status.impact',
   dismissed: 'status.dismissed',
+}
+
+/** The "shot down / closed" wording per target type, used by the map legend's
+ * flippable rows.
+ *
+ * One key per type rather than a «Збитий {{target}}» template: Ukrainian
+ * agreement moves the participle with the noun's gender (збитий БПЛА, збита
+ * ракета), and the unknown type is not a participle at all («закрито
+ * невідоме»). Same contract as STATUS_LABEL_KEY above — TypeScript enforces
+ * every type, keys.test.ts enforces both bundles.
+ *
+ * It lives here rather than beside the legend because that test runs without a
+ * DOM: anything under components/map reaches Leaflet through threatIcons and
+ * takes `window is not defined` with it.
+ */
+export const DOWN_LABEL_KEY: Record<TargetType, string> = {
+  shahed: 'legend.down.shahed',
+  jet_drone: 'legend.down.jet_drone',
+  missile: 'legend.down.missile',
+  ballistic: 'legend.down.ballistic',
+  unknown: 'legend.down.unknown',
 }
 
 /** Why a track closed, where that is more specific than `status` can be.

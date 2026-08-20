@@ -10,6 +10,7 @@ import {
   fetchRecentEvents,
   fetchRecentIncidents,
   fetchRecentNotices,
+  fetchPublicSources,
 } from '@/api'
 import { requestGeolocation } from '@/components/chrome'
 import { resyncHomePush } from '@/lib/push'
@@ -43,6 +44,7 @@ export async function hydrate(): Promise<void> {
       .then(store.setLog)
       .catch(() => {}),
     fetchRecentNotices().then(store.setNotices).catch(() => {}),
+    fetchPublicSources().then(store.setSources).catch(() => {}),
     // Hydrate feed health once; live changes arrive via the WS 'health' frame.
     // `server_time` seeds the fade clock's skew correction before the first ping.
     fetchHealth()

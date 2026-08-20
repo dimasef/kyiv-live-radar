@@ -27,6 +27,8 @@ export default function FeedSettings() {
   const setFeedLimit = useRadar((s) => s.setFeedLimit)
   const feedOtherRegions = useRadar((s) => s.feedOtherRegions)
   const setFeedOtherRegions = useRadar((s) => s.setFeedOtherRegions)
+  const feedShowSource = useRadar((s) => s.feedShowSource)
+  const setFeedShowSource = useRadar((s) => s.setFeedShowSource)
   const setLog = useRadar((s) => s.setLog)
 
   // Changing the count re-fetches the feed so it takes effect immediately.
@@ -96,6 +98,22 @@ export default function FeedSettings() {
             className={seg(feedOtherRegions === on)}
           >
             {t(on ? 'settings.feedRegionsAll' : 'settings.feedRegionsHome')}
+          </button>
+        ))}
+      </div>
+
+      {/* Display only — unlike the region filter above, nothing is re-fetched:
+          every card already carries its source name. */}
+      <span className={`${label} mt-3`}>{t('settings.feedSource')}</span>
+      <div className="flex gap-1">
+        {[true, false].map((on) => (
+          <button
+            key={String(on)}
+            onClick={() => setFeedShowSource(on)}
+            aria-pressed={feedShowSource === on}
+            className={seg(feedShowSource === on)}
+          >
+            {t(on ? 'settings.feedSourceShow' : 'settings.feedSourceHide')}
           </button>
         ))}
       </div>

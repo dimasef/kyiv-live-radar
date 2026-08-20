@@ -8,6 +8,7 @@ import type { components } from './api-types'
 type Schemas = components['schemas']
 
 export type District = Schemas['DistrictOut']
+export type SourceLink = Schemas['SourceLinkOut']
 export type ThreatEvent = Schemas['ThreatEventOut']
 export type Threat = Schemas['ThreatOut']
 export type FeedEntry = Schemas['FeedEntryOut']

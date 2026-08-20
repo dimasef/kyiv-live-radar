@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import { Popup } from 'react-leaflet'
 
 import AnalyzeButton from '@/components/game/AnalyzeButton'
+import { showsAnalyzeAffordance } from '@/components/game/analyzeButtonState'
 import { useRadar } from '@/store'
 import type { Threat } from '@/types'
 
@@ -16,6 +17,7 @@ import { HAIRLINE, MONO } from './popupStyles'
  * renders nothing at all, caption included. */
 export default function ThreatPopup({ threat }: { threat: Threat }) {
   const gamification = useRadar((s) => s.gamification)
+  const authed = useRadar((s) => s.authStatus === 'authed')
 
   return (
     <Popup>
@@ -25,7 +27,11 @@ export default function ThreatPopup({ threat }: { threat: Threat }) {
         <MovementSection threat={threat} />
         <DataSection threat={threat} />
         <MessageList threat={threat} />
-        {gamification && (
+        {/* The separator belongs to the button, not to the popup: this section
+            renders nothing for a target with no analysis to offer, and drawing
+            the rule regardless left a hairline hanging off the bottom edge with
+            nothing under it. */}
+        {gamification && showsAnalyzeAffordance(threat, authed) && (
           <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${HAIRLINE}` }}>
             <AnalyzeButton threat={threat} />
           </div>

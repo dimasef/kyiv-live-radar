@@ -73,6 +73,25 @@ body::after {
     0 12px 32px -16px rgba(0, 0, 0, 0.55);
 }
 
+/* A floating control that is currently engaged — the map's legend popover being
+   open, the alert layer being on, fullscreen being active. Mirrors the top bar's
+   lit nav pill (border-phosphor/30 + bg-phosphor/15) so "this is on" reads the
+   same everywhere, instead of the map's controls saying it with colour alone.
+
+   The tint is layered OVER the panel's dark glass rather than replacing it: a
+   nav pill has a solid bar behind it, these have whatever the map is showing,
+   and 15% cyan alone goes illegible over a lit-up raion.
+
+   Not Tailwind utilities: `.panel` is declared after `@tailwind utilities` at
+   equal specificity, so `bg-phosphor/15` on the element would lose to it and the
+   tint would silently never appear. */
+.panel--active {
+  border-color: rgba(34, 211, 238, 0.3);
+  background:
+    linear-gradient(rgba(34, 211, 238, 0.15), rgba(34, 211, 238, 0.15)),
+    var(--panel);
+}
+
 /* The reading column every standalone page shares (журнал, статистика, профіль).
    One number in one place — those pages sat at three different widths, and
    switching between them shifted the whole layout sideways. */
@@ -152,6 +171,30 @@ body::after {
 .rise {
   animation: rise 0.6s var(--ease-out) both;
   animation-delay: calc(var(--i, 0) * 80ms);
+}
+
+/* A panel opening upward out of the button that owns it (the map legend). It
+   rises the short distance it is anchored over, so the motion says where it came
+   from — a plain fade would leave it looking dropped onto the map. */
+@keyframes popover-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.popover-up {
+  animation: popover-up 0.2s var(--ease-out) both;
+  transform-origin: bottom left;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .popover-up {
+    animation: none;
+  }
 }
 
 /* ---------- status banner enter / leave ---------- */
@@ -795,6 +838,70 @@ body::after {
 .zone-glow {
   filter: url(#zone-inner-glow);
   pointer-events: none;
+}
+
+/* Switching the layer on used to drop thirteen raions, their glows and their
+   labels onto the map in a single frame — a hard cut that reads as a glitch
+   rather than as a layer arriving. Everything the layer owns fades in instead.
+
+   No fill mode: once the fade ends the element goes back to whatever the
+   cascade says, which for a Leaflet tooltip is its own inline opacity. The
+   animation only has to beat that inline value WHILE it runs, which it does —
+   a running animation outranks inline styles.
+
+   It replays whenever a path remounts, which is exactly when a raion changes
+   state (the outlines are keyed by tone), so a siren starting or ending fades
+   in rather than snapping. That is the desired reading, not a side effect. */
+@keyframes zone-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.zone-enter {
+  animation: zone-enter 380ms var(--ease-out);
+}
+/* The glow trails the outlines it sits inside, so a raion under siren reads as
+   lighting up rather than as simply being there. */
+.zone-glow.zone-enter {
+  animation-duration: 750ms;
+}
+
+/* «Відбій»: the same lit edge in green, for a few seconds and then gone. It
+   blooms fast, holds long enough to be caught out of the corner of an eye, and
+   fades — the raion's real state is already drawn by the quiet outline beneath
+   it, so this is pure announcement and must not linger as reassurance.
+   6s === ALL_CLEAR_FLASH_MS in store/zonesSlice.ts; `forwards` keeps it at zero
+   if the store's timer lands a frame late, so it can never pop back. */
+@keyframes zone-allclear {
+  0% {
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.zone-allclear {
+  filter: url(#zone-inner-glow-clear);
+  pointer-events: none;
+  animation: zone-allclear 6s var(--ease-out) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zone-enter {
+    animation: none;
+  }
+  /* .zone-allclear deliberately keeps its fade. It carries information, not
+     decoration, and stripping the animation would leave a hard green blink —
+     worse for anyone who asked for less motion, not better. */
 }
 /* Alert-zone label: same bare-text treatment as .district-label (no tooltip
    chrome, pinned to the polygon center), with an optional second line for a

@@ -6,6 +6,7 @@ import { createAxesSlice } from './axesSlice'
 import { createClockSlice } from './clockSlice'
 import { createConnectionSlice } from './connectionSlice'
 import { createDistrictsSlice } from './districtsSlice'
+import { createSourcesSlice } from './sourcesSlice'
 import { createFriendsSlice } from './friendsSlice'
 import { createGameSlice } from './gameSlice'
 import { createHomeSlice } from './homeSlice'
@@ -25,6 +26,7 @@ export type { RadarState } from './types'
 
 export const useRadar = create<RadarState>()((...a) => ({
   ...createDistrictsSlice(...a),
+  ...createSourcesSlice(...a),
   ...createThreatsSlice(...a),
   ...createNoticesSlice(...a),
   ...createIncidentsSlice(...a),

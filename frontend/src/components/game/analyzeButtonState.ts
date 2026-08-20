@@ -1,4 +1,20 @@
 import type { AnalysisKind, ThreatAnalysisState } from '@/api'
+import { analysisKindFor, isAnalysableTarget, isStale } from '@/lib/cards'
+import type { Threat } from '@/types'
+
+/** Whether AnalyzeButton renders anything at all for this target.
+ *
+ * Exported because its container has to know BEFORE it draws the separator
+ * above it. A signed-out viewer, or a target that was never analysable (a
+ * city-wide scope, an unlocated «Невідомо»), left a hairline rule floating at
+ * the bottom of the popup with nothing underneath it.
+ *
+ * The button asks this too, so the rule that decides "is there anything here"
+ * is written once — a second copy in the popup would be free to drift. */
+export function showsAnalyzeAffordance(threat: Threat, authed: boolean): boolean {
+  if (!authed) return false
+  return analysisKindFor(threat) != null || (isAnalysableTarget(threat) && isStale(threat))
+}
 
 export type AnalyzeButtonState =
   /** Claim state not known yet — show an inert placeholder, not an action. */

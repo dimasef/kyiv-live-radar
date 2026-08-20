@@ -2,6 +2,8 @@ import { Maximize, Minimize } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { mapControlClass } from './controlStyles'
+
 /** Puts the whole page into fullscreen — the map is the page, and a raid is
  * exactly when the browser chrome is worth losing.
  *
@@ -35,7 +37,7 @@ export default function FullscreenButton() {
       onClick={toggle}
       aria-label={t(full ? 'legendCtl.exitFullscreen' : 'legendCtl.fullscreen')}
       title={t(full ? 'legendCtl.exitFullscreen' : 'legendCtl.fullscreen')}
-      className="panel flex h-10 w-10 flex-none items-center justify-center text-slate-300 transition-colors duration-200 hover:text-phosphor-soft"
+      className={mapControlClass(full)}
     >
       <Icon size={17} />
     </button>

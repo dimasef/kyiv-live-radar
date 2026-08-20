@@ -1409,6 +1409,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Sources
+         * @description Every channel currently being read, for the legend's «Джерела» block.
+         *
+         *     Active only: an archived channel is not something this map is standing on
+         *     any more, and listing it would credit it for data it no longer provides.
+         *
+         *     Spotters first, then the official alert channel — the ordering answers "who
+         *     reports the targets you are looking at" before "where the siren comes from".
+         */
+        get: operations["list_sources_sources_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/threats/active": {
         parameters: {
             query?: never;
@@ -3031,6 +3057,36 @@ export interface components {
              * @default 1
              */
             trust_weight: number;
+        };
+        /**
+         * SourceLinkOut
+         * @description One channel we read, for public attribution (the map legend's «Джерела»).
+         *
+         *     Deliberately NOT `SourceOut`: that carries `trust_weight`, an internal
+         *     fusion knob that would read publicly as our rating of a volunteer channel.
+         *
+         *     `url` is None for anything that is not a plain public @username — a private
+         *     channel's invite link must never be republished, and a numeric channel id
+         *     has no public page to point at. Such a source is still listed by name;
+         *     credit is owed either way.
+         */
+        SourceLinkOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Region
+             * @enum {string}
+             */
+            region: "kyiv" | "chernihiv";
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "spotter" | "alert";
+            /** Url */
+            url: string | null;
         };
         /**
          * SourceStatsOut
@@ -5896,6 +5952,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_sources_sources_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceLinkOut"][];
                 };
             };
         };

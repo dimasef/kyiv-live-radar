@@ -87,3 +87,15 @@ async def test_the_limit_is_spent_on_the_region_asked_for(client):
 async def test_an_unknown_region_is_rejected(client):
     c, _ = client
     assert (await c.get("/events/recent?region=lviv")).status_code == 422
+
+
+async def test_every_feed_size_the_settings_drawer_offers_is_accepted(client):
+    """The cap used to be 200 while the drawer's largest option was 250, so
+    choosing it 422'd on every reload — and the client swallowed the error into
+    an empty feed. These are frontend prefsSlice.FEED_LIMITS; they must all pass.
+    """
+    c, _ = client
+    for size in (30, 60, 120, 250):
+        assert (await c.get(f"/events/recent?limit={size}")).status_code == 200, size
+    # Still bounded — an unbounded page would let anyone ask for the whole table.
+    assert (await c.get("/events/recent?limit=251")).status_code == 422

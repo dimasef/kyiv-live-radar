@@ -50,7 +50,12 @@ async def active_threats(session: AsyncSession = Depends(get_session)):
 
 @router.get("/events/recent", response_model=list[FeedEntryOut])
 async def recent_events(
-    limit: int = Query(60, ge=1, le=200),
+    # The ceiling must cover the LARGEST option the settings drawer offers
+    # (frontend store/prefsSlice.FEED_LIMITS). It read 200 while that list
+    # ended in 250, so picking the biggest page 422'd on every reload — and
+    # bootstrap's `.catch(() => {})` swallowed it into a silently empty feed
+    # with nothing in the UI to say why. Raise both together or neither.
+    limit: int = Query(60, ge=1, le=250),
     region: Region | None = Query(None),
     session: AsyncSession = Depends(get_session),
 ):

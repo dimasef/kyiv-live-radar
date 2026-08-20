@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useRadar } from '@/store'
 
 import { alertedZones } from './alertZones'
+import { mapControlClass } from './controlStyles'
 
 /** Switches the raion air-alert layer on and off. Carries a count badge while
  * sirens are up, so the layer is discoverable exactly when it matters — that is
@@ -20,13 +21,11 @@ export default function ZoneLayerButton() {
       aria-label={t(on ? 'zonesCtl.hide' : 'zonesCtl.show')}
       aria-pressed={on}
       title={t('zones.title')}
-      className={`panel relative flex h-10 w-10 items-center justify-center transition-colors duration-200 ${
-        on ? 'text-phosphor-soft' : 'text-slate-300 hover:text-phosphor-soft'
-      }`}
+      className={`${mapControlClass(on)} relative`}
     >
       <Siren size={17} />
       {count > 0 && (
-        <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-semibold text-ink-950">
+        <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-semibold text-white">
           {count}
         </span>
       )}

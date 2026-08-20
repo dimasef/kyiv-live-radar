@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 
 import { kyivClock } from '@/lib/kyivTime'
+import { useRadar } from '@/store'
 
 export function EventTime({ iso }: { iso: string }) {
   return (
@@ -21,6 +22,20 @@ export function DevId({ children }: { children: ReactNode }) {
       {children}
     </span>
   )
+}
+
+/** Which channel reported this — off behind a setting (prefsSlice
+ * `feedShowSource`), because on a fast night it is a second line on every card.
+ *
+ * Its own line rather than a chip in the header row: channel names run long
+ * («Чисте Небо - Чернігівщина»), and squeezed into the header they would push
+ * out the type, the count and the distance-from-home — the things actually
+ * being scanned for. Truncated, so an even longer name can never widen the feed.
+ */
+export function SourceName({ name }: { name: string | null | undefined }) {
+  const show = useRadar((s) => s.feedShowSource)
+  if (!show || !name) return null
+  return <div className="mt-1 truncate font-mono text-[10px] text-slate-500">{name}</div>
 }
 
 // Dev-only: flags events resolved by the LLM fallback (app/parsing/llm.py,

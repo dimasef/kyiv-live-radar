@@ -80,6 +80,10 @@
     "alerts": "alerts.in.ua",
     "app": "\"Air Alert\" app"
   },
+  "sourceLinks": {
+    "title": "Sources",
+    "alertRole": "official alerts"
+  },
   "legend": {
     "title": "Legend",
     "confirmed": "Confirmed",
@@ -88,7 +92,14 @@
     "clear": "All-clear",
     "conflict": "Sources disagree",
     "home": "Home",
-    "launcher": "Ballistic launch (OTRK)"
+    "launcher": "Ballistic launch (OTRK)",
+    "down": {
+      "shahed": "UAV shot down",
+      "jet_drone": "Jet UAV shot down",
+      "missile": "Missile shot down",
+      "ballistic": "Ballistic shot down",
+      "unknown": "Unknown closed"
+    }
   },
   "log": {
     "title": "Event feed",
@@ -169,6 +180,9 @@
     "feedRegions": "Regions in the feed",
     "feedRegionsAll": "All",
     "feedRegionsHome": "Kyiv region only",
+    "feedSource": "Message source",
+    "feedSourceShow": "Show",
+    "feedSourceHide": "Hide",
     "privacy": "Privacy"
   },
   "game": {
@@ -237,8 +251,8 @@
     "reloading": "Updating…"
   },
   "legendCtl": {
-    "show": "Show legend",
-    "hide": "Collapse legend",
+    "show": "Show legend and sources",
+    "hide": "Hide legend and sources",
     "fullscreen": "Fullscreen",
     "exitFullscreen": "Exit fullscreen"
   },

@@ -19,6 +19,7 @@ import type {
   RawOutcomeFilter,
   RawSource,
   Region,
+  SourceLink,
   TargetType,
   Threat,
   ThreatAxis,
@@ -108,6 +109,10 @@ async function authPost<T>(path: string, body: unknown): Promise<T> {
 
 export const fetchDistricts = () => get<District[]>('/districts')
 export const fetchBoundaries = () => get<DistrictBoundary[]>('/districts/boundaries')
+// The channels this radar reads, for the legend's «Джерела» block. Public and
+// deliberately narrow — `fetchSources` below is the ADMIN view of the same
+// table and carries trust weights and listener errors with it.
+export const fetchPublicSources = () => get<SourceLink[]>('/sources')
 export const fetchActiveThreats = () => get<Threat[]>('/threats/active')
 export const fetchActiveIncidents = () => get<Incident[]>('/incidents/active')
 export const fetchRecentIncidents = (limit = 20) =>

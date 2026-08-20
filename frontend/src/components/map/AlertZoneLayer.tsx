@@ -5,7 +5,7 @@ import { GeoJSON, Tooltip, useMap } from 'react-leaflet'
 import { useRadar } from '@/store'
 
 import { zoneTone } from './alertZones'
-import { ZONE_GLOW, ZONE_LABEL_NUDGE, ZONE_STYLES } from './constants'
+import { ZONE_ALL_CLEAR, ZONE_GLOW, ZONE_LABEL_NUDGE, ZONE_STYLES } from './constants'
 import ZoneGlowDefs from './ZoneGlowDefs'
 import ZoneLabel from './ZoneLabel'
 
@@ -50,6 +50,7 @@ function zoneOf(target: EventTarget | null): string | null {
 export default function AlertZoneLayer() {
   const zones = useRadar((s) => s.zones)
   const geometry = useRadar((s) => s.zoneGeometry)
+  const allClear = useRadar((s) => s.zoneAllClear)
   const map = useMap()
   /** Zone whose name is currently revealed — hovered, or focused. */
   const [named, setNamed] = useState<string | null>(null)
@@ -90,7 +91,21 @@ export default function AlertZoneLayer() {
           <GeoJSON
             key={`glow-${zoneId}`}
             data={shape.geojson}
-            style={{ ...ZONE_GLOW.style, className: 'zone-glow' }}
+            style={{ ...ZONE_GLOW.style, className: 'zone-glow zone-enter' }}
+          />
+        ))}
+      {/* «Відбій»: the raion has already gone quiet in every other layer — this
+          is the announcement of the change, mounted by the store for exactly as
+          long as its animation runs. A separate non-interactive path on purpose:
+          folding it into the outline's className would rekey that path, and the
+          permanent label riding on it would blink away with the flash. */}
+      {shapes
+        .filter(([zoneId]) => allClear[zoneId])
+        .map(([zoneId, shape]) => (
+          <GeoJSON
+            key={`allclear-${zoneId}`}
+            data={shape.geojson}
+            style={{ ...ZONE_ALL_CLEAR.style, className: 'zone-allclear' }}
           />
         ))}
       {shapes.map(([zoneId, shape]) => {
@@ -103,7 +118,7 @@ export default function AlertZoneLayer() {
             key={`${zoneId}-${tone}`}
             ref={(layer) => tagPath(layer, zoneId)}
             data={shape.geojson}
-            style={{ ...ZONE_STYLES[tone], className: 'zone-hit' }}
+            style={{ ...ZONE_STYLES[tone], className: 'zone-hit zone-enter' }}
             eventHandlers={{
               mouseover: () => setNamed(zoneId),
               mouseout: () => setNamed((cur) => (cur === zoneId ? null : cur)),
@@ -115,7 +130,7 @@ export default function AlertZoneLayer() {
             <Tooltip
               permanent
               direction="center"
-              className="zone-label"
+              className="zone-label zone-enter"
               offset={ZONE_LABEL_NUDGE[zoneId] ?? [0, 0]}
             >
               <ZoneLabel

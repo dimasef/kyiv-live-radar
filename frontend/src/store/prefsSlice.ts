@@ -46,6 +46,15 @@ function initialFeedOtherRegions(): boolean {
   return safeGet(STORAGE_KEYS.feedOtherRegions) !== '0'
 }
 
+/** Whether a feed card names the channel the message came from. Defaults to on:
+ * with several spotter channels of unequal reliability in one timeline, who said
+ * it is part of how much to believe it — the map popup has always named the
+ * source, and the feed was the one place that dropped it. Off is for when the
+ * feed is scrolling too fast to want a second line per card. */
+function initialFeedShowSource(): boolean {
+  return safeGet(STORAGE_KEYS.feedShowSource) !== '0'
+}
+
 export interface PrefsSlice {
   sheetHeight: SheetHeight
   setSheetHeight: (h: SheetHeight) => void
@@ -57,6 +66,10 @@ export interface PrefsSlice {
    * `initialFeedOtherRegions`). The map ignores this. */
   feedOtherRegions: boolean
   setFeedOtherRegions: (on: boolean) => void
+  /** Name the reporting channel on each feed card (see
+   * `initialFeedShowSource`). Display only — nothing is re-fetched. */
+  feedShowSource: boolean
+  setFeedShowSource: (on: boolean) => void
   /** Opt-in "gamification" card-analysis layer (off by default). Account-bound:
    * hydrated from the signed-in user on login (authSlice) and persisted to the
    * server on change, so it syncs across the user's devices. The map, alerts and
@@ -88,6 +101,11 @@ export const createPrefsSlice: StateCreator<RadarState, [], [], PrefsSlice> = (s
   setFeedOtherRegions: (on) => {
     safeSet(STORAGE_KEYS.feedOtherRegions, on ? '1' : '0')
     set({ feedOtherRegions: on })
+  },
+  feedShowSource: initialFeedShowSource(),
+  setFeedShowSource: (on) => {
+    safeSet(STORAGE_KEYS.feedShowSource, on ? '1' : '0')
+    set({ feedShowSource: on })
   },
   gamification: false,
   setGamification: (on) => {

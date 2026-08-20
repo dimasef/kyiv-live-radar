@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { HOME_COLOR, STATUS_COLORS, TYPE_COLORS } from '@/theme'
 import type { Notice, NoticeKind } from '@/types'
 
-import { DevId, EventTime } from './badges'
+import { DevId, EventTime, SourceName } from './badges'
 import ClampText from './ClampText'
 
 /** Per-kind icon + accent colour. Rule notices (clear/summary) keep their
@@ -20,6 +20,12 @@ const STYLE: Record<NoticeKind, { icon: LucideIcon; color: string }> = {
   status: { icon: Radio, color: TYPE_COLORS.unknown },
 }
 const FALLBACK = { icon: Info, color: HOME_COLOR }
+
+/** Every channel behind this card, deduplicated and in the order they appear. */
+function sourceNames(notices: Notice[]): string | null {
+  const names = [...new Set(notices.map((n) => n.source_name).filter(Boolean))]
+  return names.length > 0 ? names.join(' · ') : null
+}
 
 /** An info entry in the feed timeline: an all-clear, an attack summary, or an
  * LLM-surfaced context cue (directional / forecast / status). A multi-source
@@ -68,6 +74,9 @@ export default function NoticeCard({ notices }: { notices: Notice[] }) {
         text={head.text}
         className="mt-0.5 break-words leading-snug text-slate-300"
       />
+      {/* A clustered cue is the SAME notice seen by several channels, so it
+          names all of them — that several agreed is the point of clustering. */}
+      <SourceName name={sourceNames(notices)} />
     </li>
   )
 }

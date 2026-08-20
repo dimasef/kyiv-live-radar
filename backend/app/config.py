@@ -242,6 +242,17 @@ class Settings(BaseSettings):
     def alert_channel_list(self) -> list[str]:
         return [c.strip().lstrip("@") for c in self.alert_channels.split(",") if c.strip()]
 
+    # This project's OWN Telegram channel. It is a real ingest source like any
+    # other, but it is kept out of the public «Джерела» credit list (see
+    # api/public/sources.py): that block exists to point at the volunteer
+    # channels this map stands on, and crediting ourselves there is a link back
+    # to the page the reader is already on.
+    own_channels: str = "kyiv_live_radar"
+
+    @property
+    def own_channel_list(self) -> list[str]:
+        return [c.strip().lstrip("@") for c in self.own_channels.split(",") if c.strip()]
+
     # An alert open this long with no відбій is treated as a dead Telethon
     # session that ate the відбій, not a real day-long siren — the sweeper
     # force-closes it (Alert.closed_reason='failsafe') instead of leaving a

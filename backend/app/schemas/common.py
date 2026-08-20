@@ -32,6 +32,25 @@ class SourceOut(BaseModel):
     trust_weight: float
 
 
+class SourceLinkOut(BaseModel):
+    """One channel we read, for public attribution (the map legend's «Джерела»).
+
+    Deliberately NOT `SourceOut`: that carries `trust_weight`, an internal
+    fusion knob that would read publicly as our rating of a volunteer channel.
+
+    `url` is None for anything that is not a plain public @username — a private
+    channel's invite link must never be republished, and a numeric channel id
+    has no public page to point at. Such a source is still listed by name;
+    credit is owed either way.
+    """
+
+    id: int
+    name: str
+    role: SourceRole
+    region: Region
+    url: str | None
+
+
 class SourceStatsOut(BaseModel):
     """Per-source quality signals, computed on-demand (JOIN by source_id) over a
     recent window — see app/api/source_stats.py. Rates are None when there's no

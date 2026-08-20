@@ -5,7 +5,7 @@ import { useRadar } from '@/store'
 import { STATUS_COLORS, threatColor } from '@/theme'
 import type { FeedEntry } from '@/types'
 
-import { DevId, DevSource, EventTime } from './badges'
+import { DevId, DevSource, EventTime, SourceName } from './badges'
 
 /** Several tracks closed by ONE real message ("дорозвідка" with no stated
  * type closes every open track at once) — one card, one clickable chip per
@@ -42,6 +42,8 @@ export default function ClosedGroupCard({ group }: { group: FeedEntry[] }) {
       </div>
 
       <div className="mt-0.5 break-words leading-snug text-slate-300">{head.event.raw_text}</div>
+      {/* One real message closed the whole group, so its source is the group's. */}
+      <SourceName name={head.event.source_name} />
 
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         {group.map(({ event, threat }) => {

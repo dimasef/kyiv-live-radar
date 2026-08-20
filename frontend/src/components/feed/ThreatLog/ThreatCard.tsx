@@ -8,7 +8,7 @@ import { CountBadge, typeLabel } from '@/threatDisplay'
 import { threatColor } from '@/theme'
 import type { FeedEntry } from '@/types'
 
-import { DevId, DevSource, EventTime } from './badges'
+import { DevId, DevSource, EventTime, SourceName } from './badges'
 import ClampText from './ClampText'
 import StatusChip from './StatusChip'
 import TypeGlyph from './TypeGlyph'
@@ -89,6 +89,7 @@ export default function ThreatCard({ event, threat }: FeedEntry) {
         text={headline}
         className="mt-0.5 break-words leading-snug text-slate-300"
       />
+      <SourceName name={event.source_name} />
       {hasSummary && (
         <button
           onClick={(e) => {

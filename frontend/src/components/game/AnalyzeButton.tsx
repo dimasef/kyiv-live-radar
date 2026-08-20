@@ -2,9 +2,9 @@ import { Check, Clock, Loader2, Microscope } from "lucide-react";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
-import { analysisKindFor, isAnalysableTarget, isStale } from "@/lib/cards";
+import { analysisKindFor } from "@/lib/cards";
 
-import { analyzeButtonState } from "./analyzeButtonState";
+import { analyzeButtonState, showsAnalyzeAffordance } from "./analyzeButtonState";
 import { useRadar } from "@/store";
 import type { Threat } from "@/types";
 
@@ -23,17 +23,16 @@ export default function AnalyzeButton({ threat }: { threat: Threat }) {
     if (authed && kind) void ensureThreatState(threat.id).catch(() => {});
   }, [authed, kind, threat.id, ensureThreatState]);
 
-  if (!authed) return null;
+  if (!showsAnalyzeAffordance(threat, authed)) return null;
 
+  // The only way past the guard above without a kind: analysable, but its
+  // debris went cold.
   if (!kind) {
-    if (isAnalysableTarget(threat) && isStale(threat)) {
-      return (
-        <span className="flex items-center gap-1 rounded-full bg-white/[0.04] px-2 py-1 text-[11px] text-slate-500">
-          <Clock size={12} /> {t("game.stale")}
-        </span>
-      );
-    }
-    return null;
+    return (
+      <span className="flex items-center gap-1 rounded-full bg-white/[0.04] px-2 py-1 text-[11px] text-slate-500">
+        <Clock size={12} /> {t("game.stale")}
+      </span>
+    );
   }
 
   const busy = analyzing?.threatId === threat.id;

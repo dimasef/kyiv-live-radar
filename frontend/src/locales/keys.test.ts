@@ -3,7 +3,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { STATUS_LABEL_KEY } from '@/threatLabels'
+import { DOWN_LABEL_KEY, STATUS_LABEL_KEY } from '@/threatLabels'
 
 const CHIP_KEYS = { ...STATUS_LABEL_KEY, allClear: 'status.allClear' }
 
@@ -76,6 +76,17 @@ describe('translation keys', () => {
     const missing = Object.entries(CHIP_KEYS)
       .filter(([, key]) => !resolves(bundle, key))
       .map(([status, key]) => `${status} -> ${key}`)
+    expect(missing).toEqual([])
+  })
+
+  // Same class of gap, in the map legend: each target type has its own
+  // "shot down" wording because Ukrainian agreement won't survive a
+  // «Збитий {{target}}» template, and a missing one would ship the raw key.
+  it.each(['uk', 'en'] as const)('cover every legend flip label in %s.json', (lang) => {
+    const bundle = lang === 'uk' ? uk : en
+    const missing = Object.entries(DOWN_LABEL_KEY)
+      .filter(([, key]) => !resolves(bundle, key))
+      .map(([type, key]) => `${type} -> ${key}`)
     expect(missing).toEqual([])
   })
 })

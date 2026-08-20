@@ -18,6 +18,7 @@ export const STORAGE_KEYS = {
   feedTextSize: 'klr-feed-text',
   feedLimit: 'klr-feed-limit',
   feedOtherRegions: 'klr-feed-other-regions',
+  feedShowSource: 'klr-feed-source',
   geoAsked: 'klr-geo-asked',
   notify: 'klr-notify',
   notifyPrefs: 'klr-notify-prefs',

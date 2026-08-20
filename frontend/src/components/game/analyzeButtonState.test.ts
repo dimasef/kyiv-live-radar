@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import type { ThreatAnalysisState } from '@/api'
+import type { Threat } from '@/types'
 
-import { analyzeButtonState } from './analyzeButtonState'
+import { analyzeButtonState, showsAnalyzeAffordance } from './analyzeButtonState'
 
 const free: ThreatAnalysisState = {
   track_taken: false,
@@ -46,5 +47,50 @@ describe('analyzeButtonState', () => {
   it('shows progress while this target is being analysed, even before load', () => {
     expect(call({ busy: true })).toBe('busy')
     expect(call({ busy: true, state: undefined })).toBe('busy')
+  })
+})
+
+const HOUR = 3_600_000
+
+function threat(over: Partial<Threat> = {}): Threat {
+  const seen = new Date(Date.now() - HOUR).toISOString()
+  return {
+    id: 1,
+    target_type: 'shahed',
+    status: 'tracking',
+    scope: 'district',
+    closed_at: null,
+    closed_reason: null,
+    last_event_at: seen,
+    created_at: seen,
+    events: [],
+    ...over,
+  } as Threat
+}
+
+// The popup draws a separator above this section, so "renders nothing" and
+// "renders a hairline and nothing else" are different bugs — the second one
+// shipped, hanging a rule off the bottom of every «Невідомо» popup.
+describe('showsAnalyzeAffordance', () => {
+  it('is true for a live analysable target', () => {
+    expect(showsAnalyzeAffordance(threat(), true)).toBe(true)
+  })
+
+  it('is false for a target type that is never analysable', () => {
+    expect(showsAnalyzeAffordance(threat({ target_type: 'unknown' }), true)).toBe(false)
+  })
+
+  it('is false for a city-wide threat — there is no place to search', () => {
+    expect(showsAnalyzeAffordance(threat({ scope: 'city' }), true)).toBe(false)
+  })
+
+  it('is false for anyone signed out, however analysable the target', () => {
+    expect(showsAnalyzeAffordance(threat(), false)).toBe(false)
+  })
+
+  it('stays true once the debris goes cold — that is a chip, not nothing', () => {
+    const cold = new Date(Date.now() - 13 * HOUR).toISOString()
+    const stale = threat({ status: 'destroyed', last_event_at: cold, created_at: cold })
+    expect(showsAnalyzeAffordance(stale, true)).toBe(true)
   })
 })

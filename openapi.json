@@ -3324,6 +3324,55 @@
         "title": "SourceIn",
         "type": "object"
       },
+      "SourceLinkOut": {
+        "description": "One channel we read, for public attribution (the map legend's «Джерела»).\n\nDeliberately NOT `SourceOut`: that carries `trust_weight`, an internal\nfusion knob that would read publicly as our rating of a volunteer channel.\n\n`url` is None for anything that is not a plain public @username — a private\nchannel's invite link must never be republished, and a numeric channel id\nhas no public page to point at. Such a source is still listed by name;\ncredit is owed either way.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "region": {
+            "enum": [
+              "kyiv",
+              "chernihiv"
+            ],
+            "title": "Region",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "spotter",
+              "alert"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "role",
+          "region",
+          "url"
+        ],
+        "title": "SourceLinkOut",
+        "type": "object"
+      },
       "SourceStatsOut": {
         "description": "Per-source quality signals, computed on-demand (JOIN by source_id) over a\nrecent window — see app/api/source_stats.py. Rates are None when there's no\ndenominator (e.g. llm_fallback_rate before any row had llm_attempted set).",
         "properties": {
@@ -6522,7 +6571,7 @@
             "required": false,
             "schema": {
               "default": 60,
-              "maximum": 200,
+              "maximum": 250,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
@@ -8398,6 +8447,29 @@
           }
         },
         "summary": "Raw Messages Sources"
+      }
+    },
+    "/sources": {
+      "get": {
+        "description": "Every channel currently being read, for the legend's «Джерела» block.\n\nActive only: an archived channel is not something this map is standing on\nany more, and listing it would credit it for data it no longer provides.\n\nThis project's own channel is excluded (`settings.own_channels`) — the block\nexists to point at the volunteer channels the map stands on, and a link back\nto ourselves is a link to the page the reader already has open.\n\nSpotters first, then the official alert channel — the ordering answers \"who\nreports the targets you are looking at\" before \"where the siren comes from\".",
+        "operationId": "list_sources_sources_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SourceLinkOut"
+                  },
+                  "title": "Response List Sources Sources Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Sources"
       }
     },
     "/threats/active": {
