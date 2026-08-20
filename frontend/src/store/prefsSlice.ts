@@ -38,6 +38,14 @@ function initialFeedLimit(): FeedLimit {
   return (FEED_LIMITS as readonly number[]).includes(saved) ? (saved as FeedLimit) : 60
 }
 
+/** Whether the feed lists sightings from the watched regions OTHER than Kyiv's
+ * own pool (today that means Чернігівщина). Defaults to on — the reader has
+ * been seeing them, and a filter that hides data by default is a filter nobody
+ * knows is there. Affects the FEED ONLY; the map is a separate question. */
+function initialFeedOtherRegions(): boolean {
+  return safeGet(STORAGE_KEYS.feedOtherRegions) !== '0'
+}
+
 export interface PrefsSlice {
   sheetHeight: SheetHeight
   setSheetHeight: (h: SheetHeight) => void
@@ -45,6 +53,10 @@ export interface PrefsSlice {
   setFeedTextSize: (s: FeedTextSize) => void
   feedLimit: FeedLimit
   setFeedLimit: (n: FeedLimit) => void
+  /** Show other watched regions' sightings in the event feed (see
+   * `initialFeedOtherRegions`). The map ignores this. */
+  feedOtherRegions: boolean
+  setFeedOtherRegions: (on: boolean) => void
   /** Opt-in "gamification" card-analysis layer (off by default). Account-bound:
    * hydrated from the signed-in user on login (authSlice) and persisted to the
    * server on change, so it syncs across the user's devices. The map, alerts and
@@ -71,6 +83,11 @@ export const createPrefsSlice: StateCreator<RadarState, [], [], PrefsSlice> = (s
   setFeedLimit: (n) => {
     safeSet(STORAGE_KEYS.feedLimit, String(n))
     set({ feedLimit: n })
+  },
+  feedOtherRegions: initialFeedOtherRegions(),
+  setFeedOtherRegions: (on) => {
+    safeSet(STORAGE_KEYS.feedOtherRegions, on ? '1' : '0')
+    set({ feedOtherRegions: on })
   },
   gamification: false,
   setGamification: (on) => {

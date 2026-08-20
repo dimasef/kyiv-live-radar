@@ -34,11 +34,26 @@ export const WORLD_BOUNDS: [[number, number], [number, number]] = [
 export const INSPECT_ZOOM = 11;
 export const INSPECT_MAX_ZOOM = 12;
 
-/** Raion air-alert fill (AlertZoneLayer). Drawn UNDER the Kyiv raion outlines
- * and every marker, so the fill has to read at a glance while staying quiet
- * enough that a target on top of it is still the loudest thing on the map. */
+/** Raion air-alert outlines (AlertZoneLayer). Drawn UNDER the Kyiv raion
+ * outlines and every marker, so the state has to read at a glance while staying
+ * quiet enough that a target on top of it is still the loudest thing on the map.
+ *
+ * An alerted raion carries NO fill: during a real raid the sirens cover most of
+ * the oblast at once, and a wash — even at 0.14 — turned the map into one red
+ * sheet with the targets floating on it. The state is drawn as a lit edge
+ * instead (see ZONE_GLOW / ZoneGlowDefs), which survives being tiled across a
+ * dozen neighbouring raions because it never crosses their shared borders.
+ * `clear` and `stale` keep their whisper of a fill: they are the quiet states,
+ * and there is nothing to drown out. */
 export const ZONE_STYLES = {
-  alert: { color: '#ef4444', weight: 1, opacity: 0.5, fillColor: '#ef4444', fillOpacity: 0.14 },
+  // fillOpacity 0.01 is a HIT AREA, not a colour. SVG hit-testing only sees a
+  // painted fill, so `fill: false` (or a flat 0) would leave the raion reachable
+  // by its 1.4px border alone — and hovering the middle is how its name and how
+  // long the siren has been up are read. At 1% on a dark basemap it is invisible.
+  alert: {
+    color: '#ef4444', weight: 1.4, opacity: 0.9,
+    fillColor: '#ef4444', fillOpacity: 0.01,
+  },
   clear: { color: '#475569', weight: 1, opacity: 0.28, fillColor: '#475569', fillOpacity: 0.03 },
   // Provider unreachable: dashed and colourless — visibly "no data", never a
   // silent all-clear.
@@ -46,6 +61,39 @@ export const ZONE_STYLES = {
     color: '#64748b', weight: 1, opacity: 0.3, dashArray: '4 4',
     fillColor: '#64748b', fillOpacity: 0.02,
   },
+} as const
+
+/** Per-raion nudges for the standing centre label, in pixels, [x, y] with y
+ * positive downward.
+ *
+ * Leaflet pins a polygon's tooltip to the centre of its BOUNDS, which for a
+ * concave or lopsided raion is not where the raion visually is — the label ends
+ * up crowding a neighbour's border, or sitting outside the shape altogether.
+ * Only the raions that actually land badly are listed; everything else is
+ * centred fine and stays out of this table.
+ *
+ * Pixels rather than a geographic shift on purpose: the correction is against
+ * the SHAPE of the outline, which is a screen-space problem, and this keeps the
+ * nudge the same modest distance at every zoom instead of growing with it. */
+export const ZONE_LABEL_NUDGE: Record<string, [number, number]> = {
+  'kyiv-obl-boryspilskyi': [0, 22],
+  'kyiv-obl-brovarskyi': [0, 22],
+  'chernihiv-obl-nizhynskyi': [0, -22],
+}
+
+/** The lit edge itself. Painted by an SVG filter on a second, non-interactive
+ * copy of the polygon — the shape goes in, only the inner band comes out.
+ *
+ * `spreadPx` is in map pixels, so the glow keeps a constant visual weight while
+ * the raion under it grows and shrinks with zoom. Zoomed far out a small raion
+ * is narrower than the glow and simply lights up whole, which is the right
+ * reading at that scale anyway. */
+export const ZONE_GLOW = {
+  color: '#ef4444',
+  opacity: 0.55,
+  spreadPx: 6,
+  /** Full-alpha source for the filter to eat; never seen as a fill itself. */
+  style: { fillColor: '#ef4444', fillOpacity: 1, stroke: false, interactive: false },
 } as const
 
 export const DISTRICT_STYLE = {

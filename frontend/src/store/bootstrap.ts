@@ -39,7 +39,9 @@ export async function hydrate(): Promise<void> {
     fetchActiveAxes().then(store.setAxes).catch(() => {}),
     fetchActiveAlerts().then(store.setAlerts).catch(() => {}),
     fetchAlertZones().then(store.setZones).catch(() => {}),
-    fetchRecentEvents(store.feedLimit).then(store.setLog).catch(() => {}),
+    fetchRecentEvents(store.feedLimit, store.feedOtherRegions ? undefined : 'kyiv')
+      .then(store.setLog)
+      .catch(() => {}),
     fetchRecentNotices().then(store.setNotices).catch(() => {}),
     // Hydrate feed health once; live changes arrive via the WS 'health' frame.
     // `server_time` seeds the fade clock's skew correction before the first ping.

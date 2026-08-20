@@ -17,7 +17,7 @@ from ...domain.incidents import (
     end_active_incidents,
     end_incidents_without_open_tracks,
 )
-from ...domain.lifecycle import close_track, reopen_track
+from ...domain.lifecycle import close_track, relabel_close, reopen_track
 from ...domain.tracking import (
     apply_fusion,
     close_all_active,
@@ -25,6 +25,7 @@ from ...domain.tracking import (
     find_open_citywide,
     find_open_track,
     find_recent_impact,
+    find_stale_closed_track,
     find_stood_down_citywide,
     find_stood_down_track,
     find_track_by_reply,
@@ -288,8 +289,27 @@ async def _handle_destroyed(ctx: IngestContext) -> list[Broadcast]:
             region=ctx.region,
         )
     if track is None:
+        # Nothing open — but the sweeper may have already retired this target as
+        # silent before the channel got round to reporting it shot down (the
+        # per-type stale windows made that the common case, not the exception).
+        # Correct the REASON on that close instead of dropping the news: the
+        # target is off the map either way, but 'stale' would lose a confirmed
+        # interception from the journal. Requires a named district — a
+        # district-less «збито» has nothing to match a retired track on, and
+        # guessing "the newest one" would credit the wrong target.
+        retired = await find_stale_closed_track(
+            session, when, {h.district_id for h in parsed.districts}, region=ctx.region
+        )
+        if retired is None:
+            await ctx.done()
+            return []
+        ev = _make_event(ctx, retired.id, parsed.districts[0], target_count=retired.target_count)
+        session.add(ev)
+        relabel_close(retired, "destroyed")
+        await session.commit()
+        await apply_fusion(session, retired)
         await ctx.done()
-        return []
+        return [Broadcast("event", retired, ev)]
     # A partial interception ("По ракетам мінус", "збито") must NOT close a
     # CITY-WIDE alert: scope='city' represents an ongoing city-level barrage
     # (10 S-400 over 20 min), not one trackable target. Closing it on the first

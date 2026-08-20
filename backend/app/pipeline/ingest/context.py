@@ -10,7 +10,8 @@ from datetime import datetime, timedelta
 from ...config import settings
 from ...domain.lifecycle import promote_track
 from ...models import HOME_REGION, RawMessage, Threat, utcnow
-from ...parsing import ParseResult
+from ...parsing import ParseResult, normalize
+from ...parsing.vocab import _MISSILE_CARRIER, _MISSILE_NAMED, _MISSILE_WEAPON
 from ...timeutil import naive
 
 # Per-source "last stated target type" context for cross-message type
@@ -38,6 +39,22 @@ def is_late(when: datetime) -> bool:
     return (naive(utcnow()) - naive(when)).total_seconds() / 60.0 > settings.track_stale_minutes
 
 
+def _carrier_only(parsed: ParseResult) -> bool:
+    """Whether this message is `missile` purely because it names a Ту-95/160 or
+    "стратегічна авіація", with no weapon of its own (see _MISSILE_CARRIER)."""
+    if parsed.target_type != "missile":
+        return False
+    norm = normalize(parsed.raw_text)
+    return (any(c in norm for c in _MISSILE_CARRIER)
+            and not any(w in norm for w in _MISSILE_WEAPON))
+
+
+def _names_cruise_weapon(parsed: ParseResult) -> bool:
+    """Whether the message names a cruise weapon outright ("Калібри", "крилаті",
+    "Х-101") rather than the ambiguous generic "ракета" (see _MISSILE_NAMED)."""
+    return any(w in normalize(parsed.raw_text) for w in _MISSILE_NAMED)
+
+
 def _note_and_inherit_type(parsed: ParseResult, source_id: int | None, when: datetime) -> None:
     """Record this message's stated type, or inherit a recent one onto a
     district-bearing message that stated none. Mutates `parsed.target_type`."""
@@ -52,6 +69,22 @@ def _note_and_inherit_type(parsed: ParseResult, source_id: int | None, when: dat
             or parsed.negated or parsed.summary or parsed.day_recap
             or parsed.chatter):
         return
+    # Same reasoning, one step earlier in the attack: a message typed only by
+    # the CARRIER ("З оленя злетіли тушки") is about bombers hours from their
+    # launch lines, so it must not claim the channel is now calling cruise
+    # missiles. It surfaces as its own forecast notice; what it must not do is
+    # retype the bare toponym a spotter shouts 30 seconds later — live
+    # 2026-08-19 21:11, where that toponym belonged to a ballistic salvo
+    # running at the same time.
+    if _carrier_only(parsed):
+        return
+    # And the same again for a wave that has not arrived: "Найближчим часом
+    # можлива повторна хвиля балістики" is about what MIGHT come, not what is in
+    # the sky. Live 2026-08-19 22:18-22:20, two such posts (one per channel) set
+    # both channels to ballistic, and every Kalibr callout for the next nine
+    # minutes — Богуслав, Тараща, «Група КР на Богуслав» — inherited it.
+    if parsed.anticipated:
+        return
     if parsed.target_type != "unknown":
         # "missile" is the generic parent of the specific "ballistic": during a
         # ballistic salvo a spotter often drops a bare "3 ракети" between the
@@ -59,9 +92,16 @@ def _note_and_inherit_type(parsed: ParseResult, source_id: int | None, when: dat
         # context to generic missile. Any OTHER type (shahed/jet, or ballistic
         # itself) is a real change and overwrites normally. Time is refreshed
         # either way so the ongoing attack keeps the context alive.
+        #
+        # A NAMED cruise weapon is the exception: "6 калібрів звернули на
+        # Черкащину" identifies what is flying as precisely as "балістика" does,
+        # so it must be able to correct the context rather than be swallowed by
+        # it. Same night, 22:22: both channels said «Калібри» and both stayed
+        # ballistic, because the guard could not tell them from a bare "ракети".
         prev = _recent_type.get(source_id)
         if (
             parsed.target_type == "missile"
+            and not _names_cruise_weapon(parsed)
             and prev is not None
             and prev[0] == "ballistic"
             and _within_inherit_window(when, prev[1])

@@ -105,6 +105,21 @@ export function isQuiet(threat: Threat, now: number): boolean {
   return stalePhase(threat, now) >= QUIET_AT
 }
 
+/** Whether a target should show the LIVE cues — the pulse rings, the flowing
+ * vector, the glyph's idle drift.
+ *
+ * They all answer one question ("is anyone still reporting this?"), so they
+ * share one rule: motion means live, stillness means the reports stopped. A
+ * closed track and an impact are never live — an impact especially, since it is
+ * a recorded strike location and must sit exactly where it is.
+ *
+ * Note this is NOT `!isQuiet`: that returns false for closed tracks and impacts
+ * too (nothing to call quiet), which read back as "live" if simply negated. */
+export function showsLiveMotion(threat: Threat, now: number): boolean {
+  if (threat.kind === 'impact' || threat.closed_at) return false
+  return !isQuiet(threat, now)
+}
+
 /** Whole minutes since a target was last reported (floored, never negative). */
 export function minutesSinceSeen(threat: Threat, now: number): number {
   return Math.max(0, Math.floor((now - lastSeenMs(threat)) / 60_000))

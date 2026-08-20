@@ -10,7 +10,7 @@ import ClosedGroupCard from './ClosedGroupCard'
 import DaySeparator from './DaySeparator'
 import NoticeCard from './NoticeCard'
 import ThreatCard from './ThreatCard'
-import { buildTimeline, kyivDayKey } from './timeline'
+import { buildTimeline, filterFeedRegions, kyivDayKey } from './timeline'
 
 export default function ThreatLog() {
   const { t } = useTranslation()
@@ -18,7 +18,12 @@ export default function ThreatLog() {
   const notices = useRadar((s) => s.notices)
   const recentIncidents = useRadar((s) => s.recentIncidents)
   const feedTextSize = useRadar((s) => s.feedTextSize)
-  const timeline = buildTimeline(log, notices, recentIncidents)
+  const feedOtherRegions = useRadar((s) => s.feedOtherRegions)
+  const timeline = buildTimeline(
+    filterFeedRegions(log, feedOtherRegions),
+    notices,
+    recentIncidents,
+  )
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

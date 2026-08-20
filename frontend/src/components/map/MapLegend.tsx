@@ -7,7 +7,7 @@ import { useRadar } from '../../store'
 import { MUTED_COLOR, TYPE_COLORS } from '../../theme'
 import { launcherGlyphSvg, threatGlyphSvg } from '../../threatIcons'
 import type { TargetType } from '../../types'
-import { ZONE_STYLES } from './constants'
+import { ZONE_GLOW, ZONE_STYLES } from './constants'
 
 function initialOpen(): boolean {
   const saved = safeGet(STORAGE_KEYS.legendOpen)
@@ -24,6 +24,20 @@ function zoneSwatch(style: { color: string; fillColor: string; dashArray?: strin
     `<svg width="16" height="16" viewBox="0 0 16 16">` +
     `<rect x="2.5" y="2.5" width="11" height="11" rx="1.5" fill="${style.fillColor}" ` +
     `fill-opacity="0.35" stroke="${style.color}"${dash}/></svg>`
+  )
+}
+
+/** The alert row is the one tone with no fill to show: on the map it is a lit
+ * edge. Drawn by hand rather than by borrowing the real filter — its blur is
+ * sized for a raion and would swallow an 11px square whole. */
+function zoneGlowSwatch(): string {
+  const { color } = ZONE_STYLES.alert
+  return (
+    `<svg width="16" height="16" viewBox="0 0 16 16">` +
+    `<rect x="4" y="4" width="8" height="8" rx="1" fill="none" stroke="${color}" ` +
+    `stroke-width="2.6" stroke-opacity="${ZONE_GLOW.opacity * 0.5}"/>` +
+    `<rect x="2.5" y="2.5" width="11" height="11" rx="1.5" fill="none" stroke="${color}" ` +
+    `stroke-opacity="0.9"/></svg>`
   )
 }
 
@@ -73,7 +87,7 @@ export default function MapLegend() {
   // marker), so its rows only appear while it is switched on.
   if (zoneLayerOn) {
     rows.push(
-      { html: zoneSwatch(ZONE_STYLES.alert), label: t('zones.alert') },
+      { html: zoneGlowSwatch(), label: t('zones.alert') },
       { html: zoneSwatch(ZONE_STYLES.clear), label: t('zones.clear') },
       { html: zoneSwatch(ZONE_STYLES.stale), label: t('zones.noData') },
     )

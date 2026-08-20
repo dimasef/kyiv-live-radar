@@ -3,6 +3,7 @@
 from app.gazetteer import DISTRICTS
 from app.parsing import DistrictMatcher, parse_message
 from app.parsing.vocab import _CITYWIDE_BARE_RE
+from app.pipeline.ingest import should_fallback
 
 
 def _matcher():
@@ -150,6 +151,56 @@ def test_count_verb_form_is_present_tense_only():
     # which is not what this test is about.
     assert parse_message("Вночі всі 30 летіли на Київ", M).target_count is None
     assert parse_message("За ніч 12 пройшли повз Бровари", M).target_count is None
+
+
+def test_count_stated_on_a_type_adjective():
+    # 08-20 (raw 6447 "2 реактивні", and 32 more): spotters put the number in
+    # front of the type ADJECTIVE, with the noun implicit or a word away, so the
+    # noun-anchored form never saw it — a located track that should have shown
+    # ×10 showed ×1.
+    assert parse_message("2 реактивні", M).target_count == 2
+    assert parse_message("Знову 10 реактивних Шахедів на Бровари", M).target_count == 10
+    assert parse_message("4 реактивні до Броварів", M).target_count == 4
+    assert parse_message("До 10 крилатих ракет вже до нас.", M).target_count == 10
+    assert parse_message("2 калібри залишилось", M).target_count == 2
+
+
+def test_count_written_as_a_word():
+    # 08-20: every counting rule was digit-only, so a count spelled out read as
+    # ONE target. 97 real messages spell it that way and 39 became located
+    # tracks showing ×1 — the undercount reached incident.target_count too, so
+    # the attack banner and the journal inherited it. Each line below is a real
+    # message from the corpus.
+    assert parse_message("ШІСТЬ БАЛІСТИК НА КИЇВ!", M).target_count == 6
+    assert parse_message("‼️П'ЯТЬ ЦІЛЕЙ НА КИЇВ!", M).target_count == 5
+    assert parse_message("Чотири цілі на місто!", M).target_count == 4
+    assert parse_message("Три реактивні «Шахеди» на висоті", M).target_count == 3
+    assert parse_message("Ще два реактивні чмошника на Сеньківку", M).target_count == 2
+    assert parse_message("Два реактивних Шахеди вилізли біля Димера", M).target_count == 2
+    assert parse_message("Дві на Мрин", M).target_count == 2
+    # A named weapon counts like "калібр" does.
+    assert parse_message("Ще два Циркони на столицю", M).target_count == 2
+    # "Both" is a count word, and it must be counted BY ITS OWN entry — it ends
+    # in "два", so a suffix match would have got the right answer for the wrong
+    # reason and taken the next word ending in a numeral with it.
+    assert parse_message("Уважно по групі одній, обидва реактивні.", M).target_count == 2
+
+
+def test_count_word_never_matches_inside_another_word():
+    # The failure this guards: "три" in "тривога", "два" in "двадцять", "сім" in
+    # "сім'я" — a numeral word must start a word of its own.
+    assert parse_message("Тривога в області", M).target_count is None
+    assert parse_message("Сімя постраждала, двадцятеро евакуйовані", M).target_count is None
+    assert parse_message("Тримають курс на Бровари", M).target_count is None
+
+
+def test_new_target_marker_with_a_spelled_out_count():
+    # "Ще два/три X" starts a fresh track exactly like "ще 2 X" does.
+    assert parse_message("Ще три балістики на Київ", M).is_new_target
+    assert parse_message("Ще три Шахеди з Чернігівщини до нас", M).is_new_target
+    assert parse_message("Ще два реактивні чмошника на Сеньківку", M).is_new_target
+    # Still noun-anchored, so a spelled-out time reference can't trigger it.
+    assert not parse_message("Ще три хвилини до підльоту", M).is_new_target
 
 
 def test_count_near_a_place():
@@ -796,6 +847,42 @@ def test_retrospective_footage_is_not_a_live_impact():
     assert parse_message("В Дніпровському районі влучання по будівлі", M).impact
 
 
+def test_standby_raion_is_not_a_sighting():
+    # One message, two different claims: a raion the spotter SAW the target over
+    # and a raion he told to get ready. Flattened together, «Троя» joined the
+    # track with the same confirmed status as Рожни/Пухівка — a target drawn
+    # overhead where the spotter had said "be ready".
+    assert names(parse_message("Рожни/Пухівка 🔴. Троя готовність.", M)) == ["Рожни", "Пухівка"]
+    assert names(parse_message("Пухівка/Зазимʼя 🔴 та готовність знову Бровари.", M)) == [
+        "Пухівка", "Зазимʼя"]
+    assert names(parse_message("Йдуть у район моря, готовність Вишгород, Оболонь та Троя.", M)) == [
+        "Район моря"]
+
+
+def test_standby_only_message_keeps_its_raions():
+    # Nothing was sighted anywhere, so dropping the list would delete the message
+    # from the feed. A heads-up the operator can see beats a track he has to
+    # discount — until there is a way to render one, this stays as it is.
+    assert names(parse_message("Район Обухова/Василькова/Фастова готовність. Київ теж.", M)) == [
+        "Обухів", "Васильків", "Фастів"]
+
+
+def test_attention_is_a_callout_not_a_warning_frame():
+    # 111 of the 136 real messages carrying «увага»/«уважно» are plain target
+    # callouts, so it must never read as a standby marker.
+    for txt in ("Увага Троя 🔴.", "Увага Вишгород та Троя.", "Увага Дарниця/ПОХ 🔴."):
+        assert names(parse_message(txt, M)), txt
+
+
+def test_korop_and_koropie_stay_apart():
+    # «Короп» is a prefix of «Коропʼє», a village 150 km away that the same
+    # channel calls out too, so the town could not be added alone. The
+    # longest-matched-stem rule keeps them apart — the same resolution that
+    # «Морівськ» vs «Район моря» needed.
+    assert names(parse_message("На короп крилаті", M)) == ["Короп"]
+    assert names(parse_message("Бандеролі Рудня, Коропʼє", M)) == ["Рудня", "Коропʼє"]
+
+
 def test_zircon_types_as_ballistic():
     # 07-18: a channel that mostly said "циркони" never typed its messages, so
     # its bare toponyms all became "unknown" tracks. Zircon flies the same
@@ -828,11 +915,61 @@ def test_a_watched_region_is_still_not_the_kyiv_city_alert():
     assert parse_message("По Чернігівщині чисто", M).lost_signal
 
 
+def test_bare_type_adjective_pulses():
+    # 08-20: the spotter's shorthand drops the noun entirely. Every one of these
+    # is a real message that fell through to "без району" AND bought a full LLM
+    # call (~$0.006) which could only answer "noise" — six calls that night.
+    for txt in ("2 реактивні", "Крилаті", "Реактивний", "По калібрам", "Ще є крилата"):
+        assert parse_message(txt, M).target_pulse, txt
+
+
+def test_pulse_naming_an_unrecognized_place_does_not_pulse():
+    # One step past `target_not_kyiv`: no oblast is named, just a settlement the
+    # gazetteer doesn't have. Pulsing would put a Poltava/Chernihiv sighting on
+    # the open KYIV city-wide card — the T2445 class again. These are exactly
+    # the gazetteer gaps the LLM fallback exists for, so they must keep flowing
+    # there instead.
+    for txt in ("Реактивний біля Пирятина", "На короп крилаті", "Спуск на Вінницю."):
+        assert not parse_message(txt, M).target_pulse, txt
+    # Kyiv itself is not an unknown place, and a count is not a place.
+    assert parse_message("Ракети до Києва!", M).target_pulse
+    assert parse_message("До 5ти ракет!", M).target_pulse
+    # An ORIGIN still pulses — that target is heading here, see the test above.
+    assert parse_message("Балістика з Курщини.", M).target_pulse
+
+
+def test_bare_type_denial_does_not_pulse():
+    # 08-20 (raw 6120): "Не реактивні" corrects what's in the sky. `_negated`
+    # can't see it — its vocabulary expects a verb ("не йде на…") and two words
+    # give it none — so the pulse rule checks the denial itself.
+    for txt in ("Не реактивні", "Не ракети", "Не балістика"):
+        assert not parse_message(txt, M).target_pulse, txt
+
+
 def test_vinnytsia_oblast_spelling_variants_are_elsewhere():
     # 08-04 (raw 4693): only the adjective stem "вінницьк" was listed, so this
     # stayed pulse-shaped and corroborated the open Kyiv city-wide track.
     for txt in ("Ціль на Вінниччину", "Ціль на Вінничину"):
         assert not parse_message(txt, M).target_pulse, txt
+
+
+def test_a_town_outside_the_watched_regions_buys_no_llm_call():
+    # Each of these paid for a real call (~$0.006) that could only come back
+    # empty: the target is in Poltava/Sumy/Kirovohrad oblast, and the message
+    # never names the oblast, so only the town itself can say so.
+    for txt in ("Реактивний біля Пирятина", "Біля Пирятина також реактивний",
+                "На Конотоп йде ймовірно бандероль.", "Ймовірно бандероль біля Конотопу",
+                "Є загроза Кропивницькому, в районі була розвідка"):
+        assert not should_fallback(parse_message(txt, M)), txt
+
+
+def test_a_town_in_a_watched_region_is_not_elsewhere():
+    # Бахмач is Chernihiv oblast — the northern corridor this radar watches, so
+    # it must never join the list above. It used to reach the LLM as a gazetteer
+    # gap; now it localizes outright, which is the better end of the same
+    # argument: a watched region's town belongs ON the map.
+    assert names(parse_message("Бандероль Бахмач", M)) == ["Бахмач"]
+    assert not should_fallback(parse_message("Бандероль Бахмач", M))
 
 
 def test_negated_type_mention_does_not_type():
@@ -1032,6 +1169,104 @@ def test_threat_level_bulletin_becomes_a_forecast_or_status_notice():
         assert r.notice_kind == "status", txt
 
 
+def test_launch_report_is_a_forecast_notice():
+    # 08-19/20: a cruise wave announces itself an hour or more before anything
+    # reaches Kyiv, and every one of these was silent AND paid for an LLM call.
+    for txt in ["Попередньо відбулися пуски зі стратегічної авіації.",
+                "Попередньо, пуски ракет із ТУшок",
+                "Відмічено пуски КРМБ типу «Калібр» поблизу порту «Новоросійськ»!",
+                "Розпочалися пуски крилатих ракет з бортів Ту-160!",
+                "Загроза пуску «Кинджала» — висока."]:
+        r = parse_message(txt, M)
+        assert r.notice_kind == "forecast", txt
+        assert not should_fallback(r), txt
+
+
+def test_carrier_activity_is_a_forecast_notice():
+    # The carrier named instead of the weapon. Without the type these could not
+    # become a notice at all (an untyped message never does), so they fell
+    # through to "без району" and to the LLM, which has nothing to localize.
+    for txt in ["Розпочинається виліт стратегічних бомбардувальників типу Ту-95МС"
+                " з аеродрому «Оленья».",
+                "З оленя злетіли тушки",
+                "Попередньо, зліт ТУшок із Далекого сходу",
+                "На данний момент в повітрі: 7 Ту-95, 2 Ту-160",
+                "Тушки летять на пускові"]:
+        r = parse_message(txt, M)
+        assert r.target_type == "missile", txt
+        assert r.notice_kind == "forecast", txt
+        assert not should_fallback(r), txt
+
+
+def test_the_negative_half_of_the_launch_family_stays_status():
+    # Each of these says the very word its forecast branch matches; reading a
+    # stand-down as a raised level is the inversion _LEVEL_QUIET exists to stop.
+    for txt in ["Без фіксації пусків аеробалістичних ракет типу «Кинджал».",
+                "Посадка 4× стратегічних бомбардувальників Ту-95МС на аеродром «Оленья»."]:
+        assert parse_message(txt, M).notice_kind == "status", txt
+    # A live overhead callout is not a launch report — "Спуск!" only contains
+    # "пуск" as a substring, and the lookbehind is what keeps it out.
+    assert parse_message("Спуск!", M).notice_kind is None
+
+
+def test_anticipation_of_the_next_wave_is_a_forecast_notice():
+    for txt in ["Можливі повторні виходи балістики найближчим часом",
+                "Найближчим часом можлива повторна хвиля балістики. Пильнуємо.",
+                "Ракети приблизно очікуємо 3-4 ранку",
+                "Поки ще діє балістична загроза ‼️",
+                "Києву варто реагувати на загрози крилатих ракет також."]:
+        assert parse_message(txt, M).notice_kind == "forecast", txt
+
+
+def test_quiet_now_beats_anticipation_of_later():
+    # Both markers routinely share one sentence. Calling that a raised level
+    # would be a lie in the operator's face, so the quiet branch is checked
+    # first and these must stay `status`.
+    for txt in ["Ситуація залишається спокійною по балістиці."
+                " Чекатимемо відбою найближчим часом.",
+                "По балістиці тихо, можливі повторні пуски пізніше"]:
+        assert parse_message(txt, M).notice_kind == "status", txt
+
+
+def test_a_type_going_quiet_is_a_status_notice():
+    # The other half of the standing bulletin: a type stops being a problem and
+    # the spotter says so. It must stay a NOTICE — an informal «чисто» is not an
+    # all-clear (a real one takes the lost_signal stand-down path instead).
+    for txt in ["По БПЛА в нас все чисто, ворог атакував частково Чернігівщину"
+                " поодинокими БПЛА, а також наразі пару реактивів на Дніпро.",
+                "Ніяких цілей/Кинджалів на даний момент немає. До відбою уважно."]:
+        r = parse_message(txt, M)
+        assert r.notice_kind == "status", txt
+        assert r.status != "clear" and not r.districts, txt
+    # Quote the whole message or the class changes: cut that one short, at "…
+    # атакував частково Чернігівщину", and the live-threat clause that blocks the
+    # stand-down goes with it — the remainder is a shahed «чисто», which belongs
+    # on the lost_signal path instead.
+    assert parse_message("По БПЛА в нас все чисто", M).lost_signal
+
+
+def test_quiet_here_busy_there_is_still_our_bulletin():
+    # "Quiet HERE, busy THERE" is the standard shape, and naming the other
+    # oblast used to throw the whole message away: `target_not_kyiv` can't see
+    # that the foreign region is the contrast clause. An explicit claim of our
+    # own scope is what tells it apart from "по Житомирщині тихо".
+    assert parse_message(
+        "Біля Києва наразі чисто, ще одна група ракет на Черкащині", M
+    ).notice_kind == "status"
+    # …and without that claim it stays someone else's bulletin.
+    assert parse_message("По Чернігівщині поки тихо, балістики немає", M).notice_kind is None
+
+
+def test_weak_quiet_marker_never_outranks_live_carrier_activity():
+    # "Без змін" usually modifies something else in the sentence rather than
+    # being the news — both of these report bombers still in the air, which is
+    # the opposite of quiet.
+    for txt in ["Без змін, найближчим часом очікуємо на виліт стратегічних"
+                " бомбардувальників з аеродрому «Оленья».",
+                "У повітрі без змін продовжують перебувати Ту-95МС з аеродрому «Оленья»."]:
+        assert parse_message(txt, M).notice_kind == "forecast", txt
+
+
 def test_threat_level_bulletin_never_localizes_or_stands_down():
     # A level bulletin is feed context only: no district, no track, and above all
     # not an all-clear — a spotter's "тихо" must not close anything.
@@ -1155,3 +1390,63 @@ def test_city_bound_callout_is_an_alert_not_a_notice():
                 "‼️~10х крилатих ракет в напрямку Столиці."]:
         r = parse_message(txt, M)
         assert r.citywide and r.notice_kind is None, txt
+
+
+def test_kyiv_centre_matches_only_as_a_whole_word():
+    """«Центр» is one of the most-named places on the feed (37 standalone uses)
+    and had no entry at all — every chain that opened with it lost its root.
+
+    Whole-word only, because its stem is a prefix of an adjectival family nobody
+    means as the place, and of longer compounds."""
+    for txt in ["Центр 🔴!", "На центр 🔴.", "Центр увага!", "На центр летить! В укриття!",
+                "2 курсом на Центр", "Центр Києва загроза!", "Повернув на Центр"]:
+        assert names(parse_message(txt, M)) == ["Центр"], txt
+    # Adjectival forms and compounds are not the place.
+    for txt in ["У центральній частині області", "Дані Укргідрометцентру",
+                "Йдеться про децентралізацію", "Висока концентрація диму"]:
+        assert "Центр" not in names(parse_message(txt, M)), txt
+
+
+def test_centre_in_an_institution_name_is_not_the_place():
+    # raw 1531: «Хмара раніше очолював Центр спеціальних операцій «Альфа» СБУ» —
+    # a personnel-announcement post that started raising a track over the middle
+    # of Kyiv the moment «Центр» became a known place. The real corpus sweep
+    # found exactly three qualifiers that follow an institutional "центр".
+    assert not parse_message("Очолював Центр спеціальних операцій «Альфа» СБУ", M).districts
+    assert not parse_message("Загинула керівниця центру міжнародної співпраці", M).districts
+    assert not parse_message("Центр досліджень оприлюднив звіт", M).districts
+
+
+def test_street_closure_for_a_delegation_is_a_civic_notice():
+    # raw 2816 — reads exactly like the transport notices already suppressed,
+    # and names the city centre the same way.
+    r = parse_message(
+        "❗️Частково перекриють центр Києва завтра\n\nОбмеження запроваджуються у "
+        "зв'язку з проведенням охоронних заходів за участю іноземних делегацій.",
+        M,
+    )
+    assert r.civic_notice and not r.matched
+
+
+def test_in_city_chain_root_gazetteer_gaps():
+    # 08-20: each of these opened a reply chain on the threading channel, so a
+    # missing entry cost every follow-up its track, not just its own message.
+    assert names(parse_message("Деміївка 🔴.", M)) == ["Деміївка"]
+    assert names(parse_message("Деміївка, далі на Жуляни", M)) == ["Деміївка", "Жуляни"]
+    assert names(parse_message("Іподром/південні 🔴.", M)) == ["Іподром"]
+    assert BY_EN["Sovky"] in {h.district_id for h in parse_message("Совки/Солома/Жуляни 🔴.", M).districts}
+
+
+def test_a_four_letter_name_still_matches_its_oblique_forms():
+    # «Мена» stems to itself — the stemmer will not cut below four characters —
+    # so only the nominative matched, and «на сосницю мену» / «район Мени» were
+    # lost. Both places here were feed gaps on the same night.
+    assert names(parse_message("Мена з півночі", M)) == ["Мена"]
+    assert names(parse_message("На сосницю мену", M)) == ["Сосниця", "Мена"]
+    assert names(parse_message("Далеко, район Мени.", M)) == ["Мена"]
+
+
+def test_novhorod_short_form():
+    # The channel drops the second half: «З сумської на Новгород».
+    assert names(parse_message("З сумської на Новгород", M)) == ["Новгород-Сіверський"]
+    assert names(parse_message("На Новгород-сіверський", M)) == ["Новгород-Сіверський"]

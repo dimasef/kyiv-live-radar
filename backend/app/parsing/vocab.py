@@ -21,10 +21,31 @@ import re
 # spellings appear in the feed.
 _BALLISTIC = ("баліст", "іскандер", "кинджал", "кн-23", "кн23", "с-400", "с400",
               "с-300", "с300", "аеробаліст", "циркон", "гіперзвук")
-# Cruise/guided-bomb/generic. Bare "ракет" is ambiguous and defaults here; only
-# an explicit ballistic marker above promotes it.
-_MISSILE = ("ракет", "крилат", "калібр", "х-101", "х-59", "х-22",
-            "каб", "авіабомб", "керован авіа")
+# Cruise/guided-bomb/generic, split by how SPECIFIC the identification is.
+# A named cruise weapon pins down what is flying as precisely as any ballistic
+# stem does; the bare generic "ракет" is what a spotter drops between two
+# ballistic toponyms and means nothing on its own (only an explicit ballistic
+# marker above promotes it). That distinction decides whether a message may
+# correct a channel's ballistic type context — see
+# ingest/context.py::_note_and_inherit_type.
+_MISSILE_NAMED = ("крилат", "калібр", "х-101", "х-59", "х-22")
+_MISSILE_WEAPON = ("ракет", *_MISSILE_NAMED, "каб", "авіабомб", "керован авіа")
+# Strategic aviation IS the cruise-missile threat, and the spotters name the
+# CARRIER instead of the weapon: "пуски зі стратегічної авіації", "пуски ракет
+# із ТУшок", "виліт групи Ту-95МС", "в повітрі: 7 Ту-95, 2 Ту-160". Those
+# messages typed as `unknown`, and an untyped message can never become a
+# threat-level notice (rules.py::_level_notice) — so the earliest warning a
+# cruise wave gives, hours of it, surfaced nowhere at all.
+#
+# Kept separate from the weapon stems because a carrier says nothing about what
+# is over a raion RIGHT NOW: a bomber leaving Olenya is four hours from
+# launching, so this must not become the channel's live target-type context
+# (ingest/context.py::_note_and_inherit_type).
+# "тушок" is the genitive plural with a fleeting vowel (туш-о-к), so the "тушк"
+# stem does not reach it — both forms are listed. 8 of the 38 real mentions.
+_MISSILE_CARRIER = ("стратегічн авіац", "стратегічної авіа", "тушк", "тушок",
+                    "ту-95", "ту95", "ту-160", "ту160", "бомбардувальник")
+_MISSILE = _MISSILE_WEAPON + _MISSILE_CARRIER
 # Named JET models. Checked BEFORE _MISSILE, for the same reason ballistic is:
 # one night's feed called С8000 «Бандероль» a «ракета», a «баражуючий
 # боєприпас» and a bare «бандероль» — and the generic "ракет" would win the
@@ -83,13 +104,61 @@ _DESTROYED = ("збил", "збито", "знищ", "нейтраліз", "ур�
 _UNCONFIRMED = ("уточнюється", "непідтвердж", "не підтвердж", "попередньо", "можливо")
 _CONFIRMED = ("підтвердж", "🔴")
 
+# Small counts are written as WORDS about as often as digits, and until now the
+# counting rules below were digit-only, so every one of them was read as a single
+# target: "ШІСТЬ БАЛІСТИК НА КИЇВ!", "‼️П'ЯТЬ ЦІЛЕЙ НА КИЇВ!", "Ще два Циркони на
+# столицю", "Три реактивні «Шахеди»". 97 real messages spell a count this way and
+# 39 of them became located tracks that then showed ×1 on the map — the same
+# undercount reached `incident.target_count`, so the attack banner and the
+# journal inherited it.
+#
+# Apostrophe-less spellings only: `normalize` strips apostrophes, so "п'ять"
+# reaches these patterns as "пять". Stops at ten: past that spotters use digits,
+# and the long forms ("двадцять три") would need real number parsing.
+_NUM_WORDS: dict[str, int] = {
+    "два": 2, "дві": 2, "двоє": 2, "двох": 2,
+    "три": 3, "троє": 3, "трьох": 3,
+    "чотири": 4, "четверо": 4, "чотирьох": 4,
+    "пять": 5, "пятеро": 5, "пяти": 5,
+    "шість": 6, "шестеро": 6, "шести": 6,
+    "сім": 7, "семеро": 7, "семи": 7,
+    "вісім": 8, "восьмеро": 8, "восьми": 8,
+    "девять": 9, "девятеро": 9, "девяти": 9,
+    "десять": 10, "десятеро": 10, "десяти": 10,
+    # "both" is a count word too — "Уважно по групі одній, обидва реактивні".
+    # Listed on purpose: it ENDS in "два"/"дві", so without an entry of its own
+    # it would have been counted anyway, by the accident of a suffix match.
+    "обидва": 2, "обидві": 2, "обох": 2,
+}
+# Longest-first, so "двоє" can't be shadowed by "два" (and "обидва" not by "два").
+_NUM_WORD_ALT = "|".join(sorted(map(re.escape, _NUM_WORDS), key=len, reverse=True))
+# Either form. The word branch carries its own word-START guard: the trailing
+# `\s+` every caller adds already stops a numeral matching the HEAD of a longer
+# word ("три" in "тривога"), but nothing stopped it matching the TAIL of one, and
+# `_COUNT_NOUN_RE` has no lookbehind of its own. The guard is inside the branch
+# rather than on the whole pattern so the digit form keeps matching exactly what
+# it matched before.
+_NUM = rf"(?:\d+|(?<![а-яіїєґ])(?:{_NUM_WORD_ALT}))"
+_NUM_SHORT = rf"(?:\d{{1,2}}|(?<![а-яіїєґ])(?:{_NUM_WORD_ALT}))"
+
+
+def count_value(token: str) -> int | None:
+    """An int from either a digit run or a numeral word, else None."""
+    return int(token) if token.isdigit() else _NUM_WORDS.get(token)
+
+
 # --- New-target markers (start a fresh track) ---
 _NEW_TARGET = ("новий", "нова ціль", "ще один", "ще одна", "інша ціль",
                "друга ціль", "додатков", "нові цілі")
-# "ще N <noun>" — additional targets. Noun-anchored, not bare "ще \d+", so a
+# "ще N <noun>" — additional targets. Noun-anchored, not bare "ще N", so a
 # time reference ("ще 20хв") never matches.
+# The type ADJECTIVES and named weapons belong here for the same reason they do
+# in _COUNT_NOUN_RE: "Ще два реактивні чмошника на Сеньківку" is as much an
+# additional-targets callout as "ще 2 БпЛA", and the noun a spotter picks after
+# the adjective is unpredictable.
 _NEW_TARGET_COUNT_RE = re.compile(
-    r"ще\s+\d+\s+(?:ракет|ціл|шахед|бпла|дрон|баліст)", re.IGNORECASE
+    rf"ще\s+{_NUM}\s+(?:ракет|ціл|шахед|бпла|дрон|баліст|реактивн|крилат|циркон|калібр)",
+    re.IGNORECASE,
 )
 
 # Count shorthand: a number then х/x ("2х", "їх вже 3х"). The lookahead drops
@@ -97,7 +166,18 @@ _NEW_TARGET_COUNT_RE = re.compile(
 # together — it annotates the track, it never fabricates N tracks.
 _COUNT_RE = re.compile(r"(\d+)\s*[хx](?![а-яіїєґa-z])", re.IGNORECASE)
 # A number directly qualifying a target noun ("3 ракети", "2 цілі").
-_COUNT_NOUN_RE = re.compile(r"(\d+)\s+(?:ракет|ціл|шахед|бпла|дрон|баліст)", re.IGNORECASE)
+#
+# The type ADJECTIVES belong here as much as the nouns do: spotters put the
+# number in front of them ("10 реактивних Шахедів на Бровари", "До 10 крилатих
+# ракет", "2 калібри залишилось"), and since the digit isn't adjacent to the
+# noun those 33 real messages lost their count entirely — a located track that
+# should have shown ×10 showed ×1.
+# "циркон" sits here with "калібр" for the same reason — a named weapon a
+# spotter counts directly ("Ще два Циркони на столицю").
+_COUNT_NOUN_RE = re.compile(
+    rf"({_NUM})\s+(?:ракет|ціл|шахед|бпла|дрон|баліст|реактивн|крилат|калібр|циркон)",
+    re.IGNORECASE,
+)
 # A bare number heading for a place: "3 на Славутич", "2 на Бровари", "Ще 4 на
 # Бровари", "2 курсом на Центр". Spotters count targets this way constantly and
 # neither the "3х" nor the "3 ракети" form covers it — 9 real messages lost their
@@ -109,7 +189,7 @@ _COUNT_NOUN_RE = re.compile(r"(\d+)\s+(?:ракет|ціл|шахед|бпла|�
 # would read as 3 targets. The lookbehind rejects a digit glued to a word or to
 # another number ("22м3") and time-ish forms ("о 3:00", "3.5").
 _COUNT_TO_PLACE_RE = re.compile(
-    r"(?<![0-9а-яіїєґa-z:.,])(\d{1,2})\s+"
+    rf"(?<![0-9а-яіїєґa-z:.,])({_NUM_SHORT})\s+"
     r"(?:на|над|до|біля|курсом\s+на|у\s+напрямку(?:\s+на)?)\s+",
     re.IGNORECASE,
 )
@@ -124,7 +204,7 @@ _COUNT_TO_PLACE_RE = re.compile(
 # hundreds of phantom targets. Verified against the whole real corpus: 3 matches,
 # all of them genuine live counts, zero false positives.
 _COUNT_MOVING_RE = re.compile(
-    r"(?<![0-9а-яіїєґa-z:.,])(\d{1,2})\s+"
+    rf"(?<![0-9а-яіїєґa-z:.,])({_NUM_SHORT})\s+"
     r"(?:долітаю|долітає|летят|летить|йдут|ідут|іде\b|рухаю|сунут|заходят|прямую|проходят)",
     re.IGNORECASE,
 )
@@ -138,7 +218,43 @@ _PULSE_WORD = ("ціль", "цілі", "вихід", "ракет", "баліст
                "цілей",   # genitive — "ціль"/"цілі" don't substring-match it
                "пуск",    # "Ще пуски!"
                "пада",    # "Падають!" — live incoming
-               "летить", "летять")
+               "летить", "летять",
+               # The type ADJECTIVES spotters use on their own, with the noun
+               # left implicit: "2 реактивні", "Крилаті", "По калібрам". Each
+               # one used to fall through to "без району" AND buy a full LLM
+               # call (~$0.006) that could only answer "noise" — 6 of the 33
+               # calls on the night of 2026-08-20.
+               "реактивн", "крилат", "калібр")
+
+# --- Pulse guard: a pulse corroborates the KYIV city alert, so it must not name
+# a place we can't recognize. A word right after one of these prepositions is in
+# TARGET position ("біля Пирятина", "На короп крилаті") — if the gazetteer
+# didn't match it, the message is about somewhere we don't know and pulsing it
+# would credit a Kyiv track with someone else's sighting (the T2445 class).
+# FROM-position prepositions (з/зі/від) are deliberately absent: an origin is
+# legitimately ours and already pulses ("Балістика з Курщини", "Ціль зі
+# Сумщини"). ---
+_PULSE_TARGET_PREP = ("на", "над", "до", "біля", "під", "по", "у", "в")
+# Kyiv itself is not an unknown place: "Ракети до Києва!" pulses and must keep
+# doing so. Target vocabulary ("По калібрам") is allowed by the caller.
+_PULSE_PREP_KNOWN = ("київ", "києв", "столиц", "міст")
+
+# --- Standby: the raions a spotter puts on notice for a target that has NOT
+# reached them. One message routinely carries both claims — «Пухівка/Зазимʼя 🔴
+# та готовність Бровари», «Рожни/Пухівка 🔴. Троя готовність.» — and the parser
+# used to flatten them, so the standby raion joined the track with the SAME
+# confirmed status as the two the spotter actually saw a target over.
+#
+# "Увага"/"уважно" deliberately do NOT belong here: 111 of the 136 real messages
+# carrying them are plain target callouts («Увага Троя 🔴.»), so treating them as
+# a warning frame would gut the feed. «Готовність» is the marker that means it. ---
+_READINESS_RE = re.compile(r"(?<![а-яіїєґ])(?:готовн|поготов|приготуй)[а-яіїєґ]*")
+_SENTENCE_END_RE = re.compile(r"[.!?\n]")
+# A gazetteer hit's own word, to find where it ends (DistrictHit carries only its
+# start offset), and the connectors that make several hits ONE coordinated list
+# ("Район Обухова/Василькова/Фастова готовність" — all three are on standby).
+_TOPONYM_WORD_RE = re.compile(r"[а-яіїєґ'’ʼ\-]+")
+_LIST_JOIN_RE = re.compile(r"^[\s/,]*(?:та|і|й)?[\s/,]*$")
 
 # --- Movement cues: mark a multi-district message as ONE target on a route
 # ("через Броварський район", "курсом на Троєщину") rather than an enumeration of
@@ -183,6 +299,14 @@ _CIVIC_NOTICE = ("тролейбус", "трамвай", "маршрутк", "ф
                  "дорожнього руху", "рух транспорт", "руху транспорт",
                  "організації руху", "обмежать рух", "обмежуватимуть рух",
                  "перекрито рух", "перекрито середню",
+                 # Street closures announced for a visiting delegation read
+                 # exactly like a transport notice and name the place the same
+                 # way: "❗️Частково перекриють центр Києва завтра. Обмеження
+                 # запроваджуються у зв'язку з проведенням охоронних заходів за
+                 # участю іноземних делегацій" (raw 2816) — which, the moment
+                 # «Центр» became a known place, started raising a track over
+                 # the middle of the city.
+                 "перекриють", "обмеження запровадж", "охоронних заход",
                  # Scheduled utility works — the same class as transport news:
                  # a neighbourhood named in a plumbing/repair announcement
                  # ("У житловому масиві Пуща-Водиця … під час виконання
@@ -428,7 +552,66 @@ _LEVEL_OBLAST = ("в області", "у області", "по області"
 _LEVEL_QUIET = ("тихо", "не видно", "без запусків", "без пусків", "пусків немає",
                 "наразі немає", "поки немає",
                 "не фіксується", "спокійно", "ситуація спокійна", "минула без",
-                "поки все спокійно", "фальш цілі", "фальшцілі")
+                "поки все спокійно", "фальш цілі", "фальшцілі",
+                # The type-scoped all-quiet the spotters actually write when a
+                # type stops being a problem: "По БПЛА в нас все чисто",
+                # "Ніяких Кинджалів на даний момент немає". A NOTICE and never a
+                # stand-down — the suppressor gate above keeps a real «чисто»
+                # (lost_signal) on its own type-scoped path.
+                "все чисто", "наразі чисто", "поки чисто", "момент немає",
+                # The negative half of the launch/carrier families below. Both
+                # say the word they are about ("без фіксації пусків", "ТУшки
+                # неактивні", "Посадка 4× Ту-95МС на аеродром"), so without
+                # these the forecast branches would read a stand-down as a
+                # raised level — the exact inversion this list exists to stop.
+                "без фіксац", "неактивн", "посадк")
+
+# --- The two forecast families below are checked AFTER _LEVEL_QUIET on purpose.
+# Both markers routinely sit in the same sentence as an all-quiet report
+# ("Ситуація спокійна по балістиці. Чекатимемо відбою найближчим часом") and
+# reading that as a raised level would be a lie in the operator's face. Quiet
+# now wins; these speak only when nothing says quiet. ---
+#
+# A LAUNCH somewhere far away, with no place of ours to put on the map. This is
+# the earliest warning a cruise wave gives — "Попередньо відбулися пуски зі
+# стратегічної авіації" lands 30-90 min before anything reaches Kyiv, and it
+# used to surface nowhere. The negative forms ("без пусків", "пусків немає") are
+# already claimed by _LEVEL_QUIET above. The lookbehind keeps "Спуск!" (a live
+# overhead callout, not a launch report) and "випуск" out.
+_LEVEL_LAUNCH_RE = re.compile(r"(?<![а-яіїєґ])(?:за)?пуск(?:[иіауео]\w{0,3})?(?![а-яіїєґ])")
+# ANTICIPATION of the next wave ("можлива повторна хвиля балістики", "ракети
+# приблизно очікуємо 3-4 ранку", "поки ще діє балістична загроза"). A live
+# callout never talks about "найближчим часом"; this is the sentence the
+# operator plans the next hour around.
+_LEVEL_AHEAD_RE = re.compile(
+    r"найближчим часом"
+    r"|можлив\w*\s+(?:\w+\s+)?(?:повторн|нов|чергов|наступн)"
+    r"|(?:повторн|нов|чергов|наступн)\w*\s+хвил"
+    r"|очікуєм|чекаєм"
+    r"|варто реагувати"
+    r"|ще діє"
+)
+# Carrier activity is its own notice family (_MISSILE_CARRIER, declared with the
+# type keywords): pre-launch bookkeeping that is never a target on the map, and
+# has nothing in it for the LLM to localize either.
+#
+# "Без змін" is the WEAK half of the quiet family, and it is weak because it
+# usually modifies something else in the same sentence rather than being the
+# news: "Без змін, найближчим часом очікуємо на виліт бомбардувальників" and "У
+# повітрі без змін продовжують перебувати Ту-95МС" are both reports of carrier
+# activity CONTINUING. So it is checked last, after the forecast families — it
+# speaks only when nothing louder is in the message.
+_LEVEL_QUIET_WEAK = ("без змін", "без критичних змін")
+# "Quiet HERE, busy THERE" is the standard shape of a type bulletin: «По БПЛА в
+# нас все чисто, ворог атакував частково Чернігівщину», «Біля Києва наразі
+# чисто, ще одна група ракет на Черкащині». The foreign oblast is the contrast
+# clause, not the subject — but `target_not_kyiv` (rightly, for a terse pulse)
+# throws the whole message away over it. An explicit claim of OUR scope is what
+# tells the two shapes apart.
+_OWN_SCOPE_RE = re.compile(
+    r"(?<![а-яіїєґ])[ву]\s+нас(?![а-яіїєґ])"
+    r"|біля києва|по києву|[ву]\s+києві|для нашого регіону|нашого регіону"
+)
 
 # --- Retrospective attack SUMMARY ("Загалом по Києву пустили до 8 ракет") —
 # recaps what already happened; info, never a live city alert. Distinguished from
@@ -549,15 +732,32 @@ _OBLAST_CITY_STEMS = frozenset({"черніг"})
 #              gazetteer for years because of it; as a whole word it is safe,
 #              and it is the 3rd most-named place on the Chernihiv feed (16/300)
 # Keep this set tiny: only forms the spotters really use as a standalone toponym.
+#   "центр" -> a prefix of an adjectival family nobody means as the place
+#              ("центральній", "центрального", "центрів") and of compounds
+#              ("укргідрометцентр", "концентрацію", "децентралізацію"). As whole
+#              words, "центр"/"центру"/"центрі" are 37 clean corpus hits and one
+#              of the most-named places on the feed.
 _WHOLE_WORD_ALIASES = frozenset({"чзв", "пох", "бц", "голос", "пущею",
-                                 "море", "моря", "морі", "остер"})
+                                 "море", "моря", "морі", "остер",
+                                 "центр", "центру", "центрі"})
 
 # An alias that is also part of a PROPER NAME, keyed to the word that follows it.
 # "Голос Києва" is a Telegram channel other channels quote ("Голос Києва —
 # @golos_kieva попередив про загрозу"), not a callout over Holosiivskyi. Same
 # idea as _FOREIGN_SEA_ADJ in matcher.py: the toponym stays, its collision is
 # resolved by the adjacent word.
-_ALIAS_NEXT_WORD_VETO: dict[str, tuple[str, ...]] = {"голос": ("києва", "кієва")}
+_ALIAS_NEXT_WORD_VETO: dict[str, tuple[str, ...]] = {
+    "голос": ("києва", "кієва"),
+    # An institution's name, not the middle of the city: «Центр спеціальних
+    # операцій "Альфа" СБУ», «керівниця центру міжнародної...», «центр
+    # досліджень». Swept the whole corpus for what follows a standalone
+    # "центр": the place is followed by nothing, an emoji, "Києва", "міста",
+    # "увага", "уважно", "знову", "летить" — an organisation, by a genitive
+    # qualifier. These three are all of them that occur.
+    "центр": ("спеціальн", "міжнародн", "дослідж"),
+    "центру": ("спеціальн", "міжнародн", "дослідж"),
+    "центрі": ("спеціальн", "міжнародн", "дослідж"),
+}
 
 # The mirror image: an alias that only counts when the PRECEDING word starts
 # with one of these. "церкв" is Біла Церква's only matchable word (a spaced name

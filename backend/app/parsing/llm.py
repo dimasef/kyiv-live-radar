@@ -40,6 +40,10 @@ log = logging.getLogger("llm")
 # sent to the API.
 _INPUT_PRICE_PER_MTOK = 1.00
 _OUTPUT_PRICE_PER_MTOK = 5.00
+# Prompt-caching multipliers on the INPUT price: writing the cache costs more
+# than a plain call, reading it costs a tenth. See settings.llm_cache_ttl.
+_CACHE_WRITE_MULT = {"5m": 1.25, "1h": 2.00}
+_CACHE_READ_MULT = 0.10
 
 _SCHEMA_VERSION = 2
 
@@ -128,9 +132,12 @@ _PROMPT = (
     "with the actionable gist, in natural Ukrainian ONLY (no English or "
     "transliterated words); state facts as reported — a recap stays past-tense "
     "('було ~40 ракет'), never rephrased as expected ('очікуються'); empty "
-    "string otherwise.\n\n"
-    "Message:\n{text}"
+    "string otherwise.\n\n"   # the blank line that used to precede "Message:"
 )
+# The message is its OWN content block, and everything above is the cacheable
+# prefix — see _content_blocks. Nothing but this line may follow the district
+# listing and the instructions, or the prefix stops being a prefix.
+_MESSAGE_BLOCK = "Message:\n{text}"
 
 
 def _schema(id_enum: list[int]) -> dict:
@@ -157,13 +164,43 @@ def _schema(id_enum: list[int]) -> dict:
     }
 
 
+def _content_blocks(static: str, text: str) -> list[dict]:
+    """The user turn as two blocks: the static prefix (district listing +
+    instructions), then the message. The cache breakpoint goes at the end of the
+    first one, so everything before it — system prompt included — is what gets
+    cached and re-read at a tenth of the price. With caching off it is still two
+    blocks, which the API concatenates exactly as the single string used to be."""
+    blocks: list[dict] = [
+        {"type": "text", "text": static},
+        {"type": "text", "text": _MESSAGE_BLOCK.format(text=text)},
+    ]
+    if settings.llm_cache_ttl:
+        blocks[0]["cache_control"] = {"type": "ephemeral", "ttl": settings.llm_cache_ttl}
+    return blocks
+
+
 def _usage_from(resp) -> LlmUsage:
-    input_tokens = resp.usage.input_tokens
-    output_tokens = resp.usage.output_tokens
-    cost = (input_tokens / 1_000_000) * _INPUT_PRICE_PER_MTOK + (
-        output_tokens / 1_000_000
-    ) * _OUTPUT_PRICE_PER_MTOK
-    return LlmUsage(input_tokens=input_tokens, output_tokens=output_tokens, cost_usd=round(cost, 6))
+    """Token usage + REAL cost, which caching splits three ways: fresh input at
+    full price, a cache write at 1.25x (5m) / 2x (1h), and a cache read at 0.1x.
+
+    `input_tokens` is reported as the whole prompt (fresh + cached) so the
+    number stays comparable with the pre-caching rows in /raw and the analytics;
+    only the cost differs. Getting this wrong would also mis-drive the daily/
+    monthly budget guard, which sums exactly this column."""
+    usage = resp.usage
+    fresh = usage.input_tokens
+    written = getattr(usage, "cache_creation_input_tokens", None) or 0
+    read = getattr(usage, "cache_read_input_tokens", None) or 0
+    output_tokens = usage.output_tokens
+    write_mult = _CACHE_WRITE_MULT.get(settings.llm_cache_ttl, 1.25)
+    cost = (
+        (fresh + written * write_mult + read * _CACHE_READ_MULT) / 1_000_000
+    ) * _INPUT_PRICE_PER_MTOK + (output_tokens / 1_000_000) * _OUTPUT_PRICE_PER_MTOK
+    return LlmUsage(
+        input_tokens=fresh + written + read,
+        output_tokens=output_tokens,
+        cost_usd=round(cost, 6),
+    )
 
 
 async def _call(text: str, matcher: DistrictMatcher) -> tuple[dict | None, LlmUsage | None]:
@@ -183,13 +220,20 @@ async def _call(text: str, matcher: DistrictMatcher) -> tuple[dict | None, LlmUs
         for i, n in index
     )
     id_enum = [i for i, _ in index]
-    content = _PROMPT.format(listing=listing, origins=", ".join(ORIGIN_KEYS), text=text)
+    static = _PROMPT.format(listing=listing, origins=", ".join(ORIGIN_KEYS))
     schema = _schema(id_enum)
     # One immediate retry: a transient timeout/5xx during a mass attack (many
     # concurrent inbound callouts) dropped GENUINE threats — a real inbound "3
     # реактивних з Чернігівщини" is worth a second attempt. No backoff: the
     # inline path holds the ingest lock, so a sleep would stall the pipeline.
+    #
+    # The LAST attempt drops the cache breakpoint. If an account or model ever
+    # refuses the cache_control block (or the '1h' TTL), the failure would
+    # otherwise be systematic and silent — every call dying twice and the
+    # pipeline quietly degrading to rules-only for as long as nobody looks at
+    # the logs. Paying full price beats going blind.
     resp = None
+    blocks = _content_blocks(static, text)
     for attempt in range(2):
         try:
             resp = await asyncio.wait_for(
@@ -197,7 +241,7 @@ async def _call(text: str, matcher: DistrictMatcher) -> tuple[dict | None, LlmUs
                     model=settings.llm_model,
                     max_tokens=400,
                     system=_SYSTEM,
-                    messages=[{"role": "user", "content": content}],
+                    messages=[{"role": "user", "content": blocks}],
                     output_config={"format": {"type": "json_schema", "schema": schema}},
                 ),
                 timeout=settings.llm_timeout_s,
@@ -208,6 +252,7 @@ async def _call(text: str, matcher: DistrictMatcher) -> tuple[dict | None, LlmUs
                 log.warning("llm call skipped after 2 attempts: %s", ex)
                 return None, None
             log.info("llm call retrying after: %s", ex)
+            blocks = [{k: v for k, v in b.items() if k != "cache_control"} for b in blocks]
 
     usage = _usage_from(resp)
     block = next((b for b in resp.content if b.type == "text"), None)

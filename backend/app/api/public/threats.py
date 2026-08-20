@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from ...db import get_session
 from ...models import (
+    Region,
     Threat,
     ThreatEvent,
 )
@@ -50,11 +51,18 @@ async def active_threats(session: AsyncSession = Depends(get_session)):
 @router.get("/events/recent", response_model=list[FeedEntryOut])
 async def recent_events(
     limit: int = Query(60, ge=1, le=200),
+    region: Region | None = Query(None),
     session: AsyncSession = Depends(get_session),
 ):
     """Most recent sightings across ALL tracks (open or closed), newest first —
     hydrates the frontend event feed on page load (it otherwise only grows from
-    live WebSocket traffic and empties on every reload)."""
+    live WebSocket traffic and empties on every reload).
+
+    `region` narrows the feed to one watched pool. It exists because filtering
+    client-side alone would silently shrink the feed: a busy northern night is
+    mostly Чернігівщина, so a reader who hides it would get a page of 60 events
+    with 20 left to look at. The client still filters what the WebSocket pushes
+    afterwards — this only makes the page it loads worth `limit` rows."""
     stmt = (
         select(ThreatEvent)
         # Hide events of admin-dismissed tracks (is_distinct_from so open tracks,
@@ -76,10 +84,12 @@ async def recent_events(
         # stay adjacent — plain event_time ties have undefined order otherwise,
         # which would scatter a group the frontend expects to find contiguous.
         .order_by(ThreatEvent.event_time.desc(), ThreatEvent.id.desc())
-        .limit(limit)
     )
-    events = await session.scalars(stmt)
+    if region is not None:
+        stmt = stmt.where(Threat.region == region)
+    events = await session.scalars(stmt.limit(limit))
     return [_feed_entry_out(ev) for ev in events]
+
 
 @router.get("/threats/{threat_id}/events", response_model=list[ThreatEventOut])
 async def threat_events(threat_id: int, session: AsyncSession = Depends(get_session)):

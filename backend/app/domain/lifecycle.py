@@ -56,6 +56,29 @@ def close_track(threat: Threat, when: datetime, reason: str) -> Threat:
     return threat
 
 
+def relabel_close(threat: Threat, reason: str) -> Threat:
+    """Correct WHY an already-closed track closed, without moving `closed_at`.
+
+    A «збито» can arrive after the sweeper has already retired the track as
+    silent — more often since the stale windows became per-type (measured: ~16%
+    of closing messages). The target really was destroyed, so recording it as
+    'stale' loses a confirmed interception from the journal.
+
+    `closed_at` deliberately stays put: it's when the track left the map, which
+    the relabel doesn't change, and moving it would stretch the track's duration
+    in the journal by the silence that preceded the news. The track is NOT
+    reopened — it's gone from the map for the right reason already."""
+    if reason not in CLOSED_REASON_TO_STATUS:
+        raise ValueError(f"unknown closed_reason: {reason!r}")
+    if threat.closed_at is None:
+        raise ValueError("relabel_close is for an already-closed track; use close_track")
+    was = threat.closed_reason
+    threat.closed_reason = reason
+    threat.status = CLOSED_REASON_TO_STATUS[reason]
+    log.info("track %s close relabelled %s -> %s", threat.id, was, reason)
+    return threat
+
+
 def promote_track(threat: Threat) -> Threat:
     """Mark a track as actively confirmed-tracking (vs. merely 'unconfirmed'),
     once a source reports it without hedging language."""

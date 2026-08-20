@@ -120,8 +120,11 @@ export const fetchAlertZoneGeometry = () => get<AlertZoneGeometry>('/alert-zones
 export const fetchHealth = () => get<HealthStatus>('/health')
 export const fetchRecentNotices = (limit = 30) =>
   get<Notice[]>(`/notices/recent?limit=${limit}`)
-export const fetchRecentEvents = (limit = 60) =>
-  get<FeedEntry[]>(`/events/recent?limit=${limit}`)
+// `region` narrows the page the feed loads to one watched pool. Without it a
+// reader who hides the other regions gets `limit` rows and only a fraction left
+// to read — the filter has to reach the query, not just the render.
+export const fetchRecentEvents = (limit = 60, region?: Region) =>
+  get<FeedEntry[]>(`/events/recent?limit=${limit}${region ? `&region=${region}` : ''}`)
 // Per-day threat-activity journal for the calendar page (/journal). `from`/`to`
 // are Kyiv-local YYYY-MM-DD; the response spans every day in [from, to].
 export const fetchJournal = (from: string, to: string) =>

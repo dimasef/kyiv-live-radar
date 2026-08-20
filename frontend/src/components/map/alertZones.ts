@@ -25,6 +25,26 @@ export function sinceParts(
   return { h: Math.floor(minutes / 60), m: minutes % 60 }
 }
 
+/** Which i18n key and values render the always-on centre label's duration.
+ *
+ * One unit, never two: this sits over the map permanently on every raion, so it
+ * gets "40хв" or "2г" where the hover caption can afford «1 год 20 хв». Under an
+ * hour the minutes are the whole answer; past it they stop mattering — nobody
+ * acts differently on a siren that has run 1:20 versus 1:35, and the extra
+ * digits are two more characters to read past on thirteen labels at once.
+ *
+ * Rounded, not truncated: 1 h 50 min is "2г", because floor would call it "1г"
+ * for the better part of an hour and read as newer than it is. */
+export function compactSinceLabel(
+  since: { h: number; m: number } | null,
+): { key: 'zones.compactH' | 'zones.compactM'; vars: Record<string, number> } | null {
+  if (!since) return null
+  if (since.h > 0) {
+    return { key: 'zones.compactH', vars: { h: since.h + (since.m >= 30 ? 1 : 0) } }
+  }
+  return { key: 'zones.compactM', vars: { m: since.m } }
+}
+
 /** Zones under alert, most recent first — what a "N raions under siren" summary
  * would read off. */
 export function alertedZones(zones: Record<string, AlertZone>): AlertZone[] {

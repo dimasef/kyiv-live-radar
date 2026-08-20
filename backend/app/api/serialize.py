@@ -54,8 +54,9 @@ def threat_out(th: Threat) -> ThreatOut:
     out.stale_at = _utc(
         stale_at(
             th,
-            minutes=settings.track_stale_minutes,
-            ballistic_minutes=settings.ballistic_stale_minutes,
+            orphan_windows=settings.stale_minutes_orphan,
+            tracked_windows=settings.stale_minutes_tracked,
+            default_minutes=settings.track_stale_minutes,
         )
     )
     return out

@@ -238,6 +238,66 @@ async def test_destroyed_without_district_inherits_last_known_and_creates_event(
     assert len(out) == 1 and out[0].type == "event" and out[0].event is not None
 
 
+async def test_late_destroyed_relabels_a_track_the_sweeper_already_retired(ctx):
+    # Since the stale windows became per-type, a «збито» routinely lands after
+    # the sweeper has retired the target as silent (~16% of them, measured on the
+    # real DB). The close is then recorded as 'stale' and the news is dropped —
+    # losing a confirmed interception from the journal. Correct the reason and
+    # still record the message as an event.
+    s, m, src = ctx
+    from app.domain.tracking import close_stale_tracks
+    await ingest_message(s, text="Реактивний БПЛА над Оболонню", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    closed = await close_stale_tracks(s, BASE + timedelta(minutes=9))
+    assert len(closed) == 1 and closed[0].closed_reason == "stale"
+    retired_at = closed[0].closed_at
+
+    out = await ingest_message(s, text="Збили ціль над Оболонню", matcher=m,
+                               when=BASE + timedelta(minutes=12), source_id=src[0].id,
+                               message_id=2)
+    t = (await s.scalars(select(Threat))).one()   # relabelled, NOT a second track
+    await s.refresh(t, ["events"])
+    assert t.closed_reason == "destroyed" and t.status == "destroyed"
+    # closed_at stays when the track actually left the map — moving it would
+    # stretch the track's duration in the journal by the preceding silence.
+    assert t.closed_at == retired_at
+    assert len(t.events) == 2 and t.events[-1].raw_text == "Збили ціль над Оболонню"
+    # 'event', so the frontend feed shows the news (the map ignores it: the
+    # payload is closed and the track is long gone from the client's state).
+    assert len(out) == 1 and out[0].type == "event"
+
+
+async def test_late_destroyed_over_another_district_does_not_relabel(ctx):
+    # The retired track was last seen over Оболонь; a «збито» over Позняки is
+    # about something else. Relabelling on any recent stale close would credit
+    # the wrong target — a busy corridor district appears in half a night's
+    # tracks.
+    s, m, src = ctx
+    from app.domain.tracking import close_stale_tracks
+    await ingest_message(s, text="Реактивний БПЛА над Оболонню", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await close_stale_tracks(s, BASE + timedelta(minutes=9))
+    await ingest_message(s, text="Збили ціль над Позняками", matcher=m,
+                         when=BASE + timedelta(minutes=12), source_id=src[0].id, message_id=2)
+    obolon = (await s.scalars(select(Threat).order_by(Threat.id))).first()
+    assert obolon.closed_reason == "stale"
+
+
+async def test_late_destroyed_does_not_reach_past_the_old_window(ctx):
+    # The relabel exists to recover what the SHORTER windows took away, not to
+    # extend the reach of a closing message: past track_stale_minutes it must
+    # match nothing, exactly as before.
+    s, m, src = ctx
+    from app.domain.tracking import close_stale_tracks
+    await ingest_message(s, text="Реактивний БПЛА над Оболонню", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await close_stale_tracks(s, BASE + timedelta(minutes=9))
+    await ingest_message(s, text="Збили ціль над Оболонню", matcher=m,
+                         when=BASE + timedelta(minutes=25), source_id=src[0].id, message_id=2)
+    t = (await s.scalars(select(Threat).order_by(Threat.id))).first()
+    assert t.closed_reason == "stale"
+
+
 async def test_lost_signal_type_scoped_closes_only_matching_target_type(ctx):
     # Real feed example: "Дорозвідка по крилатих ракетах" = ППО no longer has
     # missile targets — must close ONLY open missile tracks, leaving a shahed
@@ -407,27 +467,62 @@ async def test_stale_track_auto_closed(ctx):
     from app.domain.tracking import close_stale_tracks
     await ingest_message(s, text="🔴 Шахед над Оболонню", matcher=m, when=BASE,
                          source_id=src[0].id, message_id=1)
-    # 5 min later — still fresh, not closed.
-    assert await close_stale_tracks(s, BASE + timedelta(minutes=5), 20) == []
+    # 4 min later — still fresh, not closed.
+    assert await close_stale_tracks(s, BASE + timedelta(minutes=4)) == []
     # 30 min of silence — auto-closed.
-    closed = await close_stale_tracks(s, BASE + timedelta(minutes=30), 20)
+    closed = await close_stale_tracks(s, BASE + timedelta(minutes=30))
     assert len(closed) == 1 and closed[0].status == "lost"
 
 
-async def test_ballistic_dot_closes_on_shorter_window(ctx):
+async def test_unfollowed_dot_closes_on_the_short_window_per_type(ctx):
     s, m, src = ctx
     from app.domain.tracking import close_stale_tracks
-    # A localized ballistic dot and a shahed track, both quiet after BASE.
+    # Two one-shot sightings nobody follows up on: a ballistic dot (2 min) and a
+    # shahed (5 min). Neither can ever be joined — a reply can't arrive and
+    # corroboration only merges the same district within 3 min — so each clears
+    # on its own type's window rather than lingering for 20.
     await ingest_message(s, text="🚀 Балістика над Оболонню", matcher=m, when=BASE,
                          source_id=src[0].id, message_id=1)
     await ingest_message(s, text="🔴 Шахед над Виноградарем", matcher=m, when=BASE,
                          source_id=src[0].id, message_id=2)
-    # 6 min of silence, ballistic window = 5: the ballistic dot closes, shahed stays.
-    closed = await close_stale_tracks(s, BASE + timedelta(minutes=6), 20, ballistic_minutes=5)
+    closed = await close_stale_tracks(s, BASE + timedelta(minutes=3))
     assert len(closed) == 1
     assert closed[0].target_type == "ballistic" and closed[0].scope != "city"
     shahed = (await s.scalars(select(Threat).where(Threat.target_type == "shahed"))).one()
     assert shahed.closed_at is None
+    # ...and the shahed follows two minutes later, on its own window.
+    assert len(await close_stale_tracks(s, BASE + timedelta(minutes=6))) == 1
+
+
+async def test_reply_followed_track_keeps_the_long_window(ctx):
+    s, m, src = ctx
+    from app.domain.tracking import close_stale_tracks
+    # Same jet drone, walked along by a channel that threads: the reply chain is
+    # evidence someone is following it, so it must NOT clear on the 3-minute
+    # unfollowed window — those callouts legitimately pause.
+    await ingest_message(s, text="Реактивний БПЛА над Оболонню", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Реактивний БПЛА курсом на Позняки", matcher=m,
+                         when=BASE + timedelta(minutes=2), source_id=src[0].id,
+                         message_id=2, reply_to_message_id=1)
+    track = (await s.scalars(select(Threat))).one()
+    assert track.target_type == "jet_drone"
+    # 8 min after the last sighting: past the 3-min unfollowed window, inside 10.
+    assert await close_stale_tracks(s, BASE + timedelta(minutes=10)) == []
+    assert len(await close_stale_tracks(s, BASE + timedelta(minutes=14))) == 1
+
+
+async def test_broken_reply_chain_does_not_buy_the_long_window(ctx):
+    s, m, src = ctx
+    from app.domain.tracking import close_stale_tracks
+    # A reply whose parent was never parsed starts its own track. It carries a
+    # reply_to_message_id, but nothing is actually being followed — it must clear
+    # on the unfollowed window like any other one-shot sighting.
+    await ingest_message(s, text="Реактивний БПЛА над Оболонню", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=7, reply_to_message_id=999)
+    # 9 min: past the unfollowed window, still inside the followed one — so this
+    # closing is only correct if the dangling reply bought nothing.
+    assert len(await close_stale_tracks(s, BASE + timedelta(minutes=9))) == 1
 
 
 async def test_citywide_ballistic_keeps_normal_window(ctx):
@@ -439,7 +534,7 @@ async def test_citywide_ballistic_keeps_normal_window(ctx):
                          source_id=src[0].id, message_id=1)
     city = (await s.scalars(select(Threat).where(Threat.scope == "city"))).one()
     assert city.target_type == "ballistic"
-    assert await close_stale_tracks(s, BASE + timedelta(minutes=6), 20, ballistic_minutes=5) == []
+    assert await close_stale_tracks(s, BASE + timedelta(minutes=6)) == []
 
 
 async def test_reply_continues_track_across_gap(ctx):
@@ -1131,3 +1226,32 @@ async def test_threat_level_bulletin_notices_and_closes_nothing(ctx):
     assert await _count_threats(s) == 1
     track = await s.scalar(select(Threat))
     assert track.status == "tracking"
+
+
+async def test_a_chain_root_gap_no_longer_splits_a_crossing_drone(ctx):
+    """The real 08-20 sequence off the threading channel.
+
+    «Деміївка 🔴.» matched no district, so it produced no event — and a reply has
+    nothing to join when its parent never became one. The follow-ups each opened
+    a track of their own, and one drone crossing Kyiv from the centre to the
+    south-west was drawn as three unrelated targets.
+
+    A missing entry at the ROOT of a chain costs every message after it, which is
+    what makes this class worth more than its own message count.
+    """
+    s, m, src = ctx
+    for text, mid, reply, offset in (
+        ("Деміївка 🔴.", 100, None, 0),
+        ("Совки/Солома/Жуляни 🔴.", 101, 100, 40),
+        ("Чабани/Боярка 🔴.", 102, 101, 95),
+    ):
+        await ingest_message(s, text=text, matcher=m, when=BASE + timedelta(seconds=offset),
+                             source_id=src[0].id, message_id=mid, reply_to_message_id=reply)
+
+    track = (await s.scalars(select(Threat))).one()
+    await s.refresh(track, ["events"])
+    names = {d.id: d.name_uk for d in await s.scalars(select(District))}
+    # Six positions in movement order — enough for the map to draw the vector.
+    assert [names[e.district_id] for e in track.events] == [
+        "Деміївка", "Совки", "Солом'янський", "Жуляни", "Чабани", "Боярка",
+    ]

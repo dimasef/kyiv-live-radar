@@ -155,7 +155,20 @@ _OTHER_OBLAST = ("брянщин", "курщин", "ростов", "вороне
                  "тернопільщин", "тернопіл", "закарпат", "франківськ",
                  "хмельниччин", "хмельницьк", "кіровоградщин", "донеччин",
                  "луганщин", "чернівц", "буковин",
-                 "польщ", "люблін", "молдов", "румун")
+                 "польщ", "люблін", "молдов", "румун",
+                 # Third sweep, same rule as the second: a TOWN the feed names
+                 # as the target while its oblast is never mentioned, so the
+                 # message reached the LLM and came back empty — «Реактивний
+                 # біля Пирятина» (Poltava), «На Конотоп йде ймовірно
+                 # бандероль» (Sumy), «Є загроза Кропивницькому» (Kirovohrad).
+                 # Zero collisions across the 4900-message corpus.
+                 #
+                 # NOT here, deliberately: Бахмач. It is CHERNIHIV oblast, a
+                 # watched region — «Ще бандероль на Бахмач з Сумської» is the
+                 # northern corridor doing its job, and it belongs in the
+                 # gazetteer, not in this list. Same for Ніжин and Прилуки, see
+                 # _WATCHED_OBLAST below.
+                 "пирятин", "конотоп", "кропивницьк")
 # Regions we WATCH but that are still not Kyiv. A target over one of them is
 # ours to track (its own pool) — but it is not a Kyiv target, so anything that
 # speaks specifically about the KYIV city alert must keep ignoring it: a terse

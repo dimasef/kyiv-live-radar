@@ -49,16 +49,45 @@ class Settings(BaseSettings):
     # Minutes since the last sighting after which a new report starts a NEW
     # track instead of continuing the previous one (spec §5.4).
     track_gap_minutes: int = 15
-    # Minutes of silence after which an open track is auto-closed as 'lost' (a
-    # target that went quiet without an explicit destroyed/clear). Slightly above
-    # the gap so a still-live track isn't closed prematurely.
+    # Longest a track can stay open at all: the fallback stale window for a
+    # target_type missing from the two maps below, and the lookback a closing
+    # message ("збито") is allowed when hunting for the track it closes.
     track_stale_minutes: int = 20
-    # Ballistic is sub-minute in flight: a localized ballistic DOT hangs on the
-    # map far longer than the target is actually airborne, so it clears on a much
-    # shorter silence window than the generic one. Applies only to district-scoped
-    # ballistic tracks (a scope='city' ballistic alert is the "barrage in
-    # progress" banner and keeps the normal window — waves can lull for minutes).
-    ballistic_stale_minutes: int = 5
+    # Minutes of silence after which an open track is auto-closed as 'lost' (a
+    # target that went quiet without an explicit destroyed/clear), per target
+    # type and per whether the track is actually being FOLLOWED — see
+    # app/domain/staleness.py for the rule and the data behind it.
+    #
+    # A track built by a resolved Telegram reply chain is one a channel is
+    # walking along: its callouts legitimately pause, so it keeps a generous
+    # window (empirically, reply-bridged gaps of 8-25 min are real, and cutting
+    # them splits genuine sessions — measured against eval/ground_truth_sessions).
+    stale_minutes_tracked: dict[str, int] = {
+        "ballistic": 5,   # a barrage lulls between waves; scope='city' also lands here
+        "missile": 6,
+        "jet_drone": 10,
+        "shahed": 15,     # the SLOWEST-reported type: p95 gap between callouts is 25 min
+        "unknown": 20,
+    }
+    # A track with no reply chain will never be joined by anything — a reply
+    # can't arrive, and corroboration only merges the SAME district within
+    # corroboration_window_minutes — so a long window buys zero grouping and only
+    # leaves a ghost. These are the p90 time for a followed target to be
+    # re-reported over a DIFFERENT district, i.e. how long the drawn dot is still
+    # true: ~3.1-3.6 min for every type. Held above that only for the slow/
+    # loitering types, where the dot decays more gently.
+    stale_minutes_orphan: dict[str, int] = {
+        "ballistic": 2,
+        "missile": 3,
+        # Above the measured p90 on purpose. A reactive drone crossing the city
+        # is the callout an operator most often goes back to re-read, and at 3
+        # minutes it was gone before they could — the dot being slightly stale
+        # costs less here than it costs to have nothing to look at. The fade
+        # still marks it as ageing from a third of the way in.
+        "jet_drone": 8,
+        "shahed": 5,
+        "unknown": 6,
+    }
     # Prefer Telegram reply-threading over time-proximity for track grouping: a
     # message replying to a previous OPEN post joins THAT post's track
     # (transitively). This is the fix for busy-alert "mega-track" zigzags.
@@ -232,6 +261,18 @@ class Settings(BaseSettings):
     llm_fallback_enabled: bool = True
     llm_model: str = "claude-haiku-4-5"
     llm_timeout_s: float = 5.0
+    # Prompt caching. 99.9% of every call is the same static prefix — the
+    # district listing, the instructions and the schema come to ~5.9k tokens
+    # while the message itself is ~5, so the same prefix is paid for again on
+    # every call. A cache READ costs a tenth of that; a WRITE costs 1.25x (5m)
+    # or 2x (1h).
+    #
+    # '1h', not the '5m' default, because the calls are SPARSE: on the real
+    # traffic (55 calls) the gaps run 3-95 minutes and only 17 of them land
+    # within five minutes of the previous one, so a 5m TTL pays the write
+    # penalty over and over for a 1.1x net gain. At 1h it is 13 writes and 42
+    # reads — 1.8x. Set '5m' or '' (off) to change that.
+    llm_cache_ttl: str = "1h"
 
     # --- Async LLM triage engine (app/pipeline/triage.py) — the second consumer
     #     of the LLM. Rules answer instantly (sync); a district-less / suppressed

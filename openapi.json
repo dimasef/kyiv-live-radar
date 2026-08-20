@@ -6513,7 +6513,7 @@
     },
     "/events/recent": {
       "get": {
-        "description": "Most recent sightings across ALL tracks (open or closed), newest first —\nhydrates the frontend event feed on page load (it otherwise only grows from\nlive WebSocket traffic and empties on every reload).",
+        "description": "Most recent sightings across ALL tracks (open or closed), newest first —\nhydrates the frontend event feed on page load (it otherwise only grows from\nlive WebSocket traffic and empties on every reload).\n\n`region` narrows the feed to one watched pool. It exists because filtering\nclient-side alone would silently shrink the feed: a busy northern night is\nmostly Чернігівщина, so a reader who hides it would get a page of 60 events\nwith 20 left to look at. The client still filters what the WebSocket pushes\nafterwards — this only makes the page it loads worth `limit` rows.",
         "operationId": "recent_events_events_recent_get",
         "parameters": [
           {
@@ -6526,6 +6526,26 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "kyiv",
+                    "chernihiv"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Region"
             }
           }
         ],

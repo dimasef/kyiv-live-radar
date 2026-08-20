@@ -49,24 +49,34 @@ from .vocab import (
     _IMPACT,
     _JET,
     _JET_MODEL,
+    _LEVEL_AHEAD_RE,
+    _LEVEL_LAUNCH_RE,
     _LEVEL_OBLAST,
     _LEVEL_QUIET,
+    _LEVEL_QUIET_WEAK,
     _LEVEL_RAISED,
     _LINK_MARKERS,
+    _LIST_JOIN_RE,
     _LOST_WORD,
     _MASC_ONE_RE,
     _MISSILE,
+    _MISSILE_CARRIER,
     _MOVEMENT_CUE,
     _NEGATION,
     _NEW_TARGET,
     _NEW_TARGET_COUNT_RE,
+    _OWN_SCOPE_RE,
     _POWER_OUTAGE,
     _PREPOSITION_BEFORE_DISTRICT,
+    _PULSE_PREP_KNOWN,
+    _PULSE_TARGET_PREP,
     _PULSE_WORD,
     _QUOTE_ATTRIBUTION_RE,
+    _READINESS_RE,
     _RECON_ANALYSIS,
     _REPORTAGE,
     _RETROSPECTIVE,
+    _SENTENCE_END_RE,
     _SHAHED,
     _SIREN_WORD,
     _STANDDOWN_CLEAN_RE,
@@ -74,8 +84,10 @@ from .vocab import (
     _SUMMARY,
     _SUMMARY_NO_DISTRICT,
     _THREAT_CONTEXT,
+    _TOPONYM_WORD_RE,
     _UNCONFIRMED,
     _UNSCOPED_CLEAR_WORD,
+    count_value,
 )
 
 
@@ -177,6 +189,12 @@ class ParseResult:
     # A terse target/launch callout with no place ("Ціль!", "Ще вихід") — only
     # acted on (as corroboration) when a city-wide alert is already open.
     target_pulse: bool = field(default=False)
+    # Speaks about a wave that has NOT arrived ("можлива повторна хвиля
+    # балістики", "очікуємо ракети 3-4 ранку"). Surfaces as a forecast notice,
+    # but must never set the channel's live target type: on 2026-08-19 22:20 two
+    # such posts about a possible NEXT ballistic wave relabelled the Kalibrs
+    # then in the air, for the fifteen minutes it took them to reach Kyiv.
+    anticipated: bool = field(default=False)
     # A threat-LEVEL bulletin about a target type with no target of its own
     # ("червоний рівень по балістиці" / "по балістиці тихо"): 'forecast' when
     # the level is up, 'status' when that type is quiet. Never a live target and
@@ -289,14 +307,16 @@ def _target_count(norm: str, districts) -> int | None:
     never fabricates N tracks, and the multi-district enumeration path
     deliberately refuses to stamp it per district (see handlers.py)."""
     nums = [int(m.group(1)) for m in _COUNT_RE.finditer(norm)]
-    nums += [int(m.group(1)) for m in _COUNT_NOUN_RE.finditer(norm)]
+    # Every rule below accepts a numeral WORD as well as digits, so the value has
+    # to be resolved rather than int()'d (see vocab._NUM_WORDS).
+    nums += [count_value(m.group(1)) for m in _COUNT_NOUN_RE.finditer(norm)]
     nums += [
-        int(m.group(1))
+        count_value(m.group(1))
         for m in _COUNT_TO_PLACE_RE.finditer(norm)
         if _place_follows(m.end(), districts)
     ]
-    nums += [int(m.group(1)) for m in _COUNT_MOVING_RE.finditer(norm)]
-    nums = [n for n in nums if 1 <= n <= 50]  # ignore junk like "100х"/years
+    nums += [count_value(m.group(1)) for m in _COUNT_MOVING_RE.finditer(norm)]
+    nums = [n for n in nums if n is not None and 1 <= n <= 50]  # junk like "100х"/years
     return max(nums) if nums else None
 
 
@@ -564,14 +584,22 @@ def _level_notice(target_type: str, districts, citywide: bool, directional: bool
         return None
     # "по Житомирщині тихо" — someone else's bulletin. `target_not_kyiv`, not
     # `target_elsewhere`: a bulletin about the watched north is still not a
-    # bulletin about Kyiv, which is what this feed card claims to be.
-    if target_not_kyiv(norm):
+    # bulletin about Kyiv, which is what this feed card claims to be. Unless the
+    # message claims our scope outright, in which case the foreign oblast is the
+    # contrast half of "quiet here, busy there" — see _OWN_SCOPE_RE.
+    if target_not_kyiv(norm) and not _OWN_SCOPE_RE.search(norm):
         return None
     if any(p in norm for p in _LEVEL_RAISED):
         return "forecast"
     if any(p in norm for p in _LEVEL_QUIET):
         return "status"
     if any(p in norm for p in _LEVEL_OBLAST):
+        return "status"
+    # After the quiet/oblast branches — see the comment on these three families.
+    if (_LEVEL_LAUNCH_RE.search(norm) or _LEVEL_AHEAD_RE.search(norm)
+            or any(p in norm for p in _MISSILE_CARRIER)):
+        return "forecast"
+    if any(p in norm for p in _LEVEL_QUIET_WEAK):
         return "status"
     # A stated COUNT with nowhere to put it ("Вже близько 21 ракет пустили",
     # "Був залп з 5 ракет") — during a salvo this number IS the situation, and
@@ -608,6 +636,49 @@ def _citywide(districts, status: str, norm: str, aftermath: bool, negated: bool,
     )
 
 
+_PULSE_TRIM = " .,!?:;()«»\"'…—–-+"
+
+
+def _pulse_tokens(norm: str) -> list[str]:
+    """Words of a normalized message with punctuation trimmed off each end."""
+    return [w for w in (t.strip(_PULSE_TRIM) for t in norm.split()) if w]
+
+
+def _pulse_names_unknown_place(words: list[str]) -> bool:
+    """A word sitting in TARGET position after a place preposition that the
+    gazetteer did NOT match ("Реактивний біля Пирятина", "На короп крилаті").
+
+    The message names somewhere we don't know, and pulsing it would credit the
+    open KYIV city alert with that somewhere's sighting — the T2445 class one
+    step past what `target_not_kyiv` can see, since that one knows oblast names
+    and this is an unrecognized settlement. Such a message is exactly the
+    gazetteer gap the LLM fallback exists for, so refusing to pulse also keeps
+    it flowing there.
+
+    Only the preposition form is caught. A bare trailing toponym ("Виліз
+    реактивний Тростянка") reads the same as a target word to any rule we have
+    and still pulses — a pre-existing limit of the pulse shape, not one this
+    guard introduces."""
+    for prev, word in zip(words, words[1:], strict=False):
+        if prev not in _PULSE_TARGET_PREP:
+            continue
+        if word[0].isdigit():  # "До 5ти ракет!" — a count, not a place
+            continue
+        if any(p in word for p in _PULSE_WORD + _PULSE_PREP_KNOWN):
+            continue
+        return True
+    return False
+
+
+def _pulse_type_denied(words: list[str]) -> bool:
+    """A bare denial of the type ("Не реактивні", "Не ракети") — the spotter is
+    correcting what's in the sky, not calling a new target in. `_negated` misses
+    it: its vocabulary expects a verb ("не йде на…"), and two words don't give
+    it one."""
+    return any(prev == "не" and any(p in word for p in _PULSE_WORD)
+               for prev, word in zip(words, words[1:], strict=False))
+
+
 def _target_pulse(districts, citywide: bool, status: str, norm: str, aftermath: bool,
                    negated: bool, siren_only: bool, political_quote: bool,
                    lost_signal: bool, summary: bool, ad_action: bool,
@@ -624,6 +695,7 @@ def _target_pulse(districts, citywide: bool, status: str, norm: str, aftermath: 
     the open KYIV city alert, it added a Sumy sighting to a Kyiv track and
     bumped its confidence (live 2026-08-01, T2445). Same guard `_lost_signal`
     already applies to "Чисто!"."""
+    words = _pulse_tokens(norm)
     return (
         not districts
         and not citywide
@@ -637,7 +709,65 @@ def _target_pulse(districts, citywide: bool, status: str, norm: str, aftermath: 
         # another region — watched or not — must not pulse (live 2026-08-01:
         # "Ціль на Сумщині" pushed a Kyiv card's confidence to 0.7).
         and not target_not_kyiv(norm)
+        and not _pulse_names_unknown_place(words)
+        and not _pulse_type_denied(words)
     )
+
+
+def _hit_end(hit: DistrictHit, norm: str) -> int:
+    """Char offset just past a gazetteer hit's own word (it carries only its
+    start; the matched form is one word, or the first word of a short phrase)."""
+    word = _TOPONYM_WORD_RE.match(norm[hit.position:])
+    return hit.position + (word.end() if word else 0)
+
+
+def _standby_districts(districts, norm: str) -> set[int]:
+    """Indices of hits the message merely puts on STANDBY rather than reports a
+    target over — the raions governed by a «готовність» (see _READINESS_RE).
+
+    The marker governs forward to the end of its sentence («готовність Вишгород,
+    Оболонь та Троя»), and backward only when it sits immediately after a raion
+    with nothing but a space between («Троя готовність», «Прилукам готовність»).
+    That tight backward window is what separates it from «Пухівка/Зазимʼя 🔴 та
+    готовність Бровари», where the two before the marker are the sighting and
+    only Бровари is on standby. A coordinated list right before the marker goes
+    on standby whole («Район Обухова/Василькова/Фастова готовність»)."""
+    standby: set[int] = set()
+    order = sorted(range(len(districts)), key=lambda i: districts[i].position)
+    for marker in _READINESS_RE.finditer(norm):
+        for i, hit in enumerate(districts):
+            if hit.position >= marker.end():
+                if not _SENTENCE_END_RE.search(norm[marker.end():hit.position]):
+                    standby.add(i)
+            else:
+                end = _hit_end(hit, norm)
+                if 0 <= marker.start() - end <= 2 and not norm[end:marker.start()].strip():
+                    standby.add(i)
+    for pos in range(len(order) - 1, 0, -1):
+        cur, prev = order[pos], order[pos - 1]
+        gap = norm[_hit_end(districts[prev], norm):districts[cur].position]
+        if cur in standby and _LIST_JOIN_RE.match(gap):
+            standby.add(prev)
+    return standby
+
+
+def _drop_standby_districts(districts, norm: str):
+    """Standby raions, dropped — but ONLY from a message that also reports a real
+    sighting. Then nothing is lost: the message still surfaces on the raion the
+    spotter actually saw the target over, and the one he told to get ready stops
+    being drawn as a target overhead.
+
+    When EVERY raion in the message is on standby («Район Обухова/Василькова/
+    Фастова готовність»), the list is left alone: dropping it would delete the
+    message from the feed entirely, and a heads-up the operator can see is worth
+    more than a track he has to discount. Representing that properly — feed-only,
+    or its own map state — is a product decision, not a parser one."""
+    if not districts:
+        return districts
+    standby = _standby_districts(districts, norm)
+    if not standby or len(standby) == len(districts):
+        return districts
+    return [h for i, h in enumerate(districts) if i not in standby]
 
 
 def _multi_targets(districts, norm: str) -> bool:
@@ -744,6 +874,7 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
     notice_kind = _level_notice(target_type, districts, citywide, directional, status, norm,
                                 target_count, aftermath, negated, siren_only, political_quote,
                                 lost_signal, summary, ad_action, civic_notice, eppo_marks, promo)
+    anticipated = notice_kind == "forecast" and _LEVEL_AHEAD_RE.search(norm) is not None
     matched = _matched(districts, citywide, status, aftermath, negated, siren_only,
                        political_quote, ad_action, promo, civic_notice, eppo_marks,
                        reportage)
@@ -751,6 +882,7 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
     if (aftermath or negated or siren_only or political_quote or ad_action or promo
             or civic_notice or eppo_marks):
         districts = []
+    districts = _drop_standby_districts(districts, norm)
     multi_targets = not impact and _multi_targets(districts, norm)
     # Confidence drops when we can't localize the target.
     if not districts and status not in ("clear",):
@@ -782,6 +914,7 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
         citywide=citywide,
         summary=summary,
         target_pulse=target_pulse,
+        anticipated=anticipated,
         notice_kind=notice_kind,
         decoy=decoy,
         hypersonic=hypersonic,

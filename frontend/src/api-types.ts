@@ -819,6 +819,12 @@ export interface paths {
          * @description Most recent sightings across ALL tracks (open or closed), newest first —
          *     hydrates the frontend event feed on page load (it otherwise only grows from
          *     live WebSocket traffic and empties on every reload).
+         *
+         *     `region` narrows the feed to one watched pool. It exists because filtering
+         *     client-side alone would silently shrink the feed: a busy northern night is
+         *     mostly Чернігівщина, so a reader who hides it would get a page of 60 events
+         *     with 20 left to look at. The client still filters what the WebSocket pushes
+         *     afterwards — this only makes the page it loads worth `limit` rows.
          */
         get: operations["recent_events_events_recent_get"];
         put?: never;
@@ -4837,6 +4843,7 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
+                region?: ("kyiv" | "chernihiv") | null;
             };
             header?: never;
             path?: never;

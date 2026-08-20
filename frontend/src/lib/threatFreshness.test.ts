@@ -7,6 +7,7 @@ import {
   isQuiet,
   lastSeenMs,
   minutesSinceSeen,
+  showsLiveMotion,
   stalePhase,
 } from './threatFreshness'
 
@@ -103,6 +104,28 @@ describe('isQuiet', () => {
     const t = threat()
     expect(isQuiet(t, T0 + 9 * MIN)).toBe(false)
     expect(isQuiet(t, T0 + 10 * MIN)).toBe(true)
+  })
+})
+
+describe('showsLiveMotion', () => {
+  // One rule behind the pulse rings, the flowing vector and the glyph's idle
+  // drift: motion means someone is still reporting this target.
+  it('runs while the target is fresh and stops when it goes quiet', () => {
+    const t = threat()
+    expect(showsLiveMotion(t, T0 + 9 * MIN)).toBe(true)
+    expect(showsLiveMotion(t, T0 + 10 * MIN)).toBe(false)
+  })
+
+  it('is never live for a closed track or an impact', () => {
+    // Both are cases isQuiet() reports as NOT quiet (there is nothing to call
+    // quiet), so a plain `!isQuiet` would have read them back as live — an
+    // impact is a recorded strike location and must sit perfectly still.
+    const closed = threat({ closed_at: new Date(T0 + MIN).toISOString(), status: 'destroyed' })
+    const impact = threat({ kind: 'impact', status: 'impact' })
+    expect(isQuiet(closed, T0 + MIN)).toBe(false)
+    expect(isQuiet(impact, T0 + MIN)).toBe(false)
+    expect(showsLiveMotion(closed, T0 + MIN)).toBe(false)
+    expect(showsLiveMotion(impact, T0 + MIN)).toBe(false)
   })
 })
 

@@ -1,5 +1,5 @@
 import { kyivDayKey, kyivDayMonth } from '@/lib/kyivTime'
-import type { FeedEntry, Incident, Notice } from '@/types'
+import type { FeedEntry, Incident, Notice, Region } from '@/types'
 
 // YYYY-MM-DD in Kyiv's calendar day, not UTC/browser-local — a message right
 // after midnight Kyiv time must group under that new day, not the UTC one.
@@ -12,6 +12,25 @@ export function daySeparatorLabel(dayKey: string, lang: string, t: (k: string) =
   if (dayKey === kyivDayKey(yesterday)) return t('log.yesterday')
   const label = kyivDayMonth(new Date(`${dayKey}T12:00:00Z`), lang === 'uk' ? 'uk-UA' : 'en-US')
   return label.charAt(0).toUpperCase() + label.slice(1)
+}
+
+/** Drop sightings from watched regions other than the home one.
+ *
+ * A northern night is mostly Чернігівщина — real targets, but 150 km away and
+ * not what someone watching Kyiv is reading the feed for. Filtering here rather
+ * than in the store keeps the log itself complete, so flipping the toggle back
+ * restores the entries already received without a refetch.
+ *
+ * Sightings only: notices carry no region (they're keyed to a source), and the
+ * northern channels raise a handful of them against hundreds from Kyiv's, so
+ * there is nothing to gain by guessing at one.
+ */
+export function filterFeedRegions(
+  log: FeedEntry[],
+  otherRegions: boolean,
+  home: Region = 'kyiv',
+): FeedEntry[] {
+  return otherRegions ? log : log.filter((e) => e.threat.region === home)
 }
 
 // One real message can close several tracks at once (e.g. an untyped

@@ -52,7 +52,7 @@ def test_only_the_full_serialization_publishes_freshness():
     assert shallow.last_event_at is None and shallow.stale_at is None
 
     full = threat_out(th)
-    # No events yet -> last seen is the creation time, and the fade spans the
-    # generic 20-minute stale window (see domain/staleness.py).
+    # No events yet -> last seen is the creation time, and with no reply chain to
+    # show for itself the fade spans a shahed's short window (domain/staleness.py).
     assert full.last_event_at == th.created_at
-    assert full.stale_at == th.created_at + timedelta(minutes=20)
+    assert full.stale_at == th.created_at + timedelta(minutes=5)

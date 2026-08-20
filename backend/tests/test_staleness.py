@@ -7,44 +7,124 @@ so a target's fade-out on the map lands exactly on its auto-close.
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
-from app.domain.staleness import last_event_at, stale_at, stale_window_minutes
+from app.domain.staleness import (
+    is_reply_tracked,
+    last_event_at,
+    stale_at,
+    stale_window_minutes,
+)
 
-WINDOWS = {"minutes": 20, "ballistic_minutes": 5}
+WINDOWS = {
+    "orphan_windows": {"ballistic": 2, "missile": 3, "jet_drone": 3, "shahed": 5, "unknown": 6},
+    "tracked_windows": {"ballistic": 5, "missile": 6, "jet_drone": 10, "shahed": 15,
+                        "unknown": 20},
+    "default_minutes": 20,
+}
 
 
-def _threat(*, target_type="shahed", scope="district", created_at=None, event_times=()):
-    created = created_at or datetime(2026, 8, 18, 22, 0)
+def _event(t, *, source_id=1, message_id=None, reply_to=None):
     return SimpleNamespace(
-        target_type=target_type,
-        scope=scope,
-        created_at=created,
-        events=[SimpleNamespace(event_time=t) for t in event_times],
+        event_time=t,
+        source_id=source_id,
+        source_message_id=message_id,
+        reply_to_message_id=reply_to,
     )
 
 
-def test_district_ballistic_gets_the_short_window():
-    assert stale_window_minutes("ballistic", "district", **WINDOWS) == 5
+def _threat(*, target_type="shahed", scope="district", created_at=None, events=()):
+    created = created_at or datetime(2026, 8, 18, 22, 0)
+    return SimpleNamespace(
+        target_type=target_type, scope=scope, created_at=created, events=list(events)
+    )
 
 
-def test_citywide_ballistic_keeps_the_normal_window():
-    # The city-scope ballistic track is the "barrage in progress" banner — its
-    # waves can lull for minutes, so it must not clear on the short window.
-    assert stale_window_minutes("ballistic", "city", **WINDOWS) == 20
+# --- which window applies -------------------------------------------------
 
 
-def test_every_other_type_gets_the_normal_window():
-    for target_type in ("shahed", "jet_drone", "missile", "unknown"):
-        assert stale_window_minutes(target_type, "district", **WINDOWS) == 20
+def test_an_unfollowed_track_gets_the_short_window_for_its_type():
+    for target_type, expected in (("ballistic", 2), ("missile", 3), ("jet_drone", 3),
+                                  ("shahed", 5), ("unknown", 6)):
+        assert stale_window_minutes(
+            target_type, "district", tracked=False, **WINDOWS
+        ) == expected
 
 
-def test_no_ballistic_override_configured_falls_back_to_the_normal_window():
-    assert stale_window_minutes("ballistic", "district", minutes=20) == 20
+def test_a_reply_followed_track_gets_the_long_window_for_its_type():
+    for target_type, expected in (("ballistic", 5), ("missile", 6), ("jet_drone", 10),
+                                  ("shahed", 15), ("unknown", 20)):
+        assert stale_window_minutes(
+            target_type, "district", tracked=True, **WINDOWS
+        ) == expected
+
+
+def test_citywide_keeps_the_longest_window_whatever_its_type():
+    # The city-scope track is the "barrage in progress" banner: it has no dot on
+    # the map that could be wrong about where the target is, and its waves lull
+    # for minutes — so neither the per-type nor the orphan window may shorten it,
+    # reply chain or not.
+    for target_type in ("ballistic", "missile", "jet_drone", "shahed", "unknown"):
+        assert stale_window_minutes(target_type, "city", tracked=False, **WINDOWS) == 20
+        assert stale_window_minutes(target_type, "city", tracked=True, **WINDOWS) == 20
+
+
+def test_an_unmapped_target_type_falls_back_to_the_default():
+    # A type added to the model but not to the windows must behave like the old
+    # single-window world, not vanish in two minutes.
+    assert stale_window_minutes("cruise_v2", "district", tracked=False, **WINDOWS) == 20
+    assert stale_window_minutes("cruise_v2", "district", tracked=True, **WINDOWS) == 20
+
+
+# --- what counts as "being followed" --------------------------------------
+
+
+def test_a_single_sighting_is_not_tracked():
+    assert not is_reply_tracked(_threat(events=[_event(datetime(2026, 8, 18, 22, 0),
+                                                       message_id=10)]))
+
+
+def test_a_resolved_reply_chain_is_tracked():
+    t = _threat(events=[
+        _event(datetime(2026, 8, 18, 22, 0), message_id=10),
+        _event(datetime(2026, 8, 18, 22, 4), message_id=11, reply_to=10),
+    ])
+    assert is_reply_tracked(t)
+
+
+def test_a_dangling_reply_is_not_tracked():
+    # The parent was never parsed, so this reply STARTED the track rather than
+    # joining one — nobody is walking this target along, and a broken chain must
+    # not buy the long window.
+    t = _threat(events=[_event(datetime(2026, 8, 18, 22, 0), message_id=11, reply_to=99)])
+    assert not is_reply_tracked(t)
+
+
+def test_a_reply_id_from_a_different_channel_is_not_tracked():
+    # Telegram reply ids are channel-scoped: the same integer in another channel
+    # is an unrelated message, so matching on the id alone would be a false link.
+    t = _threat(events=[
+        _event(datetime(2026, 8, 18, 22, 0), source_id=1, message_id=10),
+        _event(datetime(2026, 8, 18, 22, 4), source_id=2, message_id=11, reply_to=10),
+    ])
+    assert not is_reply_tracked(t)
+
+
+def test_corroboration_alone_is_not_tracked():
+    # Two channels naming the same district within the corroboration window is
+    # one snapshot seen twice, not evidence the target is being followed.
+    t = _threat(events=[
+        _event(datetime(2026, 8, 18, 22, 0), source_id=1, message_id=10),
+        _event(datetime(2026, 8, 18, 22, 1), source_id=2, message_id=77),
+    ])
+    assert not is_reply_tracked(t)
+
+
+# --- last seen / stale_at -------------------------------------------------
 
 
 def test_last_event_at_is_the_latest_sighting():
     # Threat.events is ordered by event_time, so the tail is the latest.
     times = [datetime(2026, 8, 18, 22, 0), datetime(2026, 8, 18, 22, 7)]
-    assert last_event_at(_threat(event_times=times)) == times[-1]
+    assert last_event_at(_threat(events=[_event(t) for t in times])) == times[-1]
 
 
 def test_last_event_at_falls_back_to_creation_for_an_eventless_track():
@@ -54,10 +134,13 @@ def test_last_event_at_falls_back_to_creation_for_an_eventless_track():
 
 def test_stale_at_is_the_last_sighting_plus_the_window():
     seen = datetime(2026, 8, 18, 22, 7)
-    shahed = _threat(event_times=[seen])
-    ballistic = _threat(target_type="ballistic", event_times=[seen])
-    assert stale_at(shahed, **WINDOWS) == seen + timedelta(minutes=20)
-    assert stale_at(ballistic, **WINDOWS) == seen + timedelta(minutes=5)
+    orphan = _threat(target_type="jet_drone", events=[_event(seen, message_id=10)])
+    followed = _threat(target_type="jet_drone", events=[
+        _event(datetime(2026, 8, 18, 22, 3), message_id=10),
+        _event(seen, message_id=11, reply_to=10),
+    ])
+    assert stale_at(orphan, **WINDOWS) == seen + timedelta(minutes=3)
+    assert stale_at(followed, **WINDOWS) == seen + timedelta(minutes=10)
 
 
 def test_stale_at_can_be_in_the_past():
@@ -65,4 +148,5 @@ def test_stale_at_can_be_in_the_past():
     # after crossing its window — the API must report that honestly rather than
     # clamping, or the map's fade would never bottom out.
     long_ago = datetime(2026, 8, 18, 20, 0)
-    assert stale_at(_threat(event_times=[long_ago]), **WINDOWS) < datetime(2026, 8, 18, 22, 0)
+    t = _threat(events=[_event(long_ago, message_id=1)])
+    assert stale_at(t, **WINDOWS) < datetime(2026, 8, 18, 22, 0)

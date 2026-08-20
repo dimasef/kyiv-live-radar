@@ -41,10 +41,7 @@ async def run_sweeper() -> None:
         try:
             async with SessionLocal() as session:
                 now = utcnow()
-                closed = await close_stale_tracks(
-                    session, now, settings.track_stale_minutes,
-                    ballistic_minutes=settings.ballistic_stale_minutes,
-                )
+                closed = await close_stale_tracks(session, now)
                 if closed:
                     log.info("auto-closed %d stale track(s)", len(closed))
                     await broadcast_results(session, [Broadcast("status", t) for t in closed])

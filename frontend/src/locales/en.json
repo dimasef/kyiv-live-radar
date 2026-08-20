@@ -166,6 +166,9 @@
       "md": "Default",
       "lg": "Larger"
     },
+    "feedRegions": "Regions in the feed",
+    "feedRegionsAll": "All",
+    "feedRegionsHome": "Kyiv region only",
     "privacy": "Privacy"
   },
   "game": {
@@ -245,7 +248,9 @@
     "clear": "all clear",
     "noData": "no data",
     "hm": "{{h}}h {{m}}m",
-    "m": "{{m}}m"
+    "m": "{{m}}m",
+    "compactH": "{{h}}h",
+    "compactM": "{{m}}m"
   },
   "zonesCtl": {
     "show": "Show air alerts by raion",

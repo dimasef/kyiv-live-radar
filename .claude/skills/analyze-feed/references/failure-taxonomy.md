@@ -139,3 +139,25 @@ and at least one was decided after a live failure.
   once closed a live attack. Type-scoped stand-downs are kept.
 - **The app never replaces the official air-raid alert.** Nothing in an analysis
   should push it toward being an authoritative warning system.
+- **Type inheritance is NOT gated on geography.** It looks like it should be:
+  `_note_and_inherit_type` is channel+time only, and on the oblast-wide northern
+  channel a type does smear across unrelated targets (08-20: 59% of that
+  channel's events inherit, median 44 km from where the type was stated, up to
+  103 km). Both obvious gates were measured against the corpus and both make
+  things worse:
+  - **distance threshold** — the dominant *legitimate* pattern is long-range.
+    «Циркони. НІЖИН ПРОХОДЯТЬ» → «Жуляни увага!» is 125 km and correct; so are
+    «Дві групи ракет на Ніжин» → Бориспіль/Бровари/Переяслав. A 45 km gate
+    strips the type from exactly the approach warnings that matter most.
+  - **implied-speed threshold** (distance ÷ elapsed vs. what the type can fly) —
+    fails for a subtler reason worth remembering: **the timestamps measure how
+    fast the spotter types, not how fast the target flies.** These channels warn
+    districts *ahead* of the target, so the Ніжин→Жуляни pair reads as 125 km in
+    36 seconds.
+
+  The 08-20 case that motivated the idea («На Новгород-сіверський» typed
+  `jet_drone` from a target 103 km away) turned out to be a *gazetteer* bug: its
+  reply parent «БпЛА біля Рогівки» matched no district, produced no event, and
+  so the reply had no track to join and fell back to channel context. Adding
+  Рогівка fixed it — one track, typed `shahed` from its own parent. Look for the
+  broken chain before reaching for the geometry.

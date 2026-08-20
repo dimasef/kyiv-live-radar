@@ -79,10 +79,18 @@ export const createThreatsSlice: StateCreator<RadarState, [], [], ThreatsSlice> 
   applyThreatMessage: (msg) => {
     const { threat } = msg
 
-    // Never resurrect a track already closed on the map (guards against stale
-    // out-of-order events re-adding a threat that was cleared).
-    const existing = get().threats[threat.id]
-    if (msg.type === 'event' && existing?.closed_at) return
+    // An EVENT frame never (re-)opens a closed track on the map: it's already
+    // gone, or already playing its exit, and re-adding it makes the dot flash
+    // back for the whole linger. Such frames are normal — an out-of-order
+    // sighting, or a «збито» that lands after the sweeper retired the target
+    // (the backend relabels that close and broadcasts the news as an event).
+    // Only the map write is skipped, never the frame: the feed and the inspected
+    // copy are exactly where that news belongs. Impacts are closed on creation
+    // but are permanent map pins, and a track still on screen keeps taking
+    // updates so its exit shows the corrected status.
+    const onMap = get().threats[threat.id] != null
+    const showOnMap =
+      msg.type !== 'event' || !threat.closed_at || threat.status === 'impact' || onMap
 
     // The feed's cards and the inspected copy each embed their OWN snapshot of
     // the track, taken when the event arrived — so a later change to it (an
@@ -90,7 +98,7 @@ export const createThreatsSlice: StateCreator<RadarState, [], [], ThreatsSlice> 
     // showing the old type until a reload. Every threat-bearing frame refreshes
     // all three copies together.
     set((s) => ({
-      threats: { ...s.threats, [threat.id]: threat },
+      threats: showOnMap ? { ...s.threats, [threat.id]: threat } : s.threats,
       log: s.log.map((e) => (e.threat.id === threat.id ? { ...e, threat } : e)),
       inspectedThreat:
         s.inspectedThreat?.id === threat.id

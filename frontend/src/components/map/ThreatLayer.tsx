@@ -2,7 +2,7 @@ import L from "leaflet";
 import { memo, useMemo } from "react";
 import { CircleMarker, Marker, Polyline } from "react-leaflet";
 
-import { fadeFactor, isQuiet } from "@/lib/threatFreshness";
+import { fadeFactor, showsLiveMotion } from "@/lib/threatFreshness";
 import { useRadar } from "@/store";
 
 import { threatState } from "../../threatDisplay";
@@ -78,6 +78,9 @@ const ThreatLayer = memo(function ThreatLayer({
   const state = threatState(threat, { heading, directional: DOT_UNTIL_MOVING[type] });
 
   const pulse = useMemo(() => pulseIcon(color), [color]);
+  // Computed before the early returns below so the hook order stays fixed — the
+  // icon needs it, and it depends on the ticking clock.
+  const live = showsLiveMotion(threat, now);
   const headIcon = useMemo(
     () =>
       threatDivIcon(type, {
@@ -87,8 +90,10 @@ const ThreatLayer = memo(function ThreatLayer({
         size: highlighted ? 30 : 26,
         closing: leaving,
         count: threat.target_count,
+        drift: live,
+        seed: threat.id,
       }),
-    [type, state, heading, color, highlighted, leaving, threat.target_count],
+    [type, state, heading, color, highlighted, leaving, threat.target_count, threat.id, live],
   );
 
   if (pts.length === 0) return null;
@@ -108,9 +113,6 @@ const ThreatLayer = memo(function ThreatLayer({
   const dim =
     (0.5 + 0.5 * Math.max(0, Math.min(1, threat.confidence))) *
     fadeFactor(threat, now, highlighted);
-  // Past halfway to its auto-close the live cues switch off: a track nobody is
-  // reporting must not keep pulsing and flowing as if it were being tracked.
-  const quiet = isQuiet(threat, now);
   const corroborated = threat.corroboration_count >= 2;
 
   return (
@@ -119,7 +121,7 @@ const ThreatLayer = memo(function ThreatLayer({
         <Polyline
           // className is applied at creation only — remount when activity (or
           // going quiet, which drops the flow animation) flips.
-          key={`${threat.id}-${active ? "live" : "closed"}-${quiet ? "quiet" : ""}-${highlighted ? "insp" : ""}`}
+          key={`${threat.id}-${active ? "live" : "closed"}-${live ? "" : "quiet"}-${highlighted ? "insp" : ""}`}
           positions={latlngs}
           pathOptions={{
             color,
@@ -127,7 +129,7 @@ const ThreatLayer = memo(function ThreatLayer({
             opacity: (active ? 0.8 : highlighted ? 0.75 : 0.45) * dim,
             className:
               [
-                active && !quiet && "track-flow",
+                live && "track-flow",
                 highlighted && "track-inspect",
                 leaving && "track-closing",
               ]
@@ -168,7 +170,7 @@ const ThreatLayer = memo(function ThreatLayer({
       )}
       {/* Pulsing rings on the live head of an active track — off once it goes
           quiet, so "pulsing" always means "someone is still reporting this". */}
-      {active && !quiet && (
+      {live && (
         <Marker
           position={[head.lat, head.lon]}
           icon={pulse}

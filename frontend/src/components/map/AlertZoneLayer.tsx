@@ -1,11 +1,46 @@
-import { useTranslation } from 'react-i18next'
-import { GeoJSON, Tooltip } from 'react-leaflet'
+import type L from 'leaflet'
+import { useEffect, useState } from 'react'
+import { GeoJSON, Tooltip, useMap } from 'react-leaflet'
 
 import { useRadar } from '@/store'
-import type { AlertZone } from '@/types'
 
-import { sinceParts, zoneTone } from './alertZones'
-import { ZONE_STYLES } from './constants'
+import { zoneTone } from './alertZones'
+import { ZONE_GLOW, ZONE_LABEL_NUDGE, ZONE_STYLES } from './constants'
+import ZoneGlowDefs from './ZoneGlowDefs'
+import ZoneLabel from './ZoneLabel'
+
+/** Tag a zone's rendered path so it can be focused and identified.
+ *
+ * Leaflet draws each polygon as a bare <svg:path>, which nothing can focus — so
+ * on touch and on the TV remote, where there is no hover at all, a raion's name
+ * was unreachable. A tabindex fixes all three input modes at once: it makes the
+ * path a tab stop for a keyboard, a focus target for a remote, and (in every
+ * browser we target) focused by a tap — without touching the click, which the
+ * map already spends on panning and home placement.
+ *
+ * Idempotent, because an inline ref callback re-runs on every render. It only
+ * sets attributes — the focus listener itself is delegated on the map container
+ * below, so there is nothing here to attach twice or leak.
+ *
+ * `setAttribute`, not `dataset`: SVGElement.dataset is missing on the older
+ * engines the TV target runs (see lib/observers for the same class of guard),
+ * and there it would throw rather than degrade.
+ */
+const ZONE_ATTR = 'data-zone'
+
+function tagPath(layer: L.GeoJSON | null, zoneId: string): void {
+  layer?.eachLayer((child) => {
+    const el = (child as L.Path).getElement?.()
+    if (!el) return
+    el.setAttribute('tabindex', '0')
+    el.setAttribute(ZONE_ATTR, zoneId)
+  })
+}
+
+function zoneOf(target: EventTarget | null): string | null {
+  const el = target as Element | null
+  return el?.getAttribute?.(ZONE_ATTR) ?? null
+}
 
 /** Official air-raid state of the raions of Київщина and Чернігівщина, from an
  * external provider (see backend feeds/alert_zones.py). Purely contextual: it
@@ -15,56 +50,84 @@ import { ZONE_STYLES } from './constants'
 export default function AlertZoneLayer() {
   const zones = useRadar((s) => s.zones)
   const geometry = useRadar((s) => s.zoneGeometry)
+  const map = useMap()
+  /** Zone whose name is currently revealed — hovered, or focused. */
+  const [named, setNamed] = useState<string | null>(null)
+
+  // Focus is delegated on the container rather than bound per polygon: the
+  // paths are remounted whenever a zone changes tone (see the key below), and
+  // per-layer listeners would have to be re-attached on every one of those.
+  useEffect(() => {
+    const root = map.getContainer()
+    const onIn = (e: FocusEvent) => {
+      const id = zoneOf(e.target)
+      if (id) setNamed(id)
+    }
+    const onOut = (e: FocusEvent) => {
+      const id = zoneOf(e.target)
+      if (id) setNamed((cur) => (cur === id ? null : cur))
+    }
+    root.addEventListener('focusin', onIn)
+    root.addEventListener('focusout', onOut)
+    return () => {
+      root.removeEventListener('focusin', onIn)
+      root.removeEventListener('focusout', onOut)
+    }
+  }, [map])
+
+  const shapes = Object.entries(geometry)
+  const toneOf = (zoneId: string) => (zones[zoneId] ? zoneTone(zones[zoneId]) : 'stale')
 
   return (
     <>
-      {Object.entries(geometry).map(([zoneId, shape]) => {
-        const zone = zones[zoneId]
-        const tone = zone ? zoneTone(zone) : 'stale'
+      <ZoneGlowDefs />
+      {/* Every glow first, then every outline — not glow+outline per zone. In
+          one pass a neighbour's glow lands on top of the border drawn just
+          before it, and alerted raions are almost always neighbours. */}
+      {shapes
+        .filter(([zoneId]) => toneOf(zoneId) === 'alert')
+        .map(([zoneId, shape]) => (
+          <GeoJSON
+            key={`glow-${zoneId}`}
+            data={shape.geojson}
+            style={{ ...ZONE_GLOW.style, className: 'zone-glow' }}
+          />
+        ))}
+      {shapes.map(([zoneId, shape]) => {
+        const tone = toneOf(zoneId)
         return (
           // Keyed by tone: Leaflet's setStyle doesn't re-apply a className or
           // dashArray on an existing path, so a state change needs a fresh
           // mount (same trick as CitywidePulse).
           <GeoJSON
             key={`${zoneId}-${tone}`}
+            ref={(layer) => tagPath(layer, zoneId)}
             data={shape.geojson}
             style={{ ...ZONE_STYLES[tone], className: 'zone-hit' }}
+            eventHandlers={{
+              mouseover: () => setNamed(zoneId),
+              mouseout: () => setNamed((cur) => (cur === zoneId ? null : cur)),
+            }}
           >
-            {/* Non-sticky center tooltip = a bare label pinned to the polygon
-                center, exactly like DistrictLayer's raion names. */}
-            <Tooltip direction="center" className="zone-label">
-              <ZoneLabel name={shape.name_uk} zone={zone} />
+            {/* Permanent, so the raion's state is readable without asking for
+                it. pointer-events stay off it (.zone-label) — a label sitting on
+                the polygon must not shadow the polygon's own hover. */}
+            <Tooltip
+              permanent
+              direction="center"
+              className="zone-label"
+              offset={ZONE_LABEL_NUDGE[zoneId] ?? [0, 0]}
+            >
+              <ZoneLabel
+                name={shape.name_uk}
+                zone={zones[zoneId]}
+                tone={tone}
+                named={named === zoneId}
+              />
             </Tooltip>
           </GeoJSON>
         )
       })}
-    </>
-  )
-}
-
-/** The raion's name, plus how long a siren has been up. Split out so the
- * ticking clock re-renders one line of text rather than thirteen polygons.
- *
- * A clear zone shows the name alone — its state is already in the fill, and a
- * «відбій» caption on twelve quiet raions is noise. Only the two states worth
- * reading get a second line. */
-function ZoneLabel({ name, zone }: { name: string; zone: AlertZone | undefined }) {
-  const { t } = useTranslation()
-  const nowMs = useRadar((s) => s.nowMs)
-  const skew = useRadar((s) => s.clockSkewMs)
-
-  const since = zone && !zone.stale ? sinceParts(zone.changed_at, nowMs + skew) : null
-  const held = since && (since.h ? t('zones.hm', since) : t('zones.m', since))
-  const caption = !zone || zone.stale
-    ? t('zones.noData')
-    : zone.alert
-      ? [t('zones.alert'), held].filter(Boolean).join(' · ')
-      : null
-
-  return (
-    <>
-      <span className="zone-label-name">{name}</span>
-      {caption && <span className="zone-label-state">{caption}</span>}
     </>
   )
 }

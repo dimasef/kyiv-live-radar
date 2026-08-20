@@ -79,6 +79,38 @@ describe('closed-track eviction', () => {
   })
 })
 
+describe('news about an already-gone track', () => {
+  it('reaches the feed without putting the dot back on the map', () => {
+    // A «збито» that lands after the sweeper already retired the target: the
+    // backend relabels that close and broadcasts it as an EVENT so the feed
+    // shows the interception. The map must not take it — the track was evicted
+    // long ago, and re-adding it would flash the dot back for the whole linger.
+    const { get } = makeStore()
+    get().applyThreatMessage({
+      type: 'event',
+      threat: closedThreat({ closed_reason: 'destroyed' }),
+      event: { id: 9, threat_id: 7 } as never,
+    })
+    expect(get().threats[7]).toBeUndefined()
+    expect(get().log).toHaveLength(1)
+    expect(get().log[0].threat.closed_reason).toBe('destroyed')
+    // ...and nothing was scheduled that could make it appear later.
+    vi.advanceTimersByTime(30_000)
+    expect(get().threats[7]).toBeUndefined()
+  })
+
+  it('still updates a track that is currently playing its exit', () => {
+    const { get } = makeStore()
+    get().applyThreatMessage({ type: 'status', threat: closedThreat({ closed_reason: 'stale' }) })
+    get().applyThreatMessage({
+      type: 'event',
+      threat: closedThreat({ closed_reason: 'destroyed' }),
+      event: { id: 9, threat_id: 7 } as never,
+    })
+    expect(get().threats[7]?.closed_reason).toBe('destroyed')
+  })
+})
+
 describe('the feed follows the track it embeds', () => {
   const entry = (threat: Threat) => ({ event: { id: 1, threat_id: threat.id } as never, threat })
 

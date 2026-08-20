@@ -32,7 +32,7 @@ from ..models import HOME_REGION, Threat, ThreatEvent
 from ..timeutil import naive
 from .fusion import FusionResult, compute_fusion
 from .lifecycle import close_track
-from .staleness import last_event_at, stale_window_minutes
+from .staleness import is_reply_tracked, last_event_at, stale_window_minutes
 
 log = logging.getLogger("tracking")
 
@@ -144,6 +144,51 @@ async def find_stood_down_track(
         if not threat.events:
             continue
         latest_time = max(naive(e.event_time) for e in threat.events)
+        latest_districts = {
+            e.district_id for e in threat.events if naive(e.event_time) == latest_time
+        }
+        if latest_districts & district_ids:
+            return threat
+    return None
+
+
+async def find_stale_closed_track(
+    session, when: datetime, district_ids: set[int], *, region: str = HOME_REGION
+) -> Threat | None:
+    """Newest track the SWEEPER retired as silent whose latest sighting was over
+    one of `district_ids` — the track a late «збито» is talking about.
+
+    Since the stale windows became per-type (domain/staleness.py), a target can
+    be swept off the map minutes before the channel reports it shot down. The
+    caller relabels such a close rather than reopening the track: the map is
+    already right, only the REASON is wrong.
+
+    Reach is `track_stale_minutes`, the same lookback `find_open_track` gets for
+    a closing message — so this recovers exactly what the shorter windows took
+    away, and never reaches further back than the old single window did.
+
+    Matches on the LATEST sighting's district only, like `find_stood_down_track`:
+    a busy corridor district (Бровари, Троєщина) appears in half the tracks of a
+    given night, and matching any event would relabel whichever one happened to
+    transit it first."""
+    if not district_ids:
+        return None
+    reach = timedelta(minutes=settings.track_stale_minutes)
+    stmt = (
+        select(Threat)
+        .where(Threat.closed_reason == "stale", Threat.scope != "city",
+               Threat.region == region)
+        .options(selectinload(Threat.events))
+        .order_by(Threat.closed_at.desc())
+    )
+    for threat in await session.scalars(stmt):  # most recently closed first
+        if threat.closed_at is None or not _within(threat.closed_at, when, reach):
+            break  # ordered by closed_at — everything after is older still
+        if not threat.events:
+            continue
+        latest_time = max(naive(e.event_time) for e in threat.events)
+        if not _within(latest_time, when, reach):
+            continue
         latest_districts = {
             e.district_id for e in threat.events if naive(e.event_time) == latest_time
         }
@@ -304,18 +349,28 @@ async def close_all_active(
 
 
 async def close_stale_tracks(
-    session, now: datetime, minutes: int, ballistic_minutes: int | None = None,
-    *, region: str | None = None,
+    session,
+    now: datetime,
+    *,
+    orphan_windows: dict[str, int] | None = None,
+    tracked_windows: dict[str, int] | None = None,
+    default_minutes: int | None = None,
+    region: str | None = None,
 ) -> list[Threat]:
-    """Close open tracks with no sighting for `minutes` — a target that just went
-    silent (no explicit destroyed/clear) must not linger as 'active' forever.
+    """Close open tracks that have gone silent past their window — a target that
+    just stopped being reported (no explicit destroyed/clear) must not linger as
+    'active' forever.
 
-    The per-type window and the "last seen" rule live in domain/staleness.py —
-    the API publishes the same instant as `stale_at` so the map's fade-out lands
-    exactly on this close.
+    The window itself and the "last seen" rule live in domain/staleness.py: it
+    depends on the target type AND on whether the track has a resolved reply
+    chain. The API publishes the same instant as `stale_at`, so the map's
+    fade-out lands exactly on this close.
 
     `region=None` (the sweeper) sweeps every region: staleness is a property of
     the individual track, not of its pool."""
+    orphan = orphan_windows if orphan_windows is not None else settings.stale_minutes_orphan
+    tracked = tracked_windows if tracked_windows is not None else settings.stale_minutes_tracked
+    fallback = default_minutes if default_minutes is not None else settings.track_stale_minutes
     stmt = select(Threat).where(Threat.closed_at.is_(None)).options(
         selectinload(Threat.events)
     )
@@ -324,7 +379,12 @@ async def close_stale_tracks(
     stale = []
     for t in await session.scalars(stmt):
         gap_min = stale_window_minutes(
-            t.target_type, t.scope, minutes=minutes, ballistic_minutes=ballistic_minutes
+            t.target_type,
+            t.scope,
+            tracked=is_reply_tracked(t),
+            orphan_windows=orphan,
+            tracked_windows=tracked,
+            default_minutes=fallback,
         )
         last = last_event_at(t)
         if not _within(last, now, timedelta(minutes=gap_min)):

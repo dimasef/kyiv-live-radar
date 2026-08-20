@@ -37,7 +37,12 @@ async def client(tmp_path):
     await engine.dispose()
 
 
-async def _track(session, *, target_type="shahed", scope="district", minutes_ago=2) -> Threat:
+async def _track(
+    session, *, target_type="shahed", scope="district", minutes_ago=2, followed=False
+) -> Threat:
+    """One track with a single sighting `minutes_ago`; `followed=True` adds a
+    second sighting that REPLIES to the first, the signal that earns the long
+    stale window (see domain/staleness.py)."""
     d = District(name_uk="Дарницький", name_en="Darnytskyi", lat=50.40, lon=30.63)
     session.add(d)
     await session.commit()
@@ -50,9 +55,17 @@ async def _track(session, *, target_type="shahed", scope="district", minutes_ago
     session.add(
         ThreatEvent(
             threat_id=th.id, district_id=d.id, raw_text="ціль", event_time=seen,
-            decision_source="rule",
+            decision_source="rule", source_id=1, source_message_id=1,
         )
     )
+    if followed:
+        session.add(
+            ThreatEvent(
+                threat_id=th.id, district_id=d.id, raw_text="ціль", event_time=seen,
+                decision_source="rule", source_id=1, source_message_id=2,
+                reply_to_message_id=1,
+            )
+        )
     await session.commit()
     return th
 
@@ -66,8 +79,20 @@ async def test_active_threats_publish_the_fade_window(client):
     assert row["last_event_at"] is not None and row["stale_at"] is not None
     seen = datetime.fromisoformat(row["last_event_at"])
     stale = datetime.fromisoformat(row["stale_at"])
-    # The generic window: the fade spans exactly the sweeper's 20 minutes.
-    assert (stale - seen) == timedelta(minutes=20)
+    # Nobody followed this shahed up, so the fade spans its short window.
+    assert (stale - seen) == timedelta(minutes=5)
+
+
+async def test_a_followed_track_publishes_the_long_window(client):
+    """Both axes of the rule have to survive the trip to the client, not just
+    the type one — this is what stops a target a channel is actively walking
+    along from fading out between its (legitimately spaced) callouts."""
+    c, s = client
+    await _track(s, target_type="jet_drone", minutes_ago=1, followed=True)
+    row = (await c.get("/threats/active")).json()[0]
+    seen = datetime.fromisoformat(row["last_event_at"])
+    stale = datetime.fromisoformat(row["stale_at"])
+    assert (stale - seen) == timedelta(minutes=10)
 
 
 async def test_freshness_timestamps_carry_an_explicit_utc_offset(client):
@@ -89,13 +114,13 @@ async def test_freshness_timestamps_carry_an_explicit_utc_offset(client):
     assert timedelta(minutes=2) < age < timedelta(minutes=5)
 
 
-async def test_district_ballistic_fades_on_the_short_window(client):
+async def test_district_ballistic_fades_on_the_shortest_window(client):
     c, s = client
     await _track(s, target_type="ballistic", minutes_ago=1)
     row = (await c.get("/threats/active")).json()[0]
     seen = datetime.fromisoformat(row["last_event_at"])
     stale = datetime.fromisoformat(row["stale_at"])
-    assert (stale - seen) == timedelta(minutes=5)
+    assert (stale - seen) == timedelta(minutes=2)
 
 
 async def test_citywide_ballistic_keeps_the_normal_window(client):

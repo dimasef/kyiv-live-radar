@@ -133,6 +133,23 @@ def test_citywide_message_inherits_type():
     assert r.citywide and r.target_type == "ballistic"
 
 
+def test_carrier_activity_does_not_become_the_channel_type():
+    # Live 2026-08-19 21:11: bombers left Olenya (four hours from their launch
+    # lines) WHILE a ballistic salvo was overhead. The carrier post types itself
+    # `missile` so it can surface as a forecast notice, but claiming the channel
+    # is now calling cruise missiles would retype the very next bare toponym —
+    # which belonged to the salvo.
+    carrier = _feed("З оленя злетіли тушки", source_id=1, when=T0)
+    assert carrier.target_type == "missile"  # for its own notice
+    obukhiv = _feed("Обухів", source_id=1, when=T0 + timedelta(seconds=75))
+    assert obukhiv.target_type == "unknown"  # context untouched by the carrier
+    # A launch report that names the weapon is a different matter: those missiles
+    # ARE in the air, so it sets the context like any other typed callout.
+    _feed("Пуски крилатих ракет із ТУшок", source_id=2, when=T0)
+    r = _feed("Обухів", source_id=2, when=T0 + timedelta(seconds=75))
+    assert r.target_type == "missile"
+
+
 def test_non_sighting_message_does_not_inherit():
     # Neither a district nor a city-wide sighting (a chat aside) — there is
     # nothing to attach a type to, so it stays unknown.
@@ -146,6 +163,30 @@ def test_stated_type_is_never_overridden_by_context():
     _feed("Балістика!", source_id=1, when=T0)
     shahed = _feed("Шахед на Троєщину", source_id=1, when=T0 + timedelta(minutes=1))
     assert shahed.target_type == "shahed"  # its own stated type wins
+
+
+def test_anticipated_wave_does_not_become_the_channel_type():
+    # Live 2026-08-19 22:18-22:20. Kalibrs were fifteen minutes from Kyiv when
+    # both channels posted about a possible NEXT ballistic wave; every cruise
+    # callout that followed inherited «балістика» from those two posts. A
+    # forecast about what MIGHT come cannot relabel what is already in the sky.
+    _feed("Калібри йдуть в бік Київщини", source_id=1, when=T0)
+    ahead = _feed("Найближчим часом можлива повторна хвиля балістики. Пильнуємо.",
+                  source_id=1, when=T0 + timedelta(minutes=1))
+    assert ahead.notice_kind == "forecast" and ahead.anticipated
+    boguslav = _feed("Богуслав/Миронівка 🔴.", source_id=1, when=T0 + timedelta(minutes=2))
+    assert boguslav.target_type == "missile"  # still the cruise wave, not ballistic
+
+
+def test_a_named_cruise_weapon_corrects_a_ballistic_context():
+    # Same night, 22:22: both channels said «Калібри» while the context was
+    # stale-ballistic, and both stayed ballistic — the downgrade guard could not
+    # tell a named cruise weapon from a bare "ракети". It has to, because that
+    # is the spotter identifying what is flying.
+    _feed("Балістика!", source_id=1, when=T0)
+    _feed("6 калібрів звернули на Черкащину", source_id=1, when=T0 + timedelta(minutes=1))
+    obukhiv = _feed("Обухів", source_id=1, when=T0 + timedelta(minutes=2))
+    assert obukhiv.target_type == "missile"
 
 
 def test_generic_missile_mention_does_not_downgrade_ballistic_context():

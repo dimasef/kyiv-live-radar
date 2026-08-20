@@ -69,6 +69,22 @@ async def test_untyped_callout_inherits_a_single_family_incident_type(ctx):
     assert len(obolon) == 2  # both tracks ballistic
 
 
+async def test_a_finished_phase_stops_typing_the_one_running_now(ctx):
+    # Live 2026-08-19: the raid opened with a ballistic salvo at 20:52 and was
+    # still labelling cruise callouts «балістика» at 22:27, because the incident
+    # label only ratchets up and never forgets. The prior reads the tracks that
+    # are actually flying, so once the salvo is an hour stale it stops speaking.
+    s, m, src = ctx
+    await ingest_message(s, text="Балістика на Троєщину", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Крилата ракета на Васильків", matcher=m,
+                         when=BASE + timedelta(minutes=25), source_id=src[0].id, message_id=2)
+    await ingest_message(s, text="Обухів", matcher=m, when=BASE + timedelta(minutes=33),
+                         source_id=src[1].id, message_id=3)
+    obukhiv = (await s.scalars(select(Threat).order_by(Threat.id.desc()))).first()
+    assert obukhiv.target_type == "missile"  # the cruise phase, not the old salvo
+
+
 async def test_untyped_callout_stays_unknown_in_a_combined_incident(ctx):
     # 08-04: inc.target_type only ratchets up, so one Циркон track made every
     # later untyped callout ballistic. Combined raid -> the incident can't say.

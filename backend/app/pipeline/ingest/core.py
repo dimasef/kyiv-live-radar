@@ -109,7 +109,7 @@ async def _infer_incident_type(session, parsed: ParseResult, when: datetime) -> 
     if parsed.target_type != "unknown" or not (parsed.districts or parsed.citywide):
         return False
     inc = await find_active_incident(session, when)
-    prior = incident_type_prior(inc) if inc is not None else None
+    prior = await incident_type_prior(session, inc, when) if inc is not None else None
     if prior is not None:
         parsed.target_type = prior
         return True

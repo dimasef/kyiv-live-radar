@@ -25,12 +25,21 @@ export default function FeedSettings() {
   const setFeedTextSize = useRadar((s) => s.setFeedTextSize)
   const feedLimit = useRadar((s) => s.feedLimit)
   const setFeedLimit = useRadar((s) => s.setFeedLimit)
+  const feedOtherRegions = useRadar((s) => s.feedOtherRegions)
+  const setFeedOtherRegions = useRadar((s) => s.setFeedOtherRegions)
   const setLog = useRadar((s) => s.setLog)
 
   // Changing the count re-fetches the feed so it takes effect immediately.
   const changeLimit = (n: FeedLimit) => {
     setFeedLimit(n)
-    fetchRecentEvents(n).then(setLog).catch(() => {})
+    fetchRecentEvents(n, feedOtherRegions ? undefined : 'kyiv').then(setLog).catch(() => {})
+  }
+
+  // Re-fetch on toggle too, so the page is worth `feedLimit` rows either way —
+  // filtering only what's already loaded would leave a fraction of a feed.
+  const changeRegions = (on: boolean) => {
+    setFeedOtherRegions(on)
+    fetchRecentEvents(feedLimit, on ? undefined : 'kyiv').then(setLog).catch(() => {})
   }
 
   const label = 'mb-1 block text-[11px] text-slate-500'
@@ -73,6 +82,20 @@ export default function FeedSettings() {
             }`}
           >
             {t(`settings.feedTextSize.${o}`)}
+          </button>
+        ))}
+      </div>
+
+      <span className={`${label} mt-3`}>{t('settings.feedRegions')}</span>
+      <div className="flex gap-1">
+        {[true, false].map((on) => (
+          <button
+            key={String(on)}
+            onClick={() => changeRegions(on)}
+            aria-pressed={feedOtherRegions === on}
+            className={seg(feedOtherRegions === on)}
+          >
+            {t(on ? 'settings.feedRegionsAll' : 'settings.feedRegionsHome')}
           </button>
         ))}
       </div>

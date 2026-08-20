@@ -13,11 +13,11 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from ..config import settings
-from ..models import Alert, Incident, Threat
+from ..models import Alert, Incident, Threat, ThreatEvent
 from .lifecycle import close_track, reopen_track
 
 log = logging.getLogger("incidents")
@@ -31,17 +31,49 @@ _FAMILY = {"shahed": "drone", "jet_drone": "drone",
            "missile": "missile", "ballistic": "missile"}
 
 
-def incident_type_prior(inc: Incident) -> str | None:
+async def incident_type_prior(session, inc: Incident, when: datetime) -> str | None:
     """Type an untyped sighting may inherit, or None when the incident can't say.
 
-    NOT `inc.target_type` — that is a max-severity label that only ratchets up,
-    so one Циркон track made every later untyped callout ballistic (08-04: the
-    Бровари drone corridor read as балістика, losing its vector too). Only
-    honest while the raid is one family; combined -> unknown."""
-    families = {_FAMILY.get(t) for t in inc.attack_types or []}
+    NOT `inc.target_type`/`inc.attack_types` — those are max-severity labels
+    that only ratchet up, so one Циркон track made every later untyped callout
+    ballistic (08-04: the Бровари drone corridor read as балістика, losing its
+    vector too). Only honest while the raid is one family; combined -> unknown.
+
+    And they never forget, which is the same bug one phase later: a raid that
+    OPENED with a ballistic salvo went on labelling cruise callouts «балістика»
+    an hour after that salvo ended, while every spotter in the feed was saying
+    «Калібр» — 20 of them in the nine minutes from 22:27 (live 2026-08-19).
+    Telling an operator "ballistic" buys them a minute of reaction time when a
+    Kalibr was giving them ten, so the prior is read from the tracks that are
+    actually FLYING: incident members whose last sighting is still inside the
+    stale window. A phase that is over stops speaking for the one running now.
+    """
+    fresh = await _recent_member_types(session, inc, when)
+    families = {_FAMILY.get(t) for t in fresh}
     if len(families) != 1 or None in families:
         return None
-    return inc.target_type if inc.target_type != "unknown" else None
+    return max(fresh, key=lambda t: _SEVERITY.get(t, 0))
+
+
+async def _recent_member_types(session, inc: Incident, when: datetime) -> set[str]:
+    """Target types of this incident's tracks sighted within the stale window of
+    `when`. Dismissed tracks are excluded, same as recompute_incident_types."""
+    gap = timedelta(minutes=settings.track_stale_minutes)
+    stmt = (
+        select(Threat.target_type, func.max(ThreatEvent.event_time))
+        .join(ThreatEvent, ThreatEvent.threat_id == Threat.id)
+        .where(
+            Threat.incident_id == inc.id,
+            Threat.target_type.not_in(("unknown",)),
+            Threat.closed_reason.is_distinct_from("dismissed"),
+        )
+        .group_by(Threat.id, Threat.target_type)
+    )
+    return {
+        target_type
+        for target_type, last_seen in (await session.execute(stmt)).all()
+        if last_seen is not None and _within(last_seen, when, gap)
+    }
 
 
 def recompute_incident_types(inc: Incident) -> None:

@@ -594,6 +594,40 @@ body::after {
   transition: opacity 800ms linear;
 }
 
+/* Idle drift on a live target's glyph: an air contact that sits perfectly still
+   reads as a pin dropped on a map rather than as something in the sky. The
+   motion is a ~1px CIRCLE, so it can never be mistaken for displacement or for a
+   heading (the glyph's own rotation is what means heading), and it runs only
+   while the target is active and not quiet — the same condition as the pulse
+   rings, so going still is itself the signal that nobody is reporting it any
+   more. Each marker gets a negative animation-delay off its track id; without
+   that they orbit in phase and the map looks like it is wobbling. */
+@keyframes threat-drift {
+  0%,
+  100% {
+    transform: translate(0.9px, 0);
+  }
+  25% {
+    transform: translate(0, 0.9px);
+  }
+  50% {
+    transform: translate(-0.9px, 0);
+  }
+  75% {
+    transform: translate(0, -0.9px);
+  }
+}
+.threat-drift {
+  display: block;
+  animation: threat-drift 3.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .threat-drift {
+    animation: none;
+  }
+}
+
 /* Leave animation: the tail of a closed track's linger, so it fades instead of
    blinking out — most visible on «Чисто»/«Дорозвідка», which close dozens of
    tracks in one message. Applied only while the store says the track is actually
@@ -754,6 +788,14 @@ body::after {
 .zone-hit {
   cursor: grab;
 }
+/* An alerted raion is a lit edge, not a red wash — the filter replaces the
+   polygon's fill with a band of glow hugging the inside of its border (see
+   ZoneGlowDefs). Non-interactive: the outline path below it owns the cursor and
+   the tooltip, and two stacked hit areas would fight over both. */
+.zone-glow {
+  filter: url(#zone-inner-glow);
+  pointer-events: none;
+}
 /* Alert-zone label: same bare-text treatment as .district-label (no tooltip
    chrome, pinned to the polygon center), with an optional second line for a
    siren's state + duration. */
@@ -769,22 +811,41 @@ body::after {
     0 1px 3px rgba(0, 0, 0, 0.9),
     0 0 10px rgba(0, 0, 0, 0.7);
 }
-.zone-label .zone-label-name,
-.zone-label .zone-label-state {
+.zone-label .zone-label-name {
   display: block;
   line-height: 1.25;
-}
-.zone-label .zone-label-name {
+  margin-top: 2px;
   color: #8fa3b5;
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.03em;
 }
-.zone-label .zone-label-state {
-  color: #fca5a5;
+/* The standing state chip: glyph + how long the raion has held that state. It
+   sits over the map permanently on every raion, so it is sized to be glanced
+   past — the alert tone is the only one allowed to carry colour, the quiet ones
+   recede into the basemap. */
+.zone-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  line-height: 1;
+}
+.zone-chip-time {
+  font-family: 'IBM Plex Mono', monospace;
   font-size: 9px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+.zone-chip--alert {
+  color: #fca5a5;
+}
+.zone-chip--clear {
+  color: #5f7285;
+}
+.zone-chip--stale {
+  color: #64748b;
+  opacity: 0.75;
 }
 
 /* Home-placement mode: crosshair cursor over the whole map. */
