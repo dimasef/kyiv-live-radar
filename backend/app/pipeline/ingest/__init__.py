@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from ..lock import ingest_lock
 from .alert import ingest_alert_message, process_parsed_alert
-from .context import _note_and_inherit_type, _recent_type
+from .context import _note_and_inherit_type, _recent_type, rehydrate_type_context
 from .core import ingest_message, process_parsed, process_rescued
 from .resolve import should_fallback
 
@@ -19,5 +19,6 @@ __all__ = [
     "should_fallback",
     "ingest_lock",
     "_note_and_inherit_type",
+    "rehydrate_type_context",
     "_recent_type",
 ]

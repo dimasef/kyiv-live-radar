@@ -46,8 +46,8 @@ class DismissedOut(BaseModel):
 
 
 class CoverageGapOut(BaseModel):
-    """GET /admin/coverage_gaps — a threat-flavored message the parser couldn't
-    localize (likely a missing gazetteer entry)."""
+    """GET /admin/coverage_gaps — a message the parser couldn't localize that
+    still names something (likely a missing gazetteer entry)."""
 
     raw_message_id: int
     text: str
@@ -55,8 +55,21 @@ class CoverageGapOut(BaseModel):
     source_name: str | None = None
     detected_target_type: TargetType
     detected_status: str
+    # The unknown place-name words this row was admitted for — so the operator
+    # sees WHICH word to look up, not just that the message failed.
+    candidates: list[str] = []
 
     _tz_gap = field_validator("event_time", mode="before")(_as_utc)
+
+
+class CoverageCandidateOut(BaseModel):
+    """GET /admin/coverage_candidates — one unknown place-name, with how often
+    it occurred in the scanned window. The ranked gazetteer work-list."""
+
+    name: str
+    count: int
+    example_text: str
+    example_raw_message_id: int
 
 
 class CorrectionOut(BaseModel):

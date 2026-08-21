@@ -1,5 +1,5 @@
 import L from "leaflet";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Circle,
@@ -9,10 +9,10 @@ import {
   Tooltip,
 } from "react-leaflet";
 
-import { contactMarkerSvg, homeStyleOf } from "../../lib/contactMarker";
-import { homeDanger } from "../../lib/homeDanger";
-import { useRadar } from "../../store";
-import { HOME_DANGER_COLORS } from "../../theme";
+import { contactMarkerSvg, homeStyleOf } from "@/lib/contactMarker";
+import { homeDangerFor, raionIdsForZone } from "@/lib/homeDanger";
+import { useRadar } from "@/store";
+import { HOME_DANGER_COLORS } from "@/theme";
 import AlertZoneLayer from "./AlertZoneLayer";
 import AxisLayer from "./AxisLayer";
 import CitywidePulse from "./CitywidePulse";
@@ -61,7 +61,14 @@ export default function MapView() {
   // than rendering a second, stale layer on top of it.
   const inspectedIsLive = inspectedThreat != null && inspectedThreat.id in threats;
 
-  const danger = home ? homeDanger(threats, home, boundaries) : "none";
+  // 25 point-in-polygon tests over every raion boundary, and it depends only
+  // on the home zone — without this it re-ran on every live frame, which during
+  // a raid is dozens of times a minute.
+  const homeRaionIds = useMemo(
+    () => (home ? raionIdsForZone(home, boundaries) : []),
+    [home, boundaries],
+  );
+  const danger = home ? homeDangerFor(threats, home, homeRaionIds) : "none";
   // The user's colour is theirs only while nothing is coming: an approaching
   // threat repaints the marker orange/red, because that colour is a warning
   // rather than decoration. The chosen SHAPE always survives — it says which

@@ -13,6 +13,25 @@ const CLOSED_LINGER_MS = 6000
 // BACK: a track the user is reading must not dissolve under them.
 const LEAVE_MS = 700
 
+// One exit timeline per track. A closed track can arrive on several frames (a
+// retype right after the close, a corroborating source), and without this each
+// one starts its own chain: the id gets pushed into `leavingThreatIds` twice,
+// then the first chain's cleanup filters out BOTH entries and kills the second
+// chain's fade mid-animation while its eviction timer is still pending.
+const exitTimers = new Map<number, ReturnType<typeof setTimeout>>()
+
+function scheduleExit(threatId: number, run: () => void, delayMs: number) {
+  const pending = exitTimers.get(threatId)
+  if (pending) clearTimeout(pending)
+  exitTimers.set(
+    threatId,
+    setTimeout(() => {
+      exitTimers.delete(threatId)
+      run()
+    }, delayMs),
+  )
+}
+
 export interface ThreatsSlice {
   threats: Record<number, Threat>
   log: FeedEntry[]
@@ -33,7 +52,11 @@ export interface ThreatsSlice {
   clearInspection: () => void
   /** Apply one live threat-bearing WS message: upsert the track, append its
    * feed entry (for 'event' frames), and schedule eviction once closed. */
-  applyThreatMessage: (msg: { type: string; threat: Threat; event?: ThreatEvent }) => void
+  applyThreatMessage: (msg: {
+    type: 'event' | 'status'
+    threat: Threat
+    event?: ThreatEvent
+  }) => void
 }
 
 export const createThreatsSlice: StateCreator<RadarState, [], [], ThreatsSlice> = (set, get) => ({
@@ -152,23 +175,31 @@ export const createThreatsSlice: StateCreator<RadarState, [], [], ThreatsSlice> 
       const startLeave = () => {
         if (!stillTheSame()) return
         if (held()) {
-          setTimeout(startLeave, LEAVE_MS)
+          scheduleExit(threat.id, startLeave, LEAVE_MS)
           return
         }
-        set((s) => ({ leavingThreatIds: [...s.leavingThreatIds, threat.id] }))
-        setTimeout(() => {
-          const done = stillTheSame()
-          set((s) => ({
-            leavingThreatIds: s.leavingThreatIds.filter((id) => id !== threat.id),
-            threats: done
-              ? Object.fromEntries(
-                  Object.entries(s.threats).filter(([id]) => Number(id) !== threat.id),
-                )
-              : s.threats,
-          }))
-        }, LEAVE_MS)
+        set((s) => ({
+          leavingThreatIds: s.leavingThreatIds.includes(threat.id)
+            ? s.leavingThreatIds
+            : [...s.leavingThreatIds, threat.id],
+        }))
+        scheduleExit(
+          threat.id,
+          () => {
+            const done = stillTheSame()
+            set((s) => ({
+              leavingThreatIds: s.leavingThreatIds.filter((id) => id !== threat.id),
+              threats: done
+                ? Object.fromEntries(
+                    Object.entries(s.threats).filter(([id]) => Number(id) !== threat.id),
+                  )
+                : s.threats,
+            }))
+          },
+          LEAVE_MS,
+        )
       }
-      setTimeout(startLeave, CLOSED_LINGER_MS - LEAVE_MS)
+      scheduleExit(threat.id, startLeave, CLOSED_LINGER_MS - LEAVE_MS)
     }
   },
 })

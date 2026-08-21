@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
-import { createSource, fetchSources, type Source } from '@/api'
-import type { Region } from '@/types'
+import { fetchSources, type Source } from '@/api'
+import { useAsyncData } from '@/lib/useAsyncData'
 
-import AdminActionButton from './AdminActionButton'
+import AddSourceForm from './AddSourceForm'
 import AlertRow from './AlertRow'
 import ChannelRow from './ChannelRow'
-import { REGION_LABELS } from './sourceFormat'
+import SourceSubTab from './SourceSubTab'
 
 type SubTab = 'channels' | 'alerts'
 
@@ -15,16 +15,12 @@ type SubTab = 'channels' | 'alerts'
  * air-raid channels, minimal fields). The DB's active sources ARE the live
  * subscription — mutations make the listener reconnect. */
 export default function SourcesPanel() {
-  const [sources, setSources] = useState<Source[]>([])
-  const [loaded, setLoaded] = useState(false)
   const [tab, setTab] = useState<SubTab>('channels')
-
-  useEffect(() => {
-    fetchSources()
-      .then(setSources)
-      .catch(() => {})
-      .finally(() => setLoaded(true))
-  }, [])
+  const { data: sources, loaded, setData: setSources } = useAsyncData<Source[]>(
+    fetchSources,
+    [],
+    [],
+  )
 
   const replace = (s: Source) => setSources((list) => list.map((x) => (x.id === s.id ? s : x)))
   const upsert = (s: Source) => setSources((list) => [s, ...list.filter((x) => x.id !== s.id)])
@@ -38,12 +34,12 @@ export default function SourcesPanel() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-4">
       <div className="flex gap-1">
-        <SubTab active={tab === 'channels'} onClick={() => setTab('channels')}>
+        <SourceSubTab active={tab === 'channels'} onClick={() => setTab('channels')}>
           Канали ({channels.length})
-        </SubTab>
-        <SubTab active={tab === 'alerts'} onClick={() => setTab('alerts')}>
+        </SourceSubTab>
+        <SourceSubTab active={tab === 'alerts'} onClick={() => setTab('alerts')}>
           Тривоги ({alerts.length})
-        </SubTab>
+        </SourceSubTab>
       </div>
 
       <p className="text-xs text-slate-500">
@@ -68,64 +64,6 @@ export default function SourcesPanel() {
           ),
         )}
       </ul>
-    </div>
-  )
-}
-
-function SubTab({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-        active ? 'bg-white/[0.08] text-slate-100' : 'text-slate-500 hover:text-slate-300'
-      }`}
-    >
-      {children}
-    </button>
-  )
-}
-
-function AddSourceForm({ role, onAdded }: { role: Source['role']; onAdded: (s: Source) => void }) {
-  const [ref, setRef] = useState('')
-  const [region, setRegion] = useState<Region>('kyiv')
-
-  return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
-      <input
-        value={ref}
-        onChange={(e) => setRef(e.target.value)}
-        placeholder={role === 'alert' ? '@канал тривог' : '@канал, id або t.me/+посилання'}
-        className="min-w-0 flex-1 rounded-md border border-white/15 bg-ink-900 px-2 py-1 text-xs text-slate-200 placeholder:text-slate-600"
-      />
-      <select
-        value={region}
-        onChange={(e) => setRegion(e.target.value as Region)}
-        className="rounded-md border border-white/15 bg-ink-900 px-2 py-1 text-xs text-slate-200"
-      >
-        {Object.entries(REGION_LABELS).map(([value, label]) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
-        ))}
-      </select>
-      <AdminActionButton
-        label="Додати"
-        tone="accent"
-        onRun={() =>
-          createSource({ subscribe_ref: ref.trim(), role, region }).then((s) => {
-            onAdded(s)
-            setRef('')
-          })
-        }
-      />
     </div>
   )
 }

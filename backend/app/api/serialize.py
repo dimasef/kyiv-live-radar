@@ -100,13 +100,18 @@ def notice_out(n: Notice) -> NoticeOut:
     out = NoticeOut.model_validate(n)
     if n.source is not None:
         out.source_name = n.source.name
+        out.region = n.source.region
     return out
 
 
 def _incident_district_ids(inc: Incident, sentinel_district_id: int | None) -> list[int]:
     """Districts this attack was SEEN over. Impact markers are skipped: a
     district that only ever appears because something landed there would
-    otherwise leak the strike location this endpoint is supposed to withhold."""
+    otherwise leak the strike location this endpoint is supposed to withhold.
+
+    `kind` — not `status` — is what identifies an impact: an admin dismissal
+    rewrites `status` to 'dismissed' while `kind` stays 'impact', so keying on
+    status would republish the very district this filter exists to hide."""
     seen: list[int] = []
     for th in inc.threats:
         if th.kind == "impact":
@@ -160,9 +165,8 @@ def incident_out(inc: Incident, sentinel_district_id: int | None) -> IncidentOut
     see api/routes.py and broadcast.py for the two loading call sites."""
     track_count = impact_count = target_count = 0
     citywide = False
-    districts: set[int] = set()
     for th in inc.threats:
-        if th.status == "impact":
+        if th.kind == "impact":
             impact_count += 1
             continue  # excluded from the published district set, see below
         if th.scope == "city":
@@ -170,9 +174,11 @@ def incident_out(inc: Incident, sentinel_district_id: int | None) -> IncidentOut
         else:
             track_count += 1
             target_count += th.target_count or 1
-        for ev in th.events:
-            if ev.district_id != sentinel_district_id:
-                districts.add(ev.district_id)
+
+    # One source for both fields. They used to be derived by two loops keyed on
+    # two different columns (`status` here, `kind` there), so a dismissed impact
+    # made district_count exceed len(district_ids) — and leaked its district.
+    district_ids = _incident_district_ids(inc, sentinel_district_id)
 
     cls = classify(inc.attack_types, inc.decoy_mentions, inc.has_hypersonic)
 
@@ -192,8 +198,8 @@ def incident_out(inc: Incident, sentinel_district_id: int | None) -> IncidentOut
         # the alert is over.
         impact_count=0,
         citywide=citywide,
-        district_count=len(districts),
-        district_ids=_incident_district_ids(inc, sentinel_district_id),
+        district_count=len(district_ids),
+        district_ids=district_ids,
         classification=cls.label,
         attack_types=inc.attack_types,
         alert_id=inc.alert_id,

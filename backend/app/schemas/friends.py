@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
+
+from .base import _as_utc
 
 
 class HomePointOut(BaseModel):
@@ -49,6 +51,8 @@ class FriendOut(FriendUserBrief):
     # domain/presence.py::presence_for for why both conditions apply.
     last_seen_at: datetime | None = None
 
+    _tz = field_validator("last_seen_at", mode="before")(_as_utc)
+
 
 class FriendRequestOut(BaseModel):
     """One pending friend request, from the current user's point of view."""
@@ -57,6 +61,8 @@ class FriendRequestOut(BaseModel):
     direction: str  # 'incoming' (they asked me) | 'outgoing' (I asked them)
     user: FriendUserBrief  # the OTHER party
     created_at: datetime
+
+    _tz = field_validator("created_at", mode="before")(_as_utc)
 
 
 class FriendRequestsOut(BaseModel):

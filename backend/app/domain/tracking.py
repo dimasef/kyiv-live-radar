@@ -29,7 +29,7 @@ from sqlalchemy.orm import selectinload
 
 from ..config import settings
 from ..models import HOME_REGION, Threat, ThreatEvent
-from ..timeutil import naive
+from ..timeutil import naive, within
 from .fusion import FusionResult, compute_fusion
 from .lifecycle import close_track
 from .staleness import is_reply_tracked, last_event_at, stale_window_minutes
@@ -101,11 +101,11 @@ async def find_corroborating_track(
     for threat in await session.scalars(stmt):  # newest-first
         events = threat.events
         if as_of is not None:
-            events = [e for e in events if not _after(e.event_time, as_of)]
+            events = [e for e in events if naive(e.event_time) <= naive(as_of)]
         if not events:
             continue
         latest_time = max(naive(e.event_time) for e in events)
-        if not _within(latest_time, when, window):
+        if not within(latest_time, when, window):
             continue
         latest_districts = {e.district_id for e in events if naive(e.event_time) == latest_time}
         if latest_districts & district_ids:
@@ -113,11 +113,6 @@ async def find_corroborating_track(
     return None
 
 
-def _after(a: datetime, b: datetime) -> bool:
-    """a > b, tolerating naive/aware mismatch (all values are UTC)."""
-    an = a.replace(tzinfo=None) if a.tzinfo is not None else a
-    bn = b.replace(tzinfo=None) if b.tzinfo is not None else b
-    return an > bn
 
 
 async def find_stood_down_track(
@@ -139,7 +134,7 @@ async def find_stood_down_track(
         .order_by(Threat.closed_at.desc())
     )
     for threat in await session.scalars(stmt):  # most recently closed first
-        if threat.closed_at is None or not _within(threat.closed_at, when, grace):
+        if threat.closed_at is None or not within(threat.closed_at, when, grace):
             break  # ordered by closed_at — everything after is older still
         if not threat.events:
             continue
@@ -182,12 +177,12 @@ async def find_stale_closed_track(
         .order_by(Threat.closed_at.desc())
     )
     for threat in await session.scalars(stmt):  # most recently closed first
-        if threat.closed_at is None or not _within(threat.closed_at, when, reach):
+        if threat.closed_at is None or not within(threat.closed_at, when, reach):
             break  # ordered by closed_at — everything after is older still
         if not threat.events:
             continue
         latest_time = max(naive(e.event_time) for e in threat.events)
-        if not _within(latest_time, when, reach):
+        if not within(latest_time, when, reach):
             continue
         latest_districts = {
             e.district_id for e in threat.events if naive(e.event_time) == latest_time
@@ -234,7 +229,7 @@ async def find_open_track(
     candidates = []
     for threat in await session.scalars(stmt):
         last = threat.events[-1].event_time if threat.events else threat.created_at
-        if _within(last, when, gap):
+        if within(last, when, gap):
             candidates.append(threat)
     if not candidates:
         return None
@@ -254,9 +249,15 @@ async def find_recent_impact(session, district_id: int, when: datetime) -> Threa
     are closed-on-creation, so this deliberately looks past closed_at.
     """
     window = timedelta(minutes=settings.impact_dedup_minutes)
+    # Bounded in SQL, not in Python. Unfiltered, this re-read every impact ever
+    # recorded — with all their events — once PER NAMED DISTRICT of every
+    # incoming impact message. `created_at` is when the marker was made, so a
+    # candidate outside the dedup window cannot have an event inside it; the
+    # extra window of slack keeps the check on `event_time` authoritative.
+    cutoff = naive(when) - 2 * window
     stmt = (
         select(Threat)
-        .where(Threat.status == "impact")
+        .where(Threat.status == "impact", Threat.created_at >= cutoff)
         .options(selectinload(Threat.events))
         .order_by(Threat.created_at.desc())
     )
@@ -264,7 +265,7 @@ async def find_recent_impact(session, district_id: int, when: datetime) -> Threa
         if not threat.events:
             continue
         latest = max(naive(e.event_time) for e in threat.events)
-        if not _within(latest, when, window):
+        if not within(latest, when, window):
             continue
         if any(e.district_id == district_id for e in threat.events):
             return threat
@@ -290,7 +291,7 @@ async def find_open_citywide(session, when: datetime) -> Threat | None:
     gap = timedelta(minutes=settings.track_gap_minutes)
     for threat in await session.scalars(stmt):
         last = threat.events[-1].event_time if threat.events else threat.created_at
-        if _within(last, when, gap):
+        if within(last, when, gap):
             return threat
     return None
 
@@ -309,18 +310,11 @@ async def find_stood_down_citywide(session, when: datetime) -> Threat | None:
     )
     threat = await session.scalar(stmt)
     grace = timedelta(minutes=settings.standdown_grace_minutes)
-    if threat is not None and threat.closed_at is not None and _within(threat.closed_at, when, grace):
+    if threat is not None and threat.closed_at is not None and within(threat.closed_at, when, grace):
         return threat
     return None
 
 
-def _within(a: datetime, b: datetime, gap: timedelta) -> bool:
-    # Tolerate naive/aware mismatch from SQLite by comparing on replaced tzinfo.
-    if a.tzinfo is None and b.tzinfo is not None:
-        b = b.replace(tzinfo=None)
-    elif a.tzinfo is not None and b.tzinfo is None:
-        a = a.replace(tzinfo=None)
-    return abs((b - a).total_seconds()) <= gap.total_seconds()
 
 
 async def close_all_active(
@@ -387,8 +381,20 @@ async def close_stale_tracks(
             default_minutes=fallback,
         )
         last = last_event_at(t)
-        if not _within(last, now, timedelta(minutes=gap_min)):
-            close_track(t, now, "stale")
+        if not within(last, now, timedelta(minutes=gap_min)):
+            # Closed at the instant it WENT stale, not at the sweeper's wall
+            # clock — the same instant `stale_at` already publishes for the
+            # map's fade, so the two finally agree. Within one tick of `now`
+            # while the process is up; hours off after any downtime, which is
+            # how a 2026-08-20 track came to be stamped closed the next
+            # afternoon and inflated its incident's duration to 22 hours.
+            #
+            # `naive()` first: `last` is an event time, which comes back naive
+            # from SQLite but is aware when the event was added in this same
+            # session — storing whichever we happened to get would make
+            # closed_at compare-unsafe against the aware `utcnow()` it used to
+            # be. Everything here is UTC wall-clock either way.
+            close_track(t, naive(last) + timedelta(minutes=gap_min), "stale")
             stale.append(t)
     if stale:
         await session.commit()
@@ -410,11 +416,16 @@ def set_fusion(threat: Threat) -> FusionResult:
 
 
 async def apply_fusion(session, threat: Threat) -> None:
-    """Recompute derived multi-source signals from the track's events."""
+    """Recompute derived multi-source signals from the track's events.
+
+    The refresh autoflushes the pending event and reloads the collection; the
+    commit that follows does NOT expire it (the sessionmaker sets
+    expire_on_commit=False), so a second refresh afterwards would just be a
+    third round-trip for rows we already hold.
+    """
     await session.refresh(threat, ["events"])
     r = set_fusion(threat)
     await session.commit()
-    await session.refresh(threat, ["events"])
     log.debug("track %s fusion: corroboration=%d confidence=%.2f",
              threat.id, r.corroboration_count, r.confidence)
     if r.has_conflict:

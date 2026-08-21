@@ -18,6 +18,7 @@ from sqlalchemy.orm import selectinload
 
 from ..config import settings
 from ..models import Alert, Incident, Threat, ThreatEvent
+from ..timeutil import naive, within
 from .lifecycle import close_track, reopen_track
 
 log = logging.getLogger("incidents")
@@ -26,7 +27,7 @@ log = logging.getLogger("incidents")
 _SEVERITY = {"unknown": 0, "shahed": 1, "jet_drone": 2, "missile": 3, "ballistic": 4}
 
 # Types that mean "the same kind of thing is flying" for inference purposes.
-# missile/ballistic is already treated as one family by ingest._upgrade_type.
+# missile/ballistic is already treated as one family by target_types.upgrade_type.
 _FAMILY = {"shahed": "drone", "jet_drone": "drone",
            "missile": "missile", "ballistic": "missile"}
 
@@ -72,7 +73,7 @@ async def _recent_member_types(session, inc: Incident, when: datetime) -> set[st
     return {
         target_type
         for target_type, last_seen in (await session.execute(stmt)).all()
-        if last_seen is not None and _within(last_seen, when, gap)
+        if last_seen is not None and within(last_seen, when, gap)
     }
 
 
@@ -95,10 +96,6 @@ def recompute_incident_types(inc: Incident) -> None:
     inc.target_type = types[-1] if types else "unknown"
 
 
-def _within(a: datetime, b: datetime, gap: timedelta) -> bool:
-    an = a.replace(tzinfo=None) if a.tzinfo is not None else a
-    bn = b.replace(tzinfo=None) if b.tzinfo is not None else b
-    return abs((bn - an).total_seconds()) <= gap.total_seconds()
 
 
 async def find_active_incident(session, when: datetime) -> Incident | None:
@@ -110,7 +107,7 @@ async def find_active_incident(session, when: datetime) -> Incident | None:
         .order_by(Incident.started_at.desc())
     )
     for inc in await session.scalars(stmt):
-        if _within(inc.last_activity_at, when, gap):
+        if within(inc.last_activity_at, when, gap):
             return inc
     return None
 
@@ -146,11 +143,11 @@ async def attach_to_incident(
         inc.decoy_mentions += 1
     if hypersonic:
         inc.has_hypersonic = True
-    inc.last_activity_at = _later(inc.last_activity_at, when)
+    inc.last_activity_at = max(inc.last_activity_at, when, key=naive)
     await session.commit()
     # Rebuild target_type/attack_types from the CURRENT members instead of
     # appending — so a track that upgraded its type mid-flight (missile ->
-    # ballistic, see ingest._upgrade_type) leaves ONE type, not both, and the
+    # ballistic, see target_types.upgrade_type) leaves ONE type, not both, and the
     # incident no longer reads as a false 'combined' (the WORKFLOW.md /
     # attack.py::classify known compromise).
     await session.refresh(inc, ["threats"])
@@ -159,10 +156,6 @@ async def attach_to_incident(
     return inc
 
 
-def _later(a: datetime, b: datetime) -> datetime:
-    an = a.replace(tzinfo=None) if a.tzinfo is not None else a
-    bn = b.replace(tzinfo=None) if b.tzinfo is not None else b
-    return a if an >= bn else b
 
 
 def dismiss_incident(inc: Incident, when: datetime) -> None:
@@ -230,13 +223,24 @@ async def end_incidents_without_open_tracks(
 
 async def close_stale_incidents(session, now: datetime, minutes: int) -> list[Incident]:
     """End incidents whose last member activity is older than `minutes` — an
-    attack that quietly petered out without an explicit all-clear."""
+    attack that quietly petered out without an explicit all-clear.
+
+    Ends it at the instant it WENT stale (last activity + the window), not at
+    the sweeper's wall clock. Those are the same thing to within one tick while
+    the process is up, and wildly different when it wasn't: incident 200 ran
+    18:38–18:49 on 2026-08-20, the backend was down overnight, and the first
+    sweep at 16:56 the next day stamped `ended_at` there — the feed card read
+    «Атака дронів · тривалість 22 год 18 хв» for an eleven-minute attack, and
+    the journal counted the same 22 hours."""
     stale_gap = timedelta(minutes=minutes)
     incs = list(await session.scalars(select(Incident).where(Incident.ended_at.is_(None))))
     ended = []
     for inc in incs:
-        if not _within(inc.last_activity_at, now, stale_gap):
-            inc.ended_at = now
+        if not within(inc.last_activity_at, now, stale_gap):
+            # naive() for the same reason close_stale_tracks does it: this
+            # column used to hold the aware `utcnow()`, and last_activity_at is
+            # aware or naive depending on whether the row came from the DB.
+            inc.ended_at = naive(inc.last_activity_at) + stale_gap
             inc.ended_reason = "stale"
             log.info("incident %s ended (reason=stale)", inc.id)
             ended.append(inc)

@@ -13,11 +13,13 @@ from .api.gamification import gamification_router
 from .api.routes import router
 from .api.ws import manager
 from .config import settings
+from .db import SessionLocal
 from .feeds.health import feed_health, get_status
 from .feeds.simulator import run_simulator
 from .logging_setup import setup_logging
 from .migrate import upgrade_to_head
 from .observability import setup_observability
+from .pipeline.ingest import rehydrate_type_context
 from .seed import bootstrap_sources_from_env, seed_districts, seed_sources
 
 setup_logging()
@@ -31,6 +33,15 @@ async def lifespan(app: FastAPI):
     s = await seed_sources()
     b = await bootstrap_sources_from_env()
     log.info("db ready; seeded %d districts, %d sources (+%d from env channels)", d, s, b)
+
+    # Restore the per-channel target-type context from stored messages before any
+    # feed starts. It lives in memory, so without this a restart mid-wave leaves
+    # every bare toponym callout untyped until the channel restates the type —
+    # up to a full type_inherit_minutes window (2026-08-21: 22 min of `unknown`).
+    async with SessionLocal() as session:
+        restored = await rehydrate_type_context(session)
+    if restored:
+        log.info("restored target-type context for %d channel(s)", restored)
 
     # One-off maintenance reprocess — runs BEFORE any feed source starts, so it
     # never races a live ingest. Rebuilds all tracks from raw_messages through

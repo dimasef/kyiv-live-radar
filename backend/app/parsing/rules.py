@@ -556,11 +556,101 @@ def _promo(norm: str, status: str, impact: bool) -> bool:
     )
 
 
+@dataclass(frozen=True)
+class Suppressors:
+    """Every message-level reason to hold something back, computed once.
+
+    These used to be threaded through as positional bools — seventeen of them
+    into `_level_notice` alone — with each predicate re-listing by hand the
+    subset it cared about. The lists drifted, which is not a hypothetical: only
+    four of the five listed `promo`, and `_target_pulse` was one of the ones
+    that didn't. Since `_dispatch` acts on `target_pulse` twenty-one lines
+    BEFORE it checks `matched`, a three-word recruitment line carrying a pulse
+    word corroborated the live city-wide alert and raised its confidence.
+
+    Passing the record whole makes that class of divergence impossible to
+    express: the subsets below are named once, here, next to the reason they
+    differ.
+    """
+
+    aftermath: bool
+    negated: bool
+    siren_only: bool
+    political_quote: bool
+    lost_signal: bool
+    summary: bool
+    ad_action: bool
+    civic_notice: bool
+    eppo_marks: bool
+    promo: bool
+    reportage: bool
+    day_recap: bool
+
+    @property
+    def blocks_surface(self) -> bool:
+        """Reasons a message must not raise a live surface — a city-wide alert,
+        a terse pulse, an origin axis or a level bulletin.
+
+        `reportage` and `day_recap` are deliberately absent: they are record-
+        level judgements (is this a target we log?) and a confidence softener
+        respectively, and `blocks_record` below is where reportage belongs.
+        """
+        return (
+            self.aftermath
+            or self.negated
+            or self.siren_only
+            or self.political_quote
+            or self.lost_signal
+            or self.summary
+            or self.ad_action
+            or self.civic_notice
+            or self.eppo_marks
+            or self.promo
+        )
+
+    @property
+    def blocks_record(self) -> bool:
+        """Reasons there is nothing structured to record at all (`matched`).
+
+        Narrower than `blocks_surface` on purpose: `lost_signal` and `summary`
+        are ACTIONABLE — `_dispatch` routes both to their own handlers before it
+        reaches the matched check — so treating them as suppressors here would
+        drop a stand-down. `reportage` is only ever a reason not to record.
+        """
+        return (
+            self.aftermath
+            or self.negated
+            or self.siren_only
+            or self.political_quote
+            or self.ad_action
+            or self.promo
+            or self.civic_notice
+            or self.eppo_marks
+            or self.reportage
+        )
+
+    @property
+    def clears_districts(self) -> bool:
+        """Reasons the matched raions must be dropped from the result.
+
+        `blocks_record` minus `reportage`: a news report that names a raion is
+        still naming a real place, and the hits stay on the result for the
+        gazetteer/eval tooling even though nothing is tracked from them.
+        """
+        return (
+            self.aftermath
+            or self.negated
+            or self.siren_only
+            or self.political_quote
+            or self.ad_action
+            or self.promo
+            or self.civic_notice
+            or self.eppo_marks
+        )
+
+
 def _level_notice(target_type: str, districts, citywide: bool, directional: bool, status: str,
-                  norm: str, target_count: int | None, aftermath: bool, negated: bool,
-                  siren_only: bool, political_quote: bool, lost_signal: bool, summary: bool,
-                  ad_action: bool, civic_notice: bool, eppo_marks: bool,
-                  promo: bool) -> str | None:
+                  norm: str, target_count: int | None, sup: Suppressors) -> str | None:
     """Threat-level bulletin about a target TYPE with nothing to localize —
     'forecast' (the level is up) or 'status' (that type is quiet, is somewhere in
     the oblast, or arrives as a bare count) — the two notice kinds the feed
@@ -579,8 +669,7 @@ def _level_notice(target_type: str, districts, citywide: bool, directional: bool
     if (districts or citywide or directional or target_type == "unknown"
             or status in ("clear", "destroyed")):
         return None
-    if (aftermath or negated or siren_only or political_quote or lost_signal
-            or summary or ad_action or civic_notice or eppo_marks or promo):
+    if sup.blocks_surface:
         return None
     # "по Житомирщині тихо" — someone else's bulletin. `target_not_kyiv`, not
     # `target_elsewhere`: a bulletin about the watched north is still not a
@@ -611,10 +700,7 @@ def _level_notice(target_type: str, districts, citywide: bool, directional: bool
     return None
 
 
-def _citywide(districts, status: str, norm: str, aftermath: bool, negated: bool,
-              siren_only: bool, political_quote: bool, lost_signal: bool,
-              summary: bool, ad_action: bool, civic_notice: bool,
-              eppo_marks: bool) -> bool:
+def _citywide(districts, status: str, norm: str, sup: Suppressors) -> bool:
     """City-wide threat: a city-level phrase with NO raion of its own — a strong
     directional phrase on its own, or a weak one plus a threat-context word.
     Only when nothing else localizes or supersedes it: a real district, an
@@ -624,9 +710,7 @@ def _citywide(districts, status: str, norm: str, aftermath: bool, negated: bool,
     return (
         not districts
         and status not in ("clear", "destroyed")
-        and not (aftermath or negated or siren_only or political_quote
-                 or lost_signal or summary or ad_action or civic_notice
-                 or eppo_marks)
+        and not sup.blocks_surface
         and (
             any(p in norm for p in _CITYWIDE_STRONG)
             or bool(_CITYWIDE_BARE_RE.match(norm))
@@ -679,10 +763,8 @@ def _pulse_type_denied(words: list[str]) -> bool:
                for prev, word in zip(words, words[1:], strict=False))
 
 
-def _target_pulse(districts, citywide: bool, status: str, norm: str, aftermath: bool,
-                   negated: bool, siren_only: bool, political_quote: bool,
-                   lost_signal: bool, summary: bool, ad_action: bool,
-                   civic_notice: bool, eppo_marks: bool) -> bool:
+def _target_pulse(districts, citywide: bool, status: str, norm: str,
+                  sup: Suppressors) -> bool:
     """Terse target/launch pulse: a very short callout ("Ціль!", "Ще вихід",
     "Групова ціль", "3 ракети") naming a target/launch but no place. The
     length cap keeps out longer sentences (which are usually status prose,
@@ -700,9 +782,7 @@ def _target_pulse(districts, citywide: bool, status: str, norm: str, aftermath: 
         not districts
         and not citywide
         and status not in ("clear", "destroyed")
-        and not (aftermath or negated or siren_only or political_quote
-                 or lost_signal or summary or ad_action or civic_notice
-                 or eppo_marks)
+        and not sup.blocks_surface
         and len(norm.split()) <= 3
         and any(any(p in w for p in _PULSE_WORD) for w in norm.split())
         # A pulse corroborates the KYIV city-wide alert, so anything scoped to
@@ -787,10 +867,7 @@ def _multi_targets(districts, norm: str) -> bool:
 
 
 def _origin_present(origin: Origin | None, status: str, target_type: str, norm: str,
-                    aftermath: bool, negated: bool, siren_only: bool,
-                    political_quote: bool, lost_signal: bool, summary: bool,
-                    ad_action: bool, civic_notice: bool, eppo_marks: bool,
-                    promo: bool) -> bool:
+                    sup: Suppressors) -> bool:
     """A curated inbound origin named in FROM-position ("з Брянщини", "з боку
     Чорного моря") on a threat-flavoured, non-suppressed message. Set whether or
     not the message ALSO localizes to a raion/city — so "Балістика на Київ з
@@ -801,27 +878,15 @@ def _origin_present(origin: Origin | None, status: str, target_type: str, norm: 
         and status not in ("clear", "destroyed")
         and (target_type != "unknown" or any(w in norm for w in _THREAT_CONTEXT))
         and not target_elsewhere(norm)  # "з Чернігівщини курсом на Дніпро" -> not ours
-        and not (aftermath or negated or siren_only or political_quote
-                 or lost_signal or summary or ad_action or civic_notice
-                 or eppo_marks or promo)
+        and not sup.blocks_surface
     )
 
 
-def _matched(districts, citywide: bool, status: str, aftermath: bool, negated: bool,
-             siren_only: bool, political_quote: bool, ad_action: bool, promo: bool,
-             civic_notice: bool, eppo_marks: bool, reportage: bool) -> bool:
+def _matched(districts, citywide: bool, status: str, sup: Suppressors) -> bool:
     """No district and no actionable status -> nothing structured to record."""
     return (
         (bool(districts) or citywide or status in ("clear", "destroyed"))
-        and not aftermath
-        and not negated
-        and not siren_only
-        and not political_quote
-        and not ad_action
-        and not promo
-        and not eppo_marks
-        and not civic_notice
-        and not reportage
+        and not sup.blocks_record
     )
 
 
@@ -857,42 +922,51 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
     lost_signal = _lost_signal(norm, districts, status)
     summary = _summary(norm, target_type, bool(districts))
     promo = _promo(norm, status, impact)
-    citywide = _citywide(districts, status, norm, aftermath, negated, siren_only,
-                         political_quote, lost_signal, summary, ad_action, civic_notice,
-                         eppo_marks)
-    target_pulse = _target_pulse(districts, citywide, status, norm, aftermath, negated,
-                                 siren_only, political_quote, lost_signal, summary,
-                                 ad_action, civic_notice, eppo_marks)
+    sup = Suppressors(
+        aftermath=aftermath,
+        negated=negated,
+        siren_only=siren_only,
+        political_quote=political_quote,
+        lost_signal=lost_signal,
+        summary=summary,
+        ad_action=ad_action,
+        civic_notice=civic_notice,
+        eppo_marks=eppo_marks,
+        promo=promo,
+        reportage=reportage,
+        day_recap=day_recap,
+    )
+    citywide = _citywide(districts, status, norm, sup)
+    target_pulse = _target_pulse(districts, citywide, status, norm, sup)
     origin = match_origin(norm)
-    origin_present = _origin_present(origin, status, target_type, norm, aftermath, negated,
-                                     siren_only, political_quote, lost_signal, summary,
-                                     ad_action, civic_notice, eppo_marks, promo)
+    origin_present = _origin_present(origin, status, target_type, norm, sup)
     # Standalone directional: an origin with nothing else to localize on — the
     # primary "загроза з Брянська" class. When a raion/citywide IS also present,
     # origin still feeds a secondary axis but that branch handles the track/alert.
     directional = origin_present and not districts and not citywide
     notice_kind = _level_notice(target_type, districts, citywide, directional, status, norm,
-                                target_count, aftermath, negated, siren_only, political_quote,
-                                lost_signal, summary, ad_action, civic_notice, eppo_marks, promo)
+                                target_count, sup)
     anticipated = notice_kind == "forecast" and _LEVEL_AHEAD_RE.search(norm) is not None
-    matched = _matched(districts, citywide, status, aftermath, negated, siren_only,
-                       political_quote, ad_action, promo, civic_notice, eppo_marks,
-                       reportage)
+    matched = _matched(districts, citywide, status, sup)
 
-    if (aftermath or negated or siren_only or political_quote or ad_action or promo
-            or civic_notice or eppo_marks):
-        districts = []
-    districts = _drop_standby_districts(districts, norm)
-    multi_targets = not impact and _multi_targets(districts, norm)
+    # Two distinct district lists, named rather than one variable reassigned
+    # mid-function. Everything above consumes `districts` — every raion the
+    # gazetteer matched, which is what those predicates ask about ("did this
+    # message name a place at all?"). Everything below consumes the reported
+    # set: suppressed messages report nowhere, and a raion merely put on
+    # «готовність» is not a sighting. Reassigning one name meant the line a
+    # predicate sat on silently decided which of the two it saw.
+    reported_districts = [] if sup.clears_districts else _drop_standby_districts(districts, norm)
+    multi_targets = not impact and _multi_targets(reported_districts, norm)
     # Confidence drops when we can't localize the target.
-    if not districts and status not in ("clear",):
+    if not reported_districts and status not in ("clear",):
         conf = min(conf, 0.3)
 
     return ParseResult(
         target_type=target_type,
         status=status,
         is_new_target=is_new,
-        districts=districts,
+        districts=reported_districts,
         confidence=round(conf, 2),
         target_count=target_count,
         raw_text=text,

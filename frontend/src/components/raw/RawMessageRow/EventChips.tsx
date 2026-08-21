@@ -2,24 +2,11 @@ import { useTranslation } from "react-i18next";
 
 import { deleteEvent, deleteNotice } from "@/api";
 import AdminActionButton from "@/components/admin/AdminActionButton";
-import { kyivStamp } from "@/lib/kyivTime";
 import { TYPE_COLORS } from "@/theme";
 import type { RawMessage, TargetType } from "@/types";
 
-import LlmTriageBadge from "./LlmTriageBadge";
-import NoticeControl, { type NoticeSet } from "./NoticeControl";
-import LlmUsageBadge from "./LlmUsageBadge";
-import OutcomeBadge from "./OutcomeBadge";
-
-/** Tell the list a sighting is gone, so the row stops advertising it. */
-export type DropEvent = (messageId: number, eventId: number) => void;
-
-// Same condition as OutcomeBadge's tone: a real ThreatEvent/Notice matched,
-// i.e. this message actually became a card in the main feed (ThreatLog) —
-// not just a best-effort "outcome" guess.
-function inMainFeed(item: RawMessage) {
-  return item.events.length > 0 || item.notice_id != null;
-}
+import { type NoticeSet } from "../NoticeControl";
+import type { DropEvent } from "./types";
 
 /** The T/M code chips for the ThreatEvents this message produced, each tagged
  * with the target type stamped on it (colour + label). Wraps, so a "чисто" that
@@ -29,7 +16,7 @@ function inMainFeed(item: RawMessage) {
  * message it was parsed from. This is where a wrong parse is actually SEEN —
  * next to the text that caused it — and sending the admin to hunt the same track
  * down on the «Керування» tab was how bad parses stayed on the map. */
-function EventChips({
+export default function EventChips({
   item,
   onDropEvent,
   onSetNotice,
@@ -118,93 +105,5 @@ function EventChips({
         </span>
       )}
     </div>
-  );
-}
-
-export default function RawMessageRow({
-  item,
-  selected,
-  onToggleSelect,
-  onDropEvent,
-  onSetNotice,
-}: {
-  item: RawMessage;
-  selected: boolean;
-  onToggleSelect: (id: number) => void;
-  onDropEvent: DropEvent;
-  onSetNotice: NoticeSet;
-}) {
-  const borderClass = inMainFeed(item)
-    ? item.events.length > 0
-      ? "border-emerald-400/40"
-      : "border-sky-400/40"
-    : "border-white/[0.05]";
-
-  return (
-    <li
-      className={`flex gap-2.5 rounded-lg border ${borderClass} bg-white/[0.02] px-3 py-2.5 text-xs ${
-        selected ? "ring-1 ring-phosphor/50" : ""
-      }`}
-    >
-      <input
-        type="checkbox"
-        checked={selected}
-        onChange={() => onToggleSelect(item.id)}
-        className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-phosphor"
-        aria-label={`Вибрати повідомлення #${item.id}`}
-      />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline justify-between gap-2">
-          <span className="flex items-center gap-1.5 font-mono text-[10px] text-slate-500">
-            #{item.id}
-            {item.source_name && (
-              <span className="text-slate-400">{item.source_name}</span>
-            )}
-          </span>
-          <span className="flex items-center gap-1.5">
-            {item.llm_response && (
-              <LlmTriageBadge
-                category={item.llm_response.category}
-                surface={item.llm_response.surface}
-              />
-            )}
-            {item.llm_attempted && (
-              <LlmUsageBadge
-                inputTokens={item.llm_input_tokens}
-                outputTokens={item.llm_output_tokens}
-                costUsd={item.llm_cost_usd}
-              />
-            )}
-            {item.triage_action && item.triage_action !== "none" && (
-              <span className="whitespace-nowrap rounded bg-fuchsia-400/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-fuchsia-300">
-                {item.triage_action}
-              </span>
-            )}
-            <OutcomeBadge
-              outcome={item.outcome}
-              events={item.events}
-              noticeId={item.notice_id}
-            />
-            <time className="font-mono text-[10px] tabular-nums text-slate-500">
-              {kyivStamp(item.event_time)}
-            </time>
-          </span>
-        </div>
-        <p className="mt-1.5 whitespace-pre-wrap break-words leading-snug text-slate-300">
-          {item.text}
-        </p>
-        <EventChips
-          item={item}
-          onDropEvent={onDropEvent}
-          onSetNotice={onSetNotice}
-        />
-        <NoticeControl item={item} onSetNotice={onSetNotice} />
-        {item.llm_response?.surface && item.llm_response.summary && (
-          <p className="mt-1.5 rounded border border-phosphor/25 bg-phosphor/[0.06] px-2 py-1 text-[11px] leading-snug text-phosphor/90">
-            {item.llm_response.summary}
-          </p>
-        )}
-      </div>
-    </li>
   );
 }

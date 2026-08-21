@@ -78,9 +78,6 @@ _FROM_PREFIX = (
     r"(?<![а-яіїєґ])(?:з|зі|із|від)\s+"
     r"(?:боку\s+|напрямку\s+|сторони\s+|району\s+|р-ну\s+)?"
 )
-_ALL_STEMS = sorted(
-    {(o.key, s) for o in ORIGINS for s in o.stems}, key=lambda ks: len(ks[1]), reverse=True
-)
 # One regex per origin so a match maps straight back to its key; each stem
 # allows a Ukrainian case tail ("брянщин" -> "брянщини").
 _ORIGIN_RES: tuple[tuple[str, re.Pattern], ...] = tuple(

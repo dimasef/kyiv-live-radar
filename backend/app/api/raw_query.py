@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 from sqlalchemy import exists, or_, select, tuple_
 
-from ..feeds.common import build_matcher
+from ..feeds.common import build_region_matchers
 from ..models import District, Notice, RawMessage, Threat, ThreatEvent
 from ..parsing import ParseResult
 from ..parsing.alert_parser import parse_alert_message
@@ -226,9 +226,14 @@ async def serialize_raw_rows(session, rows: list[RawMessage]) -> list[RawMessage
 
     reply_parents = await _reply_parent_ids(session, rows)
     # On THIS session: the diagnosis now runs for every row, so the gazetteer it
-    # matches against must be the one this request reads (build_matcher's own
-    # rule for request handlers) rather than a second connection's.
-    matcher = await build_matcher(session)
+    # matches against must be the one this request reads (build_region_matchers'
+    # own rule for request handlers) rather than a second connection's.
+    # One matcher PER REGION, picked by each row's own channel: a region-only
+    # entry («ТЕЦ», «вокзал») is invisible to the wrong region's matcher, so a
+    # single home-region matcher would diagnose every northern «ТЕЦ» as "не про
+    # загрозу" — the exact thing the live pipeline now gets right. The debug
+    # view has to agree with the pipeline or it stops being evidence.
+    matchers = await build_region_matchers(session)
     items: list[RawMessageOut] = []
     for r in rows:
         key = (r.source_id, r.message_id) if r.message_id is not None else None
@@ -239,6 +244,7 @@ async def serialize_raw_rows(session, rows: list[RawMessage]) -> list[RawMessage
         # its `parsed` snapshot is what makes an export self-explanatory, and
         # `outcome` still prefers the authoritative event/notice when there is
         # one. Alert-channel rows go through their own parser instead.
+        matcher = matchers.for_region(r.source.region if r.source is not None else None)
         diag = None if is_alert_channel else diagnose(r.text, matcher)
         if events:
             row_outcome, suppressed_by = "подія", None

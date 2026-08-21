@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 from sqlalchemy import func, select
@@ -9,7 +10,9 @@ from .config import settings
 from .db import SessionLocal
 from .domain.geometry import centroid
 from .gazetteer import DISTRICTS, SOURCES
-from .models import HOME_REGION, District, Source
+from .models import HOME_REGION, District, Source, ThreatEvent
+
+log = logging.getLogger("seed")
 
 _BOUNDARIES_FILE = Path(__file__).parent / "data" / "boundaries.json"
 
@@ -86,12 +89,15 @@ async def seed_districts() -> int:
         rows = []
         for d in DISTRICTS:
             region = d.get("region", HOME_REGION)
+            region_only = bool(d.get("region_only", False))
             if d["name_en"] in have:
                 row = have[d["name_en"]]
                 if (row.aliases or []) != d.get("aliases", []):
                     row.aliases = d.get("aliases", [])
                 if row.region != region:
                     row.region = region
+                if row.region_only != region_only:
+                    row.region_only = region_only
                 continue
             geom = boundaries.get(d["name_en"])
             lat, lon = d["lat"], d["lon"]
@@ -105,7 +111,46 @@ async def seed_districts() -> int:
                 aliases=d.get("aliases", []),
                 boundary=geom,
                 region=region,
+                region_only=region_only,
             ))
         session.add_all(rows)
         await session.commit()
+        await _retire_orphan_districts(session)
         return len(rows)
+
+
+async def _retire_orphan_districts(session) -> None:
+    """Drop DB rows for entries no longer in the gazetteer.
+
+    Seeding only ever inserted and updated, so an entry REMOVED from
+    `gazetteer.py` lived on in the DB and kept matching. Live case, 2026-08-21:
+    a Kyiv «ТЕЦ» was seeded from a work-in-progress edit and then deleted from
+    the file; the row stayed, and because "тец" had meanwhile become a
+    whole-word alias its three-letter name matched on its own — pinning every
+    bare Kyiv «ТЕЦ» onto a plant the gazetteer no longer claimed.
+
+    Only rows nothing references are removed. A district that already carries
+    sightings is history, not a mistake: deleting it would orphan those events
+    (and violate the FK), so it is logged for the operator instead of dropped.
+    """
+    keep = {d["name_en"] for d in DISTRICTS}
+    orphans = [d for d in await session.scalars(select(District)) if d.name_en not in keep]
+    if not orphans:
+        return
+    used = set(
+        await session.scalars(
+            select(ThreatEvent.district_id).where(
+                ThreatEvent.district_id.in_([d.id for d in orphans])
+            )
+        )
+    )
+    for d in orphans:
+        if d.id in used:
+            log.warning(
+                "district %r (id=%s) is gone from the gazetteer but has sightings — kept",
+                d.name_uk, d.id,
+            )
+            continue
+        log.info("retiring district %r (id=%s): no longer in the gazetteer", d.name_uk, d.id)
+        await session.delete(d)
+    await session.commit()

@@ -62,16 +62,42 @@ function withAuth(headers: HeadersInit | undefined, token: string | null): Heade
   return token ? { ...(headers ?? {}), Authorization: `Bearer ${token}` } : (headers ?? {})
 }
 
+/** Single-flight guard around `refreshHandler`. `hydrate()` fires ten requests
+ * at once, so an expired access token means ten simultaneous 401s — without
+ * this they would each POST /auth/refresh, and one transient network failure
+ * among them would log the user out despite a perfectly valid refresh token. */
+let refreshInFlight: Promise<string | null> | null = null
+
+function refreshOnce(): Promise<string | null> {
+  if (!refreshHandler) return Promise.resolve(null)
+  refreshInFlight ??= refreshHandler().finally(() => {
+    refreshInFlight = null
+  })
+  return refreshInFlight
+}
+
 /** fetch + bearer token + one transparent refresh-and-retry on 401. */
 async function authedFetch(path: string, init: RequestInit = {}, retry = true): Promise<Response> {
   const res = await fetch(`${API}${path}`, { ...init, headers: withAuth(init.headers, accessToken) })
   if (res.status === 401 && retry && refreshHandler) {
-    const fresh = await refreshHandler()
+    const fresh = await refreshOnce()
     if (fresh) {
       return fetch(`${API}${path}`, { ...init, headers: withAuth(init.headers, fresh) })
     }
   }
   return res
+}
+
+/** Parse a JSON response, tolerating a legitimately empty body.
+ *
+ * Several admin routes answer 204 (moderation.py's notice/event deletes). A
+ * bare `res.json()` rejects on those with a SyntaxError, which read as a failed
+ * request even though the server had done the work. */
+async function parseBody<T>(res: Response): Promise<T> {
+  if (res.status === 204 || res.headers.get('content-length') === '0') {
+    return undefined as T
+  }
+  return (await res.json()) as T
 }
 
 async function get<T>(path: string): Promise<T> {
@@ -91,7 +117,7 @@ async function send<T>(
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   if (!res.ok) throw new ApiError(res.status, `${method} ${path} -> ${res.status}`)
-  return res.json() as Promise<T>
+  return parseBody<T>(res)
 }
 
 /** POST that carries NO auth and never triggers the refresh-retry — for the
@@ -216,6 +242,12 @@ export type CoverageGap = Schemas['CoverageGapOut']
 export const fetchCoverageGaps = (limit = 50, scan?: number) =>
   get<CoverageGap[]>(`/admin/coverage_gaps?limit=${limit}${scan ? `&scan=${scan}` : ''}`)
 
+export type CoverageCandidate = Schemas['CoverageCandidateOut']
+export const fetchCoverageCandidates = (limit = 60, scan?: number) =>
+  get<CoverageCandidate[]>(
+    `/admin/coverage_candidates?limit=${limit}${scan ? `&scan=${scan}` : ''}`,
+  )
+
 export type Correction = Schemas['CorrectionOut']
 export const fetchCorrections = (limit = 100) =>
   get<Correction[]>(`/admin/corrections?limit=${limit}`)
@@ -232,7 +264,10 @@ export interface SourceCreateBody {
   trust_weight?: number
 }
 export type SourcePatch = Partial<
-  Pick<Source, 'name' | 'role' | 'region' | 'trust_weight' | 'is_active'>
+  Pick<
+    Source,
+    'name' | 'role' | 'region' | 'trust_weight' | 'type_inherit_minutes' | 'is_active'
+  >
 >
 export type SourceDeleteResult = Schemas['SourceDeleteOut']
 export const fetchSources = () => get<Source[]>('/admin/sources')

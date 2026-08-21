@@ -18,6 +18,7 @@ from ...domain.incidents import (
     end_incidents_without_open_tracks,
 )
 from ...domain.lifecycle import close_track, relabel_close, reopen_track
+from ...domain.target_types import upgrade_type
 from ...domain.tracking import (
     apply_fusion,
     close_all_active,
@@ -32,8 +33,9 @@ from ...domain.tracking import (
 )
 from ...models import HOME_REGION, Alert, Notice, Threat, ThreatEvent
 from ...parsing import DistrictHit, ParseResult
+from ...timeutil import naive
 from ..results import Broadcast
-from .context import IngestContext, _apply_update, _new_track, _upgrade_type
+from .context import IngestContext, _apply_update, _new_track
 
 log = logging.getLogger("tracking")
 
@@ -377,7 +379,7 @@ async def _handle_impact(ctx: IngestContext) -> list[Broadcast]:
             await session.flush()
             log.info("track %s created (kind=impact, target_type=%s)", track.id, track.target_type)
         else:
-            track.target_type = _upgrade_type(track.target_type, parsed.target_type)
+            track.target_type = upgrade_type(track.target_type, parsed.target_type)
         if track not in tracks_seen:
             tracks_seen.append(track)
         ev = _make_event(ctx, track.id, hit, target_count=track.target_count)
@@ -683,7 +685,9 @@ def _last_district_hit(track: Threat) -> DistrictHit | None:
     closing message that names no district of its own."""
     if not track.events:
         return None
-    last = max(track.events, key=lambda e: e.event_time)
+    # naive(): rows loaded from the DB come back naive while an event added in
+    # this same session is still aware, and a bare max() across the two raises.
+    last = max(track.events, key=lambda e: naive(e.event_time))
     return DistrictHit(district_id=last.district_id, name="", position=0)
 
 

@@ -1255,3 +1255,42 @@ async def test_a_chain_root_gap_no_longer_splits_a_crossing_drone(ctx):
     assert [names[e.district_id] for e in track.events] == [
         "Деміївка", "Совки", "Солом'янський", "Жуляни", "Чабани", "Боярка",
     ]
+
+
+async def test_stale_close_is_stamped_when_it_went_stale_not_when_swept(ctx):
+    """A sweep that runs long after the fact must not backdate-inflate durations.
+
+    The sweeper stamped `closed_at = now`, which equals the real stale instant
+    to within one tick — while the process is up. After downtime it does not:
+    on 2026-08-21 the first sweep after an overnight gap closed 08-20 tracks at
+    16:56 the next afternoon, and their incident's feed card read «тривалість
+    22 год 18 хв» for an eleven-minute attack.
+    """
+    s, m, src = ctx
+    from app.domain.tracking import close_stale_tracks
+    from app.timeutil import naive
+
+    await ingest_message(s, text="Реактивний БПЛА над Оболонню", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    # Swept a full day late, as if the backend had been down.
+    closed = await close_stale_tracks(s, BASE + timedelta(hours=24))
+    assert len(closed) == 1
+    # Closed within its own stale window of the last sighting, not 24h later.
+    assert naive(closed[0].closed_at) - naive(BASE) < timedelta(hours=1)
+
+
+async def test_stale_incident_ends_when_its_activity_stopped(ctx):
+    from app.domain.incidents import close_stale_incidents
+    from app.models import Incident
+    from app.timeutil import naive
+
+    s, m, src = ctx
+    inc = Incident(started_at=BASE, last_activity_at=BASE + timedelta(minutes=11))
+    s.add(inc)
+    await s.commit()
+
+    ended = await close_stale_incidents(s, BASE + timedelta(hours=24), 40)
+    assert len(ended) == 1
+    # 11 minutes of activity + the 40-minute stale window — not 24 hours.
+    assert naive(ended[0].ended_at) == naive(BASE) + timedelta(minutes=51)
+    assert ended[0].ended_reason == "stale"

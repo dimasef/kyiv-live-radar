@@ -1,5 +1,6 @@
 import type { StateCreator } from 'zustand'
 
+import { assertNever } from '@/lib/assertNever'
 import type { WSMessage } from '@/types'
 
 import type { RadarState } from './types'
@@ -16,37 +17,46 @@ export const createWsSlice: StateCreator<RadarState, [], [], WsSlice> = (_set, g
     // Every keepalive carries the server's clock — the reference the map's
     // staleness fade is measured against (see clockSlice.clockSkewMs).
     if (msg.server_time) get().setServerTime(msg.server_time)
-    if (msg.type === 'ping') return
-    if (msg.type === 'health') {
-      get().setFeedOk(msg.feed_ok ?? null)
-      return
-    }
-    if (msg.type === 'online') {
-      get().setOnline(msg.online ?? null)
-      return
-    }
-    if (msg.type === 'alert' && msg.alert) {
-      get().upsertAlert(msg.alert)
-      return
-    }
-    if (msg.type === 'attack' && msg.incident) {
-      get().upsertIncident(msg.incident)
-      return
-    }
-    if (msg.type === 'notice' && msg.notice) {
-      get().upsertNotice(msg.notice)
-      return
-    }
-    if (msg.type === 'axis' && msg.axis) {
-      get().upsertAxis(msg.axis)
-      return
-    }
-    if (msg.type === 'zones' && msg.zones) {
-      get().setZones(msg.zones)
-      return
-    }
-    if (msg.threat) {
-      get().applyThreatMessage({ type: msg.type, threat: msg.threat, event: msg.event })
+
+    // Exhaustive by construction: WSMessage is a discriminated union and the
+    // default arm is a `never` check, so a frame the backend starts sending
+    // and this switch doesn't handle breaks the build. It used to be an
+    // if-chain ending in an untyped `if (msg.threat)` fallback, which is how
+    // 'status' came to be handled only by accident.
+    switch (msg.type) {
+      case 'ping':
+        return
+      case 'health':
+        get().setFeedOk(msg.feed_ok ?? null)
+        return
+      case 'online':
+        get().setOnline(msg.online ?? null)
+        return
+      case 'alert':
+        get().upsertAlert(msg.alert)
+        return
+      case 'attack':
+        get().upsertIncident(msg.incident)
+        return
+      case 'notice':
+        get().upsertNotice(msg.notice)
+        return
+      case 'axis':
+        get().upsertAxis(msg.axis)
+        return
+      case 'zones':
+        get().setZones(msg.zones)
+        return
+      case 'event':
+      case 'status':
+        get().applyThreatMessage({
+          type: msg.type,
+          threat: msg.threat,
+          event: msg.event ?? undefined,
+        })
+        return
+      default:
+        assertNever(msg)
     }
   },
 })

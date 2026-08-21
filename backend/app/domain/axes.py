@@ -19,10 +19,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload  # noqa: F401  (kept for symmetry/future eager loads)
 
 from ..config import settings
 from ..models import ThreatAxis
+from ..timeutil import within
+from .target_types import family, upgrade_type
 
 log = logging.getLogger("axes")
 
@@ -37,47 +38,22 @@ class AxisSignal:
     raw_id: int | None = None
 
 
-def _family(target_type: str) -> str:
-    """Same family collapse as fusion._family — a ballistic axis and a bare
-    missile axis on the same bearing are the same inbound threat at different
-    specificity, so they fuse rather than splitting into two wedges."""
-    if target_type in ("missile", "ballistic"):
-        return "missile"
-    if target_type in ("shahed", "jet_drone"):
-        return "drone"
-    return target_type
-
-
-def _within(a: datetime, b: datetime, gap: timedelta) -> bool:
-    an = a.replace(tzinfo=None) if a.tzinfo is not None else a
-    bn = b.replace(tzinfo=None) if b.tzinfo is not None else b
-    return abs((bn - an).total_seconds()) <= gap.total_seconds()
-
-
-def _upgrade_type(current: str, new: str) -> str:
-    """Mirror ingest._upgrade_type: unknown adopts any stated type; a generic
-    missile upgrades to ballistic; never cross families."""
-    if current == "unknown":
-        return new
-    if {current, new} == {"missile", "ballistic"}:
-        return "ballistic"
-    return current
 
 
 async def _find_open_matching(session, signal: AxisSignal) -> ThreatAxis | None:
     """The freshest still-open axis on the same sector + target-family whose last
     callout is within the fusion window — the one this signal corroborates."""
     window = timedelta(minutes=settings.axis_fusion_window_minutes)
-    fam = _family(signal.target_type)
+    fam = family(signal.target_type)
     stmt = (
         select(ThreatAxis)
         .where(ThreatAxis.expires_at.is_(None), ThreatAxis.sector == signal.sector)
         .order_by(ThreatAxis.created_at.desc())
     )
     for axis in await session.scalars(stmt):
-        if _family(axis.target_type) != fam and fam != "unknown" and _family(axis.target_type) != "unknown":
+        if family(axis.target_type) != fam and fam != "unknown" and family(axis.target_type) != "unknown":
             continue
-        if _within(axis.last_seen_at, signal.when, window):
+        if within(axis.last_seen_at, signal.when, window):
             return axis
     return None
 
@@ -108,7 +84,7 @@ async def apply_axis_signal(session, signal: AxisSignal) -> ThreatAxis | None:
         return axis
 
     axis.last_seen_at = signal.when
-    axis.target_type = _upgrade_type(axis.target_type, signal.target_type)
+    axis.target_type = upgrade_type(axis.target_type, signal.target_type)
     if axis.origin_key is None and signal.origin_key is not None:
         axis.origin_key = signal.origin_key
     if signal.source_dedup_key and signal.source_dedup_key not in axis.origin_keys_seen:
@@ -135,16 +111,16 @@ async def refresh_open_axis(session, when: datetime, target_type: str,
     if not settings.axis_enabled:
         return None
     window = timedelta(minutes=settings.axis_fusion_window_minutes)
-    fam = _family(target_type)
+    fam = family(target_type)
     stmt = (
         select(ThreatAxis)
         .where(ThreatAxis.expires_at.is_(None))
         .order_by(ThreatAxis.created_at.desc())
     )
     for axis in await session.scalars(stmt):
-        if _family(axis.target_type) != fam and fam != "unknown" and _family(axis.target_type) != "unknown":
+        if family(axis.target_type) != fam and fam != "unknown" and family(axis.target_type) != "unknown":
             continue
-        if not _within(axis.last_seen_at, when, window):
+        if not within(axis.last_seen_at, when, window):
             continue
         axis.last_seen_at = when
         if raw_id is not None and raw_id not in axis.raw_ids:
@@ -159,7 +135,7 @@ async def close_stale_axes(session, now: datetime) -> list[ThreatAxis]:
     fleeting cue, not a standing state."""
     ttl = timedelta(minutes=settings.axis_ttl_minutes)
     open_axes = list(await session.scalars(select(ThreatAxis).where(ThreatAxis.expires_at.is_(None))))
-    expired = [a for a in open_axes if not _within(a.last_seen_at, now, ttl)]
+    expired = [a for a in open_axes if not within(a.last_seen_at, now, ttl)]
     for a in expired:
         a.expires_at = now
         a.status = "expired"

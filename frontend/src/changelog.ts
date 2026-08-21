@@ -32,12 +32,22 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.31.1";
+const LATEST = "0.32.0";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "Оновлення та виправлення",
+    date: "2026-09-01",
+    kind: "minor",
+    changes: [
+      "Виправлено: у стрічці подій не завжди показувалася кількість цілей у банері атаки",
+      "Виправлено: у стрічці подій не завжди показувався стан району під тривогою",
+    ],
+  },
+  {
+    version: "0.31.1",
     title: "Джерела на мапі та зрозуміліша легенда",
     date: "2026-08-21",
     kind: "patch",
@@ -158,9 +168,7 @@ export const CHANGELOG: Release[] = [
     title: "Технічне обслуговування",
     date: "2026-08-18",
     kind: "patch",
-    changes: [
-      "Спрощено внутрішні інструменти, якими підтримується точність даних на мапі",
-    ],
+    changes: ["Спрощено внутрішні інструменти, якими підтримується точність даних на мапі"],
   },
   {
     version: "0.27.1",
@@ -179,9 +187,7 @@ export const CHANGELOG: Release[] = [
     title: "Технічне обслуговування",
     date: "2026-08-14",
     kind: "minor",
-    changes: [
-      "Внутрішні інструменти обслуговування для підтримання точності даних",
-    ],
+    changes: ["Внутрішні інструменти обслуговування для підтримання точності даних"],
   },
   {
     version: "0.26.0",
@@ -427,18 +433,14 @@ export const CHANGELOG: Release[] = [
     title: "Оптимізації",
     date: "2026-07-26",
     kind: "patch",
-    changes: [
-      "Внутрішні оптимізації обробки повідомлень",
-    ],
+    changes: ["Внутрішні оптимізації обробки повідомлень"],
   },
   {
     version: "0.17.1",
     title: "Дрібні виправлення",
     date: "2026-07-25",
     kind: "patch",
-    changes: [
-      "Дрібні внутрішні виправлення",
-    ],
+    changes: ["Дрібні внутрішні виправлення"],
   },
   {
     version: "0.17.0",
@@ -454,9 +456,7 @@ export const CHANGELOG: Release[] = [
     title: "Технічне обслуговування",
     date: "2026-07-25",
     kind: "minor",
-    changes: [
-      "Внутрішні інструменти обслуговування для підтримання точності даних",
-    ],
+    changes: ["Внутрішні інструменти обслуговування для підтримання точності даних"],
   },
   {
     version: "0.15.0",

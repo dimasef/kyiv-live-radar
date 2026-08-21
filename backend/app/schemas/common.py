@@ -78,6 +78,8 @@ class SourceAdminOut(BaseModel):
     region: Region
     is_active: bool
     trust_weight: float
+    # NULL = the global settings default (see Source.type_inherit_minutes).
+    type_inherit_minutes: int | None
     last_listener_error: str | None
     created_at: datetime | None
     stats: SourceStatsOut
@@ -102,6 +104,9 @@ class SourceUpdateIn(BaseModel):
     role: Literal["spotter", "alert"] | None = None
     region: Region | None = None
     trust_weight: float | None = None
+    # 0 disables inheritance for this channel entirely; the upper bound keeps a
+    # typo ("300") from typing a whole night off one stale mention.
+    type_inherit_minutes: int | None = Field(default=None, ge=0, le=120)
     is_active: bool | None = None
 
 

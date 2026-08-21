@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { fetchDistricts, fetchJournalStats } from "@/api";
+import { fetchJournalStats } from "@/api";
 import { riseDelay } from "@/lib/motion";
 import type { AnalyticsPeriod, JournalStats } from "@/types";
 
+import { useDistrictNames } from "../useDistrictNames";
 import DistrictBars from "./DistrictBars";
 import HeaviestDays from "./HeaviestDays";
 import HourOfDay from "./HourOfDay";
@@ -39,13 +40,7 @@ export default function StatsTab({
   const [period, setPeriod] = useState<AnalyticsPeriod>("30d");
   const [stats, setStats] = useState<JournalStats | null>(null);
   const [phase, setPhase] = useState<"loading" | "ready" | "error">("loading");
-  const [districts, setDistricts] = useState<Map<number, string>>(new Map());
-
-  useEffect(() => {
-    fetchDistricts()
-      .then((ds) => setDistricts(new Map(ds.map((d) => [d.id, d.name_uk]))))
-      .catch(() => {});
-  }, []);
+  const districtName = useDistrictNames();
 
   useEffect(() => {
     let cancelled = false;
@@ -65,7 +60,6 @@ export default function StatsTab({
     };
   }, [period]);
 
-  const districtName = (id: number) => districts.get(id) ?? `#${id}`;
 
   if (phase === "error") {
     return (

@@ -739,7 +739,21 @@ _OBLAST_CITY_STEMS = frozenset({"черніг"})
 #              of the most-named places on the feed.
 _WHOLE_WORD_ALIASES = frozenset({"чзв", "пох", "бц", "голос", "пущею",
                                  "море", "моря", "морі", "остер",
-                                 "центр", "центру", "центрі"})
+                                 "центр", "центру", "центрі",
+                                 # The Antonov plant, next to Нивки. As a stem
+                                 # it swallowed «Антоновичі» — a Chernihiv-oblast
+                                 # village — and put a live target 150 km away on
+                                 # a Kyiv microdistrict (raw 7249, 2026-08-21).
+                                 # Both real case forms listed, like море/моря.
+                                 "антонов", "антонова",
+                                 # Both cities' power plant, as the spotters
+                                 # type it bare. Three letters, so it could
+                                 # never be a stem anyway; whole-word matching
+                                 # also keeps it from eating "ТЕЦ-6" — that
+                                 # entry explains 5 characters of the same word
+                                 # and wins the specificity resolution in
+                                 # DistrictMatcher.find. Swept over the corpus.
+                                 "тец"})
 
 # An alias that is also part of a PROPER NAME, keyed to the word that follows it.
 # "Голос Києва" is a Telegram channel other channels quote ("Голос Києва —
@@ -764,3 +778,32 @@ _ALIAS_NEXT_WORD_VETO: dict[str, tuple[str, ...]] = {
 # never becomes one stem), but on its own it would read a real strike report
 # ("приліт у церкву") as a callout over a town 80 km south.
 _ALIAS_PREV_WORD_REQUIRED: dict[str, tuple[str, ...]] = {"церкв": ("біл",)}
+
+# --- Everything above, as one word-start stem set ---
+# Consumed by `toponyms.py` to answer "is this word already something the parser
+# knows about?" — a word the vocabulary explains is never a missing gazetteer
+# entry. Assembled here rather than re-listed there so a stem added above is
+# automatically excluded from the coverage-gap queue too; the queue silently
+# re-proposing "реактивних" as a place after someone extends _JET is exactly
+# the drift this avoids.
+#
+# Multi-word phrases are kept out: these are matched against single tokens, so a
+# phrase could never match, and leaving them in would only be misleading.
+NON_TOPONYM_STEMS: frozenset[str] = frozenset(
+    stem
+    for stem in (
+        *_BALLISTIC, *_MISSILE, *_JET, *_JET_MODEL, *_SHAHED,
+        *_CLEAR, *_DESTROYED, *_UNCONFIRMED, *_CONFIRMED, _UNSCOPED_CLEAR_WORD,
+        *_NEW_TARGET, *_MOVEMENT_CUE, *_PULSE_WORD,
+        *_THREAT_CONTEXT, *_AFTERMATH, *_CIVIC_NOTICE, *_REPORTAGE,
+        *_IMPACT, *_POWER_OUTAGE, _SIREN_WORD, _LOST_WORD, _DAY_RECAP_WORD,
+    )
+    if " " not in stem
+)
+
+# The numerals are the same vocabulary but must be matched as WHOLE words, never
+# as prefixes — which is how the parser itself uses them (`_NUM` carries a
+# word-start guard and every caller anchors the end). Ukrainian place names
+# begin with them often enough that treating them as stems is a live hazard:
+# "три" is the head of Трипілля, "троє" of Троєщина, "семи" of Семиполки.
+NON_TOPONYM_WORDS: frozenset[str] = frozenset(_NUM_WORDS)

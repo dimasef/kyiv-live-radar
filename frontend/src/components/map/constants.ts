@@ -1,4 +1,4 @@
-import type { Pt } from "../../lib/geo";
+import type { Pt } from "@/lib/geo";
 
 export const KYIV_CENTER: [number, number] = [50.4501, 30.5234];
 export const KYIV_PT: Pt = { lat: KYIV_CENTER[0], lon: KYIV_CENTER[1] };

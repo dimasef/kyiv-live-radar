@@ -2,8 +2,8 @@ import { Bell, BellOff, BellRing } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { fetchPushConfig } from '../../api'
-import { useRadar } from '../../store'
+import { fetchPushConfig } from '@/api'
+import { useRadar } from '@/store'
 import NotifyPrefsControl from './NotifyPrefsControl'
 
 const isStandalone = () =>

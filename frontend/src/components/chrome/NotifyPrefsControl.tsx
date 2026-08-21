@@ -1,9 +1,9 @@
 import { Building2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { useRadar } from '../../store'
-import type { NotifyPrefs } from '../../store/notifySlice'
-import { threatGlyphSvg } from '../../threatIcons'
+import { useRadar } from '@/store'
+import type { NotifyPrefs } from '@/store/notifySlice'
+import { threatGlyphSvg } from '@/threatIcons'
 import Switch from './Switch'
 
 /** The prefs' type toggles reuse the map/feed glyph family — "Дрони" covers

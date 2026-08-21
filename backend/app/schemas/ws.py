@@ -15,8 +15,11 @@ from .zones import AlertZoneOut
 class WSMessage(BaseModel):
     """Envelope broadcast over the WebSocket."""
 
-    # 'event'|'status'|'notice'|'alert'|'attack'|'axis'|'zones'|'health'|'online'|'hello'|'ping'
+    # 'event'|'status'|'notice'|'alert'|'attack'|'axis'|'zones'|'health'|'online'|'ping'
     # 'ping' carries only `server_time` — a heartbeat frame (see pipeline/keepalive.py).
+    # This list is mirrored by the WSMessage union in frontend/src/types.ts, where
+    # it IS exhaustive: adding a frame here without adding it there fails the
+    # frontend build. ('hello' used to be listed and was never sent by anything.)
     type: str
     threat: ThreatOut | None = None
     event: ThreatEventOut | None = None

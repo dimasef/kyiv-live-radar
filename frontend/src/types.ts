@@ -79,39 +79,40 @@ export type AlertZoneGeometry = Record<
   { name_uk: string; oblast: string; geojson: GeoJSON.Polygon | GeoJSON.MultiPolygon }
 >
 
-/** Envelope pushed over `/ws/threats`. Not part of OpenAPI — FastAPI only
- * documents HTTP routes — so this one mirror stays manual. Its payload types
- * are the aliases above, so only the frame list itself can drift. */
-export interface WSMessage {
-  type:
-    | 'event'
-    | 'status'
-    | 'notice'
-    | 'alert'
-    | 'attack'
-    | 'axis'
-    | 'zones'
-    | 'health'
-    | 'online'
-    | 'hello'
-    | 'ping'
-  threat?: Threat
-  event?: ThreatEvent
-  notice?: Notice
-  alert?: Alert
-  incident?: Incident
-  axis?: ThreatAxis
-  /** 'zones' frame payload — the raions whose siren state just changed. */
-  zones?: AlertZone[]
-  /** 'health' frame payload — whether the live Telegram feed looks healthy. */
-  feed_ok?: boolean | null
-  /** 'online' frame payload — how many clients are watching right now. */
-  online?: number | null
-  /** Sent on every 'ping' — the server's clock. The map's staleness fade runs
-   * against absolute `stale_at` timestamps, so a device whose own clock is off
-   * needs this to age targets correctly (see store/clockSlice). */
+/** Sent on every frame — the server's clock. The map's staleness fade runs
+ * against absolute `stale_at` timestamps, so a device whose own clock is off
+ * needs this to age targets correctly (see store/clockSlice). */
+interface WSCommon {
   server_time?: string | null
 }
+
+/** Envelope pushed over `/ws/threats`. Not part of OpenAPI — FastAPI only
+ * documents HTTP routes — so this one mirror stays manual.
+ *
+ * A real discriminated union, not a flat interface with every payload
+ * optional: `handleWS` switches on `type` with an exhaustive default, so a
+ * frame added on the backend and forgotten here fails the BUILD instead of
+ * being silently dropped at runtime. Each member carries exactly the payload
+ * its producer sends — see broadcast.py, keepalive.py and feeds/alert_zones.py. */
+export type WSMessage = WSCommon &
+  (
+    // The two track-bearing frames: a new sighting, or a track whose state
+    // changed with no event of its own (a close, a retype).
+    | { type: 'event'; threat: Threat; event?: ThreatEvent | null }
+    | { type: 'status'; threat: Threat; event?: ThreatEvent | null }
+    | { type: 'notice'; notice: Notice }
+    | { type: 'alert'; alert: Alert }
+    | { type: 'attack'; incident: Incident }
+    | { type: 'axis'; axis: ThreatAxis }
+    /** The raions whose siren state just changed. */
+    | { type: 'zones'; zones: AlertZone[] }
+    /** Whether the live Telegram feed looks healthy. */
+    | { type: 'health'; feed_ok: boolean | null }
+    /** How many clients are watching right now. */
+    | { type: 'online'; online: number | null }
+    /** Keepalive — carries nothing but `server_time`. */
+    | { type: 'ping' }
+  )
 
 /** GET /health — declares no `response_model` (it assembles a plain dict), so
  * it is absent from the generated types. */

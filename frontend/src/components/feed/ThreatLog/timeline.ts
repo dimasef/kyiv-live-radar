@@ -20,10 +20,6 @@ export function daySeparatorLabel(dayKey: string, lang: string, t: (k: string) =
  * not what someone watching Kyiv is reading the feed for. Filtering here rather
  * than in the store keeps the log itself complete, so flipping the toggle back
  * restores the entries already received without a refetch.
- *
- * Sightings only: notices carry no region (they're keyed to a source), and the
- * northern channels raise a handful of them against hundreds from Kyiv's, so
- * there is nothing to gain by guessing at one.
  */
 export function filterFeedRegions(
   log: FeedEntry[],
@@ -31,6 +27,26 @@ export function filterFeedRegions(
   home: Region = 'kyiv',
 ): FeedEntry[] {
   return otherRegions ? log : log.filter((e) => e.threat.region === home)
+}
+
+/** The same filter for notices, which the sightings filter used to skip.
+ *
+ * That skip assumed notices had no region and that the northern channels raised
+ * few of them. Both turned out to be wrong: a notice takes its reporting
+ * channel's region (`NoticeOut.region`), and «напрямок загрози» is exactly what
+ * the northern channel produces most — on 2026-08-21 a Kyiv-filtered feed
+ * opened with seven consecutive Чернігівщина axis cards, which is the whole
+ * thing the filter exists to prevent.
+ *
+ * A notice with no source keeps the home region, so an official all-clear or an
+ * internally generated summary is never filtered out.
+ */
+export function filterFeedNotices(
+  notices: Notice[],
+  otherRegions: boolean,
+  home: Region = 'kyiv',
+): Notice[] {
+  return otherRegions ? notices : notices.filter((n) => (n.region ?? home) === home)
 }
 
 // One real message can close several tracks at once (e.g. an untyped

@@ -1,7 +1,7 @@
 import { Siren } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import type { Alert } from '../../types'
+import type { Alert } from '@/types'
 import Collapsible from './Collapsible'
 import { formatDuration } from './status'
 

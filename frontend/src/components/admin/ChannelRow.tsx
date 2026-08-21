@@ -47,6 +47,9 @@ export default function ChannelRow({
 
       <div className="mt-2 text-[11px] text-slate-500">
         останнє: {formatKyivTime(st.last_message_at)} · вага довіри: {source.trust_weight}
+        {source.type_inherit_minutes !== null && (
+          <> · успадкування типу: {source.type_inherit_minutes} хв</>
+        )}
       </div>
     </li>
   )

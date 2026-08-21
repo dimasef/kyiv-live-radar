@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from .admin import (
     CorrectionOut,
+    CoverageCandidateOut,
     CoverageGapOut,
     DismissedOut,
     EventDistrictIn,
@@ -149,6 +150,7 @@ __all__ = [
     "CardCountOut",
     "CollectionOut",
     "CorrectionOut",
+    "CoverageCandidateOut",
     "CoverageGapOut",
     "DismissedOut",
     "DistrictOut",

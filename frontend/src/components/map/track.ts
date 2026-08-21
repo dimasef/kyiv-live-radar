@@ -1,5 +1,5 @@
-import { bearing, type Pt } from '../../lib/geo'
-import type { Threat, ThreatEvent } from '../../types'
+import { bearing, type Pt } from '@/lib/geo'
+import type { Threat, ThreatEvent } from '@/types'
 
 /** Ordered, de-duplicated track points for a threat (consecutive repeats dropped). */
 export function trackPoints(threat: Threat): Pt[] {

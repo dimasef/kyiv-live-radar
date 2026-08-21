@@ -179,16 +179,30 @@ async def test_coverage_gaps(client):
     await s.commit()
     # Threat-flavored but names a place not in the (test) gazetteer → a gap.
     gap = RawMessage(source_id=src.id, message_id=5001, text="Шахед курс на Гатне")
+    # A bare toponym callout with NO target type — the northern spotters' normal
+    # message shape, and what the old `should_fallback` gate rejected outright.
+    bare = RawMessage(source_id=src.id, message_id=5003, text="Жукотки")
     # Junk with no target → not a gap.
     junk = RawMessage(source_id=src.id, message_id=5002, text="Дякуємо ППО за роботу!")
-    s.add_all([gap, junk])
+    s.add_all([gap, bare, junk])
     await s.commit()
 
     r = await c.get("/admin/coverage_gaps", headers=headers)
     assert r.status_code == 200
-    ids = {g["raw_message_id"] for g in r.json()}
-    assert gap.id in ids
-    assert junk.id not in ids
+    rows = {g["raw_message_id"]: g for g in r.json()}
+    assert gap.id in rows
+    assert bare.id in rows
+    assert junk.id not in rows
+    # Each row names the word it was admitted for, so the operator knows what to
+    # look up rather than re-reading the message.
+    assert rows[bare.id]["candidates"] == ["жукотки"]
+
+    # ...and the aggregated view ranks those words for gazetteer work.
+    r = await c.get("/admin/coverage_candidates", headers=headers)
+    assert r.status_code == 200
+    by_name = {row["name"]: row for row in r.json()}
+    assert by_name["жукотки"]["count"] == 1
+    assert by_name["жукотки"]["example_raw_message_id"] == bare.id
 
     # The export path asks for a deeper scan + a bigger page than the UI list.
     r = await c.get("/admin/coverage_gaps?limit=500&scan=5000", headers=headers)

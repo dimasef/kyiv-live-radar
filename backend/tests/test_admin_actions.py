@@ -290,6 +290,28 @@ async def test_move_event_changes_district(client):
     assert refreshed.district_id == d2.id
 
 
+async def test_move_event_hands_the_track_to_the_new_district_s_region(client):
+    # Ingest keeps "a track lives in the region of its LATEST sighting"
+    # (handlers._hand_over_region). An admin relocating a sighting can break it,
+    # leaving the track corroborating and closing in a pool it left — so the
+    # move re-derives the region from the new district.
+    c, s = client
+    headers = await _admin_headers(s)
+    kyiv = await _district(s)
+    north = District(
+        name_uk="Козелець", name_en="Kozelets", lat=50.9, lon=31.1, region="chernihiv"
+    )
+    s.add(north)
+    await s.commit()
+    threat, ev = await _threat_with_event(s, kyiv)
+    assert threat.region == "kyiv"
+
+    r = await c.patch(f"/admin/events/{ev.id}", json={"district_id": north.id}, headers=headers)
+    assert r.status_code == 200
+    await s.refresh(threat)
+    assert threat.region == "chernihiv"
+
+
 async def test_move_event_rejects_unknown_district(client):
     c, s = client
     headers = await _admin_headers(s)

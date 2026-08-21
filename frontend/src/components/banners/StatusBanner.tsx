@@ -5,8 +5,8 @@ import { useTranslation } from 'react-i18next'
 
 import { safeGet, safeRemove, safeSet, STORAGE_KEYS } from '@/lib/storage'
 
-import { useRadar } from '../../store'
-import { INCIDENT_SEVERITY_COLOR, STATUS_COLORS } from '../../theme'
+import { useRadar } from '@/store'
+import { INCIDENT_SEVERITY_COLOR, STATUS_COLORS } from '@/theme'
 import AlertSegment from './AlertSegment'
 import AttackSegment from './AttackSegment'
 import BannerShell from './BannerShell'

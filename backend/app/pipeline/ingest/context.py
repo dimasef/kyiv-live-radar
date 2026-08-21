@@ -9,6 +9,8 @@ from datetime import datetime, timedelta
 
 from ...config import settings
 from ...domain.lifecycle import promote_track
+from ...domain.target_types import upgrade_type
+from ...feeds.common import build_region_matchers
 from ...models import HOME_REGION, RawMessage, Threat, utcnow
 from ...parsing import ParseResult, normalize
 from ...parsing.vocab import _MISSILE_CARRIER, _MISSILE_NAMED, _MISSILE_WEAPON
@@ -18,8 +20,9 @@ from ...timeutil import naive
 # inheritance (see settings.type_inherit_window_minutes). Keyed by source_id ->
 # (target_type, when). In-memory and order-dependent, which is fine: ingestion
 # is serialized and every feed path (live, replay, reprocess) presents messages
-# in chronological order per source. A process restart simply drops the context
-# (a district event right after a restart falls back to "unknown" — harmless).
+# in chronological order per source. A process restart drops it, which is why
+# `rehydrate_type_context` replays the recent window on startup — with a 30-min
+# per-source window a deploy mid-wave used to cost half an hour of typing.
 # Rule-only: mutating an already-districted message's type never adds an LLM
 # call, since should_fallback short-circuits to False whenever districts exist.
 _recent_type: dict[int, tuple[str, datetime]] = {}
@@ -55,9 +58,19 @@ def _names_cruise_weapon(parsed: ParseResult) -> bool:
     return any(w in normalize(parsed.raw_text) for w in _MISSILE_NAMED)
 
 
-def _note_and_inherit_type(parsed: ParseResult, source_id: int | None, when: datetime) -> None:
+def _note_and_inherit_type(
+    parsed: ParseResult,
+    source_id: int | None,
+    when: datetime,
+    window_minutes: int | None = None,
+) -> None:
     """Record this message's stated type, or inherit a recent one onto a
-    district-bearing message that stated none. Mutates `parsed.target_type`."""
+    district-bearing message that stated none. Mutates `parsed.target_type`.
+
+    `window_minutes` is the reporting channel's own window (Source.
+    type_inherit_minutes); None falls back to the global default. Passed in
+    rather than looked up here so this stays a pure function — the caller owns
+    the DB."""
     if source_id is None:  # no channel identity (e.g. simulator) — no context
         return
     # Conversational/meta chatter mentions types without being about a live
@@ -104,7 +117,7 @@ def _note_and_inherit_type(parsed: ParseResult, source_id: int | None, when: dat
             and not _names_cruise_weapon(parsed)
             and prev is not None
             and prev[0] == "ballistic"
-            and _within_inherit_window(when, prev[1])
+            and _within_inherit_window(when, prev[1], window_minutes)
         ):
             _recent_type[source_id] = ("ballistic", when)
         else:
@@ -119,33 +132,77 @@ def _note_and_inherit_type(parsed: ParseResult, source_id: int | None, when: dat
     if recent is None:
         return
     rtype, rwhen = recent
-    if _within_inherit_window(when, rwhen):
+    if _within_inherit_window(when, rwhen, window_minutes):
         parsed.target_type = rtype
 
 
-def _within_inherit_window(a: datetime, b: datetime) -> bool:
+async def rehydrate_type_context(session) -> int:
+    """Rebuild `_recent_type` from stored messages, on startup.
+
+    The context is in-memory, so every restart drops it — and with a per-source
+    window that can now be 30 minutes, a deploy mid-wave costs half an hour of
+    typing instead of five minutes. Live case, 2026-08-21: «Новий реактивний з
+    Брянської» at 16:49 correctly typed the callouts at 16:51, 16:57 and 17:01,
+    then the process restarted and everything from 17:11 on went back to
+    `unknown` — 22 minutes into a 30-minute window.
+
+    Replays each channel's recent messages through `_note_and_inherit_type`
+    itself rather than re-deriving "the last type stated": that keeps every rule
+    identical — the suppressor skips, the carrier-only veto, the
+    ballistic-over-generic-missile guard. The ParseResult it mutates is thrown
+    away; only the recorded context survives. Read-only, no events, no LLM.
+
+    Returns the number of channels whose context was restored.
+    """
+    from sqlalchemy import select
+
+    from ...models import RawMessage, Source
+    from ...parsing import parse_message
+    from ..lock import ingest_lock
+
+    sources = {
+        s.id: s for s in await session.scalars(select(Source).where(Source.role == "spotter"))
+    }
+    if not sources:
+        return 0
+    windows = {
+        sid: (s.type_inherit_minutes
+              if s.type_inherit_minutes is not None
+              else settings.type_inherit_window_minutes)
+        for sid, s in sources.items()
+    }
+    lookback = max(windows.values(), default=0)
+    if lookback <= 0:
+        return 0
+    since = naive(utcnow()) - timedelta(minutes=lookback)
+    rows = list(
+        await session.scalars(
+            select(RawMessage)
+            .where(RawMessage.source_id.in_(sources), RawMessage.event_time >= since)
+            .order_by(RawMessage.event_time)
+        )
+    )
+    if not rows:
+        return 0
+    matcher = await build_region_matchers(session)
+    # Under the same lock the live path takes: startup and the first inbound
+    # message would otherwise both write `_recent_type`, and a half-replayed
+    # context is worse than none.
+    async with ingest_lock:
+        for raw in rows:
+            region = sources[raw.source_id].region
+            parsed = parse_message(raw.text or "", matcher.for_region(region))
+            _note_and_inherit_type(parsed, raw.source_id, raw.event_time, windows[raw.source_id])
+    return len({sid for sid in _recent_type if sid in sources})
+
+
+def _within_inherit_window(a: datetime, b: datetime, window_minutes: int | None = None) -> bool:
     """Whether `a` and `b` are within the type-inheritance window. Drops tzinfo
     first so SQLite-naive and aware datetimes compare (all values are UTC)."""
     an = a.replace(tzinfo=None) if a.tzinfo is not None else a
     bn = b.replace(tzinfo=None) if b.tzinfo is not None else b
-    window = timedelta(minutes=settings.type_inherit_window_minutes)
-    return abs((an - bn).total_seconds()) <= window.total_seconds()
-
-
-def _upgrade_type(current: str, new: str) -> str:
-    """The target type a track should hold given a new event's stated type.
-
-    Upgrade `unknown` to any stated type; and within the missile family upgrade
-    the generic `missile` to the more specific, more severe `ballistic` (a bare
-    "8 ракет" followed by "8 балістичних С-400" is the SAME salvo, better
-    identified). Never cross families (a shahed track stays shahed even if a
-    missile event lands — that genuine disagreement is surfaced as a conflict by
-    fusion, not silently overwritten)."""
-    if current == "unknown":
-        return new
-    if {current, new} == {"missile", "ballistic"}:
-        return "ballistic"
-    return current
+    minutes = window_minutes if window_minutes is not None else settings.type_inherit_window_minutes
+    return abs((an - bn).total_seconds()) <= timedelta(minutes=minutes).total_seconds()
 
 
 def _threat_status_for(parsed: ParseResult) -> str:
@@ -176,7 +233,7 @@ def _apply_update(parsed: ParseResult, track: Threat, *, promote: bool = True,
     confirmed status, and grow the group count. `promote`/`grow_count` are turned
     off for the paths that intentionally skip them — a terse pulse never promotes,
     and a multi-target enumeration counts per district, not by the stated total."""
-    track.target_type = _upgrade_type(track.target_type, parsed.target_type)
+    track.target_type = upgrade_type(track.target_type, parsed.target_type)
     if promote and parsed.status != "unconfirmed":
         promote_track(track)
     if grow_count and parsed.target_count and parsed.target_count > track.target_count:

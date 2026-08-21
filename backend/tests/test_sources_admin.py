@@ -109,6 +109,21 @@ async def test_patch_role_reloads_but_weight_does_not(client):
     assert w.json()["trust_weight"] == 0.3
     assert reloads["count"] == 0
 
+    # Same for the type-inheritance window — it steers messages already arriving.
+    assert (await c.get("/admin/sources", headers=headers)).json()[0][
+        "type_inherit_minutes"
+    ] is None
+    win = await c.patch(
+        f"/admin/sources/{sid}", json={"type_inherit_minutes": 30}, headers=headers
+    )
+    assert win.json()["type_inherit_minutes"] == 30
+    assert reloads["count"] == 0
+    # Bounded: a typo would otherwise type a whole night off one stale mention.
+    bad = await c.patch(
+        f"/admin/sources/{sid}", json={"type_inherit_minutes": 300}, headers=headers
+    )
+    assert bad.status_code == 422
+
     # role change affects routing -> reload.
     role = await c.patch(f"/admin/sources/{sid}", json={"role": "alert"}, headers=headers)
     assert role.json()["role"] == "alert"

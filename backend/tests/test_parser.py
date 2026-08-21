@@ -946,6 +946,19 @@ def test_bare_type_denial_does_not_pulse():
         assert not parse_message(txt, M).target_pulse, txt
 
 
+def test_a_promo_line_shaped_like_a_pulse_does_not_corroborate():
+    # Every other surface predicate excluded `promo`; `_target_pulse` was the
+    # one that didn't. That matters because _dispatch acts on target_pulse
+    # BEFORE it checks `matched` — so a short recruitment/donation line carrying
+    # a target word corroborated the open city-wide alert and raised its
+    # confidence, with no raion ever named. One Suppressors record now feeds
+    # every predicate, so the sets cannot drift apart again.
+    for txt in ("Ракети https://t.me/x", "ракети t.me/kyiv", "ракети підписуйтесь"):
+        p = parse_message(txt, M)
+        assert p.promo, txt
+        assert not p.target_pulse, txt
+
+
 def test_vinnytsia_oblast_spelling_variants_are_elsewhere():
     # 08-04 (raw 4693): only the adjective stem "вінницьк" was listed, so this
     # stayed pulse-shaped and corroborated the open Kyiv city-wide track.
@@ -1450,3 +1463,33 @@ def test_novhorod_short_form():
     # The channel drops the second half: «З сумської на Новгород».
     assert names(parse_message("З сумської на Новгород", M)) == ["Новгород-Сіверський"]
     assert names(parse_message("На Новгород-сіверський", M)) == ["Новгород-Сіверський"]
+
+
+def test_antonov_alias_does_not_swallow_a_chernihiv_village():
+    # raw 7249 (2026-08-21): a bare «Антоновичі» from the northern feed drew a
+    # live target on Нивки — a Kyiv microdistrict 150 km away — because Нивки's
+    # «антонов» alias (the Antonov plant) matched it as a STEM and the case-tail
+    # `[а-яіїєґ]*` ate «ичі». The alias is whole-word now, both real case forms
+    # listed, and the village is its own Chernihiv entry.
+    from types import SimpleNamespace
+
+    from app.feeds.common import RegionMatchers
+    from app.gazetteer import DISTRICTS
+
+    ds = [
+        SimpleNamespace(
+            id=i + 1, name_uk=d["name_uk"], name_en=d["name_en"], lat=d["lat"],
+            lon=d["lon"], aliases=d.get("aliases") or [], region=d.get("region", "kyiv"),
+        )
+        for i, d in enumerate(DISTRICTS)
+    ]
+    north = RegionMatchers(ds).for_region("chernihiv")
+
+    hits = parse_message("Антоновичі", north).districts
+    assert [h.name for h in hits] == ["Антоновичі"]
+    assert ds[hits[0].district_id - 1].region == "chernihiv"
+
+    # The plant itself still localizes — that is what the alias is for.
+    assert [h.name for h in parse_message("завод Антонова", north).districts] == ["Нивки"]
+    # …and no longer bleeds into unrelated words sharing the prefix.
+    assert parse_message("антоновка", north).districts == []

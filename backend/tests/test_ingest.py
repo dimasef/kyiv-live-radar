@@ -96,10 +96,11 @@ def test_other_oblast_mention_does_not_hide_a_real_kyiv_district():
 T0 = datetime(2026, 7, 11, 0, 52)  # UTC (03:52 Kyiv), like the real ballistic night
 
 
-def _feed(text, source_id, when):
-    """Parse a message and run the ingest-level type-inheritance step on it."""
+def _feed(text, source_id, when, window=None):
+    """Parse a message and run the ingest-level type-inheritance step on it.
+    `window` is the reporting channel's own Source.type_inherit_minutes."""
     r = parse_message(text, M)
-    _note_and_inherit_type(r, source_id, when)
+    _note_and_inherit_type(r, source_id, when, window)
     return r
 
 
@@ -123,6 +124,36 @@ def test_inheritance_expires_after_window():
     _feed("Балістика!", source_id=1, when=T0)
     late = _feed("Троя", source_id=1, when=T0 + timedelta(minutes=30))
     assert late.target_type == "unknown"  # stale context is not inherited
+
+
+def test_channel_can_widen_its_own_inheritance_window():
+    """Source.type_inherit_minutes overrides the global default for ONE channel.
+
+    The northern spotter channel states a type once at the start of a wave and
+    then writes pure vectors, so 84% of its untyped events had no stated type
+    within the 5-minute default. Same sequence, same times, different channel
+    setting — nothing else changes."""
+    _feed("Реактивний Сеньківка", source_id=1, when=T0, window=30)
+    later = _feed("Троя", source_id=1, when=T0 + timedelta(minutes=20), window=30)
+    assert later.target_type == "jet_drone"
+
+
+def test_widened_window_is_per_source_not_global():
+    """A channel left on the default is unaffected by another one widening its
+    own — the Kyiv channels mix ballistic and drones in a single night, where a
+    30-minute window would be a regression."""
+    _feed("Балістика!", source_id=1, when=T0, window=30)
+    _feed("Балістика!", source_id=2, when=T0)
+    assert _feed("Троя", source_id=1, when=T0 + timedelta(minutes=20), window=30).target_type == (
+        "ballistic"
+    )
+    assert _feed("Троя", source_id=2, when=T0 + timedelta(minutes=20)).target_type == "unknown"
+
+
+def test_zero_window_disables_inheritance():
+    _feed("Балістика!", source_id=1, when=T0, window=0)
+    r = _feed("Троя", source_id=1, when=T0 + timedelta(seconds=30), window=0)
+    assert r.target_type == "unknown"
 
 
 def test_citywide_message_inherits_type():
@@ -293,3 +324,4 @@ def test_level_bulletin_does_not_pay_for_an_llm_call():
     for txt in ["По балістиці тихо на даний момент.", "🟣 Загроза БАЛІСТИКИ"]:
         r = parse_message(txt, M)
         assert r.notice_kind and not should_fallback(r), txt
+

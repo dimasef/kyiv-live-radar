@@ -30,31 +30,70 @@ import { useRadar } from './index'
  * to skip a redundant refetch right after boot (live `let` export binding). */
 export let lastHydrateAt = 0
 
-export async function hydrate(): Promise<void> {
+let latestHydrate = 0
+let inFlight: { promise: Promise<void>; startedAt: number } | null = null
+// Two hydrates fired within this window are the same intent, not two.
+const HYDRATE_COALESCE_MS = 2_000
+
+export function hydrate(): Promise<void> {
+  // Boot and reconnect each want a full reconcile and fire milliseconds apart —
+  // `bootstrapApp` hydrates, then `connectWS`'s onopen hydrates again; a resync
+  // does the same via forceReconnect. Join the run already going rather than
+  // doubling all ten requests. Past the window the in-flight one may simply be
+  // hung on a dead network — which is exactly when a resume needs fresh
+  // requests — so let it start a new one and rely on the generation guard.
+  if (inFlight && Date.now() - inFlight.startedAt < HYDRATE_COALESCE_MS) return inFlight.promise
+
+  const promise = runHydrate().finally(() => {
+    if (inFlight?.promise === promise) inFlight = null
+  })
+  inFlight = { promise, startedAt: Date.now() }
+  return promise
+}
+
+async function runHydrate(): Promise<void> {
+  const generation = ++latestHydrate
   const store = useRadar.getState()
+  const isCurrent = () => generation === latestHydrate
+
+  // A slower older hydrate landing after a newer one must not repaint the map
+  // from its stale snapshot — a target that closed in between would come back.
+  let anySucceeded = false
+  const apply =
+    <T>(set: (value: T) => void) =>
+    (value: T) => {
+      anySucceeded = true
+      if (isCurrent()) set(value)
+    }
 
   await Promise.all([
-    fetchActiveThreats().then(store.setThreats).catch(() => {}),
-    fetchActiveIncidents().then(store.setIncidents).catch(() => {}),
-    fetchRecentIncidents().then(store.setRecentIncidents).catch(() => {}),
-    fetchActiveAxes().then(store.setAxes).catch(() => {}),
-    fetchActiveAlerts().then(store.setAlerts).catch(() => {}),
-    fetchAlertZones().then(store.setZones).catch(() => {}),
+    fetchActiveThreats().then(apply(store.setThreats)).catch(() => {}),
+    fetchActiveIncidents().then(apply(store.setIncidents)).catch(() => {}),
+    fetchRecentIncidents().then(apply(store.setRecentIncidents)).catch(() => {}),
+    fetchActiveAxes().then(apply(store.setAxes)).catch(() => {}),
+    fetchActiveAlerts().then(apply(store.setAlerts)).catch(() => {}),
+    fetchAlertZones().then(apply(store.setZones)).catch(() => {}),
     fetchRecentEvents(store.feedLimit, store.feedOtherRegions ? undefined : 'kyiv')
-      .then(store.setLog)
+      .then(apply(store.setLog))
       .catch(() => {}),
-    fetchRecentNotices().then(store.setNotices).catch(() => {}),
-    fetchPublicSources().then(store.setSources).catch(() => {}),
+    fetchRecentNotices().then(apply(store.setNotices)).catch(() => {}),
+    fetchPublicSources().then(apply(store.setSources)).catch(() => {}),
     // Hydrate feed health once; live changes arrive via the WS 'health' frame.
     // `server_time` seeds the fade clock's skew correction before the first ping.
     fetchHealth()
-      .then((h) => {
-        store.setFeedOk(h.telegram?.feed_ok ?? null)
-        store.setServerTime(h.server_time)
-      })
+      .then(
+        apply((h: Awaited<ReturnType<typeof fetchHealth>>) => {
+          store.setFeedOk(h.telegram?.feed_ok ?? null)
+          store.setServerTime(h.server_time)
+        }),
+      )
       .catch(() => {}),
   ])
-  lastHydrateAt = Date.now()
+
+  // Stamping this when EVERY request failed would make resync()'s freshness
+  // guard skip the recovery refetch for the next 10s — precisely when the
+  // backend is coming back and we most need to re-ask.
+  if (isCurrent() && anySucceeded) lastHydrateAt = Date.now()
 }
 
 /** One-shot static data + first hydration + live WS connection for the radar

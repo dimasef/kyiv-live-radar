@@ -23,11 +23,18 @@ cd backend
 # which silently diverges from `.python-version`/Railway. The code uses 3.11+
 # syntax that SQLAlchemy/Pydantic evaluate at RUNTIME (`X | None` in
 # `Mapped[...]`, `datetime.UTC`), so an older venv fails at import, not at lint.
-python3.11 -m venv .venv && .venv/bin/pip install -r requirements.txt
+python3.11 -m venv .venv && .venv/bin/pip install -r requirements.txt ruff
 .venv/bin/uvicorn app.main:app --port 8137 --reload   # dev server
 
 .venv/bin/pytest tests/ -q                             # full suite
 .venv/bin/ruff check app tests eval scripts            # lint (config in pyproject.toml)
+
+# `requirements.txt` starts with `-c constraints.txt`, so that one command pins
+# every transitive version — CI, the Railway build and your venv all resolve the
+# SAME set. This is not optional bookkeeping: anthropic 1.0 shipped mid-day on
+# 2026-08-20, swapped httpx for httpx2, and broke `main` with no code change of
+# ours. Upgrade DELIBERATELY (see the header of constraints.txt), never by
+# letting a fresh resolve happen.
 .venv/bin/pytest tests/test_tracking.py -q              # one file
 .venv/bin/pytest tests/test_tracking.py::test_same_district_corroborates_into_one_track -q   # one test
 ```

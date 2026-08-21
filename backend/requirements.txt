@@ -1,3 +1,9 @@
+# Pin every resolved version, including transitives. Declared here rather than
+# passed as `pip install -c` so that EVERY install path honours it — CI, the
+# Railway build (railpack installs straight from this file), and a local venv.
+# See constraints.txt for the why and for how to upgrade deliberately.
+-c constraints.txt
+
 # Core API
 fastapi>=0.110
 uvicorn[standard]>=0.27
@@ -11,9 +17,17 @@ aiosqlite>=0.19
 asyncpg>=0.29           # Postgres (Railway)
 alembic>=1.13           # migrations
 
+# HTTP client. Imported directly by app/auth/providers/google.py and
+# app/feeds/alert_zones.py, and required by starlette.testclient.TestClient.
+# It used to arrive transitively via anthropic — until anthropic 1.0 switched to
+# httpx2 and CI lost the module entirely. Declare what we actually import.
+httpx>=0.27,<1.0
+
 # Real Telegram feed + parser
 telethon>=1.34         # MTProto listener (reads public channels)
-anthropic>=0.40         # LLM fallback parser (Claude Haiku 4.5)
+# Capped: 1.0 replaced the HTTP layer (httpx -> httpx2) and is unverified here.
+# Lifting the cap means re-testing app/parsing/llm.py against the new client.
+anthropic>=0.40,<1.0    # LLM fallback parser (Claude Haiku 4.5)
 
 # Web Push — danger-near-home notifications (app/pipeline/home_push.py)
 pywebpush>=2.0

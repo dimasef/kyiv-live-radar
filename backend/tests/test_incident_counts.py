@@ -77,3 +77,22 @@ def test_impacts_and_citywide_banners_stay_out_of_both_counts():
     assert out.track_count == 1
     assert out.target_count == 2
     assert out.citywide is True
+
+
+def test_a_dismissed_impact_still_keeps_its_district_off_the_wire():
+    # An admin dismissal rewrites `status` to 'dismissed' and leaves `kind`
+    # alone. district_count used to be derived from `status` while district_ids
+    # was derived from `kind`, so the strike raion vanished from the list but
+    # was still counted — the two disagreed, and the count leaked what the list
+    # exists to hide.
+    out = incident_out(
+        _incident(
+            [
+                _threat(district_id=1),
+                _threat(kind="impact", status="dismissed", district_id=2),
+            ]
+        ),
+        sentinel_district_id=None,
+    )
+    assert out.district_ids == [1]
+    assert out.district_count == len(out.district_ids) == 1

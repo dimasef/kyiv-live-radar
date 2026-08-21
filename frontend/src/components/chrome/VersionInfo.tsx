@@ -1,9 +1,9 @@
 import { ChevronRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { APP_VERSION } from '../../changelog'
-import { CHANGELOG_PATH, navigate } from '../../router'
-import { useRadar } from '../../store'
+import { APP_VERSION } from '@/changelog'
+import { CHANGELOG_PATH, navigate } from '@/router'
+import { useRadar } from '@/store'
 
 /** App version row in Settings (under "My home"). Links to the standalone
  * /change-log page (a real URL, so it can be shared). */

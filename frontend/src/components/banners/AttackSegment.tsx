@@ -1,8 +1,8 @@
 import { Crosshair, Ghost, MapPin } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { threatGlyphSvg } from '../../threatIcons'
-import type { Incident } from '../../types'
+import { threatGlyphSvg } from '@/threatIcons'
+import type { Incident } from '@/types'
 import Collapsible from './Collapsible'
 
 export default function AttackSegment({

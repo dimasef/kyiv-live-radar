@@ -21,9 +21,10 @@ from ...models import (
 )
 from ...schemas import (
     CorrectionOut,
+    CoverageCandidateOut,
     CoverageGapOut,
 )
-from ..coverage import find_coverage_gaps
+from ..coverage import find_coverage_gaps, find_toponym_candidates
 
 router = APIRouter()
 
@@ -35,12 +36,26 @@ async def admin_coverage_gaps(
     session: AsyncSession = Depends(get_session),
     _admin: User = Depends(require_admin),
 ):
-    """Recent threat-flavored messages the parser couldn't pin to a district —
-    the coverage-gap queue (usually a missing gazetteer entry). `scan` widens
-    the raw-message window behind it; the export path asks for a bigger one
-    than the on-screen list does."""
+    """Recent messages the parser couldn't pin to a district that still name an
+    unknown word — the coverage-gap queue (usually a missing gazetteer entry).
+    `scan` widens the raw-message window behind it; the export path asks for a
+    bigger one than the on-screen list does."""
     matcher = await build_matcher(session)
     return await find_coverage_gaps(session, matcher, limit=limit, scan=scan)
+
+
+@router.get("/admin/coverage_candidates", response_model=list[CoverageCandidateOut])
+async def admin_coverage_candidates(
+    limit: int = Query(60, ge=1, le=500),
+    scan: int = Query(2000, ge=50, le=20000),
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    """The gaps above, aggregated into unknown place-names ranked by how often
+    each occurs — the list to geocode from. Scans deeper than the message view
+    by default, because a candidate's whole signal is that it repeats."""
+    matcher = await build_matcher(session)
+    return await find_toponym_candidates(session, matcher, limit=limit, scan=scan)
 
 
 @router.get("/admin/corrections", response_model=list[CorrectionOut])

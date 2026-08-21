@@ -34,6 +34,9 @@ export default function TelegramButton({ onError }: { onError?: (e: unknown) => 
     container.appendChild(s)
     return () => {
       container.innerHTML = ''
+      // The widget's callback is a global; leaving it behind keeps this closure
+      // (and the unmounted component's props) alive after the modal closes.
+      delete window.onTelegramAuth
     }
   }, [loginWithTelegram, onError])
 

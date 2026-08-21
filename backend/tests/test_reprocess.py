@@ -120,3 +120,33 @@ async def test_wipe_since_keeps_older_history(wired_db):
         assert {n.text for n in await s.scalars(select(Notice))} == {"old"}
         # raw_messages are never touched — a reprocess must stay repeatable.
         assert await s.scalar(select(func.count()).select_from(RawMessage)) == 10
+
+
+async def test_wipe_since_prunes_push_state_without_choking_on_citywide_keys(wired_db):
+    # danger_state mixes three key shapes: "<track_id>", "city:<track_id>" and
+    # the bare "city_last_push" cooldown stamp. Pruning ran int(key) over all of
+    # them, so a scoped reprocess raised ValueError for every subscriber who had
+    # ever received a city-wide push — taking the whole rebuild down with it.
+    from app.models import PushSubscription
+
+    Session = wired_db
+    _, straddler_id = await _seed_timeline(Session)
+    async with Session() as s:
+        s.add(PushSubscription(
+            endpoint="https://push.example/x", p256dh="k", auth="a",
+            danger_state={
+                str(straddler_id): {"level": 2},
+                f"city:{straddler_id}": {"pushed_at": "2026-08-18T20:00:00"},
+                "city_last_push": "2026-08-18T20:00:00",
+                "999": {"level": 1},
+            },
+        ))
+        await s.commit()
+
+    await reprocess._wipe_since(T0 + timedelta(minutes=4))
+
+    async with Session() as s:
+        sub = await s.scalar(select(PushSubscription))
+        # Both keys for the deleted track go; the unrelated one and the bare
+        # cooldown stamp stay.
+        assert set(sub.danger_state) == {"city_last_push", "999"}

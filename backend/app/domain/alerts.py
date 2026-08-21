@@ -15,6 +15,7 @@ from sqlalchemy import select
 
 from ..config import settings
 from ..models import Alert, Incident
+from ..timeutil import within
 
 log = logging.getLogger("alerts")
 
@@ -108,16 +109,12 @@ async def _adopt_recent_incident(session, alert: Alert, when: datetime) -> None:
         .order_by(Incident.started_at.desc())
     )
     for inc in await session.scalars(stmt):
-        if _within(inc.started_at, when, lookback):
+        if within(inc.started_at, when, lookback):
             inc.alert_id = alert.id
             await session.commit()
             return
 
 
-def _within(a: datetime, b: datetime, gap: timedelta) -> bool:
-    an = a.replace(tzinfo=None) if a.tzinfo is not None else a
-    bn = b.replace(tzinfo=None) if b.tzinfo is not None else b
-    return abs((bn - an).total_seconds()) <= gap.total_seconds()
 
 
 async def close_stale_alerts(session, now: datetime, hours: int) -> list[Alert]:
@@ -129,7 +126,7 @@ async def close_stale_alerts(session, now: datetime, hours: int) -> list[Alert]:
     failure mode this exists to catch (see domain-model-v2.md risk #8)."""
     stale_gap = timedelta(hours=hours)
     open_alerts = list(await session.scalars(select(Alert).where(Alert.ended_at.is_(None))))
-    closed = [a for a in open_alerts if not _within(a.started_at, now, stale_gap)]
+    closed = [a for a in open_alerts if not within(a.started_at, now, stale_gap)]
     for a in closed:
         a.ended_at = now
         a.closed_reason = "failsafe"

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import type { Alert, Incident, TargetType } from '../../types'
+import type { Alert, Incident, TargetType } from '@/types'
 
 export const CLEAR_LINGER_MS = 20000
 

@@ -45,6 +45,7 @@ from ...schemas import (
     ThreatOut,
     ThreatTypeIn,
 )
+from ...timeutil import naive
 from ..deps import _threat_with_events
 from ..serialize import alert_out as _alert_out
 from ..serialize import incident_out as _incident_out
@@ -221,7 +222,9 @@ async def _resync_track_region(session, threat: Threat | None) -> None:
     corroborating and closing in a pool it no longer belongs to."""
     if threat is None or not threat.events:
         return
-    latest = max(threat.events, key=lambda e: e.event_time)
+    # naive(): see timeutil — DB-loaded events are naive, one added in the
+    # current session is aware, and max() across the two raises TypeError.
+    latest = max(threat.events, key=lambda e: naive(e.event_time))
     region = (await district_regions(session)).get(latest.district_id)
     if region and threat.region != region:
         threat.region = region

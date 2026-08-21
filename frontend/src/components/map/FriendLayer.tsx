@@ -3,9 +3,9 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Marker, Tooltip, useMap, useMapEvents } from "react-leaflet";
 
-import { contactMarkerSvg, contactStyleOf, type ContactStyle } from "../../lib/contactMarker";
-import { navigate, userPath } from "../../router";
-import { useRadar } from "../../store";
+import { contactMarkerSvg, contactStyleOf, type ContactStyle } from "@/lib/contactMarker";
+import { navigate, userPath } from "@/router";
+import { useRadar } from "@/store";
 import { spreadOverlapping, type Offsets, type PixelPoint } from "./spreadMarkers";
 
 const SIZE = 22;

@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass
 
 from ..gazetteer import CITYWIDE_NAME_EN as _CITYWIDE_NAME_EN
+from ..gazetteer import HOME_REGION as _HOME_REGION
 from .vocab import (
     _ALIAS_NEXT_WORD_VETO,
     _ALIAS_PREV_WORD_REQUIRED,
@@ -154,6 +155,16 @@ class DistrictMatcher:
     village 60 km away. Callers pass the source's region (see
     feeds/common.RegionMatchers); with None, whichever entry comes first in the
     gazetteer wins, exactly as before.
+
+    `region_only` on an entry is the stronger form: that place is matchable ONLY
+    by a channel reporting from its own region, and is invisible (stem index AND
+    LLM enum) to every other one. It exists for the generic city landmarks both
+    oblasts share — «ТЕЦ», «вокзал», «летовище», «очисні» name a real, specific
+    point to the spotters watching one city and a different one 150 km away.
+    `prefer_region` cannot help there: it only breaks TIES, and a lone entry
+    faces no tie, so a Chernihiv «ТЕЦ» would have claimed all 42 Kyiv mentions
+    of theirs. With `prefer_region=None` the home region's entries are the ones
+    kept, matching HOME_REGION's role as the default for anything unstated.
     """
 
     def __init__(self, districts, prefer_region: str | None = None):
@@ -175,6 +186,13 @@ class DistrictMatcher:
             # entirely (both stem matching and the LLM's allowed-id index) so a
             # bare "київ" never resolves to it and the LLM can't pick it.
             if name_en == _CITYWIDE_NAME_EN:
+                continue
+            # A region-exclusive entry belongs to no other region's matcher at
+            # all — dropped before the index, so the LLM can't pick it either.
+            region_only = bool(
+                d.get("region_only") if isinstance(d, dict) else getattr(d, "region_only", False)
+            )
+            if region_only and region != (prefer_region or _HOME_REGION):
                 continue
             self.districts_index.append((did, name))
             if region:

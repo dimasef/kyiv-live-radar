@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { fetchRawSources, isAdminRole } from "@/api";
-import { AuthModal } from "@/components/auth";
+import { fetchRawSources } from "@/api";
+import AdminGate from "@/components/admin/AdminGate";
 import { observeVisible } from "@/lib/observers";
-import { useRadar } from "@/store";
 import type { RawOutcomeFilter, RawSource } from "@/types";
 
 import LlmStatsStrip from "./LlmStatsStrip";
@@ -15,43 +14,13 @@ import { useRawSelection } from "./useRawSelection";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
-/** Admin gate for /raw — the backend also enforces this (401/403), so this is
- * UX only. Non-admins never mount the data view (and never fire its fetches). */
+/** Admin gate for /raw. The log itself is `RawMessagesView` below. */
 export default function RawMessagesPage() {
-  const status = useRadar((s) => s.authStatus);
-  const isAdmin = useRadar((s) => isAdminRole(s.user?.role));
-  const [loginOpen, setLoginOpen] = useState(false);
-
-  if (status === "unknown") {
-    return (
-      <div className="flex h-full items-center justify-center bg-ink-950 text-xs text-slate-500">
-        Завантаження…
-      </div>
-    );
-  }
-
-  if (!isAdmin) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 bg-ink-950 px-4 text-center text-slate-300">
-        <p className="max-w-xs text-sm text-slate-400">
-          {status === "authed"
-            ? "Ця сторінка доступна лише адміністраторам."
-            : "Увійдіть як адміністратор, щоб переглянути сирі повідомлення."}
-        </p>
-        {status !== "authed" && (
-          <button
-            onClick={() => setLoginOpen(true)}
-            className="rounded-lg bg-phosphor px-4 py-2 text-sm font-semibold text-ink-950 hover:opacity-90"
-          >
-            Увійти
-          </button>
-        )}
-        {loginOpen && <AuthModal onClose={() => setLoginOpen(false)} />}
-      </div>
-    );
-  }
-
-  return <RawMessagesView />;
+  return (
+    <AdminGate prompt="Увійдіть як адміністратор, щоб переглянути сирі повідомлення.">
+      <RawMessagesView />
+    </AdminGate>
+  );
 }
 
 /** The raw-message log itself (every ingested message, including ones the

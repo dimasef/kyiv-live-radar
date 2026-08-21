@@ -2,7 +2,7 @@ import { ChevronDown } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { APP_VERSION, CHANGELOG, SEMVER_RULES, type BumpKind } from '../../changelog'
+import { APP_VERSION, CHANGELOG, SEMVER_RULES, type BumpKind } from '@/changelog'
 
 const KIND_COLOR: Record<BumpKind, string> = {
   major: '#f43f5e',

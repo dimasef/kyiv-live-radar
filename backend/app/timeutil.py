@@ -35,6 +35,22 @@ def from_kyiv_local(dt: datetime, tz: ZoneInfo = KYIV) -> datetime:
     return dt.replace(tzinfo=tz).astimezone(UTC)
 
 
+def kyiv_day_start(dt: datetime, tz: ZoneInfo = KYIV) -> datetime:
+    """The instant Kyiv-local midnight began for the day `dt` falls on, as UTC.
+
+    For "spent today" style windows: the operator's day is the Kyiv one, same as
+    every other bucket in the app (see `kyiv_date`), not the UTC one.
+    """
+    local = kyiv_local(dt, tz).replace(hour=0, minute=0, second=0, microsecond=0)
+    return from_kyiv_local(local.replace(tzinfo=None), tz)
+
+
+def kyiv_month_start(dt: datetime, tz: ZoneInfo = KYIV) -> datetime:
+    """As `kyiv_day_start`, for the first Kyiv-local day of `dt`'s month."""
+    local = kyiv_local(dt, tz).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    return from_kyiv_local(local.replace(tzinfo=None), tz)
+
+
 def naive(dt: datetime) -> datetime:
     """Normalize to naive UTC for comparisons. Rows loaded from SQLite come back
     naive, but an object added in the CURRENT session still carries its aware

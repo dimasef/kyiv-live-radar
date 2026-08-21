@@ -24,6 +24,7 @@ from ...schemas import (
     RawMessagesPage,
     RawSourceOut,
 )
+from ...timeutil import kyiv_day_start, kyiv_month_start
 from ..raw_query import apply_raw_filters, serialize_raw_rows
 
 router = APIRouter()
@@ -145,7 +146,7 @@ async def raw_messages_llm_stats(
     tokens, and cost, for the analytics strip on /raw. Unfiltered (ignores
     search/outcome filters) so it always reads as "overall spend", not
     "spend within the current view". Also reports spend for the current
-    UTC day/month against the same caps `pipeline.triage.llm_spend_ok`
+    Kyiv-local day/month against the same caps `pipeline.triage.llm_spend_ok`
     gates the fallback on, so the admin can see how close to the budget the
     live pipeline is."""
     row = (
@@ -160,17 +161,20 @@ async def raw_messages_llm_stats(
     ).one()
     calls, input_tokens, output_tokens, cost_usd = row
 
+    # Same window as the budget guard in pipeline/triage.py — spend is measured
+    # by when we paid (`ingested_at`), over the Kyiv-local day, or the number
+    # shown here would not be the number the cap enforces.
     now = utcnow()
-    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    day_start = kyiv_day_start(now)
+    month_start = kyiv_month_start(now)
     day_spend = await session.scalar(
         select(func.coalesce(func.sum(RawMessage.llm_cost_usd), 0.0)).where(
-            RawMessage.event_time >= day_start
+            RawMessage.ingested_at >= day_start
         )
     )
     month_spend = await session.scalar(
         select(func.coalesce(func.sum(RawMessage.llm_cost_usd), 0.0)).where(
-            RawMessage.event_time >= month_start
+            RawMessage.ingested_at >= month_start
         )
     )
 

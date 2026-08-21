@@ -35,6 +35,7 @@ from ..domain.origins import ORIGIN_BY_KEY, ORIGIN_KEYS, SECTORS
 from ..feeds.common import build_matcher
 from ..models import Notice, RawMessage, ThreatEvent, utcnow
 from ..parsing.rules import ParseResult
+from ..timeutil import kyiv_day_start, kyiv_month_start
 from .lock import ingest_lock
 from .results import Broadcast
 
@@ -124,8 +125,8 @@ _spend_cache: tuple[float, bool] | None = None  # (monotonic-ish epoch secs, ok)
 
 
 async def llm_spend_ok() -> bool:
-    """Whether LLM spend for the current UTC day AND month is under the caps
-    (0 = unlimited). Cached ~60s so a barrage doesn't run a SUM per message.
+    """Whether LLM spend for the current Kyiv-local day AND month is under the
+    caps (0 = unlimited). Cached ~60s so a barrage doesn't run a SUM per message.
     Gates both this engine and the inline fallback — graceful degrade to
     rules-only when the budget is exhausted."""
     global _spend_cache
@@ -137,16 +138,21 @@ async def llm_spend_ok() -> bool:
     now_epoch = now.timestamp()
     if _spend_cache is not None and now_epoch - _spend_cache[0] < 60:
         return _spend_cache[1]
-    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    # Budget windows key on `ingested_at` (when we spent the money), NOT
+    # `event_time` (when the spotter posted). A reconnect backfill or an admin
+    # reprocess bills today's API calls against yesterday's messages — keyed on
+    # event_time those calls never counted, so the cap silently under-reported
+    # and kept spending. Days are Kyiv-local, like every other operator bucket.
+    day_start = kyiv_day_start(now)
+    month_start = kyiv_month_start(now)
     async with SessionLocal() as session:
         day_spend = await session.scalar(
             select(func.coalesce(func.sum(RawMessage.llm_cost_usd), 0.0))
-            .where(RawMessage.event_time >= day_start)
+            .where(RawMessage.ingested_at >= day_start)
         ) or 0.0
         month_spend = await session.scalar(
             select(func.coalesce(func.sum(RawMessage.llm_cost_usd), 0.0))
-            .where(RawMessage.event_time >= month_start)
+            .where(RawMessage.ingested_at >= month_start)
         ) or 0.0
     ok = (daily_cap <= 0 or day_spend < daily_cap) and (monthly_cap <= 0 or month_spend < monthly_cap)
     if not ok and (_spend_cache is None or _spend_cache[1]):

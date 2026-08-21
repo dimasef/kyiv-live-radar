@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from ..models import AnalysisKind
+from .base import _as_utc
 
 
 class AnalyzeIn(BaseModel):
@@ -23,6 +24,8 @@ class AnalyzeOut(BaseModel):
     kind: AnalysisKind
     card_id: int
     created_at: datetime
+
+    _tz = field_validator("created_at", mode="before")(_as_utc)
 
 
 class ThreatAnalysisStateOut(BaseModel):
@@ -42,6 +45,8 @@ class CardCountOut(BaseModel):
     card_id: int
     count: int
     first_at: datetime
+
+    _tz = field_validator("first_at", mode="before")(_as_utc)
 
 
 class CollectionOut(BaseModel):

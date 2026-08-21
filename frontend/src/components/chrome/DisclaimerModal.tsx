@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useDismissTransition } from '@/lib/useDismissTransition'
 
-import { safeSet, STORAGE_KEYS } from '../../lib/storage'
+import { safeSet, STORAGE_KEYS } from '@/lib/storage'
 
 /** Safety disclaimer as a load-time modal. Mounted only while open (by App), so
  * it animates in and out; "don't show again" only skips the auto-open. */

@@ -6,7 +6,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, field_validator
 
-from ..models import TargetType
+from ..models import TargetType, TriageAction, TriageState
 from .base import _as_utc
 
 
@@ -118,10 +118,14 @@ class RawMessageOut(BaseModel):
     # Async-triage bookkeeping (see TRIAGE_STATES/TRIAGE_ACTIONS) — where the
     # message went in the triage queue and what routing did with its verdict.
     # NULL for messages the triage engine never enqueued.
-    triage_state: str | None = None
-    triage_action: str | None = None
+    triage_state: TriageState | None = None
+    triage_action: TriageAction | None = None
 
-    _tz_raw = field_validator("event_time", mode="before")(_as_utc)
+    # `ingested_at` needs this as much as `event_time`: the two are SUBTRACTED
+    # on the client to show the backfill lag, so one naive and one aware reads
+    # as a three-hour lag on a Kyiv browser — on the very screen built to
+    # diagnose backfill problems.
+    _tz_raw = field_validator("event_time", "ingested_at", mode="before")(_as_utc)
 
 
 class RawMessagesPage(BaseModel):

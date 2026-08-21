@@ -9,10 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 
 from ...auth.deps import require_admin
-from ...domain.districts import citywide_district_id
 from ...domain.journal import KYIV, build_journal
 from ...models import (
-    Alert,
     Incident,
     RawMessage,
     Threat,
@@ -27,32 +25,29 @@ from ...schemas import (
     ReprocessResultOut,
 )
 from ..deps import _attack_active
+from ..journal_window import load_journal_window
 
 router = APIRouter()
 
 
 async def _reprocess_summary(s) -> dict:
     """Totals + recent per-day target/track counts (reuses the journal
-    aggregation, so it matches what the operator sees on /journal)."""
+    aggregation, so it matches what the operator sees on /journal).
+
+    The per-day part goes through the same bounded loader the calendar uses.
+    It used to read `threats`, `incidents` and the WHOLE `threat_events` table
+    with no time filter to build 20 days of rows — on every preview, and twice
+    per apply."""
     tracks = await s.scalar(select(func.count()).select_from(Threat))
     events = await s.scalar(select(func.count()).select_from(ThreatEvent))
     incidents = await s.scalar(select(func.count()).select_from(Incident))
     today = datetime.now(UTC).astimezone(KYIV).date()
     start = today - timedelta(days=20)
-    threats = list(await s.scalars(select(Threat)))
-    incs = list(await s.scalars(select(Incident)))
-    alerts = list(await s.scalars(select(Alert).where(Alert.scope == "city")))
-    district_events = (
-        await s.execute(
-            select(ThreatEvent.event_time, ThreatEvent.district_id, Threat.kind == "impact")
-            .join(Threat, ThreatEvent.threat_id == Threat.id)
-            .where(Threat.closed_reason.is_distinct_from("dismissed"))
-        )
-    ).all()
-    sentinel = await citywide_district_id(s)
+    w = await load_journal_window(s, start, today, today)
     stats = build_journal(
-        start, today, threats=threats, incidents=incs, alerts=alerts,
-        district_events=district_events, sentinel_district_id=sentinel,
+        start, today, threats=w.threats, incidents=w.incidents, alerts=w.alerts,
+        district_events=w.district_events, sentinel_district_id=w.sentinel,
+        hide_impacts_from=w.hide_impacts_from,
     )
     return {
         "tracks": tracks or 0,

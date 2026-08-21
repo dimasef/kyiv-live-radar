@@ -167,6 +167,27 @@ describe('a target being read is never yanked away', () => {
     expect(get().threats[7]).toBeUndefined()
   })
 
+  it('runs one exit timeline no matter how many closed frames arrive', () => {
+    // A close is often followed by more frames for the same track (a retype, a
+    // second source corroborating). Each used to start its own timer chain, so
+    // the EARLIER chain's eviction fired part-way through the later chain's
+    // fade and blinked the track off the map before the animation finished.
+    const { get } = makeStore()
+    get().applyThreatMessage({ type: 'status', threat: closedThreat() })
+    vi.advanceTimersByTime(300)
+    get().applyThreatMessage({ type: 'status', threat: closedThreat() })
+
+    vi.advanceTimersByTime(5300) // t=5600: the (single) chain starts its fade
+    expect(get().leavingThreatIds).toEqual([7])
+
+    vi.advanceTimersByTime(500) // t=6100: mid-fade — the old chain would evict here
+    expect(get().threats[7]).toBeDefined()
+
+    vi.advanceTimersByTime(200) // t=6300: this chain's own eviction
+    expect(get().threats[7]).toBeUndefined()
+    expect(get().leavingThreatIds).toEqual([])
+  })
+
   it('holds while the track is the inspected one', () => {
     // The inspected copy is deliberately independent and permanent, so the live
     // copy underneath must not fade out from under it either.

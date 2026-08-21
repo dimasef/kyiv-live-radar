@@ -24,6 +24,11 @@ export default function SourceEditModal({
   const [role, setRole] = useState<Source['role']>(source.role)
   const [region, setRegion] = useState<Region>(source.region)
   const [weight, setWeight] = useState(String(source.trust_weight))
+  // Empty input = "leave on the server default" — the PATCH omits the field
+  // rather than sending a 0, which would mean "never inherit" instead.
+  const [inheritMinutes, setInheritMinutes] = useState(
+    source.type_inherit_minutes === null ? '' : String(source.type_inherit_minutes),
+  )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
 
@@ -36,6 +41,7 @@ export default function SourceEditModal({
         role,
         region,
         trust_weight: Number(weight),
+        ...(inheritMinutes === '' ? {} : { type_inherit_minutes: Number(inheritMinutes) }),
       })
       onSaved(updated)
       close()
@@ -94,16 +100,34 @@ export default function SourceEditModal({
           </label>
 
           {role === 'spotter' && (
-            <label className="block">
-              <span className="mb-1 block text-[11px] text-slate-500">Вага довіри (інформативно, поки не впливає)</span>
-              <input
-                className={field}
-                type="number"
-                step="0.1"
-                value={weight}
-                onChange={(e) => setWeight(e.target.value)}
-              />
-            </label>
+            <>
+              <label className="block">
+                <span className="mb-1 block text-[11px] text-slate-500">Вага довіри (інформативно, поки не впливає)</span>
+                <input
+                  className={field}
+                  type="number"
+                  step="0.1"
+                  value={weight}
+                  onChange={(e) => setWeight(e.target.value)}
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-[11px] text-slate-500">
+                  Успадкування типу, хв — скільки названий тут тип цілі типізує наступні
+                  повідомлення з голим топонімом. Порожньо — типово; 0 — вимкнути.
+                </span>
+                <input
+                  className={field}
+                  type="number"
+                  min="0"
+                  max="120"
+                  placeholder="типово"
+                  value={inheritMinutes}
+                  onChange={(e) => setInheritMinutes(e.target.value)}
+                />
+              </label>
+            </>
           )}
         </div>
 

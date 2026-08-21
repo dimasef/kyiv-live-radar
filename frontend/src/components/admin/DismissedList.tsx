@@ -1,5 +1,4 @@
 import { RotateCcw } from 'lucide-react'
-import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -10,6 +9,8 @@ import {
   type Dismissed,
 } from '@/api'
 
+import { useAsyncData } from '@/lib/useAsyncData'
+
 import AdminActionButton from './AdminActionButton'
 
 const EMPTY: Dismissed = { threats: [], incidents: [], alerts: [] }
@@ -19,18 +20,11 @@ const EMPTY: Dismissed = { threats: [], incidents: [], alerts: [] }
  * (a restore both un-cancels the row and re-adds it to the live layer via WS). */
 export default function DismissedList() {
   const { t } = useTranslation()
-  const [items, setItems] = useState<Dismissed>(EMPTY)
-
-  const refresh = () => {
-    fetchDismissed()
-      .then(setItems)
-      .catch(() => {})
-  }
-  useEffect(refresh, [])
+  const { data: items, reload } = useAsyncData<Dismissed>(fetchDismissed, [], EMPTY)
 
   const restore = (run: () => Promise<unknown>) => async () => {
     await run()
-    refresh()
+    reload()
   }
 
   const total = items.threats.length + items.incidents.length + items.alerts.length
@@ -74,7 +68,7 @@ export default function DismissedList() {
         </ul>
       )}
       <button
-        onClick={refresh}
+        onClick={reload}
         className="mt-2 flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300"
       >
         <RotateCcw size={12} /> Оновити

@@ -4,6 +4,7 @@ from collections.abc import Iterable
 
 from ..config import settings
 from ..models import ThreatEvent
+from .target_types import family
 
 
 class FusionResult:
@@ -62,21 +63,6 @@ def _origin_keys(events: list[ThreatEvent]) -> set:
     return keys
 
 
-def _family(target_type: str) -> str:
-    """Collapse target types to a family for conflict detection: ballistic is a
-    specialization of missile, and jet_drone of a generic drone callout (a bare
-    «БпЛА» parses as shahed, so «Реактивний БпЛА» + «БпЛА» about one target
-    flagged a false conflict — track 274, 2026-07-18). Same drone family as
-    attack.py::classify. Trade-off: a genuine «Шахед!» vs «Реактивний!»
-    disagreement no longer flags — no real case of that in the corpus, while
-    the specificity mismatch is live."""
-    if target_type in ("missile", "ballistic"):
-        return "missile"
-    if target_type in ("shahed", "jet_drone"):
-        return "drone"
-    return target_type
-
-
 def compute_fusion(events: Iterable[ThreatEvent]) -> FusionResult:
     """Derive corroboration, conflict, and fused confidence for a track.
 
@@ -98,7 +84,7 @@ def compute_fusion(events: Iterable[ThreatEvent]) -> FusionResult:
     # at different specificity — NOT a disagreement. Collapse them to one family
     # before counting, else every ballistic salvo flags a false source conflict.
     claimed = {
-        _family(ev.event_target_type) for ev in events
+        family(ev.event_target_type) for ev in events
         if ev.event_target_type and ev.event_target_type != "unknown"
     }
     has_conflict = len(claimed) > 1

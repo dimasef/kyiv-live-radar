@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 
 import {
   deleteBugReport,
@@ -7,6 +7,8 @@ import {
   type BugReport,
   type BugReportStatus,
 } from '@/api'
+
+import { useAsyncData } from '@/lib/useAsyncData'
 
 import BugReportRow from './BugReportRow'
 
@@ -22,16 +24,15 @@ const FILTERS: { key: BugReportStatus | 'all'; label: string }[] = [
  * admin panels). */
 export default function BugReportsPanel() {
   const [filter, setFilter] = useState<BugReportStatus | 'all'>('new')
-  const [reports, setReports] = useState<BugReport[]>([])
-  const [loaded, setLoaded] = useState(false)
-
-  useEffect(() => {
-    setLoaded(false)
-    fetchBugReports(filter === 'all' ? undefined : filter)
-      .then(setReports)
-      .catch(() => {})
-      .finally(() => setLoaded(true))
-  }, [filter])
+  const {
+    data: reports,
+    loaded,
+    setData: setReports,
+  } = useAsyncData<BugReport[]>(
+    useCallback(() => fetchBugReports(filter === 'all' ? undefined : filter), [filter]),
+    [filter],
+    [],
+  )
 
   const applyStatus = async (report: BugReport, status: BugReportStatus) => {
     const updated = await setBugReportStatus(report.id, status)

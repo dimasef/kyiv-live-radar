@@ -3,9 +3,9 @@ import type { CSSProperties } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { districtAt } from '../../lib/geo'
-import { MAP_PATH, navigate } from '../../router'
-import { useRadar } from '../../store'
+import { districtAt } from '@/lib/geo'
+import { MAP_PATH, navigate } from '@/router'
+import { useRadar } from '@/store'
 
 import HomeMarkerRow from './HomeMarkerRow'
 import ShareHomeToggle from './ShareHomeToggle'

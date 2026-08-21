@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from ...domain.districts import district_regions, resolve_region
 from ...domain.incidents import find_active_incident, incident_type_prior
-from ...models import RawMessage
+from ...models import RawMessage, Source
 from ...observability import ingest_span, metrics
 from ...parsing import DistrictHit, DistrictMatcher, LlmUsage, ParseResult
 from ..lock import ingest_lock
@@ -95,6 +95,20 @@ def _apply_llm_to_raw(raw: RawMessage, attempted: bool, usage: LlmUsage | None,
         raw.llm_cost_usd = usage.cost_usd
     if response is not None:
         raw.llm_response = response
+
+
+async def _inherit_window_for(session, source_id: int | None) -> int | None:
+    """This channel's type-inheritance window, or None for the global default.
+
+    A primary-key get per message, which is free enough here: ingestion is
+    serialized behind one lock, so there is no concurrency to amortize over, and
+    reading it live means an operator's change in /admin takes effect on the
+    next message instead of at the next restart. SQLAlchemy's identity map
+    usually answers it from the session anyway."""
+    if source_id is None:
+        return None
+    src = await session.get(Source, source_id)
+    return src.type_inherit_minutes if src is not None else None
 
 
 async def _infer_incident_type(session, parsed: ParseResult, when: datetime) -> bool:
@@ -204,7 +218,8 @@ async def process_parsed(
         # branch below so a typed post updates the context even when it produces no
         # event of its own (e.g. a district-less "Балістика!"). The incident-level
         # fallback below is the second tier when the per-channel window has lapsed.
-        _note_and_inherit_type(parsed, source_id, when)
+        _note_and_inherit_type(parsed, source_id, when,
+                               await _inherit_window_for(session, source_id))
         type_from_incident = await _infer_incident_type(session, parsed, when)
 
         span.set_attribute("decision_source", decision_source)

@@ -1,7 +1,7 @@
 import { CheckCircle2, Circle } from 'lucide-react'
-import { useEffect, useState } from 'react'
 
 import { fetchCorrections, type Correction } from '@/api'
+import { useAsyncData } from '@/lib/useAsyncData'
 
 const KIND_LABEL: Record<Correction['kind'], string> = {
   false_positive: 'хибна ціль',
@@ -13,15 +13,7 @@ const KIND_LABEL: Record<Correction['kind'], string> = {
  * the operator sees which past mistakes the parser has since learned to handle
  * (green) versus still reproduces (grey), i.e. what's left to fix. */
 export default function CorrectionsPanel() {
-  const [items, setItems] = useState<Correction[]>([])
-  const [loaded, setLoaded] = useState(false)
-
-  useEffect(() => {
-    fetchCorrections()
-      .then(setItems)
-      .catch(() => {})
-      .finally(() => setLoaded(true))
-  }, [])
+  const { data: items, loaded } = useAsyncData<Correction[]>(fetchCorrections, [], [])
 
   const resolved = items.filter((c) => c.resolved).length
 

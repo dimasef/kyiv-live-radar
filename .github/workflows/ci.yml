@@ -16,15 +16,19 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           # The version Railway deploys — CI must run what prod runs, even while
           # local dev venvs lag behind (see the ruff target-version note in
           # backend/pyproject.toml).
           python-version-file: backend/.python-version
           cache: pip
-          cache-dependency-path: backend/requirements.txt
+          # constraints.txt is what actually determines the resolved set, so a
+          # change to it must bust the cache.
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/constraints.txt
       - run: pip install -r requirements.txt ruff
       - run: ruff check app tests eval scripts
       - run: pytest tests -q
@@ -41,8 +45,8 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm

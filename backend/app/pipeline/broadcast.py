@@ -44,6 +44,13 @@ async def _load_incident_full(session, incident_id: int) -> Incident | None:
 
 
 async def broadcast_results(session, results: list[Broadcast]) -> None:
+    # One message about several raions produces one Broadcast per raion for the
+    # SAME track (handlers._handle_sighting), so without these two the fan-out
+    # re-read the whole track and re-ran the danger assessment — which scans
+    # every push subscription — once per raion named.
+    loaded: dict[int, Threat | None] = {}
+    danger_seen: set[int] = set()
+
     for b in results:
         log.debug("broadcasting %s", b.type)
         if b.type == "notice" and b.notice is not None:
@@ -69,7 +76,9 @@ async def broadcast_results(session, results: list[Broadcast]) -> None:
             continue
         if b.threat is None:
             continue
-        threat = await _load_full(session, b.threat.id)
+        if b.threat.id not in loaded:
+            loaded[b.threat.id] = await _load_full(session, b.threat.id)
+        threat = loaded[b.threat.id]
         if threat is None:
             continue
         # Impact markers never reach a client live — see api/public/threats.py
@@ -85,6 +94,9 @@ async def broadcast_results(session, results: list[Broadcast]) -> None:
         await manager.broadcast(
             WSMessage(type=b.type, threat=threat_out(threat), event=ev_out)
         )
+        if threat.id in danger_seen:
+            continue
+        danger_seen.add(threat.id)
         try:
             await evaluate_home_danger(session, threat)
         except Exception:

@@ -33,7 +33,7 @@ def classify(attack_types: list[str], decoy_mentions: int, has_hypersonic: bool)
 
     Known limitation: attach_to_incident accumulates on every attach, so a
     single track upgraded mid-flight (missile -> ballistic, see ingest.py
-    ::_upgrade_type) can leave BOTH the generic and specific type in
+    ::upgrade_type) can leave BOTH the generic and specific type in
     attack_types, reading as a false 'combined'. Accepted for the MVP — the
     plan calls for a flat accumulated set, not per-track provenance.
     """

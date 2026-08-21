@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import selectinload
 
 from ..config import settings
@@ -115,6 +115,18 @@ async def scope_cutoff(s, last: int) -> datetime | None:
     return cutoff
 
 
+def _keys_a_doomed_track(key: str, doomed_ids: set[int]) -> bool:
+    """Whether a `danger_state` key belongs to a track about to be deleted.
+
+    The dict mixes three shapes: "<track_id>" (home escalation), "city:<track_id>"
+    (the city-wide push) and the bare "city_last_push" cooldown stamp. A plain
+    int(key) raised ValueError on the last two, so pruning crashed the whole
+    reprocess for any subscriber who had ever received a city-wide push.
+    """
+    raw = key[len("city:"):] if key.startswith("city:") else key
+    return raw.isdigit() and int(raw) in doomed_ids
+
+
 async def _wipe_since(cutoff: datetime) -> None:
     """Delete everything the replay from `cutoff` will rebuild, and nothing else.
 
@@ -136,23 +148,20 @@ async def _wipe_since(cutoff: datetime) -> None:
         for inc in await s.scalars(select(Incident).options(selectinload(Incident.threats))):
             if all(t.id in doomed_ids for t in inc.threats):
                 await s.delete(inc)
-        for n in await s.scalars(select(Notice)):
-            if naive(n.event_time) >= cutoff:
-                await s.delete(n)
-        for a in await s.scalars(select(Alert)):
-            if naive(a.started_at) >= cutoff:
-                await s.delete(a)
-        for ax in await s.scalars(select(ThreatAxis)):
-            if naive(ax.created_at) >= cutoff:
-                await s.delete(ax)
+        # Leaf tables with a plain time predicate — delete them in SQL instead
+        # of reading every row ever stored just to discard most of them.
+        await s.execute(delete(Notice).where(Notice.event_time >= cutoff))
+        await s.execute(delete(Alert).where(Alert.started_at >= cutoff))
+        await s.execute(delete(ThreatAxis).where(ThreatAxis.created_at >= cutoff))
 
         # Rebuilt tracks can reuse a freed id (SQLite hands back max+1), and
         # per-track push bookkeeping under an old id would then suppress pushes
         # for an unrelated new track.
         if doomed_ids:
             for sub in await s.scalars(select(PushSubscription)):
-                kept = {k: v for k, v in (sub.danger_state or {}).items() if int(k) not in doomed_ids}
-                if len(kept) != len(sub.danger_state or {}):
+                state = sub.danger_state or {}
+                kept = {k: v for k, v in state.items() if not _keys_a_doomed_track(k, doomed_ids)}
+                if len(kept) != len(state):
                     sub.danger_state = kept
         await s.commit()
 
@@ -199,14 +208,16 @@ async def run_reprocess(
             stmt = select(RawMessage).order_by(RawMessage.event_time)
             if cutoff is not None:
                 stmt = stmt.where(RawMessage.event_time >= cutoff)
+            # Bound in SQL: `limit` used to slice AFTER every raw row (full text
+            # included) had already been read into a list.
+            if limit:
+                stmt = stmt.limit(limit)
             raws = list(await s.scalars(stmt))
         # Per-region matchers, picked by each message's own channel — the
         # rebuild must resolve homonyms exactly as the live listener did.
         matchers = RegionMatchers(districts)
         role_by_source_id = {src.id: src.role for src in sources}
         region_by_source_id = {src.id: src.region for src in sources}
-        if limit:
-            raws = raws[:limit]
 
         log.info("reprocess: replaying %d raw messages", len(raws))
         matched = 0
@@ -241,8 +252,8 @@ async def run_reprocess(
                 log.info("reprocess %d/%d...", i, len(raws))
 
         async with SessionLocal() as s:
-            n_threats = len(list(await s.scalars(select(Threat))))
-            n_events = len(list(await s.scalars(select(ThreatEvent))))
+            n_threats = await s.scalar(select(func.count()).select_from(Threat))
+            n_events = await s.scalar(select(func.count()).select_from(ThreatEvent))
         result = {"messages": len(raws), "matched": matched,
                   "tracks": n_threats, "events": n_events,
                   "from": cutoff.isoformat() if cutoff else None}

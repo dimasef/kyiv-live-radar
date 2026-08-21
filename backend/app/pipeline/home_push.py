@@ -52,6 +52,18 @@ def _sub_prefs(sub: PushSubscription) -> tuple[DangerLevel, set[str], bool]:
     return min_level, types, bool(prefs.get("citywide", True))
 
 
+def _danger_state(sub: PushSubscription) -> dict:
+    """The subscription's per-track bookkeeping, materialized if absent.
+
+    The column is nullable and legacy rows carry SQL NULL, which every `.get`
+    and `in` below would turn into an AttributeError — inside the push fan-out,
+    where it would take down the notification for everyone in the same batch.
+    Assigning the default back onto `sub` keeps subsequent mutations tracked."""
+    if sub.danger_state is None:
+        sub.danger_state = {}
+    return sub.danger_state
+
+
 async def evaluate_home_danger(session, threat: Threat) -> None:
     """Assess one broadcast track against every subscription's home zone and
     push on escalation. Requires threat.events with districts eager-loaded
@@ -67,11 +79,19 @@ async def evaluate_home_danger(session, threat: Threat) -> None:
     if threat.scope == "city":
         await _evaluate_citywide(session, threat)
         return
-    subs = list(await session.scalars(select(PushSubscription)))
+    # Only subscriptions that have a home can be assessed against one — filter
+    # in SQL rather than loading every row and skipping most of them. (The
+    # citywide path below deliberately does NOT require a home.)
+    subs = list(
+        await session.scalars(
+            select(PushSubscription).where(
+                PushSubscription.home_lat.is_not(None),
+                PushSubscription.home_lon.is_not(None),
+            )
+        )
+    )
     any_changed = False
     for sub in subs:
-        if sub.home_lat is None or sub.home_lon is None:
-            continue
         min_level, allowed_types, _ = _sub_prefs(sub)
         if threat.target_type not in allowed_types:
             continue
@@ -83,7 +103,8 @@ async def evaluate_home_danger(session, threat: Threat) -> None:
         )
         level = assess(threat, home)
         key = str(threat.id)
-        prev = sub.danger_state.get(key, {})
+        state = _danger_state(sub)
+        prev = state.get(key, {})
         prev_level = prev.get("level", 0)
         max_pushed = prev.get("max_pushed", 0)
         changed = False
@@ -92,8 +113,8 @@ async def evaluate_home_danger(session, threat: Threat) -> None:
             # Track over — prune its bookkeeping so danger_state doesn't grow
             # forever (and, after a reprocess reuses ids, doesn't suppress an
             # unrelated new track).
-            if key in sub.danger_state:
-                del sub.danger_state[key]
+            if key in state:
+                del state[key]
                 changed = True
         else:
             should_push = (
@@ -105,14 +126,14 @@ async def evaluate_home_danger(session, threat: Threat) -> None:
                 payload = build_payload(level, threat, home)
                 await send_push(session, sub, payload)
                 sub.last_push_at = utcnow()
-                sub.danger_state[key] = {
+                state[key] = {
                     "level": int(level),
                     "max_pushed": max(max_pushed, int(level)),
                     "pushed_at": utcnow().isoformat(),
                 }
                 changed = True
             elif level != prev_level:
-                sub.danger_state[key] = {
+                state[key] = {
                     "level": int(level),
                     "max_pushed": max_pushed,
                     "pushed_at": prev.get("pushed_at"),
@@ -175,19 +196,20 @@ async def _evaluate_citywide(session, threat: Threat) -> None:
     any_changed = False
     for sub in subs:
         _, allowed_types, citywide_on = _sub_prefs(sub)
+        state = _danger_state(sub)
         key = f"city:{threat.id}"
         changed = False
         if threat.closed_at is not None:
-            if key in sub.danger_state:
-                del sub.danger_state[key]
+            if key in state:
+                del state[key]
                 changed = True
         elif (
             citywide_on
             and threat.target_type in allowed_types
-            and key not in sub.danger_state
+            and key not in state
             # Own cooldown against the previous CITYWIDE push only — a recent
             # home push must never swallow the city-level signal.
-            and _cooldown_passed(sub.danger_state.get("city_last_push"))
+            and _cooldown_passed(state.get("city_last_push"))
         ):
             label = _TYPE_LABEL.get(threat.target_type, _TYPE_LABEL["unknown"])
             await send_push(session, sub, {
@@ -201,8 +223,8 @@ async def _evaluate_citywide(session, threat: Threat) -> None:
                 "url": "/",
             })
             sub.last_push_at = utcnow()
-            sub.danger_state[key] = {"pushed_at": utcnow().isoformat()}
-            sub.danger_state["city_last_push"] = utcnow().isoformat()
+            state[key] = {"pushed_at": utcnow().isoformat()}
+            state["city_last_push"] = utcnow().isoformat()
             changed = True
         if changed:
             flag_modified(sub, "danger_state")

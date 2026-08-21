@@ -7,12 +7,14 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from ..models import (
+    HOME_REGION,
     AlertClosedReason,
     AlertScope,
     AxisState,
     IncidentEndedReason,
     NoticeGenerator,
     NoticeKind,
+    Region,
     TargetType,
 )
 from .base import _as_utc
@@ -56,6 +58,7 @@ class IncidentOut(BaseModel):
 
     _tz_incident = field_validator("started_at", "ended_at", mode="before")(_as_utc)
 
+
 class NoticeOut(BaseModel):
     """A non-threat feed notice (all-clear / attack summary) for the event log."""
 
@@ -72,6 +75,11 @@ class NoticeOut(BaseModel):
     # ('rule'|'llm'). LLM notices render with an "AI · неперевірено" badge.
     origin: str | None = None
     generated_by: NoticeGenerator = "rule"
+    # The reporting channel's region, so the feed's region filter can reach
+    # notices too. Read off the source (a notice has no geography of its own —
+    # a directional axis names an ORIGIN, not a place in a track pool); no
+    # source means the home region, same default as everywhere else.
+    region: Region = HOME_REGION
 
     _tz_notice = field_validator("event_time", mode="before")(_as_utc)
 

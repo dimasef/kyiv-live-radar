@@ -1,5 +1,5 @@
 import { Eye, EyeOff, X } from 'lucide-react'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useCallback, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -30,6 +30,13 @@ export default function AuthModal({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false)
   const login = useRadar((s) => s.login)
   const register = useRadar((s) => s.register)
+
+  // Stable identities on purpose: both SSO buttons list `onError` in the dep
+  // array of the effect that injects their third-party widget, so an inline
+  // arrow here would tear down and re-inject the Telegram <script> and re-run
+  // Google's renderButton on every keystroke in the email field.
+  const onGoogleError = useCallback(() => setError(t('auth.err.googleFailed')), [t])
+  const onTelegramError = useCallback(() => setError(t('auth.err.telegramFailed')), [t])
 
   const errorMessage = (err: unknown): string => {
     if (err instanceof ApiError) {
@@ -87,8 +94,8 @@ export default function AuthModal({ onClose }: { onClose: () => void }) {
         {HAS_SSO && (
           <>
             <div className="space-y-2">
-              <GoogleButton onError={() => setError(t('auth.err.googleFailed'))} />
-              <TelegramButton onError={() => setError(t('auth.err.telegramFailed'))} />
+              <GoogleButton onError={onGoogleError} />
+              <TelegramButton onError={onTelegramError} />
             </div>
             <div className="my-4 flex items-center gap-3 text-[11px] text-slate-600">
               <span className="h-px flex-1 bg-white/10" />

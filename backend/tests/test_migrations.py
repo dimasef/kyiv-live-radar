@@ -6,6 +6,7 @@ real DB can be in at startup: brand new, or pre-existing without Alembic.
 from __future__ import annotations
 
 import asyncio
+import pathlib
 
 import pytest_asyncio
 from alembic import command
@@ -36,6 +37,17 @@ async def tmp_db(tmp_path, monkeypatch):
 
 def _table_names(sync_conn) -> set[str]:
     return set(inspect(sync_conn).get_table_names())
+
+
+def _head_revision() -> str:
+    """The newest revision on disk. Read rather than hard-coded: asserting a
+    literal here meant every new migration failed three unrelated tests with a
+    number mismatch that says nothing about whether the migration works."""
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    cfg = Config(str(pathlib.Path(__file__).resolve().parents[1] / "alembic.ini"))
+    return ScriptDirectory.from_config(cfg).get_current_head()
 
 
 async def _tables(engine) -> set[str]:
@@ -74,7 +86,7 @@ async def test_upgrade_empty_db_creates_schema_and_reaches_head(tmp_db):
             "threats", "threat_events", "threat_axes", "users", "oauth_identities",
             "parser_corrections", "gazetteer_candidates", "friendships",
             "threat_analyses", "alembic_version"} <= tables
-    assert await _version(tmp_db) == "0028"
+    assert await _version(tmp_db) == _head_revision()
 
 
 async def test_migrations_create_every_index_the_models_declare(tmp_db):
@@ -91,7 +103,7 @@ async def test_migrations_create_every_index_the_models_declare(tmp_db):
 async def test_upgrade_twice_is_a_noop(tmp_db):
     await migrate.upgrade_to_head()
     await migrate.upgrade_to_head()  # must not raise / re-apply anything
-    assert await _version(tmp_db) == "0028"
+    assert await _version(tmp_db) == _head_revision()
 
 
 async def test_preexisting_pre_alembic_db_is_stamped_and_backfilled(tmp_db):
@@ -117,7 +129,7 @@ async def test_preexisting_pre_alembic_db_is_stamped_and_backfilled(tmp_db):
 
     await migrate.upgrade_to_head()
 
-    assert await _version(tmp_db) == "0028"
+    assert await _version(tmp_db) == _head_revision()
     async with tmp_db.connect() as conn:
         rows = (
             await conn.exec_driver_sql(

@@ -45,6 +45,11 @@ class District(Base):
     # reporting both sides of the oblast border still lands each sighting in the
     # right track pool. Re-synced onto existing rows by seed_districts.
     region: Mapped[str] = mapped_column(String(20), default="kyiv")
+    # Matchable ONLY by a channel reporting from this entry's own region (see
+    # DistrictMatcher). For the generic landmarks both oblasts share as their
+    # own — «ТЕЦ», «вокзал», «летовище» — where the name says nothing about
+    # which city is meant and only the reporting channel can.
+    region_only: Mapped[bool] = mapped_column(default=False)
     # Real OSM boundary (GeoJSON Polygon/MultiPolygon geometry) for the 10
     # administrative raions; SQL NULL for microdistricts/approach towns (points
     # only). none_as_null keeps Python None as SQL NULL so IS NOT NULL filters work.
@@ -101,8 +106,12 @@ DECISION_SOURCES: tuple[DecisionSource, ...] = get_args(DecisionSource)
 # Async-triage bookkeeping on a raw message (app/pipeline/triage.py). state =
 # where the message is in the triage queue's lifecycle; action = what routing
 # ultimately did with the verdict. Both NULL for messages never enqueued.
-TRIAGE_STATES = ("pending", "done", "skipped", "budget", "error")
-TRIAGE_ACTIONS = ("none", "suppress_confirmed", "notice", "axis", "rescue_candidate", "rescued", "late")
+TriageState = Literal["pending", "done", "skipped", "budget", "error"]
+TRIAGE_STATES: tuple[TriageState, ...] = get_args(TriageState)
+TriageAction = Literal[
+    "none", "suppress_confirmed", "notice", "axis", "rescue_candidate", "rescued", "late"
+]
+TRIAGE_ACTIONS: tuple[TriageAction, ...] = get_args(TriageAction)
 # A directional threat axis' lifecycle (app/domain/axes.py). 'unverified' = one
 # source only; 'corroborated' = >= axis_min_sources independent sources agreed;
 # 'expired' = timed out of the live layer by the sweeper.
@@ -145,14 +154,16 @@ USER_ROLES: tuple[UserRole, ...] = get_args(UserRole)
 ADMIN_ROLES: tuple[UserRole, ...] = ("admin", "admin_g")
 # Linked SSO providers on OAuthIdentity. Email+password is native on the User
 # row (password_hash), NOT an identity — so it's absent here.
-PROVIDERS = ("google", "telegram")
+Provider = Literal["google", "telegram"]
+PROVIDERS: tuple[Provider, ...] = get_args(Provider)
 # Admin corrections harvested from the /admin console into a labeled regression
 # dataset (app/domain/corrections.py). 'false_positive' = a dismissed track's
 # message shouldn't have localized; 'retype' = wrong target_type; 'relocate' =
 # wrong district. `origin` records which admin action produced it.
 CorrectionKind = Literal["false_positive", "retype", "relocate"]
 CORRECTION_KINDS: tuple[CorrectionKind, ...] = get_args(CorrectionKind)
-CORRECTION_ORIGINS = ("dismiss", "retype_threat", "move_event")
+CorrectionOrigin = Literal["dismiss", "retype_threat", "move_event"]
+CORRECTION_ORIGINS: tuple[CorrectionOrigin, ...] = get_args(CorrectionOrigin)
 # User-filed bug reports (app/api/public/bugs.py -> the admin console tab).
 BugReportStatus = Literal["new", "in_progress", "closed"]
 BUG_REPORT_STATUSES: tuple[BugReportStatus, ...] = get_args(BugReportStatus)
@@ -197,6 +208,18 @@ class Source(Base):
     # northern channel's stand-down must not close Kyiv tracks. A message that
     # DOES name a district always takes the district's region instead.
     region: Mapped[str] = mapped_column(String(20), default="kyiv")
+    # How long a target type stated on THIS channel keeps typing that channel's
+    # later bare-toponym callouts (see ingest/context._note_and_inherit_type).
+    # NULL = use settings.type_inherit_window_minutes.
+    #
+    # Per-source because the channels differ in how they write, not in what they
+    # watch. The Kyiv channels restate the type constantly, so the 5-minute
+    # default fits them and a wider window would be actively risky there — a
+    # mixed ballistic+drone night is normal on the Kyiv side. The northern
+    # channel states a type once at the start of a wave and then writes pure
+    # vectors («Хрінівка на Добрянка»), so 84% of its untyped events had no
+    # stated type within 5 minutes but 58% had one within 30.
+    type_inherit_minutes: Mapped[int | None] = mapped_column(nullable=True)
     # Raw string the listener resolves this channel by (username without @, a
     # numeric id, or a t.me/+ invite link). NULL -> resolve by channel_key.
     subscribe_ref: Mapped[str | None] = mapped_column(String(200), nullable=True)
@@ -388,7 +411,7 @@ class Notice(Base):
     # Original channel message id that produced this notice — same purpose as
     # ThreatEvent.source_message_id, so /raw_messages can trace a raw message
     # to the notice it became (NULL for notices created before this existed).
-    source_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    source_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     # Curated origin key (origins.ORIGIN_KEYS) for a directional notice — the
     # feed clusters same-origin callouts and can point to the matching axis. NULL
     # for non-directional notices.
@@ -478,7 +501,7 @@ class Threat(Base):
         ForeignKey("incidents.id"), nullable=True, index=True
     )
     target_type: Mapped[str] = mapped_column(String(20), default="unknown")
-    status: Mapped[str] = mapped_column(String(20), default="unconfirmed")
+    status: Mapped[str] = mapped_column(String(20), default="unconfirmed", index=True)
     # 'track' (still being followed) or 'impact' (closed-on-creation confirmed
     # strike). Kept alongside `status` rather than replacing it (see
     # THREAT_KINDS) — status still carries destroyed/lost/tracking/unconfirmed

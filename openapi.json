@@ -850,9 +850,46 @@
         "title": "CorrectionOut",
         "type": "object"
       },
-      "CoverageGapOut": {
-        "description": "GET /admin/coverage_gaps — a threat-flavored message the parser couldn't\nlocalize (likely a missing gazetteer entry).",
+      "CoverageCandidateOut": {
+        "description": "GET /admin/coverage_candidates — one unknown place-name, with how often\nit occurred in the scanned window. The ranked gazetteer work-list.",
         "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "example_raw_message_id": {
+            "title": "Example Raw Message Id",
+            "type": "integer"
+          },
+          "example_text": {
+            "title": "Example Text",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "count",
+          "example_text",
+          "example_raw_message_id"
+        ],
+        "title": "CoverageCandidateOut",
+        "type": "object"
+      },
+      "CoverageGapOut": {
+        "description": "GET /admin/coverage_gaps — a message the parser couldn't localize that\nstill names something (likely a missing gazetteer entry).",
+        "properties": {
+          "candidates": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
           "detected_status": {
             "title": "Detected Status",
             "type": "string"
@@ -2020,6 +2057,15 @@
             ],
             "title": "Origin"
           },
+          "region": {
+            "default": "kyiv",
+            "enum": [
+              "kyiv",
+              "chernihiv"
+            ],
+            "title": "Region",
+            "type": "string"
+          },
           "source_id": {
             "anyOf": [
               {
@@ -2711,6 +2757,15 @@
           "triage_action": {
             "anyOf": [
               {
+                "enum": [
+                  "none",
+                  "suppress_confirmed",
+                  "notice",
+                  "axis",
+                  "rescue_candidate",
+                  "rescued",
+                  "late"
+                ],
                 "type": "string"
               },
               {
@@ -2722,6 +2777,13 @@
           "triage_state": {
             "anyOf": [
               {
+                "enum": [
+                  "pending",
+                  "done",
+                  "skipped",
+                  "budget",
+                  "error"
+                ],
                 "type": "string"
               },
               {
@@ -3216,6 +3278,17 @@
           "trust_weight": {
             "title": "Trust Weight",
             "type": "number"
+          },
+          "type_inherit_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type Inherit Minutes"
           }
         },
         "required": [
@@ -3227,6 +3300,7 @@
           "region",
           "is_active",
           "trust_weight",
+          "type_inherit_minutes",
           "last_listener_error",
           "created_at",
           "stats"
@@ -3535,6 +3609,19 @@
               }
             ],
             "title": "Trust Weight"
+          },
+          "type_inherit_minutes": {
+            "anyOf": [
+              {
+                "maximum": 120.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type Inherit Minutes"
           }
         },
         "title": "SourceUpdateIn",
@@ -4652,9 +4739,84 @@
         "summary": "Admin Corrections"
       }
     },
+    "/admin/coverage_candidates": {
+      "get": {
+        "description": "The gaps above, aggregated into unknown place-names ranked by how often\neach occurs — the list to geocode from. Scans deeper than the message view\nby default, because a candidate's whole signal is that it repeats.",
+        "operationId": "admin_coverage_candidates_admin_coverage_candidates_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 60,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scan",
+            "required": false,
+            "schema": {
+              "default": 2000,
+              "maximum": 20000,
+              "minimum": 50,
+              "title": "Scan",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CoverageCandidateOut"
+                  },
+                  "title": "Response Admin Coverage Candidates Admin Coverage Candidates Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Coverage Candidates"
+      }
+    },
     "/admin/coverage_gaps": {
       "get": {
-        "description": "Recent threat-flavored messages the parser couldn't pin to a district —\nthe coverage-gap queue (usually a missing gazetteer entry). `scan` widens\nthe raw-message window behind it; the export path asks for a bigger one\nthan the on-screen list does.",
+        "description": "Recent messages the parser couldn't pin to a district that still name an\nunknown word — the coverage-gap queue (usually a missing gazetteer entry).\n`scan` widens the raw-message window behind it; the export path asks for a\nbigger one than the on-screen list does.",
         "operationId": "admin_coverage_gaps_admin_coverage_gaps_get",
         "parameters": [
           {
@@ -5426,7 +5588,7 @@
         "summary": "Admin Delete Source"
       },
       "patch": {
-        "description": "Edit a source's name / role / region / trust_weight / active flag. Only a\nchange that affects what's watched (role or is_active) triggers a listener\nreload — `region` only steers already-arriving messages.",
+        "description": "Edit a source's name / role / region / trust_weight / type-inheritance\nwindow / active flag. Only a change that affects what's watched (role or\nis_active) triggers a listener reload — the rest only steer already-arriving\nmessages.",
         "operationId": "admin_update_source_admin_sources__source_id__patch",
         "parameters": [
           {
@@ -8353,7 +8515,7 @@
     },
     "/raw_messages/llm_stats": {
       "get": {
-        "description": "Aggregate LLM fallback usage across ALL raw messages — total calls,\ntokens, and cost, for the analytics strip on /raw. Unfiltered (ignores\nsearch/outcome filters) so it always reads as \"overall spend\", not\n\"spend within the current view\". Also reports spend for the current\nUTC day/month against the same caps `pipeline.triage.llm_spend_ok`\ngates the fallback on, so the admin can see how close to the budget the\nlive pipeline is.",
+        "description": "Aggregate LLM fallback usage across ALL raw messages — total calls,\ntokens, and cost, for the analytics strip on /raw. Unfiltered (ignores\nsearch/outcome filters) so it always reads as \"overall spend\", not\n\"spend within the current view\". Also reports spend for the current\nKyiv-local day/month against the same caps `pipeline.triage.llm_spend_ok`\ngates the fallback on, so the admin can see how close to the budget the\nlive pipeline is.",
         "operationId": "raw_messages_llm_stats_raw_messages_llm_stats_get",
         "parameters": [
           {

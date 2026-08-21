@@ -2,8 +2,8 @@ import { Download, Share, X } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { safeGet, safeSet, STORAGE_KEYS } from '../../lib/storage'
-import { useRadar } from '../../store'
+import { safeGet, safeSet, STORAGE_KEYS } from '@/lib/storage'
+import { useRadar } from '@/store'
 
 const isStandalone = () =>
   window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true

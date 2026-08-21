@@ -237,6 +237,35 @@ async def test_closed_track_prunes_state(ctx, sent):
     assert str(t.id) not in sub.danger_state
 
 
+async def test_a_legacy_subscription_with_null_state_still_pushes(ctx, sent):
+    # danger_state is nullable and rows predating it carry SQL NULL. Every
+    # `.get`/`in` in the evaluator turned that into an AttributeError raised
+    # INSIDE the fan-out, taking down the notification for everyone batched
+    # with it — not just the one stale row.
+    s, sub = ctx
+    sub.danger_state = None
+    await s.commit()
+
+    inside = await _mk_district(s, 2)
+    t = await _mk_threat(s)
+    await _add_event(s, t, inside, 0)
+    await evaluate_home_danger(s, await _load_threat(s, t.id))
+
+    assert len(sent) == 1
+    assert str(t.id) in sub.danger_state
+
+
+async def test_a_legacy_subscription_with_null_state_survives_citywide(ctx, sent):
+    s, sub = ctx
+    sub.danger_state = None
+    await s.commit()
+
+    t = await _mk_threat(s, target_type="ballistic", scope="city")
+    await evaluate_home_danger(s, await _load_threat(s, t.id))
+
+    assert len(sent) == 1
+
+
 async def test_citywide_pushes_once_per_track(ctx, sent):
     # Default prefs: the city-wide alert pushes — once per track, so repeated
     # corroborations (and a grace-period reopen, same id) never re-push.

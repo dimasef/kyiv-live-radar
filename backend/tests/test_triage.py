@@ -157,3 +157,64 @@ async def test_reprocess_replay_routes_stored_verdict(ctx):
     assert any(b.type == "axis" for b in out)
     assert await session.scalar(select(func.count()).select_from(ThreatAxis)) == 1
     assert raw.triage_action == "axis"
+
+
+async def test_budget_counts_when_we_paid_not_when_the_message_was_posted(monkeypatch):
+    # A reconnect backfill (or an admin reprocess) spends real money TODAY on
+    # messages posted days ago. Keyed on `event_time` those calls landed in an
+    # old day's bucket and never counted against the cap, so the guard kept
+    # answering "ok" while the spend ran away. `ingested_at` is when we paid.
+    from app.db import Base as _Base
+    from app.pipeline import triage as triage_mod
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as conn:
+        await conn.run_sync(_Base.metadata.create_all)
+    Session = async_sessionmaker(engine, expire_on_commit=False)
+
+    monkeypatch.setattr(triage_mod, "SessionLocal", Session)
+    monkeypatch.setattr(settings, "llm_daily_budget_usd", 1.0)
+    monkeypatch.setattr(settings, "llm_monthly_budget_usd", 0.0)
+
+    now = utcnow()
+    async with Session() as s:
+        s.add(RawMessage(
+            source_id=1, message_id=900, text="backfilled",
+            event_time=now - timedelta(days=3),   # posted three days ago
+            ingested_at=now,                       # …but paid for just now
+            llm_attempted=True, llm_cost_usd=5.0,  # well past the $1 cap
+        ))
+        await s.commit()
+
+    triage_mod._invalidate_spend_cache()
+    assert await triage_mod.llm_spend_ok() is False
+    triage_mod._invalidate_spend_cache()
+    await engine.dispose()
+
+
+async def test_budget_ignores_spend_from_a_previous_day(monkeypatch):
+    from app.db import Base as _Base
+    from app.pipeline import triage as triage_mod
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as conn:
+        await conn.run_sync(_Base.metadata.create_all)
+    Session = async_sessionmaker(engine, expire_on_commit=False)
+
+    monkeypatch.setattr(triage_mod, "SessionLocal", Session)
+    monkeypatch.setattr(settings, "llm_daily_budget_usd", 1.0)
+    monkeypatch.setattr(settings, "llm_monthly_budget_usd", 0.0)
+
+    now = utcnow()
+    async with Session() as s:
+        s.add(RawMessage(
+            source_id=1, message_id=901, text="yesterday's spend",
+            event_time=now, ingested_at=now - timedelta(days=2),
+            llm_attempted=True, llm_cost_usd=5.0,
+        ))
+        await s.commit()
+
+    triage_mod._invalidate_spend_cache()
+    assert await triage_mod.llm_spend_ok() is True  # the daily window reset
+    triage_mod._invalidate_spend_cache()
+    await engine.dispose()

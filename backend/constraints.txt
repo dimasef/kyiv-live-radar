@@ -1,0 +1,108 @@
+# Resolved dependency set — the exact versions CI and Railway must install.
+#
+# WHY THIS FILE EXISTS: requirements.txt states loose lower bounds, so every
+# install used to resolve fresh against PyPI. On 2026-08-20 anthropic 1.0.0
+# shipped, swapped httpx for httpx2, and turned a green main into 18 collection
+# errors ~99 minutes later — with no code change on our side. A deploy would
+# have taken Google SSO and the alert-zone poller down the same way.
+#
+# Used as `pip install -r requirements.txt -c constraints.txt`. requirements.txt
+# stays the human-readable statement of intent; this file is the machine's copy.
+#
+# TO UPGRADE: drop the flag, install fresh, run the suite, and regenerate:
+#   python3.11 -m venv /tmp/v && /tmp/v/bin/pip install -r requirements.txt ruff
+#   /tmp/v/bin/pip freeze | grep -v '^pip==' > constraints.txt
+# Upgrading is then a reviewable diff instead of a surprise.
+aiohappyeyeballs==2.7.1
+aiohttp==3.14.3
+aiosignal==1.4.0
+aiosqlite==0.22.1
+alembic==1.19.1
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anthropic==0.125.0
+anyio==4.14.2
+argon2-cffi==25.1.0
+argon2-cffi-bindings==26.1.0
+asgiref==3.12.1
+asyncpg==0.31.0
+attrs==26.1.0
+certifi==2026.7.22
+cffi==2.1.1
+charset-normalizer==3.5.1
+click==8.4.2
+cryptography==50.0.0
+distro==1.9.0
+dnspython==2.8.0
+docstring_parser==0.18.0
+email-validator==2.3.0
+executing==2.2.1
+fastapi==0.141.1
+frozenlist==1.8.0
+googleapis-common-protos==1.75.1
+greenlet==3.5.5
+h11==0.16.0
+http_ece==1.2.1
+httpcore==1.0.9
+httptools==0.8.0
+httpx==0.28.1
+idna==3.19
+iniconfig==2.3.0
+jiter==0.16.0
+logfire==4.41.0
+Mako==1.4.1
+markdown-it-py==4.2.0
+MarkupSafe==3.0.3
+mdurl==0.1.2
+multidict==6.7.1
+opentelemetry-api==1.44.0
+opentelemetry-exporter-otlp-proto-common==1.44.0
+opentelemetry-exporter-otlp-proto-http==1.44.0
+opentelemetry-instrumentation==0.65b0
+opentelemetry-instrumentation-asgi==0.65b0
+opentelemetry-instrumentation-asyncpg==0.65b0
+opentelemetry-instrumentation-fastapi==0.65b0
+opentelemetry-instrumentation-httpx==0.65b0
+opentelemetry-instrumentation-sqlalchemy==0.65b0
+opentelemetry-instrumentation-system-metrics==0.65b0
+opentelemetry-proto==1.44.0
+opentelemetry-sdk==1.44.0
+opentelemetry-semantic-conventions==0.65b0
+opentelemetry-util-http==0.65b0
+packaging==26.3
+pluggy==1.6.0
+propcache==0.5.2
+protobuf==7.36.0
+psutil==7.2.2
+py-vapid==1.9.4
+pyaes==1.6.1
+pyasn1==0.6.4
+pycparser==3.0
+pydantic==2.13.4
+pydantic-settings==2.15.0
+pydantic_core==2.46.4
+Pygments==2.21.0
+PyJWT==2.13.0
+pytest==9.1.1
+pytest-asyncio==1.4.0
+python-dotenv==1.2.3
+pywebpush==2.4.0
+PyYAML==6.0.3
+requests==2.34.2
+rich==15.0.0
+rsa==4.9.1
+ruff==0.16.4
+sentry-sdk==2.68.0
+sniffio==1.3.1
+SQLAlchemy==2.0.52
+starlette==1.6.0
+Telethon==1.44.0
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+urllib3==2.7.0
+uvicorn==0.52.4
+uvloop==0.22.1
+watchfiles==1.2.0
+websockets==17.0.1
+wrapt==2.3.0
+yarl==1.24.5

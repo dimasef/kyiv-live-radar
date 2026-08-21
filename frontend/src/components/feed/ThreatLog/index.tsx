@@ -1,4 +1,4 @@
-import { Fragment } from 'react'
+import { Fragment, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useRadar } from '@/store'
@@ -10,7 +10,7 @@ import ClosedGroupCard from './ClosedGroupCard'
 import DaySeparator from './DaySeparator'
 import NoticeCard from './NoticeCard'
 import ThreatCard from './ThreatCard'
-import { buildTimeline, filterFeedRegions, kyivDayKey } from './timeline'
+import { buildTimeline, filterFeedNotices, filterFeedRegions, kyivDayKey } from './timeline'
 
 export default function ThreatLog() {
   const { t } = useTranslation()
@@ -19,10 +19,21 @@ export default function ThreatLog() {
   const recentIncidents = useRadar((s) => s.recentIncidents)
   const feedTextSize = useRadar((s) => s.feedTextSize)
   const feedOtherRegions = useRadar((s) => s.feedOtherRegions)
-  const timeline = buildTimeline(
-    filterFeedRegions(log, feedOtherRegions),
-    notices,
-    recentIncidents,
+  // Grouping up to 250 entries plus notices and incidents — pure, and only the
+  // three inputs move it, so it must not re-run on an unrelated re-render.
+  const timeline = useMemo(
+    () =>
+      buildTimeline(
+        filterFeedRegions(log, feedOtherRegions),
+        filterFeedNotices(notices, feedOtherRegions),
+        recentIncidents,
+      ),
+    [log, feedOtherRegions, notices, recentIncidents],
+  )
+
+  const dayKeys = useMemo(
+    () => timeline.map((item) => kyivDayKey(new Date(item.time))),
+    [timeline],
   )
 
   return (
@@ -45,9 +56,10 @@ export default function ThreatLog() {
           style={{ zoom: FEED_ZOOM[feedTextSize] }}
         >
           {timeline.map((item, i) => {
-            const dayKey = kyivDayKey(new Date(item.time))
-            const prevDayKey = i > 0 ? kyivDayKey(new Date(timeline[i - 1].time)) : null
-            const separator = dayKey !== prevDayKey ? <DaySeparator dayKey={dayKey} /> : null
+            // dayKeys is precomputed alongside the timeline: reading the
+            // previous row's key here recomputed kyivDayKey twice per row.
+            const dayKey = dayKeys[i]
+            const separator = dayKey !== dayKeys[i - 1] ? <DaySeparator dayKey={dayKey} /> : null
 
             if (item.kind === 'notice') {
               return (

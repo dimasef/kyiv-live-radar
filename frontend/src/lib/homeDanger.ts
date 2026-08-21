@@ -87,13 +87,16 @@ export function threatDanger(
 }
 
 /** Max danger over all OPEN district tracks — impacts and closed tracks are
- * history, not an approaching target. */
-export function homeDanger(
+ * history, not an approaching target.
+ *
+ * Takes the home raion ids rather than deriving them: they cost 25 point-in-
+ * polygon tests across every raion boundary, depend only on the home zone, and
+ * this runs on every live frame. Callers memoize them (see MapView). */
+export function homeDangerFor(
   threats: Record<number, Threat>,
   home: Home,
-  boundaries: DistrictBoundary[],
+  homeRaionIds: number[],
 ): HomeDangerLevel {
-  const homeRaionIds = raionIdsForZone(home, boundaries)
   let worst: HomeDangerLevel = 'none'
   for (const threat of Object.values(threats)) {
     if (threat.closed_at != null || threat.kind === 'impact') continue
@@ -102,4 +105,14 @@ export function homeDanger(
     if (worst === 'danger') break
   }
   return worst
+}
+
+/** `homeDangerFor` with the raion resolution done inline — for one-off callers
+ * that have no place to cache it. */
+export function homeDanger(
+  threats: Record<number, Threat>,
+  home: Home,
+  boundaries: DistrictBoundary[],
+): HomeDangerLevel {
+  return homeDangerFor(threats, home, raionIdsForZone(home, boundaries))
 }

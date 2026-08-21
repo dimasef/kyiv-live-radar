@@ -5,13 +5,10 @@ import { CircleMarker, Marker, Polyline } from "react-leaflet";
 import { fadeFactor, showsLiveMotion } from "@/lib/threatFreshness";
 import { useRadar } from "@/store";
 
-import { threatState } from "../../threatDisplay";
-import { threatColor } from "../../theme";
-import { DIRECTIONAL, DOT_UNTIL_MOVING, threatDivIcon } from "../../threatIcons";
-import type { Threat } from "../../types";
-import { KYIV_PT } from "./constants";
+import { threatDivIcon } from "@/threatIcons";
+import type { Threat } from "@/types";
 import ThreatPopup from "./ThreatPopup";
-import { hasMovement, headingOf, inboundHeading, trackPoints } from "./track";
+import { threatVisual } from "./threatVisual";
 
 /** Two expanding rings pulsing in the threat color — the live head of a track. */
 function pulseIcon(color: string): L.DivIcon {
@@ -50,32 +47,8 @@ const ThreatLayer = memo(function ThreatLayer({
   // exit fade from closed_at made a clicked-on target dissolve while being read.
   const leaving = useRadar((s) => s.leavingThreatIds.includes(threat.id));
   const setOpenPopupThreat = useRadar((s) => s.setOpenPopupThreat);
-  const pts = trackPoints(threat);
-  const color = threatColor(threat);
-  // Only a track that actually moved over time gets a heading/vector — a single
-  // multi-district message is an enumeration, not a trajectory (see hasMovement).
-  // An impact is a POINT strike, never a trajectory: it must NEVER draw a
-  // connecting vector even when re-reports give it several timestamps (a
-  // ballistic can't "move" between districts) — so kind='impact' is excluded.
-  const moved = threat.kind !== "impact" && hasMovement(threat);
-  const realHeading = moved ? headingOf(threat) : null;
   const type = threat.target_type;
-  // A drone sighted as a single point still flies toward Kyiv — aim its glyph
-  // inbound rather than a meaningless due-north. Missiles stay a fix dot until
-  // they truly move, so exclude DOT_UNTIL_MOVING types.
-  const last = pts.length > 0 ? pts[pts.length - 1] : null;
-  const presumedHeading =
-    realHeading == null && last != null && DIRECTIONAL[type] && !DOT_UNTIL_MOVING[type]
-      ? inboundHeading(last, KYIV_PT, threat.id)
-      : null;
-  const heading = realHeading ?? presumedHeading;
-
-  // Head-marker state: influences SHAPE. A hit bursts; a shot-down/lost track is
-  // struck through; a moving track points along its heading. A cruise missile
-  // with no heading yet is an honest dot (DOT_UNTIL_MOVING); drones and
-  // ballistic/unknown show their glyph from the first sighting (a drone points
-  // up until it gains a course, then rotates along the vector).
-  const state = threatState(threat, { heading, directional: DOT_UNTIL_MOVING[type] });
+  const { pts, color, moved, heading, state } = threatVisual(threat);
 
   const pulse = useMemo(() => pulseIcon(color), [color]);
   // Computed before the early returns below so the hook order stays fixed — the

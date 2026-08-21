@@ -1,7 +1,7 @@
 import { GeoJSON } from "react-leaflet";
 
-import { useRadar } from "../../store";
-import { threatColor } from "../../theme";
+import { useRadar } from "@/store";
+import { threatColor } from "@/theme";
 
 /** When a city-wide threat is active (a ballistic-phase alert with no raion to
  * localize), the whole city is under threat — pulse every raion boundary in the

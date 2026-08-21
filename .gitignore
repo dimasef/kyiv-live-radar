@@ -14,6 +14,9 @@ backend/*.session-journal
 frontend/node_modules/
 frontend/dist/
 frontend/.env
+# Committing these makes `tsc -b` consider a project already built and skip it —
+# which silently dropped vite.config.ts from the only type-check step we have.
+*.tsbuildinfo
 
 # Editor / OS
 .DS_Store

@@ -2,9 +2,9 @@ import type L from "leaflet";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
-import { contactMarkerSvg, homeStyleOf } from "../../lib/contactMarker";
-import { centerPinMode } from "../../lib/device";
-import { useRadar } from "../../store";
+import { contactMarkerSvg, homeStyleOf } from "@/lib/contactMarker";
+import { centerPinMode } from "@/lib/device";
+import { useRadar } from "@/store";
 
 export default function HomePlacement({ map }: { map: L.Map | null }) {
   const { t } = useTranslation();

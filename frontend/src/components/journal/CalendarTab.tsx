@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { fetchDistricts, fetchJournal } from '@/api'
+import { fetchJournal } from '@/api'
 import { riseDelay } from '@/lib/motion'
 import type { JournalDay } from '@/types'
 
@@ -10,6 +10,7 @@ import CalendarHeatmap from './CalendarHeatmap'
 import DayDetail from './DayDetail'
 import MonthSummary from './MonthSummary'
 import { hasActivity, monthLabel, monthRange, monthSummary, todayISO } from './journalStats'
+import { useDistrictNames } from './useDistrictNames'
 
 /** Pick a sensible day to open the detail on after a month loads: today if it's
  * an active day in view, else the most recent active day, else today/last. */
@@ -37,13 +38,7 @@ export default function CalendarTab({ initialDate = null }: { initialDate?: stri
   const [days, setDays] = useState<JournalDay[]>([])
   const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading')
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
-  const [districts, setDistricts] = useState<Map<number, string>>(new Map())
-
-  useEffect(() => {
-    fetchDistricts()
-      .then((ds) => setDistricts(new Map(ds.map((d) => [d.id, d.name_uk]))))
-      .catch(() => {})
-  }, [])
+  const districtName = useDistrictNames()
 
   useEffect(() => {
     let cancelled = false
@@ -70,7 +65,6 @@ export default function CalendarTab({ initialDate = null }: { initialDate?: stri
   const daysByDate = useMemo(() => new Map(days.map((d) => [d.date, d])), [days])
   const summary = useMemo(() => monthSummary(days), [days])
   const selected = selectedDate ? (daysByDate.get(selectedDate) ?? null) : null
-  const districtName = (id: number) => districts.get(id) ?? `#${id}`
 
   const shiftMonth = (delta: number) => {
     const d = new Date(year, month0 + delta, 1)

@@ -33,6 +33,15 @@ from app.parsing import DistrictMatcher, parse_message  # noqa: E402
 
 GT_FILE = Path(__file__).parent / "ground_truth_sessions.json"
 
+# Floors, not targets — set just under the measured numbers so ordinary noise
+# (the labeled window drifts as the channels post; see _meta in the ground-truth
+# file) doesn't cry wolf, while a real tracking regression does. Recorded
+# 2026-08-21: scored 57/74, session purity 74%, track purity 97%, vector 70%.
+MIN_SCORED_SESSIONS = 52
+MIN_SESSION_PURITY = 0.68
+MIN_TRACK_PURITY = 0.93
+MIN_VECTOR_ACCURACY = 0.64
+
 
 async def _load_maps():
     """(source_name, telegram_message_id) -> {threat_id, ...}.
@@ -186,6 +195,30 @@ def main() -> int:
             if unmatched:
                 print(f"  {sid}: message_keys {unmatched}")
 
+    # --- Gate ---------------------------------------------------------------
+    # Without this the script only PRINTED numbers, so "no regression" meant a
+    # human remembering last week's percentages. Now it exits non-zero, which is
+    # what tests/test_track_eval.py asserts on.
+    failures: list[str] = []
+
+    def check(label: str, value: float, floor: float, fmt: str = "{:.0%}") -> None:
+        if value < floor:
+            failures.append(f"{label} {fmt.format(value)} < {fmt.format(floor)}")
+
+    check("scored sessions", len(scored), MIN_SCORED_SESSIONS, "{:.0f}")
+    if scored:
+        check("session purity", n_pure / len(scored), MIN_SESSION_PURITY)
+    if n_tracks:
+        check("track purity", n_tracks_pure / n_tracks, MIN_TRACK_PURITY)
+    if movement_sessions:
+        check("vector accuracy", vector_would_draw / len(movement_sessions), MIN_VECTOR_ACCURACY)
+
+    if failures:
+        print("  REGRESSION: " + "; ".join(failures))
+        print()
+        return 1
+
+    print("  all track-level floors met")
     print()
     return 0
 

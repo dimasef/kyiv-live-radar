@@ -94,6 +94,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/coverage_candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin Coverage Candidates
+         * @description The gaps above, aggregated into unknown place-names ranked by how often
+         *     each occurs — the list to geocode from. Scans deeper than the message view
+         *     by default, because a candidate's whole signal is that it repeats.
+         */
+        get: operations["admin_coverage_candidates_admin_coverage_candidates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/coverage_gaps": {
         parameters: {
             query?: never;
@@ -103,10 +125,10 @@ export interface paths {
         };
         /**
          * Admin Coverage Gaps
-         * @description Recent threat-flavored messages the parser couldn't pin to a district —
-         *     the coverage-gap queue (usually a missing gazetteer entry). `scan` widens
-         *     the raw-message window behind it; the export path asks for a bigger one
-         *     than the on-screen list does.
+         * @description Recent messages the parser couldn't pin to a district that still name an
+         *     unknown word — the coverage-gap queue (usually a missing gazetteer entry).
+         *     `scan` widens the raw-message window behind it; the export path asks for a
+         *     bigger one than the on-screen list does.
          */
         get: operations["admin_coverage_gaps_admin_coverage_gaps_get"];
         put?: never;
@@ -356,9 +378,10 @@ export interface paths {
         head?: never;
         /**
          * Admin Update Source
-         * @description Edit a source's name / role / region / trust_weight / active flag. Only a
-         *     change that affects what's watched (role or is_active) triggers a listener
-         *     reload — `region` only steers already-arriving messages.
+         * @description Edit a source's name / role / region / trust_weight / type-inheritance
+         *     window / active flag. Only a change that affects what's watched (role or
+         *     is_active) triggers a listener reload — the rest only steer already-arriving
+         *     messages.
          */
         patch: operations["admin_update_source_admin_sources__source_id__patch"];
         trace?: never;
@@ -1373,7 +1396,7 @@ export interface paths {
          *     tokens, and cost, for the analytics strip on /raw. Unfiltered (ignores
          *     search/outcome filters) so it always reads as "overall spend", not
          *     "spend within the current view". Also reports spend for the current
-         *     UTC day/month against the same caps `pipeline.triage.llm_spend_ok`
+         *     Kyiv-local day/month against the same caps `pipeline.triage.llm_spend_ok`
          *     gates the fallback on, so the admin can see how close to the budget the
          *     live pipeline is.
          */
@@ -1422,6 +1445,10 @@ export interface paths {
          *
          *     Active only: an archived channel is not something this map is standing on
          *     any more, and listing it would credit it for data it no longer provides.
+         *
+         *     This project's own channel is excluded (`settings.own_channels`) — the block
+         *     exists to point at the volunteer channels the map stands on, and a link back
+         *     to ourselves is a link to the page the reader already has open.
          *
          *     Spotters first, then the official alert channel — the ordering answers "who
          *     reports the targets you are looking at" before "where the siren comes from".
@@ -1862,11 +1889,31 @@ export interface components {
             text: string;
         };
         /**
+         * CoverageCandidateOut
+         * @description GET /admin/coverage_candidates — one unknown place-name, with how often
+         *     it occurred in the scanned window. The ranked gazetteer work-list.
+         */
+        CoverageCandidateOut: {
+            /** Count */
+            count: number;
+            /** Example Raw Message Id */
+            example_raw_message_id: number;
+            /** Example Text */
+            example_text: string;
+            /** Name */
+            name: string;
+        };
+        /**
          * CoverageGapOut
-         * @description GET /admin/coverage_gaps — a threat-flavored message the parser couldn't
-         *     localize (likely a missing gazetteer entry).
+         * @description GET /admin/coverage_gaps — a message the parser couldn't localize that
+         *     still names something (likely a missing gazetteer entry).
          */
         CoverageGapOut: {
+            /**
+             * Candidates
+             * @default []
+             */
+            candidates: string[];
             /** Detected Status */
             detected_status: string;
             /**
@@ -2513,6 +2560,12 @@ export interface components {
             kind: "clear" | "summary" | "directional" | "forecast" | "status";
             /** Origin */
             origin?: string | null;
+            /**
+             * Region
+             * @default kyiv
+             * @enum {string}
+             */
+            region: "kyiv" | "chernihiv";
             /** Source Id */
             source_id?: number | null;
             /** Source Name */
@@ -2774,9 +2827,9 @@ export interface components {
             /** Text */
             text: string;
             /** Triage Action */
-            triage_action?: string | null;
+            triage_action?: ("none" | "suppress_confirmed" | "notice" | "axis" | "rescue_candidate" | "rescued" | "late") | null;
             /** Triage State */
-            triage_state?: string | null;
+            triage_state?: ("pending" | "done" | "skipped" | "budget" | "error") | null;
         };
         /**
          * RawMessagesPage
@@ -3012,6 +3065,8 @@ export interface components {
             subscribe_ref: string | null;
             /** Trust Weight */
             trust_weight: number;
+            /** Type Inherit Minutes */
+            type_inherit_minutes: number | null;
         };
         /**
          * SourceDeleteOut
@@ -3126,6 +3181,8 @@ export interface components {
             role?: ("spotter" | "alert") | null;
             /** Trust Weight */
             trust_weight?: number | null;
+            /** Type Inherit Minutes */
+            type_inherit_minutes?: number | null;
         };
         /**
          * StatsDayOut
@@ -3666,6 +3723,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CorrectionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_coverage_candidates_admin_coverage_candidates_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                scan?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoverageCandidateOut"][];
                 };
             };
             /** @description Validation Error */

@@ -1,6 +1,7 @@
 import type { StateCreator } from 'zustand'
 
 import {
+  ApiError,
   authGoogle,
   authLogin,
   authLogout,
@@ -76,8 +77,13 @@ export const createAuthSlice: StateCreator<RadarState, [], [], AuthSlice> = (set
       const { access } = await authRefreshToken(refresh)
       setAccessToken(access)
       return access
-    } catch {
-      clearSession()
+    } catch (err) {
+      // Only a rejection FROM THE SERVER means the refresh token is dead. A
+      // network failure says nothing about it, and wiping the session on one
+      // would log the user out mid-raid over a dropped request.
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        clearSession()
+      }
       return null
     }
   })
