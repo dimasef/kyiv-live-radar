@@ -2,6 +2,14 @@
 # passed as `pip install -c` so that EVERY install path honours it — CI, the
 # Railway build (railpack installs straight from this file), and a local venv.
 # See constraints.txt for the why and for how to upgrade deliberately.
+#
+# The Railway half of that needs railpack.json to cooperate: railpack's python
+# provider copies a FIXED allowlist of dependency files (requirements.txt,
+# pyproject.toml, Pipfile, *.lock) into the install step, and constraints.txt is
+# not on it — so the first deploy after this line was added died on
+# "Could not open requirements file: constraints.txt". railpack.json now adds it
+# explicitly to the install step's inputs. If you ever reference another file
+# from here, add it there too.
 -c constraints.txt
 
 # Core API

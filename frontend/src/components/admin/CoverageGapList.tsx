@@ -79,8 +79,11 @@ function GapRow({ gap }: { gap: CoverageGap }) {
         </span>
         {gap.source_name && <span>{gap.source_name}</span>}
         {/* Which unknown word admitted this row — without it the operator
-            re-reads the message to find what the parser choked on. */}
-        {gap.candidates.map((name) => (
+            re-reads the message to find what the parser choked on.
+            `?? []` because the field is newer than this panel: during a deploy
+            where the frontend is ahead of the backend, the old API omits it and
+            a bare .map() would blank the whole tab. */}
+        {(gap.candidates ?? []).map((name) => (
           <span key={name} className="rounded bg-amber-400/10 px-1.5 py-0.5 text-amber-200/80">
             {name}
           </span>

@@ -39,7 +39,7 @@ export const CHANGELOG: Release[] = [
   {
     version: LATEST,
     title: "Оновлення та виправлення",
-    date: "2026-09-01",
+    date: "2026-08-21",
     kind: "minor",
     changes: [
       "Виправлено: у стрічці подій не завжди показувалася кількість цілей у банері атаки",
