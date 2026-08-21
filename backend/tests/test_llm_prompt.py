@@ -48,6 +48,19 @@ def test_caching_can_be_turned_off(monkeypatch):
     assert "".join(b["text"] for b in blocks) == _static() + _MESSAGE_BLOCK.format(text=TEXT)
 
 
+def test_every_named_jet_model_is_in_the_prompt():
+    """Drift guard between the rules' vocabulary and the prompt. A district the
+    LLM recovers brings its whole verdict with it (resolve.py), so a model the
+    rules type as jet_drone and the prompt never mentions comes back as
+    `missile` — the generic word around it («10 ракет Бандероль») is exactly
+    what the model would otherwise go by."""
+    from app.parsing.vocab import _JET_MODEL
+
+    prompt = _static().lower()
+    for stem in _JET_MODEL:
+        assert stem in prompt, stem
+
+
 def test_a_cache_read_is_priced_as_a_cache_read(monkeypatch):
     monkeypatch.setattr(settings, "llm_cache_ttl", "1h")
     # 5900 tokens read from cache + 5 fresh: a tenth of the input price, not the

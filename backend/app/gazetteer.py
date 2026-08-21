@@ -294,7 +294,8 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Баришівка", "name_en": "Baryshivka", "lat": 50.3645, "lon": 31.3257, "aliases": []},
     # East approach, on the Baryshivka line ("Баришівка/Березань перші в сторону
     # Борисполя"). Stems to "березан", which the March month "березень" (е, not
-    # а) never reaches.
+    # а) never reaches — but which DOES reach the Chernihiv village «Березанка»;
+    # see that entry (J1) for why it has to exist.
     {"name_uk": "Березань", "name_en": "Berezan", "lat": 50.3133, "lon": 31.4689, "aliases": []},
     {"name_uk": "Гоголів", "name_en": "Hoholiv", "lat": 50.5127, "lon": 31.0226, "aliases": []},
     {"name_uk": "Требухів", "name_en": "Trebukhiv", "lat": 50.4833, "lon": 30.9011, "aliases": []},
@@ -773,9 +774,28 @@ DISTRICTS: list[dict] = [
     # village scale the map shows one dot either way.
     {"name_uk": "Анисів", "name_en": "Anysiv", "lat": 51.4376, "lon": 31.3563,
      "region": "chernihiv", "aliases": []},
+    # Without this entry «Березанка» was eaten by Київська Березань, whose stem
+    # ("березан") is a prefix of it — a northern sighting 130 km south, in the
+    # KYIV pool, so it also slipped past the feed's region filter. The fix is the
+    # entry itself, not a veto: its own stem ("березанк") explains more of the
+    # word, and DistrictMatcher keeps the more specific match. Deliberately NOT
+    # region_only — «Березанка» is no case form of «Березань», so a Kyiv channel
+    # typing it means this village too. Chernihiv oblast has a second Березанка
+    # (Ніжинський р-н); this is the one the city ring reports («Вознесенське /
+    # Березанка / Жавинка» in one pass, raw 7422-7430).
+    {"name_uk": "Березанка", "name_en": "Berezanka", "lat": 51.5509, "lon": 31.4394,
+     "region": "chernihiv", "aliases": []},
     {"name_uk": "Білоус", "name_en": "Bilous", "lat": 51.515, "lon": 31.2,
      "region": "chernihiv", "aliases": []},
     {"name_uk": "Гущин", "name_en": "Hushchyn", "lat": 51.4498, "lon": 31.2261,
+     "region": "chernihiv", "aliases": []},
+    # Same shape as Березанка above: «Деснянка» was landing on смт Десна 70 km
+    # south-west, whose 4-letter stem ("десн") is the only one the word reaches.
+    # Kyiv has a Деснянський район, but its stem ("деснянськ") does not reach
+    # «Деснянка» either, so no channel could ever resolve the word to it — which
+    # is why this entry is not region_only: hiding it from the Kyiv matcher would
+    # hand those messages back to смт Десна, not to the raion.
+    {"name_uk": "Деснянка", "name_en": "Desnianka", "lat": 51.5678, "lon": 31.218,
      "region": "chernihiv", "aliases": []},
     {"name_uk": "Довжик", "name_en": "Dovzhyk", "lat": 51.6147, "lon": 31.0204,
      "region": "chernihiv", "aliases": []},
@@ -853,6 +873,12 @@ DISTRICTS: list[dict] = [
      "region": "chernihiv", "aliases": []},
     {"name_uk": "Галиця", "name_en": "Halytsia", "lat": 50.7465, "lon": 32.0282,
      "region": "chernihiv", "aliases": []},
+    # The feed spells it «Голинка» (и), the village is «Голінка» (і), and the
+    # stemmer cannot bridge the alternation — the alias carries it, exactly as
+    # Пирогівці/пироговці does. Eastern corridor, next to Дмитрівка: the same
+    # pass named Прилуки twice, so the east was live that night.
+    {"name_uk": "Голінка", "name_en": "Holinka", "lat": 51.0348, "lon": 33.0164,
+     "region": "chernihiv", "aliases": ["голинка"]},
     {"name_uk": "Голубичі", "name_en": "Holubychi", "lat": 51.748, "lon": 31.1731,
      "region": "chernihiv", "aliases": []},
     {"name_uk": "Дмитрівка", "name_en": "Dmytrivka", "lat": 50.9344, "lon": 32.9457,
@@ -868,6 +894,11 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Жукля", "name_en": "Zhuklia", "lat": 51.8081, "lon": 32.6634,
      "region": "chernihiv", "aliases": []},
     {"name_uk": "Задеріївка", "name_en": "Zaderiivka", "lat": 51.9125, "lon": 30.8517,
+     "region": "chernihiv", "aliases": []},
+    # смт on the Ріпки line, north of Чернігів («Ріпки Замглай два з півночі»).
+    # OSM also has a river Замглай 30 km south-east; the settlement is the one
+    # the spotters call out, and it is the point geocoded here.
+    {"name_uk": "Замглай", "name_en": "Zamhlai", "lat": 51.8124, "lon": 31.1631,
      "region": "chernihiv", "aliases": []},
     {"name_uk": "Заньки", "name_en": "Zanky", "lat": 51.1983, "lon": 31.9723,
      "region": "chernihiv", "aliases": []},

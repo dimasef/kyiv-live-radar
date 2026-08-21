@@ -132,6 +132,34 @@ def test_northern_toponyms_are_not_captured_by_kyiv_oblast_stems():
     # Понорниця exists BECAUSE Понори does — "понор" is a prefix of it.
     assert names(north, "На понорницю") == ["Понорниця"]
     assert names(north, "Понорниця на Корюківку") == ["Понорниця", "Корюківка"]
+    # Same prefix trap, 08-21: "березан" (Київська Березань) ate «Березанка»,
+    # "десн" (смт Десна) ate «Деснянка». Both are Chernihiv-city ring villages,
+    # and the first one put a northern target in the KYIV pool — see below.
+    assert names(north, "Березанка") == ["Березанка"]
+    assert names(north, "Деснянка на понорницю") == ["Деснянка", "Понорниця"]
+    # Neither word is a case form of the entry that used to swallow it, so a
+    # Kyiv channel typing it means the northern village too.
+    assert names(kyiv, "Березанка") == ["Березанка"]
+    assert names(kyiv, "Деснянка") == ["Деснянка"]
+    # ...and the places they were stolen from still answer to their own names.
+    assert names(kyiv, "Баришівка/Березань перші") == ["Баришівка", "Березань"]
+    assert names(kyiv, "1 БпЛА на Десну") == ["Десна"]
+    assert names(kyiv, "Деснянський район") == ["Деснянський"]
+
+
+def test_a_northern_village_never_lands_in_the_kyiv_pool():
+    """The region leak the prefix traps above cause, stated as its own guard: a
+    sighting's pool comes from the DISTRICT's region, so a northern word
+    resolving to a Kyiv-oblast entry is not just a wrong dot — it enters the
+    Kyiv track pool and shows up for a reader who has the other regions off."""
+    districts = [{"id": i + 1, **d} for i, d in enumerate(DISTRICTS)]
+    region_of = {d["id"]: d.get("region", "kyiv") for d in districts}
+    north = DistrictMatcher(districts, prefer_region="chernihiv")
+
+    for text in ("Березанка", "Деснянка", "Киїнка", "Шестовиця"):
+        hits = north.find(normalize(text))
+        assert hits, text
+        assert all(region_of[h.district_id] == "chernihiv" for h in hits), text
 
 
 def test_region_preference_never_beats_a_more_specific_name():

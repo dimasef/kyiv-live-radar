@@ -94,10 +94,19 @@ _PROMPT = (
     "Known origins (key): {origins}. Use an origin key ONLY for an inbound "
     "threat's launch/approach zone named with 'з/від/з боку/з напрямку'; else "
     "'none'.\n\n"
+    # The type list has to mirror rules._target_type, including the named jet
+    # models: when this call recovers a district, ingest takes its WHOLE verdict
+    # (resolve.py) — type included — so anything the rules know and the prompt
+    # doesn't is silently downgraded on exactly the messages the rules could not
+    # localize. «Бандероль» is the live case: the same night calls it a «ракета»
+    # and a «баражуючий боєприпас», both of which point this model elsewhere.
     "Target type: shahed (шахед/мопед/герань/generic БпЛА), jet_drone "
-    "(реактивний/швидкісний), ballistic (балістика/іскандер/кинджал/С-400/С-300), "
-    "missile (крилата ракета/калібр/Х-101/КАБ/generic ракета), or unknown. Use "
-    "ballistic ONLY for an explicit ballistic marker; a bare 'ракета' is missile.\n"
+    "(реактивний/швидкісний/Бандероль), ballistic (балістика/іскандер/кинджал/"
+    "С-400/С-300), missile (крилата ракета/калібр/Х-101/КАБ/generic ракета), or "
+    "unknown. Use ballistic ONLY for an explicit ballistic marker; a bare "
+    "'ракета' is missile. A named model wins over the word around it: "
+    "«Бандероль» is jet_drone however the message words it ('10 ракет "
+    "Бандероль', 'баражуючий боєприпас типу Бандероль').\n"
     "Status: confirmed (🔴/підтверджено), unconfirmed (уточнюється/попередньо/"
     "можливо), destroyed (збито/знищено/уражено), clear (відбій), or sighting.\n"
     "is_new_target: true if it marks a new/additional target (новий/ще один/"

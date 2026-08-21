@@ -64,6 +64,12 @@ def test_no_target_type_needed(matcher):
         "Новий Білоус акустика",
         "Великий щимель",
         "Перший на добрянку",
+        # Same night, 22:20-22:21 — both were suppressed as "не про загрозу",
+        # since a message with no district and no target word is not a threat.
+        "Замглай два",
+        "Ріпки Замглай два з півночі",
+        # The feed's spelling («Голинка») is not the village's («Голінка»).
+        "Голинка акустика",
     ],
 )
 def test_chernihiv_batch_now_localizes(matcher, text):
