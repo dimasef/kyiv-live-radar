@@ -32,6 +32,8 @@ from .vocab import (
     _CONDITIONAL_IDIOM_EXCLUDE,
     _CONDITIONAL_PHRASES,
     _CONFIRMED,
+    _COUNT_AFTER_PLACE_RE,
+    _COUNT_BEFORE_PLACE_RE,
     _COUNT_MOVING_RE,
     _COUNT_NOUN_RE,
     _COUNT_RE,
@@ -316,6 +318,16 @@ def _target_count(norm: str, districts) -> int | None:
         if _place_follows(m.end(), districts)
     ]
     nums += [count_value(m.group(1)) for m in _COUNT_MOVING_RE.finditer(norm)]
+    # The place-adjacent form ("Замглай два", "Два хрінівка на Добрянка"). Its
+    # anchor is a gazetteer hit rather than a word, so the scan lives here — and
+    # it uses the hit's real END, which is what keeps the "5" of «ТЕЦ-5» out.
+    for h in districts:
+        after = _COUNT_AFTER_PLACE_RE.match(norm[h.end:])
+        if after:
+            nums.append(count_value(after.group(1)))
+        before = _COUNT_BEFORE_PLACE_RE.search(norm[:h.position])
+        if before:
+            nums.append(count_value(before.group(1)))
     nums = [n for n in nums if n is not None and 1 <= n <= 50]  # junk like "100х"/years
     return max(nums) if nums else None
 

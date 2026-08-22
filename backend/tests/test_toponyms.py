@@ -30,7 +30,9 @@ def matcher() -> DistrictMatcher:
     [
         ("Хороше озеро на омбиш", "хороше"),
         ("Червоне озеро", "червоне"),
-        ("Бандеролі Тростянка/Велика Доч", "тростянка"),
+        # «Тростянка» in this one is gazetteered since the 08-22 batch; the
+        # spaced «Велика Доч» next to it is what still has nowhere to go.
+        ("Бандеролі Тростянка/Велика Доч", "велика"),
         ("Шишки на великий щимель", "шишки"),
     ],
 )
@@ -70,10 +72,55 @@ def test_no_target_type_needed(matcher):
         "Ріпки Замглай два з півночі",
         # The feed's spelling («Голинка») is not the village's («Голінка»).
         "Голинка акустика",
+        # The 08-22 batch — the ring around Чернігів and the corridor villages.
+        "Гірманка,жукотки",
+        "Мекшунівка третій",
+        "На Клубівку/Олександрівку другу ➡️ Любеч",
+        "Кучугури на наумівку , сновськ",
+        "Ряшки на сухополівку",
+        "Слобода трисвятська",
+        "Турʼя дрон",
+        # Both kept as WHOLE-WORD entries, because their stems are ordinary
+        # words — the assertion below is the other half of that guard.
+        "Замістя на Прилуки",
+        "Розсудів",
+        # 08-22 morning run, Бахмач → Борзна → Ніжин → Носівка. «Бобрик» is the
+        # ROOT of the reply chain «На Держанівку» hangs off, so losing it cost
+        # the whole track, not one dot.
+        "На Держанівку",
+        "На кунашівку",
+        "На вересоч курсом",
+        "Йде волосківці на локнисте",
+        "Маличина гребля",
+        "Хатилова гута",
+        "Костобобрів розвідник",
+        "Східніше Богданове теж",
+        "Стольне",
+        "Вовчок",
+        "Бандеролі на прогрес",
+        # A short vowel-final name: inflection replaces the vowel the stem had
+        # to keep, so «Ічню» shares no stem with «Ічня» — 5 real messages.
+        "На Ічню",
+        "Ічні",
     ],
 )
 def test_chernihiv_batch_now_localizes(matcher, text):
     assert matcher.find(normalize(text)), text
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Маленькі кияни замість відпочинку допомагають прибирати",
+        "Чи варто реагувати — вирішуйте на власний розсуд",
+    ],
+)
+def test_a_village_named_like_an_ordinary_word_matches_whole_word_only(matcher, text):
+    """«Замістя» and «Розсудів» stem to «заміст» and «розсуд», which live inside
+    «замість» and «на власний розсуд» — both real corpus sentences. They are in
+    _WHOLE_WORD_ALIASES, so the toponym keeps working while the ordinary word
+    stays invisible; this is the Остер/остерігайтеся fix reused."""
+    assert matcher.find(normalize(text)) == []
 
 
 @pytest.mark.parametrize(
@@ -177,7 +224,14 @@ def _region_matcher(region: str) -> DistrictMatcher:
 
 @pytest.mark.parametrize(
     "text",
-    ["Район ТЕЦ два", "ТЕЦ ⚠️⚠️⚠️", "На жд вокзал", "Вектор летовище", "Очисні другий"],
+    ["Район ТЕЦ два", "ТЕЦ ⚠️⚠️⚠️", "На жд вокзал", "Вектор летовище", "Очисні другий",
+     # 08-22: two more plants that define a Chernihiv city area, and four
+     # village names so common that a Kyiv channel typing one means its own.
+     "Автозавод район", "Хімволокно", "Брусилів реактивний", "Дачне",
+     "Ще один Іванівка на охрамієвичі",
+     # 08-22: «Бобрик» is also a Броварський village beside Велика Димерка, and
+     # «Городище» exists five times in this oblast alone.
+     "Бобрик", "Городище"],
 )
 def test_northern_landmark_resolves_for_its_own_channel(text):
     hits = _region_matcher("chernihiv").find(normalize(text))
@@ -185,7 +239,11 @@ def test_northern_landmark_resolves_for_its_own_channel(text):
     assert all(h.district_id in _region_matcher("chernihiv").region_by_id for h in hits)
 
 
-@pytest.mark.parametrize("text", ["Район ТЕЦ два", "Вектор летовище", "Очисні другий"])
+@pytest.mark.parametrize(
+    "text",
+    ["Район ТЕЦ два", "Вектор летовище", "Очисні другий",
+     "Автозавод район", "Брусилів реактивний", "Дачне", "Бобрик", "Городище"],
+)
 def test_northern_landmark_is_invisible_to_a_kyiv_channel(text):
     """The failure this prevents: a Kyiv callout pinned 150 km north."""
     assert _region_matcher("kyiv").find(normalize(text)) == []

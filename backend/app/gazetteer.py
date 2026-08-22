@@ -507,7 +507,9 @@ DISTRICTS: list[dict] = [
     #
     # Rejected here: «Берелівка» (Nominatim has no point), «Городище» (several
     # in the oblast, none clearly on the corridor), «Полісся» (used both as the
-    # village and as the region-wide noun).
+    # village and as the region-wide noun). Two of those three were reversed on
+    # 08-22, when more callouts settled which one the channel means — see
+    # «Берилівка» (the spelling Nominatim does have) and «Городище» in block K.
     {"name_uk": "Любеч", "name_en": "Liubech", "lat": 51.7005, "lon": 30.6587,
      "region": "chernihiv", "aliases": []},
     # Михайло-Коцюбинська громада, Чернігівський район. Added after raw 7249
@@ -838,8 +840,16 @@ DISTRICTS: list[dict] = [
     # same mechanism that already fixed Обухове, Антоновичі and Пирогівці.
     {"name_uk": "Івангород", "name_en": "Ivanhorod", "lat": 51.0298, "lon": 32.4608,
      "region": "chernihiv", "aliases": []},
+    # The Мена case again, and it cost 5 messages: a short name ending in a
+    # VOWEL keeps that vowel in its stem (the stemmer will not cut below 4
+    # chars), and inflection REPLACES it — «Ічню»/«Ічні» share no stem with
+    # «Ічня». Every other short entry is consonant-final, where the free case
+    # tail covers everything; the vowel-final ones that still match the
+    # nominative only are Ушня, Тур'я and Буда, and none of them has an
+    # inflected form in the corpus yet. Буда must stay that way: «буду» is a
+    # verb (53 hits) and «буди» is inside «будинок» (27).
     {"name_uk": "Ічня", "name_en": "Ichnia", "lat": 50.8623, "lon": 32.391,
-     "region": "chernihiv", "aliases": []},
+     "region": "chernihiv", "aliases": ["ічню", "ічні"]},
     {"name_uk": "Бажанівка", "name_en": "Bazhanivka", "lat": 50.681, "lon": 31.9493,
      "region": "chernihiv", "aliases": []},
     {"name_uk": "Бакланова Муравійка", "name_en": "Baklanova-Muraviika", "lat": 51.4122, "lon": 31.4422,
@@ -1027,6 +1037,215 @@ DISTRICTS: list[dict] = [
      "region": "chernihiv", "aliases": []},
     {"name_uk": "Деревини", "name_en": "Derevyny", "lat": 52.1037, "lon": 31.5074,
      "region": "chernihiv", "aliases": []},
+
+    # --- K. 2026-08-22 coverage-gap pass over the same northern channel, 732
+    # stored messages. The J batch gave it a Chernihiv CITY layer; this one is
+    # the ring and the corridors AROUND the city, which the spotters narrate at
+    # village granularity («Гірманка,жукотки», «Сядрине тальне на будище»,
+    # «Кучугури на наумівку , сновськ»). Every entry below was geocoded via
+    # Nominatim (scripts/geocode_localities.py, section K), confirmed to sit in
+    # Чернігівська область, and swept as a stem over the WHOLE stored corpus.
+    #
+    # `region_only` here marks the names both oblasts really share — Іванівка,
+    # Новоселівка, Олександрівка, Залісся, Піски, Буда, Дачне, Брусилів are
+    # among the commonest village names in Ukraine, and a Kyiv channel typing
+    # one of them never means the northern village. Hidden from the Kyiv
+    # matcher, those messages simply stay unmatched, which is where they were
+    # anyway — the entry only ever adds coverage for the channel that reports
+    # from there.
+    #
+    # Ambiguity resolved by the callout's own neighbours, not by picking the
+    # first hit: «Кучугури на наумівку , сновськ» is the Корюківка Наумівка,
+    # not the Бобровиця one 100 km south; «Новгород /киселівка» kept the
+    # Киселівська-громада village next to Вознесенське and Березанка, the pair
+    # this channel names all night.
+    #
+    # REJECTED by the sweep or by geography, and why:
+    #   «Замістя» — the stem "заміст" eats the ordinary word «замість», and
+    #     «Розсудів» stems to «розсуд» («на власний розсуд»). Both are kept, but
+    #     as WHOLE-WORD entries (vocab._WHOLE_WORD_ALIASES) — the Остер fix.
+    #   «Світанок» — a village, but «на світанок»/«до світанку» is what this
+    #     genre says about the end of an alert. Whole-word matching cannot help:
+    #     the phrase uses the very same word form.
+    #   «Печі» — the only Печі in the oblast is 100 km from the Остер it was
+    #     called out with; the word is also the plural of «піч».
+    #   «Селище» — six in the oblast, none on a corridor, and the word is the
+    #     generic noun the channel also uses for "the settlement over there".
+    #   «Хорівля», «Красяни», «Івнівка», «Поусівка», «Круги», «Тальне» —
+    #     Nominatim has no point for any of them in Чернігівська область.
+    #   Chernihiv street names («Мазепи», «Чорновола», «Любецька», «Кільцева»)
+    #     and bare city objects («Нафтобаза», «Земснаряд», «Тероборони») — a
+    #     street is a line across the whole city, not a point, and every one of
+    #     those names exists in Kyiv too. They need a different mechanism than
+    #     the gazetteer.
+    {"name_uk": "Автозавод", "name_en": "Avtozavod", "lat": 51.5397, "lon": 31.2522,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    {"name_uk": "Анновка", "name_en": "Annovka", "lat": 51.9441, "lon": 31.0875,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Атюша", "name_en": "Atiusha", "lat": 51.4243, "lon": 32.9906,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Батурин", "name_en": "Baturyn", "lat": 51.3413, "lon": 32.8778,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Берилівка", "name_en": "Berylivka", "lat": 52.0725, "lon": 31.7392,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Бігач", "name_en": "Bihach", "lat": 51.6212, "lon": 31.6466,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Брусилів", "name_en": "BrusylivCH", "lat": 51.5426, "lon": 31.5171,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    {"name_uk": "Буда", "name_en": "BudaCH", "lat": 51.7427, "lon": 32.109,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    {"name_uk": "Ваганичі", "name_en": "Vahanychi", "lat": 52.024, "lon": 31.4346,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Варва", "name_en": "Varva", "lat": 50.4983, "lon": 32.7229,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Велички", "name_en": "Velychky", "lat": 51.6156, "lon": 30.7792,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Вертеча", "name_en": "Vertecha", "lat": 51.5871, "lon": 30.8328,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Вознесенське", "name_en": "Voznesenske", "lat": 51.5248, "lon": 31.4339,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Галайбине", "name_en": "Halaibyne", "lat": 51.3879, "lon": 32.576,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Гірманка", "name_en": "Hirmanka", "lat": 51.5193, "lon": 30.9862,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Дачне", "name_en": "DachneCH", "lat": 51.8826, "lon": 32.7839,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    {"name_uk": "Дігтярі", "name_en": "Dihtiari", "lat": 50.5819, "lon": 32.77,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Жавинка", "name_en": "Zhavynka", "lat": 51.4418, "lon": 31.2502,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Зайці", "name_en": "Zaitsi", "lat": 51.4689, "lon": 31.1239,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Залісся", "name_en": "ZalissiaCH", "lat": 51.8517, "lon": 31.252,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    {"name_uk": "Замістя", "name_en": "Zamistia", "lat": 50.6116, "lon": 32.4244,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Іванівка", "name_en": "IvanivkaCH", "lat": 51.9142, "lon": 32.0972,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    {"name_uk": "Киселівка", "name_en": "Kyselivka", "lat": 51.5343, "lon": 31.4462,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Кинашівка", "name_en": "Kynashivka", "lat": 51.2863, "lon": 32.4059,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Клубівка", "name_en": "Klubivka", "lat": 51.9715, "lon": 30.9427,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Козероги", "name_en": "Kozerohy", "lat": 51.312, "lon": 31.036,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Конятин", "name_en": "Koniatyn", "lat": 51.5935, "lon": 32.7894,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Костючки", "name_en": "Kostiuchky", "lat": 51.7027, "lon": 32.26,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Кучугури", "name_en": "Kuchuhury", "lat": 51.861, "lon": 32.468,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Ладан", "name_en": "Ladan", "lat": 50.5136, "lon": 32.5877,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Левоньки", "name_en": "Levonky", "lat": 51.5633, "lon": 31.0323,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Лемеші", "name_en": "Lemeshi", "lat": 50.9921, "lon": 31.1355,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Лоска", "name_en": "Loska", "lat": 51.8503, "lon": 32.8951,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Лукнів", "name_en": "Lukniv", "lat": 51.5915, "lon": 33.1457,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Маховики", "name_en": "Makhovyky", "lat": 51.7795, "lon": 32.149,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Масани", "name_en": "Masany", "lat": 51.5207, "lon": 31.2275,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Мекшунівка", "name_en": "Mekshunivka", "lat": 51.5659, "lon": 30.7898,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Мохначі", "name_en": "Mokhnachi", "lat": 51.7353, "lon": 30.7813,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Наумівка", "name_en": "NaumivkaCH", "lat": 51.8369, "lon": 32.1948,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Новоселівка", "name_en": "NovoselivkaCH", "lat": 51.5309, "lon": 31.3851,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    {"name_uk": "Нові Яриловичі", "name_en": "Novi-Yarylovychi", "lat": 52.0295, "lon": 31.003,
+     "region": "chernihiv", "aliases": ["яриловичі"]},
+    {"name_uk": "Обмачів", "name_en": "Obmachiv", "lat": 51.3724, "lon": 32.8179,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Олександрівка Друга", "name_en": "Oleksandrivka-Druha", "lat": 51.951, "lon": 30.9515,
+     "region": "chernihiv", "region_only": True, "aliases": ["олександрівка"]},
+    {"name_uk": "Піски", "name_en": "PiskyCH", "lat": 51.1506, "lon": 32.6622,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    {"name_uk": "Подусівка", "name_en": "Podusivka", "lat": 51.4976, "lon": 31.2495,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Попільня", "name_en": "PopilniaCH", "lat": 51.7291, "lon": 32.0389,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Прачі", "name_en": "Prachi", "lat": 51.3655, "lon": 32.4464,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Розсудів", "name_en": "Rozsudiv", "lat": 51.6553, "lon": 30.7473,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Сахнівка", "name_en": "Sakhnivka", "lat": 51.6562, "lon": 31.7333,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Селянська Слобода", "name_en": "Selianska-Sloboda", "lat": 51.542, "lon": 31.0762,
+     "region": "chernihiv", "aliases": ["селянська"]},
+    {"name_uk": "Сухополова", "name_en": "Sukhopolova", "lat": 50.6324, "lon": 32.3799,
+     "region": "chernihiv", "aliases": ["сухополівка"]},
+    {"name_uk": "Сядрине", "name_en": "Siadryne", "lat": 51.8311, "lon": 32.4437,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Травневе", "name_en": "Travneve", "lat": 51.932, "lon": 31.4714,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Трисвятська Слобода", "name_en": "Trysviatska-Sloboda", "lat": 51.4703, "lon": 31.2085,
+     "region": "chernihiv", "aliases": ["трисвятська"]},
+    {"name_uk": "Тростянка", "name_en": "Trostianka", "lat": 51.3288, "lon": 32.6812,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Тур'я", "name_en": "Turia", "lat": 51.9018, "lon": 31.9932,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Хвилівка", "name_en": "Khvylivka", "lat": 50.9793, "lon": 31.881,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Хімволокно", "name_en": "Khimvolokno", "lat": 51.4637, "lon": 31.247,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    {"name_uk": "Чепелів", "name_en": "Chepeliv", "lat": 51.8658, "lon": 32.0832,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Шмаївка", "name_en": "Shmaivka", "lat": 51.3749, "lon": 30.6762,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Ялівщина", "name_en": "Yalivshchyna", "lat": 51.5238, "lon": 31.3006,
+     "region": "chernihiv", "aliases": []},
+
+    # K2 — the 2026-08-22 MORNING wave, same channel: a Бахмач→Борзна→Ніжин→
+    # Носівка run toward Kyiv that the ring entries above could not follow. Two
+    # of these are why the pass was worth it beyond the dots: «Бобрик» was the
+    # ROOT of a reply chain («На Держанівку» answers it), and a root with no
+    # event costs every message after it (find_track_by_reply needs the parent
+    # to have produced one).
+    #
+    # «Бобрик» and «Городище» are region_only: Бобрик is also a Броварський-
+    # район village right next to Велика Димерка, and Городище exists five times
+    # in this oblast alone plus in Київська and Черкаська. The Батурин one is
+    # what all three corpus mentions fit — «Обмачів на городище,Бахмач» puts it
+    # exactly between those two, and the 08:03 callout follows «Митченки 2»,
+    # its neighbour in the same громада.
+    #
+    # «Прогрес» is the Кіптівська-громада village (the callout sits between two
+    # «Кіпті» ones), and it is WHOLE-WORD: as a stem it would eat «прогресу»/
+    # «прогресом» in any fundraising or status post.
+    {"name_uk": "Богданове", "name_en": "Bohdanove", "lat": 52.3082, "lon": 33.2745,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Бобрик", "name_en": "Bobryk", "lat": 51.1352, "lon": 31.7841,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    {"name_uk": "Вересоч", "name_en": "Veresoch", "lat": 51.311, "lon": 31.7905,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Вовчок", "name_en": "Vovchok", "lat": 51.1599, "lon": 31.0424,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Волосківці", "name_en": "Voloskivtsi", "lat": 51.5482, "lon": 32.0066,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Городище", "name_en": "HorodyshcheCH", "lat": 51.271, "lon": 32.7983,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    {"name_uk": "Держанівка", "name_en": "Derzhanivka", "lat": 51.0662, "lon": 31.3323,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Костобобрів", "name_en": "Kostobobriv", "lat": 52.2311, "lon": 32.915,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Кунашівка", "name_en": "Kunashivka", "lat": 51.0473, "lon": 32.0085,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Локнисте", "name_en": "Loknyste", "lat": 51.5248, "lon": 31.7113,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Маличина Гребля", "name_en": "Malychyna-Hreblia", "lat": 51.3192, "lon": 32.4776,
+     "region": "chernihiv", "aliases": ["маличина"]},
+    {"name_uk": "Прогрес", "name_en": "Prohres", "lat": 51.122, "lon": 31.1772,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Стольне", "name_en": "Stolne", "lat": 51.5139, "lon": 31.9153,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Хатилова Гута", "name_en": "Khatylova-Huta", "lat": 51.3072, "lon": 30.6924,
+     "region": "chernihiv", "aliases": ["хатилова"]},
 
     # Sentinel "district" for CITY-WIDE threats — a strike aimed at the city as
     # a whole ("ціль на місто", "балістика на Київ") that no spotter localizes

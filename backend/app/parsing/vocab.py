@@ -208,6 +208,30 @@ _COUNT_MOVING_RE = re.compile(
     r"(?:долітаю|долітає|летят|летить|йдут|ідут|іде\b|рухаю|сунут|заходят|прямую|проходят)",
     re.IGNORECASE,
 )
+# A count written NEXT TO the place, with no noun, preposition or verb between
+# them: «Замглай два», «Бровари 6 штук», «Славутич 2», «Два хрінівка на
+# Добрянка». It is how the northern channel counts almost everything, and none
+# of the four rules above can see it — 36 real messages showed a located track
+# as ×1 while the spotter had said how many.
+#
+# The PLACE is the anchor, so these are half-rules like _COUNT_TO_PLACE_RE: the
+# caller applies them to the text right after / right before a gazetteer match
+# (rules.py::_target_count), using the match's real end. That end is what tells
+# «Район ТЕЦ два» (a count) from «ТЕЦ-5» (the plant's number, inside the name) —
+# 20 real messages name the two plants that way.
+#
+# Guards, each from a real corpus line:
+#   - at least one separator, so a digit glued to the name is not a count;
+#   - not a clock or a decimal («Суми 3:30 Харків 3:45» is an arrival table);
+#   - not a unit («Ніжин 5 хв увага» is a warning time, not five targets).
+# Ordinals need no guard: the channel indexes targets with «перша/другий/
+# третій», none of which is a numeral word (see _NUM_WORDS), so «Мекшунівка
+# третій» stays uncounted on its own.
+_NOT_A_COUNT_TAIL = r"(?![а-яіїєґ0-9])(?![.:]\d)(?!\s*(?:хв|год|км|сек)[а-яіїєґ]*)"
+_COUNT_AFTER_PLACE_RE = re.compile(
+    rf"^[\s,.•]{{1,3}}({_NUM_SHORT}){_NOT_A_COUNT_TAIL}", re.IGNORECASE)
+_COUNT_BEFORE_PLACE_RE = re.compile(
+    rf"(?<![-:0-9а-яіїєґa-z])({_NUM_SHORT}){_NOT_A_COUNT_TAIL}[\s,.•]{{1,3}}$", re.IGNORECASE)
 
 # Terse target/launch "pulse" with no location ("Ціль!", "Ще вихід", "3 ракети").
 # Too terse to localize alone; only acted on during an open city-wide alert.
@@ -753,7 +777,20 @@ _WHOLE_WORD_ALIASES = frozenset({"чзв", "пох", "бц", "голос", "пу
                                  # entry explains 5 characters of the same word
                                  # and wins the specificity resolution in
                                  # DistrictMatcher.find. Swept over the corpus.
-                                 "тец"})
+                                 "тец",
+                                 # Two 2026-08-22 villages whose stems are
+                                 # ordinary words: "заміст" is inside «замість»
+                                 # (2 real messages) and "розсуд" inside «на
+                                 # власний розсуд». Whole-word keeps the place
+                                 # and drops the collision, exactly as for
+                                 # «остер»; the corpus only ever names them in
+                                 # the nominative.
+                                 "замістя", "розсудів",
+                                 # Same class, 08-22: a Кіптівська-громада
+                                 # village whose name is an ordinary noun — as a
+                                 # stem it would claim «прогресу»/«прогресом» in
+                                 # any fundraising or status post.
+                                 "прогрес"})
 
 # An alias that is also part of a PROPER NAME, keyed to the word that follows it.
 # "Голос Києва" is a Telegram channel other channels quote ("Голос Києва —

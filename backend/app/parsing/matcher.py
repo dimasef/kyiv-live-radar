@@ -40,6 +40,11 @@ class DistrictHit:
     name: str
     position: int  # char offset of the match (used to order a moving track)
     stem_len: int = 0  # length of the matched stem (specificity, for dedup)
+    # Char offset just past the WHOLE match, case tail included. Needed by the
+    # count rules to tell «Замглай два» (two targets over Замглай) from «ТЕЦ-5»
+    # (a plant's number, part of the name) — `position + stem_len` cannot: the
+    # stem is only the part of the word the entry explained.
+    end: int = 0
 
 
 # Punctuation to skip when looking at the word next to a match. The quote marks
@@ -241,7 +246,8 @@ class DistrictMatcher:
                     continue
                 if _missing_required_prev(norm_text, m.start(), m.end()):
                     continue
-                hits[did] = (DistrictHit(did, name, m.start(), len(matched)), preferred)
+                hits[did] = (
+                    DistrictHit(did, name, m.start(), len(matched), m.end()), preferred)
                 break
         # Resolve prefix overlaps (e.g. Оболонь vs Оболонський matching the same
         # word): among hits at the same start offset, keep the most specific

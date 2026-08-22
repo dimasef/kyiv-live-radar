@@ -134,6 +134,45 @@ def test_bare_count_needs_a_known_place_after_it():
     assert parse_message("3.5 на Славутич", M).target_count is None
 
 
+def test_count_written_next_to_the_place():
+    """The northern channel's own shape: the number sits against the toponym,
+    with no noun, preposition or verb to anchor it («Замглай два», «Бровари 6
+    штук», «Два хрінівка на Добрянка»). 25 real messages showed a located track
+    as ×1 while the spotter had said how many."""
+    north = DistrictMatcher(
+        [{"id": i + 1, **d} for i, d in enumerate(DISTRICTS)], prefer_region="chernihiv")
+    for text, want in [
+        ("Замглай два", 2),
+        ("Городня два", 2),
+        ("Ріпки Замглай два з півночі", 2),
+        ("Селище на козелець, Остер дві шт", 2),
+        ("Титівка на Переходівку дві", 2),
+        ("Любеч три на Славутич", 3),
+        ("Два хрінівка на Добрянка", 2),
+        ("Чернігів 1", 1),
+    ]:
+        assert parse_message(text, north).target_count == want, text
+    assert parse_message("Бровари 6 штук", M).target_count == 6
+    assert parse_message("Славутич 2", M).target_count == 2
+
+
+def test_a_number_beside_a_place_that_is_not_a_count():
+    """Every one of these is a real message, and each is a different way the
+    shape above could go wrong."""
+    north = DistrictMatcher(
+        [{"id": i + 1, **d} for i, d in enumerate(DISTRICTS)], prefer_region="chernihiv")
+    # The plant's own number, part of the matched name — this is why the rule
+    # anchors on the hit's END rather than on stem length.
+    assert parse_message("На ТеЦ-5🔴.", M).target_count is None
+    assert parse_message("Троєщина, ТЕЦ-6, Бровари - уважно", M).target_count is None
+    # A warning time and an arrival table, not targets.
+    assert parse_message("Ніжин 5 хв увага ‼️", north).target_count is None
+    assert parse_message("Суми 3:30 Харків 3:45 Чернігів 4:15", M).target_count is None
+    # An ORDINAL indexes the target within the wave; it is not how many.
+    for text in ("Мекшунівка третій", "Прилуки південь перша", "Велички другий"):
+        assert parse_message(text, north).target_count is None, text
+
+
 def test_count_on_a_moving_number():
     # Real messages. The verb is the anchor: the place can be several words away
     # ("3 долітають до Броварів") or absent entirely ("Ще 4 летить"), so the
