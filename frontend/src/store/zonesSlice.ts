@@ -18,6 +18,12 @@ export interface ZonesSlice {
    * that most sessions never need. */
   zoneGeometry: AlertZoneGeometry
   zoneLayerOn: boolean
+  /** Bumped every time the operator switches the layer ON, so the map can widen
+   * to fit the lit raions (see controllers/ZoneAutoFit). A counter rather than a
+   * boolean because the same request can be made again and again, and it must
+   * fire each time; 0 means "never asked". Deliberately NOT bumped at boot: a
+   * remembered switch is not a gesture, and the map owes it no move. */
+  zoneFitToken: number
   /** Raions whose all-clear just landed, held for ALL_CLEAR_FLASH_MS so the map
    * can light them green. A moment, not a state — nothing reads it as "quiet". */
   zoneAllClear: Record<string, true>
@@ -45,6 +51,7 @@ export const createZonesSlice: StateCreator<RadarState, [], [], ZonesSlice> = (s
   zones: {},
   zoneGeometry: {},
   zoneLayerOn: safeGet(STORAGE_KEYS.zoneLayer) === '1',
+  zoneFitToken: 0,
   zoneAllClear: {},
   // Both the hydration fetch and the WS frame land here: a frame carries only
   // the zones that changed, so this merges rather than replaces.
@@ -86,7 +93,7 @@ export const createZonesSlice: StateCreator<RadarState, [], [], ZonesSlice> = (s
   toggleZoneLayer: () => {
     const on = !get().zoneLayerOn
     safeSet(STORAGE_KEYS.zoneLayer, on ? '1' : '0')
-    set({ zoneLayerOn: on })
+    set((st) => ({ zoneLayerOn: on, zoneFitToken: on ? st.zoneFitToken + 1 : st.zoneFitToken }))
     if (on) get().ensureZoneGeometry()
   },
 })

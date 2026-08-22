@@ -1,4 +1,4 @@
-import type { AlertZone } from '@/types'
+import type { AlertZone, AlertZoneGeometry } from '@/types'
 
 /** How a zone should be painted. `stale` is its own tone on purpose: when the
  * provider is unreachable we know nothing, and drawing that as "відбій" would
@@ -51,4 +51,43 @@ export function alertedZones(zones: Record<string, AlertZone>): AlertZone[] {
   return Object.values(zones)
     .filter((z) => z.alert && !z.stale)
     .sort((a, b) => (b.changed_at ?? '').localeCompare(a.changed_at ?? ''))
+}
+
+/** South-west / north-east corner of everything the layer LIGHTS UP, in
+ * Leaflet's [lat, lon] order — the box the view has to take in for the siren
+ * picture to be readable at a glance.
+ *
+ * Alerted raions when there are any, otherwise the whole watched area: with
+ * nothing sounding, "the layer" IS all of it, and framing one arbitrary quiet
+ * raion would be worse than framing the lot.
+ *
+ * Null when there is nothing to frame — the polygons load lazily on the first
+ * switch-on, so an empty geometry means "not here yet", not "nowhere". */
+export function zoneFitBounds(
+  geometry: AlertZoneGeometry,
+  zones: Record<string, AlertZone>,
+): [[number, number], [number, number]] | null {
+  const lit = Object.keys(geometry).filter((id) => zones[id] && zoneTone(zones[id]) === 'alert')
+  const ids = lit.length > 0 ? lit : Object.keys(geometry)
+  let south = Infinity
+  let west = Infinity
+  let north = -Infinity
+  let east = -Infinity
+  for (const id of ids) {
+    const shape = geometry[id].geojson
+    // GeoJSON nests one level deeper for a MultiPolygon, and positions are
+    // [lon, lat] — the opposite order to everything Leaflet is handed.
+    const polygons = shape.type === 'Polygon' ? [shape.coordinates] : shape.coordinates
+    for (const rings of polygons) {
+      for (const ring of rings) {
+        for (const [lon, lat] of ring) {
+          if (lat < south) south = lat
+          if (lat > north) north = lat
+          if (lon < west) west = lon
+          if (lon > east) east = lon
+        }
+      }
+    }
+  }
+  return Number.isFinite(south) ? [[south, west], [north, east]] : null
 }

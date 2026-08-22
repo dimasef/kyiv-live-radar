@@ -5,6 +5,7 @@ import {
   Circle,
   MapContainer,
   Marker,
+  ScaleControl,
   TileLayer,
   Tooltip,
 } from "react-leaflet";
@@ -17,7 +18,12 @@ import AlertZoneLayer from "./AlertZoneLayer";
 import AxisLayer from "./AxisLayer";
 import CitywidePulse from "./CitywidePulse";
 import { KYIV_BOUNDS, MIN_ZOOM, WORLD_BOUNDS } from "./constants";
-import { HomeController, InspectController, ResizeHandler } from "./controllers";
+import {
+  HomeController,
+  InspectController,
+  ResizeHandler,
+  ZoneAutoFit,
+} from "./controllers";
 import DistrictLayer from "./DistrictLayer";
 import FriendLayer from "./FriendLayer";
 import HomeCompass from "./HomeCompass";
@@ -103,13 +109,22 @@ export default function MapView() {
 
         {/* Official raion air-alert state — background context, so it goes
             under the Kyiv raion outlines and every marker. */}
-        {zoneLayerOn && <AlertZoneLayer />}
+        {zoneLayerOn && (
+          <>
+            <AlertZoneLayer />
+            <ZoneAutoFit />
+          </>
+        )}
         {/* Real OSM raion boundaries with hover name tooltips; clicks bubble
             through to the map (pan / home placement). */}
         <DistrictLayer />
         {/* City-wide pulse layer over the inert base boundaries. Per-incident
             raion "attack heat" (IncidentHighlight) is intentionally not drawn. */}
         <CitywidePulse />
+
+        {/* Distance reference for the whole map. Metric only, and bottom-RIGHT
+            because the bottom-left corner belongs to MapControls. */}
+        <ScaleControl position="bottomright" imperial={false} maxWidth={110} />
 
         <ResizeHandler />
         <HomeController />

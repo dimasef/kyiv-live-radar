@@ -34,6 +34,13 @@ export const WORLD_BOUNDS: [[number, number], [number, number]] = [
 export const INSPECT_ZOOM = 11;
 export const INSPECT_MAX_ZOOM = 12;
 
+// Slack around the lit raions when the alert layer widens the view
+// (controllers/ZoneAutoFit). Leaflet applies a `padding` to both sides of each
+// axis, so the vertical figure is what has to clear the map's lower furniture —
+// the mobile sheet handle and the control cluster sit over it, and a raion
+// tucked under them is not visible for this purpose.
+export const ZONE_FIT_PADDING: [number, number] = [40, 72];
+
 /** Raion air-alert outlines (AlertZoneLayer). Drawn UNDER the Kyiv raion
  * outlines and every marker, so the state has to read at a glance while staying
  * quiet enough that a target on top of it is still the loudest thing on the map.

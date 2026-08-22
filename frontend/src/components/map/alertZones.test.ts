@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { AlertZone } from '@/types'
 
-import { alertedZones, compactSinceLabel, sinceParts, zoneTone } from './alertZones'
+import { alertedZones, compactSinceLabel, sinceParts, zoneFitBounds, zoneTone } from './alertZones'
 
 const zone = (over: Partial<AlertZone> = {}): AlertZone => ({
   zone_id: 'kyiv-obl-vyshhorodskyi',
@@ -76,5 +76,84 @@ describe('compactSinceLabel', () => {
 
   it('says nothing when there is no transition to measure from', () => {
     expect(compactSinceLabel(null)).toBeNull()
+  })
+})
+
+describe('zoneFitBounds', () => {
+  const square = (
+    lat: number,
+    lon: number,
+  ): { name_uk: string; oblast: string; geojson: GeoJSON.Polygon } => ({
+    name_uk: 'x',
+    oblast: 'y',
+    geojson: {
+      type: 'Polygon',
+      // [lon, lat] — GeoJSON order, the opposite of what the result must be in.
+      coordinates: [
+        [
+          [lon, lat],
+          [lon + 1, lat],
+          [lon + 1, lat + 1],
+          [lon, lat + 1],
+          [lon, lat],
+        ],
+      ],
+    },
+  })
+
+  const geometry = { a: square(50, 30), b: square(52, 32) }
+
+  it('frames only the raions under alert', () => {
+    const bounds = zoneFitBounds(geometry, {
+      a: zone({ zone_id: 'a', alert: true }),
+      b: zone({ zone_id: 'b', alert: false }),
+    })
+    expect(bounds).toEqual([
+      [50, 30],
+      [51, 31],
+    ])
+  })
+
+  it('falls back to the whole watched area when nothing is sounding', () => {
+    const bounds = zoneFitBounds(geometry, {
+      a: zone({ zone_id: 'a' }),
+      b: zone({ zone_id: 'b' }),
+    })
+    expect(bounds).toEqual([
+      [50, 30],
+      [53, 33],
+    ])
+  })
+
+  it('ignores a zone whose siren state is stale — we do not know it is lit', () => {
+    const bounds = zoneFitBounds(geometry, {
+      a: zone({ zone_id: 'a', alert: true, stale: true }),
+      b: zone({ zone_id: 'b', alert: true }),
+    })
+    expect(bounds).toEqual([
+      [52, 32],
+      [53, 33],
+    ])
+  })
+
+  it('reads a MultiPolygon, not just a Polygon', () => {
+    const multi = {
+      m: {
+        name_uk: 'x',
+        oblast: 'y',
+        geojson: {
+          type: 'MultiPolygon' as const,
+          coordinates: [square(50, 30).geojson.coordinates, square(52, 32).geojson.coordinates],
+        },
+      },
+    }
+    expect(zoneFitBounds(multi, { m: zone({ zone_id: 'm', alert: true }) })).toEqual([
+      [50, 30],
+      [53, 33],
+    ])
+  })
+
+  it('says nothing when the polygons have not loaded yet', () => {
+    expect(zoneFitBounds({}, {})).toBeNull()
   })
 })
