@@ -528,8 +528,11 @@ DISTRICTS: list[dict] = [
      "region": "chernihiv", "aliases": []},
     {"name_uk": "Хрінівка", "name_en": "Khrinivka", "lat": 52.0691, "lon": 31.8401,
      "region": "chernihiv", "aliases": []},
+    # The alias is the genitive plural: «на район ріпок» drops the и and inserts
+    # an о inside the root, and the stemmer only strips case ENDINGS — «ріпк»
+    # never reaches «ріпок». Two real callouts sat unlocalized on that one vowel.
     {"name_uk": "Ріпки", "name_en": "Ripky", "lat": 51.8036, "lon": 31.0931,
-     "region": "chernihiv", "aliases": []},
+     "region": "chernihiv", "aliases": ["ріпок"]},
     {"name_uk": "Сеньківка", "name_en": "Senkivka", "lat": 52.1064, "lon": 31.7809,
      "region": "chernihiv", "aliases": []},
     {"name_uk": "Будище", "name_en": "Budyshche", "lat": 51.3024, "lon": 30.77,
@@ -1246,6 +1249,96 @@ DISTRICTS: list[dict] = [
      "region": "chernihiv", "aliases": []},
     {"name_uk": "Хатилова Гута", "name_en": "Khatylova-Huta", "lat": 51.3072, "lon": 30.6924,
      "region": "chernihiv", "aliases": ["хатилова"]},
+
+    # --- L. 2026-08-23 cross-region audit. Not a coverage pass: these are the
+    # names that made the northern channel produce a KYIV target. All 10 stored
+    # «northern channel -> Kyiv district» events were of this shape — the spoken
+    # word is LONGER than the Kyiv entry's stem and denotes a different place
+    # 150+ km away: «Мезин, деснянське» became Деснянський РАЙОН of Kyiv (and
+    # opened a Kyiv attack banner — incident 208), «На Оболоння на короп» became
+    # Оболонь, «Чайкине на жадове» became Чайки. The remaining three of the ten
+    # (Пирогівці, Обухове, Березанка) already have entries from earlier passes,
+    # which is exactly what this batch does for the rest.
+    #
+    # The one-per-name fix and the visibility rule in DistrictMatcher (a non-home
+    # channel sees only its own region) are complementary: the rule stops the
+    # CLASS, including names nobody has hit yet; the entries are what make these
+    # messages resolve to the right village instead of to nothing. Geocoded via
+    # scripts/geocode_localities.py section J, confirmed in Чернігівська обл.,
+    # and swept as stems over all 6 079 stored messages: 4 changed, all four the
+    # intended fixes, zero Kyiv-side regressions.
+    {"name_uk": "Деснянське", "name_en": "Desnianske CH", "lat": 51.7941, "lon": 33.0583,
+     "region": "chernihiv", "aliases": []},
+    # Ships with Деснянське: they are 2.5 km apart and the channel calls them in
+    # one breath («Мезин, деснянське»), which is also what identified the pair.
+    {"name_uk": "Мезин", "name_en": "Mezyn", "lat": 51.8235, "lon": 33.0719,
+     "region": "chernihiv", "aliases": []},
+    # region_only, and the sweep is why: «Оболоння» ate SIX Kyiv «над Оболонню»
+    # callouts. Its stem ("оболонн") explains more of that word than Оболонь's
+    # own ("оболон") does, so the more-specific rule hands the Kyiv raion to the
+    # northern village — the one case in this batch where prefer_region cannot
+    # help, because the tie is not a tie. Hidden from the Kyiv matcher, both
+    # sides read correctly (cf. ТЕЦ/Вокзал in J3).
+    {"name_uk": "Оболоння", "name_en": "Obolonnia", "lat": 51.6202, "lon": 32.9292,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    {"name_uk": "Чайкине", "name_en": "Chaikyne", "lat": 52.1682, "lon": 32.9981,
+     "region": "chernihiv", "aliases": []},
+
+    # --- M. 2026-08-23 coverage-gap pass over the WHOLE stored corpus (6 091
+    # messages, 1 132 unlocalized with a candidate word). Ranked over the
+    # callout-shaped messages only (<=7 words): a place name inside a long
+    # evening report is where the ordinary-word noise lives («укриття»,
+    # «гучно», «локаційно»), and none of it is a gazetteer gap. Of the 92
+    # candidates with two or more mentions, these are the ones that are places.
+    # Geocoded via scripts/geocode_localities.py section K; swept as stems over
+    # the whole corpus: 41 messages change, zero regressions.
+    #
+    # Chernihiv CITY landmarks, all region_only for the J3 reason — both oblasts
+    # have a Шевченка street and a ring road, and the northern spotters narrate
+    # their own city at that granularity («Мазепи йде», «На полуботки»).
+    {"name_uk": "Мазепи", "name_en": "Mazepy St CH", "lat": 51.4938, "lon": 31.2816,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    # Kyiv has a Шевченківський РАЙОН whose stem («шевченківськ») is longer and
+    # would win anyway; region_only makes that structural rather than lucky.
+    {"name_uk": "Шевченка", "name_en": "Shevchenka St CH", "lat": 51.4935, "lon": 31.3048,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    {"name_uk": "Полуботка", "name_en": "Polubotka St CH", "lat": 51.5055, "lon": 31.3201,
+     "region": "chernihiv", "region_only": True, "aliases": ["полуботки"]},
+    # «Кільцева» is also how Kyiv talks about its ring road and its circular
+    # commuter line («Рух Кільцевою дорогою перекрито», 4 such posts) — none of
+    # which are sightings. region_only keeps the two apart.
+    {"name_uk": "Кільцева", "name_en": "Kiltseva St CH", "lat": 51.5299, "lon": 31.3161,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    {"name_uk": "Епіцентр", "name_en": "Epicentr CH", "lat": 51.4987, "lon": 31.2537,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    # Northern villages. Лісконоги has one mention, and it is the SAME callout as
+    # Мамекине («Лісконоги на мамекине») — a vector between two neighbours 5 km
+    # apart, which is only readable if both exist (cf. Короп/Коропʼє).
+    {"name_uk": "Мамекине", "name_en": "Mamekyne", "lat": 52.104, "lon": 33.2281,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Лісконоги", "name_en": "Liskonohy", "lat": 52.1365, "lon": 33.2765,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Брагинці", "name_en": "Brahyntsi", "lat": 50.5314, "lon": 32.9703,
+     "region": "chernihiv", "aliases": []},
+
+    # Kyiv's central station. The J3 batch gave Чернігів its «Вокзал» and noted
+    # the Kyiv side was covered by ТЕЦ-5's aliases — it wasn't: «Вокзал 🔴», «Ще
+    # на Вокзал», «На Вокзал повз Університет 🔴» all landed nowhere. Both
+    # entries are region_only, so each channel sees its own station and neither
+    # sees the other's. «Вокзальна площа» keeps its own callouts: its stem is
+    # longer, and the more-specific rule prefers it.
+    {"name_uk": "Вокзал", "name_en": "Kyiv Station", "lat": 50.4404, "lon": 30.4894,
+     "region": "kyiv", "region_only": True, "aliases": []},
+
+    # Українка, Обухівський р-н — 11 callouts across three channels («Рогозів/
+    # Українка/Трипілля/Обухів 🔴», «На Українку, Васильків», «в бік Українки»),
+    # more than anything else in this batch. It ships ONLY because
+    # matcher._is_airbase_reference exists: «аеродром «Українка»» is a Russian
+    # strategic-bomber base in Amur Oblast, named in 20+ stored strategic
+    # reports, and without the veto every Ту-95 take-off drew a live target 40 km
+    # south of Kyiv. Do not remove one without removing the other.
+    {"name_uk": "Українка", "name_en": "Ukrainka", "lat": 50.1537, "lon": 30.7421,
+     "region": "kyiv", "aliases": ["українки", "українку"]},
 
     # Sentinel "district" for CITY-WIDE threats — a strike aimed at the city as
     # a whole ("ціль на місто", "балістика на Київ") that no spotter localizes

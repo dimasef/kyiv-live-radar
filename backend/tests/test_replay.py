@@ -10,10 +10,10 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db import Base
 from app.feeds.replay import _CHANNELS, _load_messages
-from app.gazetteer import DISTRICTS
 from app.models import District, Source
 from app.parsing import DistrictMatcher
 from app.pipeline.ingest import ingest_message
+from tests.conftest import district_rows
 
 
 @pytest_asyncio.fixture
@@ -23,8 +23,7 @@ async def ctx(tmp_path):
         await conn.run_sync(Base.metadata.create_all)
     Session = async_sessionmaker(engine, expire_on_commit=False)
     async with Session() as s:
-        s.add_all(District(name_uk=d["name_uk"], name_en=d["name_en"], lat=d["lat"],
-                           lon=d["lon"], aliases=d.get("aliases", [])) for d in DISTRICTS)
+        s.add_all(district_rows())
         await s.commit()
         districts = list(await s.scalars(select(District)))
         matcher = DistrictMatcher(districts)

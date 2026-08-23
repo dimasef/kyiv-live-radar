@@ -86,6 +86,47 @@ def _is_foreign_sea(norm_text: str, start: int, end: int) -> bool:
     return any(before_word.startswith(a) for a in _FOREIGN_SEA_ADJ)
 
 
+# Gazetteer names that are ALSO the name of a Russian strategic-bomber base.
+# «Українка» is a town in Обухівський р-н, 40 km south of Kyiv, AND the Amur
+# Oblast base the Ту-95МС/Ту-160 fly from — and the strategic reports name the
+# base more often than the spotters name the town (20+ stored posts against 11
+# real callouts). Matched by STEM, so this is the stem, not the name.
+_AIRBASE_HOMONYM_STEMS = ("українк",)
+
+# What marks the whole message as one of those reports. The adjacent word is not
+# enough on its own: the channel writes «з ае. «Українка»» (abbreviated), lists
+# two bases off one preposition («з аеродромів «Оленья» та «Українка»»), and
+# sometimes names the base by context alone («передислоковані сьогодні з
+# Українки на Оленью»). What every one of them DOES carry is the vocabulary of
+# strategic aviation — a bomber type or another base — while not one of the 11
+# real town callouts does.
+#
+# Stems, not words: the base names decline too («на Оленью», «з Оленьї»), and
+# «передислоковані» is the same report as «передислокація». Being generous costs
+# nothing here — the veto only ever looks at a message that already named
+# Українка, and no real callout of the town carries any of this vocabulary.
+_AIRBASE_CONTEXT = (
+    "аеродром", "авіабаз", "ае.", "олень", "оленя", "енгельс", "енгельм",
+    "дягилево", "шайковк", "борисоглєбск", "белая", "ту-95", "ту95", "ту-160",
+    "ту160", "ту-22", "ту22", "тушк", "бомбардувальник", "передислок",
+    "пускові рубежі",
+)
+
+
+def _is_airbase_reference(norm_text: str, start: int, end: int) -> bool:
+    """True if a match at [start:end) is the NAME OF A RUSSIAN AIRBASE rather
+    than the Kyiv-oblast town it shares a name with.
+
+    Scoped to the stems that actually have that problem (as `_is_foreign_sea`
+    scopes itself to the море-family token), and judged on the WHOLE message
+    rather than the adjacent word — see `_AIRBASE_CONTEXT` for why the adjacent
+    word is not enough. Without this veto the entry cannot exist: every Ту-95
+    take-off would draw a live target south of Kyiv."""
+    if not norm_text[start:end].startswith(_AIRBASE_HOMONYM_STEMS):
+        return False
+    return any(w in norm_text for w in _AIRBASE_CONTEXT)
+
+
 # Word endings that turn a CITY's stem into its OBLAST ("Чернігів" ->
 # "Чернігівщина"/"Чернігівська область", "Суми" -> "Сумщина"). The stemmer can't
 # tell them apart — «чернігів» plus a free case tail swallows both — but the two
@@ -149,6 +190,17 @@ def _missing_required_prev(norm_text: str, start: int, end: int) -> bool:
     return False
 
 
+def _visible_to(prefer_region: str | None, region: str | None) -> bool:
+    """Whether an entry of `region` is matchable by a channel from
+    `prefer_region`. The home region (and an unspecified one) sees everything;
+    every other region sees only its own. An entry with no region of its own is
+    home-region by default, which is what makes the whole Kyiv gazetteer
+    invisible to the northern matcher without touching a single row."""
+    if prefer_region is None or prefer_region == _HOME_REGION:
+        return True
+    return (region or _HOME_REGION) == prefer_region
+
+
 class DistrictMatcher:
     """Compiles per-district stem regexes from names + aliases for fast matching.
 
@@ -170,6 +222,25 @@ class DistrictMatcher:
     faces no tie, so a Chernihiv «ТЕЦ» would have claimed all 42 Kyiv mentions
     of theirs. With `prefer_region=None` the home region's entries are the ones
     kept, matching HOME_REGION's role as the default for anything unstated.
+
+    Visibility is ASYMMETRIC: a channel outside the home region sees ONLY its
+    own region's entries, while a home-region channel keeps seeing everything.
+    That is not symmetry for its own sake — it is what the traffic looks like.
+    Kyiv channels legitimately narrate the northern approach (68 stored events
+    over Chernihiv districts); the northern channel never reports a Kyiv place
+    correctly, and all 10 of its stored Kyiv-district events were false matches
+    on a longer northern name («Мезин, деснянське» -> Деснянський РАЙОН of Kyiv,
+    «На Оболоння на короп» -> Оболонь, «Чайкине на жадове» -> Чайки). Those cost
+    more than a wrong pin: the district's region is what a track inherits, so a
+    mis-match promotes a northern blip into a Kyiv track, a Kyiv incident and a
+    "attack finished" card (incident 208, 2026-08-22). Measured over all 926
+    northern messages, the rule changes 4 of them and every one is a fix.
+
+    A target that genuinely crosses into Kyiv oblast still hands over normally —
+    the Kyiv channels are the ones that call it in (handlers._hand_over_region).
+    If the northern channel ever names a Kyiv place, the message stays
+    unlocalized and surfaces in the admin coverage-gap queue, which is visible
+    rather than silent.
     """
 
     def __init__(self, districts, prefer_region: str | None = None):
@@ -198,6 +269,11 @@ class DistrictMatcher:
                 d.get("region_only") if isinstance(d, dict) else getattr(d, "region_only", False)
             )
             if region_only and region != (prefer_region or _HOME_REGION):
+                continue
+            # …and OUTSIDE the home region every entry behaves that way: a
+            # northern channel is shown northern places only (see the class
+            # docstring for the measurement).
+            if not _visible_to(prefer_region, region):
                 continue
             self.districts_index.append((did, name))
             if region:
@@ -239,6 +315,8 @@ class DistrictMatcher:
                 if _is_street_reference(norm_text, m.start(), m.end()):
                     continue
                 if _is_foreign_sea(norm_text, m.start(), m.end()):
+                    continue
+                if _is_airbase_reference(norm_text, m.start(), m.end()):
                     continue
                 if _is_oblast_form(norm_text, m.start(), m.end(), matched):
                     continue

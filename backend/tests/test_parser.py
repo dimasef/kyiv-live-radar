@@ -1519,16 +1519,56 @@ def test_antonov_alias_does_not_swallow_a_chernihiv_village():
         SimpleNamespace(
             id=i + 1, name_uk=d["name_uk"], name_en=d["name_en"], lat=d["lat"],
             lon=d["lon"], aliases=d.get("aliases") or [], region=d.get("region", "kyiv"),
+            region_only=bool(d.get("region_only", False)),
         )
         for i, d in enumerate(DISTRICTS)
     ]
-    north = RegionMatchers(ds).for_region("chernihiv")
+    matchers = RegionMatchers(ds)
+    north, kyiv = matchers.for_region("chernihiv"), matchers.for_region("kyiv")
 
     hits = parse_message("Антоновичі", north).districts
     assert [h.name for h in hits] == ["Антоновичі"]
     assert ds[hits[0].district_id - 1].region == "chernihiv"
 
-    # The plant itself still localizes — that is what the alias is for.
-    assert [h.name for h in parse_message("завод Антонова", north).districts] == ["Нивки"]
+    # The plant itself still localizes — that is what the alias is for. Asserted
+    # through the KYIV matcher, because the northern one no longer sees a Kyiv
+    # place at all (DistrictMatcher's asymmetric visibility rule).
+    assert [h.name for h in parse_message("завод Антонова", kyiv).districts] == ["Нивки"]
+    assert parse_message("завод Антонова", north).districts == []
     # …and no longer bleeds into unrelated words sharing the prefix.
     assert parse_message("антоновка", north).districts == []
+    assert parse_message("антоновка", kyiv).districts == []
+
+
+def test_ukrainka_town_matches_but_the_russian_airbase_does_not():
+    """«Українка» is a town in Обухівський р-н AND the Amur Oblast base the
+    Ту-95МС/Ту-160 fly from. The channel names the base more often than the
+    spotters name the town, so the entry only works with the veto: without it
+    every strategic-aviation report drew a live target 40 km south of Kyiv.
+
+    Measured over the stored corpus: 11 real callouts match, 20+ reports don't."""
+    # Real callouts — the town.
+    assert names(parse_message("Рогозів/Українка/Трипілля/Обухів 🔴.", M)) == \
+        ["Рогозів", "Українка", "Трипілля", "Обухів"]
+    assert names(parse_message("На Українку, Васильків", M)) == ["Українка", "Васильків"]
+    assert names(parse_message("Низько йдуть, в бік Українки", M)) == ["Українка"]
+    assert names(parse_message("Бориспіль та Українка, обережно!", M)) == \
+        ["Бориспіль", "Українка"]
+
+    # Strategic-aviation reports — the airbase. All four shapes the channel
+    # actually writes, including the ones an adjacent-word rule cannot see.
+    for text in (
+        "У повітрі щонайменше 4х Ту-160 з аеродрому «Українка», очікуємо на пуски",
+        "Передислокація до 8х бортів Ту-95мс з ае. «Українка» на ае. «Оленья»",
+        "6х Ту-95МС та 4 Ту-160, які діяли з аеродромів «Оленья» та «Українка»",
+        "Бомбардувальники, які передислоковані сьогодні з Українки на Оленью",
+    ):
+        assert "Українка" not in names(parse_message(text, M)), text
+
+
+def test_ripky_genitive_plural_needs_its_alias():
+    # «на район ріпок» — the и drops and an о appears INSIDE the root, which the
+    # stemmer (case endings only) cannot bridge. Two real callouts sat
+    # unlocalized on that one vowel.
+    assert names(parse_message("З півночі на район ріпок ⚠️", M)) == ["Ріпки"]
+    assert names(parse_message("Ріпки", M)) == ["Ріпки"]

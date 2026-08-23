@@ -25,10 +25,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db import Base
-from app.gazetteer import DISTRICTS, SOURCES
+from app.gazetteer import SOURCES
 from app.models import Alert, District, Incident, RawMessage, Source, Threat, utcnow
 from app.parsing import DistrictMatcher
 from app.pipeline.ingest import ingest_alert_message, ingest_message
+from tests.conftest import district_rows
 
 
 @pytest_asyncio.fixture
@@ -38,8 +39,7 @@ async def ctx(tmp_path):
         await conn.run_sync(Base.metadata.create_all)
     Session = async_sessionmaker(engine, expire_on_commit=False)
     async with Session() as s:
-        s.add_all(District(name_uk=d["name_uk"], name_en=d["name_en"], lat=d["lat"],
-                           lon=d["lon"], aliases=d.get("aliases", [])) for d in DISTRICTS)
+        s.add_all(district_rows())
         s.add_all(Source(channel_key=x["channel_key"], name=x["name"],
                          trust_weight=x["trust_weight"]) for x in SOURCES)
         await s.commit()

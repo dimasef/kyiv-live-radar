@@ -105,3 +105,29 @@ async def drain_triage(stub_run_consumer=None):
             await task
         except asyncio.CancelledError:
             pass
+
+
+def district_rows(*extra: dict) -> list:
+    """Gazetteer -> District rows carrying EVERY column the matcher reads.
+
+    Each fixture used to hand-roll this, and each dropped a different one:
+    `region` was missing from most of them, `region_only` from all — so a
+    region-exclusive entry like «Оболоння» was visible to every test matcher and
+    quietly ate «над Оболонню», which is a failure the production seeder
+    (app/seed.py, which does copy both) cannot have. One builder, one place to
+    add the next column.
+
+    `extra` are test-local districts (a fixture's own «Ніжин»), appended after
+    the gazetteer so they seed with the same defaults.
+    """
+    from app.gazetteer import DISTRICTS
+    from app.models import HOME_REGION, District
+
+    return [
+        District(
+            name_uk=d["name_uk"], name_en=d["name_en"], lat=d["lat"], lon=d["lon"],
+            aliases=d.get("aliases", []), region=d.get("region", HOME_REGION),
+            region_only=bool(d.get("region_only", False)),
+        )
+        for d in [*DISTRICTS, *extra]
+    ]

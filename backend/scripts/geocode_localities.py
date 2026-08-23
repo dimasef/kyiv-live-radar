@@ -88,6 +88,40 @@ QUERIES: list[tuple[str, list[str]]] = [
     ("Oleshnia", ["Олешня, Ріпкинський район, Чернігівська область"]),
     ("Morivsk", ["Морівськ, Козелецький район, Чернігівська область"]),
     ("Loshakova Huta", ["Лошакова Гута, Чернігівська область"]),
+    # J. Chernihiv oblast — the northern names that stem-collided with Kyiv
+    # entries and drew phantom Kyiv targets (2026-08-23 cross-region audit:
+    # every one of the 10 «northern channel -> Kyiv district» events was one of
+    # these). Each is a place the channel actually calls out.
+    ("Desnianske CH", ["Деснянське, Коропська селищна громада, Чернігівська область",
+                       "Деснянське, Новгород-Сіверський район, Чернігівська область"]),
+    ("Mezyn", ["Мезин, Коропська селищна громада, Чернігівська область",
+               "Мезин, Чернігівська область"]),
+    ("Obolonnia", ["Оболоння, Коропська селищна громада, Чернігівська область",
+                   "Оболоння, Чернігівська область"]),
+    ("Chaikyne", ["Чайкине, Новгород-Сіверський район, Чернігівська область"]),
+    ("Obukhove CH", ["Обухове, Куликівська селищна громада, Чернігівська область",
+                     "Обухове, Чернігівський район, Чернігівська область"]),
+    ("Pyrohivka", ["Пирогівка, Новгород-Сіверський район, Чернігівська область",
+                   "Пирогівці, Чернігівська область"]),
+    # K. 2026-08-23 coverage-gap pass over the whole stored corpus, ranked over
+    # callout-shaped messages only. Chernihiv CITY landmarks (region_only, as in
+    # J3) plus three northern villages, plus the two Kyiv-side entries the
+    # earlier batches missed. Rejected here: «Тероборони» (4 mentions, but a
+    # military unit with no verifiable point — same rule as «Чорновола») and
+    # «Циганське озеро» (Nominatim put it 47 km from the city it was called out
+    # beside). «Хороше Озеро», «Червоне Озеро» and «Велика Доч» are real places
+    # that the stemmer cannot reach at all: _stem() strips the space out of a
+    # multi-word name, so «хорошеозер» never meets «хороше озеро» in the text.
+    ("Mazepy St CH", ["вулиця Івана Мазепи, Чернігів"]),
+    ("Shevchenka St CH", ["вулиця Шевченка, Чернігів, Україна"]),
+    ("Polubotka St CH", ["вулиця Гетьмана Полуботка, Чернігів, Україна"]),
+    ("Kiltseva St CH", ["вулиця Кільцева, Чернігів"]),
+    ("Epicentr CH", ["Епіцентр, Чернігів"]),
+    ("Mamekyne", ["Мамекине, Новгород-Сіверський район, Чернігівська область"]),
+    ("Liskonohy", ["Лісконоги, Новгород-Сіверський район, Чернігівська область"]),
+    ("Brahyntsi", ["Брагинці, Чернігівська область"]),
+    ("Kyiv Station", ["Центральний залізничний вокзал, Київ"]),
+    ("Ukrainka", ["Українка, Обухівський район, Київська область"]),
     ("Vasyleva Huta", ["Василева Гута, Чернігівська область"]),
     ("Chudivka", ["Чудівка, Ріпкинський район, Чернігівська область"]),
     ("Khotivlia", ["Хотівля, Городнянський район, Чернігівська область"]),

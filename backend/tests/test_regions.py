@@ -26,11 +26,13 @@ from app.main import app
 from app.models import District, Incident, Source, Threat
 from app.parsing import DistrictMatcher, normalize
 from app.pipeline.ingest import ingest_alert_message, ingest_message
+from tests.conftest import district_rows
 
 BASE = datetime(2026, 7, 8, 12, 0, tzinfo=UTC)
 
 # A Chernihiv-oblast town far enough from every Kyiv stem to match cleanly.
-NIZHYN = {"name_uk": "Ніжин", "name_en": "Nizhyn", "lat": 51.048, "lon": 31.886}
+NIZHYN = {"name_uk": "Ніжин", "name_en": "Nizhyn", "lat": 51.048, "lon": 31.886,
+          "region": "chernihiv"}
 
 
 @pytest_asyncio.fixture
@@ -40,10 +42,7 @@ async def ctx(tmp_path):
         await conn.run_sync(Base.metadata.create_all)
     Session = async_sessionmaker(engine, expire_on_commit=False)
     async with Session() as s:
-        s.add_all(District(name_uk=d["name_uk"], name_en=d["name_en"], lat=d["lat"],
-                           lon=d["lon"], aliases=d.get("aliases", []),
-                           region=d.get("region", "kyiv")) for d in DISTRICTS)
-        s.add(District(**NIZHYN, aliases=[], region="chernihiv"))
+        s.add_all(district_rows(NIZHYN))
         s.add_all(Source(channel_key=x["channel_key"], name=x["name"],
                          trust_weight=x["trust_weight"]) for x in SOURCES)
         s.add(Source(channel_key="north_watch", name="Північ", region="chernihiv"))
@@ -168,6 +167,60 @@ def test_region_preference_never_beats_a_more_specific_name():
     districts = [{"id": i + 1, **d} for i, d in enumerate(DISTRICTS)]
     kyiv = DistrictMatcher(districts, prefer_region="kyiv")
     assert [h.name for h in kyiv.find(normalize("Морівськ на Остер"))] == ["Морівськ", "Остер"]
+
+
+def test_a_northern_channel_cannot_reach_a_kyiv_place_at_all():
+    """The rule that stops the whole class the traps above patch one by one.
+
+    A prefix trap needs its own gazetteer entry to fix; this needs none — every
+    Kyiv-region entry is simply invisible to a northern channel, so a name we
+    have never seen cannot leak either. All 10 stored «northern channel -> Kyiv
+    district» events were of that shape (2026-08-23 audit)."""
+    districts = [{"id": i + 1, **d} for i, d in enumerate(DISTRICTS)]
+    region_of = {d["id"]: d.get("region", "kyiv") for d in districts}
+    north = DistrictMatcher(districts, prefer_region="chernihiv")
+
+    assert all(region_of[did] == "chernihiv" for did, _ in north.districts_index)
+    # The exact words that leaked, including the one that opened a Kyiv attack
+    # banner (incident 208): each resolves northern now, or not at all.
+    for text in ("Мезин, деснянське", "На Оболоння на короп", "Чайкине на жадове"):
+        hits = north.find(normalize(text))
+        assert hits, text
+        assert all(region_of[h.district_id] == "chernihiv" for h in hits), text
+    # A Kyiv place named outright is not reachable either: a northern channel
+    # naming a Kyiv microdistrict resolves to nothing and the message lands in
+    # the coverage-gap queue, which is visible rather than a phantom Kyiv dot.
+    assert north.find(normalize("Троєщина 🔴")) == []
+    # And where the stem has a northern counterpart, that is what it resolves to
+    # — «Деснянський» reaches Деснянське, never the Kyiv raion.
+    assert [h.name for h in north.find(normalize("Деснянський район"))] == ["Деснянське"]
+
+
+def test_the_kyiv_channel_still_watches_the_north():
+    """The rule is ASYMMETRIC on purpose: Kyiv channels narrate the northern
+    approach (68 stored events over Chernihiv districts) and must keep doing it."""
+    districts = [{"id": i + 1, **d} for i, d in enumerate(DISTRICTS)]
+    region_of = {d["id"]: d.get("region", "kyiv") for d in districts}
+    kyiv = DistrictMatcher(districts, prefer_region="kyiv")
+
+    for text in ("Ніжин", "Козелець", "Славутич"):
+        hits = kyiv.find(normalize(text))
+        assert hits, text
+        assert region_of[hits[0].district_id] == "chernihiv", text
+
+
+def test_obolonnia_does_not_eat_obolon():
+    """The one entry in the 08-23 batch that needed `region_only`: «Оболоння»
+    explains MORE of «над Оболонню» than Оболонь does, so the more-specific rule
+    would hand six Kyiv callouts to a village 150 km north. prefer_region cannot
+    help — that is not a tie. Hidden from the Kyiv matcher, both sides read."""
+    districts = [{"id": i + 1, **d} for i, d in enumerate(DISTRICTS)]
+    kyiv = DistrictMatcher(districts, prefer_region="kyiv")
+    north = DistrictMatcher(districts, prefer_region="chernihiv")
+
+    assert [h.name for h in kyiv.find(normalize("Шахед над Оболонню"))] == ["Оболонь"]
+    assert [h.name for h in north.find(normalize("На Оболоння на короп"))] == \
+        ["Оболоння", "Короп"]
 
 
 async def test_northern_sighting_starts_its_own_track(ctx):
@@ -317,3 +370,23 @@ async def test_a_gazetteer_gap_no_longer_breaks_the_reply_chain(ctx):
     assert chain.target_type == "shahed"      # its own parent's, not Сеньківка's
     assert senkivka.target_type == "jet_drone"
     assert senkivka.target_count == 2         # "Ще два", spelled out
+
+
+def test_each_city_gets_its_own_station():
+    """Both oblasts call their central station «Вокзал», and the J3 batch gave
+    only Чернігів an entry — three Kyiv callouts («Вокзал 🔴», «Ще на Вокзал»)
+    landed nowhere. Two region_only entries, one word: each channel sees its own.
+    """
+    districts = [{"id": i + 1, **d} for i, d in enumerate(DISTRICTS)]
+    region_of = {d["id"]: d.get("region", "kyiv") for d in districts}
+    kyiv = DistrictMatcher(districts, prefer_region="kyiv")
+    north = DistrictMatcher(districts, prefer_region="chernihiv")
+
+    k = kyiv.find(normalize("На Вокзал повз Університет 🔴."))
+    assert [h.name for h in k] == ["Вокзал"] and region_of[k[0].district_id] == "kyiv"
+    n = north.find(normalize("Вокзал-городня"))
+    assert [h.name for h in n] == ["Вокзал", "Городня"]
+    assert all(region_of[h.district_id] == "chernihiv" for h in n)
+    # The station must not steal вул. Вокзальна, which is its own entry.
+    assert [h.name for h in kyiv.find(normalize("БПЛА Вокзальна/Чоколівка 🔴."))] == \
+        ["Вокзальна площа", "Чоколівка"]

@@ -12,10 +12,11 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db import Base
 from app.domain.attack import classify
-from app.gazetteer import DISTRICTS, SOURCES
+from app.gazetteer import SOURCES
 from app.models import Alert, District, Incident, Source, Threat
 from app.parsing import DistrictMatcher
 from app.pipeline.ingest import ingest_alert_message, ingest_message
+from tests.conftest import district_rows
 
 BASE = datetime(2026, 7, 8, 12, 0, tzinfo=UTC)
 
@@ -27,8 +28,7 @@ async def ctx(tmp_path):
         await conn.run_sync(Base.metadata.create_all)
     Session = async_sessionmaker(engine, expire_on_commit=False)
     async with Session() as s:
-        s.add_all(District(name_uk=d["name_uk"], name_en=d["name_en"], lat=d["lat"],
-                           lon=d["lon"], aliases=d.get("aliases", [])) for d in DISTRICTS)
+        s.add_all(district_rows())
         s.add_all(Source(channel_key=x["channel_key"], name=x["name"],
                          trust_weight=x.get("trust_weight", 1.0), role=x.get("role", "spotter"))
                   for x in SOURCES)

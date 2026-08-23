@@ -22,6 +22,7 @@ from app.parsing.rules import LlmUsage
 from app.parsing.type_llm import TypeVerdict, normalize_type_verdict
 from app.pipeline.ingest import ingest_message
 from app.pipeline.ingest.type_context import build_type_context, wants_llm_type
+from tests.conftest import district_rows
 
 M = DistrictMatcher([{"id": i + 1, **d} for i, d in enumerate(DISTRICTS)])
 
@@ -33,8 +34,7 @@ async def db():
         await conn.run_sync(Base.metadata.create_all)
     Session = async_sessionmaker(engine, expire_on_commit=False)
     async with Session() as s:
-        s.add_all(District(name_uk=d["name_uk"], name_en=d["name_en"], lat=d["lat"],
-                           lon=d["lon"], aliases=d.get("aliases", [])) for d in DISTRICTS)
+        s.add_all(district_rows())
         s.add_all(Source(channel_key=x["channel_key"], name=x["name"],
                          trust_weight=x["trust_weight"]) for x in SOURCES)
         await s.commit()

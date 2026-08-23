@@ -32,12 +32,23 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.33.0";
+const LATEST = "0.33.1";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "Кожна ціль у своїй області",
+    date: "2026-08-23",
+    kind: "patch",
+    changes: [
+      "Радар чіткіше тримає межу областей: ціль, про яку повідомляють з Чернігівщини, лишається північною, а не потрапляє до київських. Київські канали, як і раніше, ведуть північний підхід — саме так ціль і переходить у київські, коли перетинає кордон",
+      "Упізнає ще 14 місць: Українка на Обухівщині та київський Центральний вокзал, вулиці й орієнтири Чернігова, які називають північні спостерігачі (Мазепи, Полуботка, Кільцева, Шевченка, Епіцентр), і села Новгород-Сіверщини та Прилуччини — Мезин, Деснянське, Оболоння, Чайкине, Мамекине, Лісконоги, Брагинці",
+      "Радар більше не плутає місто Українку з однойменним російським аеродромом, з якого злітають бомбардувальники — звіти про вильоти не залишають мітки під Києвом",
+    ],
+  },
+  {
+    version: "0.33.0",
     title: "Менше невідомих цілей",
     date: "2026-08-23",
     kind: "minor",
