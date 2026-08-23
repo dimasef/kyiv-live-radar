@@ -188,6 +188,37 @@ export interface paths {
         patch: operations["admin_move_event_admin_events__event_id__patch"];
         trace?: never;
     };
+    "/admin/events/{event_id}/threat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Admin Regroup Event
+         * @description Move a sighting onto another track, or split it out onto its own.
+         *
+         *     Tracking groups sightings by reply-chain and then same-district
+         *     corroboration (domain/tracking.py), and its two failure modes are exactly
+         *     these two shapes: one real target split across several tracks, or several
+         *     targets merged into one. Until now the only repair was DELETING the
+         *     sighting, which throws away a real observation to fix a grouping mistake.
+         *
+         *     Deliberately not recorded as a ParserCorrection: that dataset labels what
+         *     the PARSER should have produced (type, district, suppression), and grouping
+         *     is not the parser's decision. Track-level ground truth lives in
+         *     eval/ground_truth_sessions.json.
+         */
+        patch: operations["admin_regroup_event_admin_events__event_id__threat_patch"];
+        trace?: never;
+    };
     "/admin/incidents/{incident_id}/dismiss": {
         parameters: {
             query?: never;
@@ -431,7 +462,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Admin Threat
+         * @description One track with all its sightings — what the track editor opens on.
+         *
+         *     The public `/threats/{id}/events` cannot serve this: it withholds impacts
+         *     and returns no track state (type, lifecycle, fusion), both of which are
+         *     exactly what an operator is here to inspect and fix. Impact privacy is a
+         *     rule about the public map, feed and journal (tests/test_impact_privacy.py);
+         *     this route is behind require_admin and shows the operator the same rows the
+         *     admin feed at /raw already lists for them.
+         */
+        get: operations["admin_threat_admin_threats__threat_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2029,6 +2071,18 @@ export interface components {
             district_id: number;
         };
         /**
+         * EventTrackIn
+         * @description PATCH /admin/events/{id}/threat — admin regroups a sighting.
+         *
+         *     `threat_id` names the track to move it ONTO; None splits it out onto a track
+         *     of its own. Both are the same operation from tracking's point of view — it
+         *     grouped this sighting wrong, and the fix is to say where it belongs.
+         */
+        EventTrackIn: {
+            /** Threat Id */
+            threat_id?: number | null;
+        };
+        /**
          * FeedEntryOut
          * @description One event feed row: the sighting plus its track's current derived state,
          *     for the frontend event log to hydrate on page load (see /events/recent).
@@ -2725,6 +2779,8 @@ export interface components {
             threat_id: number;
             /** Threat Status */
             threat_status?: string | null;
+            /** Threat Target Type */
+            threat_target_type?: ("shahed" | "jet_drone" | "missile" | "ballistic" | "unknown") | null;
         };
         /**
          * RawExportOut
@@ -2953,6 +3009,20 @@ export interface components {
             email: string;
             /** Password */
             password: string;
+        };
+        /**
+         * RegroupOut
+         * @description PATCH /admin/events/{id}/threat — BOTH tracks the move touched.
+         *
+         *     A regroup always changes two tracks, and the admin view has to update both:
+         *     returning only the destination left the source still advertising a sighting
+         *     it no longer owns.
+         */
+        RegroupOut: {
+            /** Event Id */
+            event_id: number;
+            source_threat: components["schemas"]["ThreatOut"];
+            threat: components["schemas"]["ThreatOut"];
         };
         /** ReprocessApplyIn */
         ReprocessApplyIn: {
@@ -3913,6 +3983,43 @@ export interface operations {
             };
         };
     };
+    admin_regroup_event_admin_events__event_id__threat_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                event_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EventTrackIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     admin_dismiss_incident_admin_incidents__incident_id__dismiss_post: {
         parameters: {
             query?: never;
@@ -4307,6 +4414,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SourceAdminOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_threat_admin_threats__threat_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                threat_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThreatOut"];
                 };
             };
             /** @description Validation Error */

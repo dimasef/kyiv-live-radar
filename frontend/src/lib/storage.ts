@@ -37,6 +37,10 @@ export const STORAGE_KEYS = {
   // Card ids the user has already seen in their collection, keyed by user id
   // ({ [userId]: number[] }) — drives the one-time "just obtained" shimmer.
   seenCards: 'klr-seen-cards',
+  // Whether the stats/filters/toolbar block above «Весь фід» is folded away.
+  // Persisted because the reason to fold it is that you are reading messages,
+  // and that outlives a page load.
+  rawControlsCollapsed: 'klr-raw-controls',
 } as const
 
 /** Reads a localStorage value, swallowing errors (private-browsing/quota/etc.

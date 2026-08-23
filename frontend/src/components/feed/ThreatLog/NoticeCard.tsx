@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { HOME_COLOR, STATUS_COLORS, TYPE_COLORS } from '@/theme'
 import type { Notice, NoticeKind } from '@/types'
 
+import AllClearCard from './AllClearCard'
 import { DevId, EventTime, SourceName } from './badges'
 import ClampText from './ClampText'
 
@@ -33,6 +34,9 @@ function sourceNames(notices: Notice[]): string | null {
 export default function NoticeCard({ notices }: { notices: Notice[] }) {
   const { t } = useTranslation()
   const head = notices[0]
+  // The all-clear has a card of its own: it is the only notice that says the
+  // raid is OVER, and it is what someone scrolls back to find afterwards.
+  if (head.kind === 'clear') return <AllClearCard notices={notices} />
   const { icon: Icon, color } = STYLE[head.kind as NoticeKind] ?? FALLBACK
   const isAi = head.generated_by === 'llm'
 

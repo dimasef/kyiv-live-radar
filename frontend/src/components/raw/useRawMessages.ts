@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { fetchRawCount, fetchRawMessages } from '@/api'
 import type { RawMessagesFilter } from '@/api'
-import type { RawMessage, RawOutcomeFilter } from '@/types'
+import type { RawMessage, RawOutcomeFilter, Threat } from '@/types'
 
 export interface RawMessageFilters {
   q: string
@@ -123,5 +123,63 @@ export function useRawMessages(filters: RawMessageFilters) {
     [],
   )
 
-  return { items, loading, done, total, loadMore, apiFilter, dropEvent, setNotice }
+  /** Re-point a sighting's chip at the track it was just moved to. Same
+   * in-place reasoning as `dropEvent`: the admin is deep in a scrolled list and
+   * a refetch would restart the cursor from the top. */
+  const moveEventToTrack = useCallback((eventId: number, threatId: number) => {
+    setItems((prev) =>
+      prev.map((m) =>
+        m.events.some((e) => e.event_id === eventId)
+          ? {
+              ...m,
+              events: m.events.map((e) =>
+                e.event_id === eventId ? { ...e, threat_id: threatId } : e,
+              ),
+            }
+          : m,
+      ),
+    )
+  }, [])
+
+  /** Fold a track's fresh server state into every chip that belongs to it —
+   * across ALL loaded rows, since one track's sightings are scattered over as
+   * many messages as reported it. Without this a retype in the editor changed
+   * nothing visible in the list and read as a no-op. */
+  const applyTrack = useCallback((track: Threat) => {
+    setItems((prev) =>
+      prev.map((m) =>
+        m.events.some((e) => e.threat_id === track.id)
+          ? {
+              ...m,
+              events: m.events.map((e) =>
+                e.threat_id === track.id
+                  ? {
+                      ...e,
+                      threat_target_type: track.target_type,
+                      threat_status: track.status,
+                      threat_closed_reason: track.closed_reason ?? null,
+                      incident_id: track.incident_id ?? null,
+                      corroboration_count: track.corroboration_count,
+                      confidence: track.confidence,
+                    }
+                  : e,
+              ),
+            }
+          : m,
+      ),
+    )
+  }, [])
+
+  return {
+    items,
+    loading,
+    done,
+    total,
+    loadMore,
+    apiFilter,
+    dropEvent,
+    setNotice,
+    moveEventToTrack,
+    applyTrack,
+  }
 }

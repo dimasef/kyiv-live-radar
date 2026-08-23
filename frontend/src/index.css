@@ -240,6 +240,61 @@ body::after {
   animation: feed-in 0.45s var(--ease-out) both;
 }
 
+/* ---------- all-clear card (feed/ThreatLog/AllClearCard) ----------
+   The one card in the feed that is good news, and the only one that gets a
+   full animated treatment: a light sweep across it, two halo rings off the
+   shield, a breathing left edge, and the checkmark drawing itself in. Every
+   one of them is silenced under prefers-reduced-motion at the bottom of this
+   file — this app is read during air raids, and a pulsing card is not
+   something to force on anyone. */
+@keyframes ac-sweep {
+  0% {
+    transform: translateX(-140%) skewX(-16deg);
+  }
+  100% {
+    transform: translateX(420%) skewX(-16deg);
+  }
+}
+@keyframes ac-halo {
+  0% {
+    transform: scale(0.55);
+    opacity: 0.5;
+  }
+  70% {
+    opacity: 0;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+@keyframes ac-edge {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes ac-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.ac-sweep {
+  animation: ac-sweep var(--ac-pd) cubic-bezier(0.5, 0, 0.4, 1) infinite;
+}
+.ac-halo {
+  animation: ac-halo var(--ac-pd) ease-out infinite;
+}
+.ac-edge {
+  animation: ac-edge var(--ac-pd) ease-in-out infinite;
+}
+.ac-draw {
+  animation: ac-draw 0.7s 0.45s cubic-bezier(0.6, 0, 0.2, 1) forwards;
+}
+
 /* ---------- radar sweep (logo + empty state) ---------- */
 @keyframes sweep {
   to {
@@ -1084,8 +1139,17 @@ body::after {
   .modal-backdrop,
   .modal-card,
   .card-sweep,
-  .card-legdot {
+  .card-legdot,
+  .ac-sweep,
+  .ac-halo,
+  .ac-edge {
     animation: none !important;
+  }
+  /* The checkmark is a stroke-dash reveal — cancelling the animation would
+     leave it invisible, so it is snapped to drawn instead. */
+  .ac-draw {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
   }
   .sheet {
     transition: none;

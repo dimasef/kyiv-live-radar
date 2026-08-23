@@ -1,5 +1,5 @@
 import {
-  fetchActiveAlerts,
+  fetchRecentAlerts,
   fetchActiveAxes,
   fetchActiveIncidents,
   fetchActiveThreats,
@@ -71,7 +71,7 @@ async function runHydrate(): Promise<void> {
     fetchActiveIncidents().then(apply(store.setIncidents)).catch(() => {}),
     fetchRecentIncidents().then(apply(store.setRecentIncidents)).catch(() => {}),
     fetchActiveAxes().then(apply(store.setAxes)).catch(() => {}),
-    fetchActiveAlerts().then(apply(store.setAlerts)).catch(() => {}),
+    fetchRecentAlerts().then(apply(store.setAlerts)).catch(() => {}),
     fetchAlertZones().then(apply(store.setZones)).catch(() => {}),
     fetchRecentEvents(store.feedLimit, store.feedOtherRegions ? undefined : 'kyiv')
       .then(apply(store.setLog))

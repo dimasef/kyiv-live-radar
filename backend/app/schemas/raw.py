@@ -53,6 +53,12 @@ class RawEventLinkOut(BaseModel):
     # 'unknown'/None) — surfaced in /raw so an admin sees what type the message
     # was classified as, not just that it produced an event.
     target_type: TargetType | None = None
+    # The OWNING track's current type, which is what the map actually draws.
+    # Distinct from `target_type` above on purpose: that one is provenance —
+    # what THIS message was read as — and an operator retyping the track must
+    # not rewrite it, or /raw stops being an audit trail. They differ exactly
+    # when a later message, the context tiers, or a human corrected the track.
+    threat_target_type: TargetType | None = None
     # Fusion/track state of the OWNING threat (not the single event) — the
     # public feed no longer shows these, so the admin /raw view carries them
     # instead: which attack the track rolled into, how many independent sources

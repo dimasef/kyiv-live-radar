@@ -40,9 +40,11 @@ from ...schemas import (
     AlertOut,
     DismissedOut,
     EventDistrictIn,
+    EventTrackIn,
     IncidentOut,
     NoticeOut,
     RawNoticeIn,
+    RegroupOut,
     ThreatOut,
     ThreatTypeIn,
 )
@@ -86,6 +88,27 @@ async def admin_restore_threat(
     await session.commit()
     await broadcast_results(session, [Broadcast("status", threat)])
     return _threat_out(await _threat_with_events(session, threat_id))
+
+
+@router.get("/admin/threats/{threat_id}", response_model=ThreatOut)
+async def admin_threat(
+    threat_id: int,
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    """One track with all its sightings — what the track editor opens on.
+
+    The public `/threats/{id}/events` cannot serve this: it withholds impacts
+    and returns no track state (type, lifecycle, fusion), both of which are
+    exactly what an operator is here to inspect and fix. Impact privacy is a
+    rule about the public map, feed and journal (tests/test_impact_privacy.py);
+    this route is behind require_admin and shows the operator the same rows the
+    admin feed at /raw already lists for them.
+    """
+    threat = await _threat_with_events(session, threat_id)
+    if threat is None:
+        raise HTTPException(status_code=404, detail="threat not found")
+    return _threat_out(threat)
 
 
 @router.patch("/admin/threats/{threat_id}", response_model=ThreatOut)
@@ -239,6 +262,107 @@ async def _resync_track_region(session, threat: Threat | None) -> None:
     if region and threat.region != region:
         threat.region = region
         await session.commit()
+
+
+def _split_track_from(source: Threat, event: ThreatEvent) -> Threat:
+    """A new track carrying `event` alone, cloned from the track it is leaving.
+
+    Lifecycle and incident are INHERITED rather than started fresh: splitting a
+    track the sweeper closed an hour ago must produce a second closed track, not
+    a brand-new live dot on the map for a target that is long gone. Type and
+    group size come from the event itself where it has them — that is the
+    sighting's own reading, and preferring it is the whole point of splitting.
+    """
+    return Threat(
+        created_at=event.event_time,
+        incident_id=source.incident_id,
+        target_type=event.event_target_type or source.target_type,
+        status=source.status,
+        kind="track",
+        scope=source.scope,
+        region=source.region,
+        target_count=event.event_target_count or 1,
+        closed_at=source.closed_at,
+        closed_reason=source.closed_reason,
+    )
+
+
+@router.patch("/admin/events/{event_id}/threat", response_model=RegroupOut)
+async def admin_regroup_event(
+    event_id: int,
+    body: EventTrackIn,
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    """Move a sighting onto another track, or split it out onto its own.
+
+    Tracking groups sightings by reply-chain and then same-district
+    corroboration (domain/tracking.py), and its two failure modes are exactly
+    these two shapes: one real target split across several tracks, or several
+    targets merged into one. Until now the only repair was DELETING the
+    sighting, which throws away a real observation to fix a grouping mistake.
+
+    Deliberately not recorded as a ParserCorrection: that dataset labels what
+    the PARSER should have produced (type, district, suppression), and grouping
+    is not the parser's decision. Track-level ground truth lives in
+    eval/ground_truth_sessions.json.
+    """
+    event = await session.get(ThreatEvent, event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="event not found")
+    if body.threat_id == event.threat_id:
+        raise HTTPException(status_code=400, detail="sighting is already on that track")
+    source = await _threat_with_events(session, event.threat_id)
+    if source is None:
+        raise HTTPException(status_code=404, detail="threat not found")
+
+    if body.threat_id is None:
+        target = _split_track_from(source, event)
+        # Left PENDING on purpose — no flush here. A flushed-but-never-loaded
+        # `events` collection is a lazy load, and lazy loads raise MissingGreenlet
+        # on the async session; while the track is pending the backref below just
+        # fills an empty collection with no I/O at all.
+        session.add(target)
+    else:
+        target = await _threat_with_events(session, body.threat_id)
+        if target is None:
+            raise HTTPException(status_code=400, detail="target track not found")
+        # An impact is a terminal marker, not a path being followed — grouping a
+        # sighting into one would make it claim a movement it never had (and
+        # impacts are withheld from the map by design, so the sighting would
+        # vanish from it). See tests/test_impact_privacy.py.
+        if target.kind != "track":
+            raise HTTPException(status_code=400, detail="target is not a track")
+
+    # Assign through the RELATIONSHIP, not the foreign key: that is what keeps
+    # both in-memory `events` collections right, so the fusion recompute below
+    # sees the post-move membership instead of the stale pre-move one.
+    event.threat = target
+    await session.flush()
+
+    # An emptied source track is a track that no longer describes anything.
+    if not source.events and source.closed_at is None:
+        close_track(source, utcnow(), "dismissed")
+    incidents: dict[int, Incident] = {}
+    for track in (source, target):
+        set_fusion(track)
+        if track.incident is not None:
+            recompute_incident_types(track.incident)
+            incidents[track.incident.id] = track.incident
+    await session.commit()
+    # Region follows the LATEST sighting on each side, and the move changed
+    # which sighting that is for both of them.
+    await _resync_track_region(session, source)
+    await _resync_track_region(session, target)
+
+    results: list[Broadcast] = [Broadcast("status", target), Broadcast("status", source)]
+    results += [Broadcast("attack", incident=inc) for inc in incidents.values()]
+    await broadcast_results(session, results)
+    return RegroupOut(
+        event_id=event_id,
+        threat=_threat_out(await _threat_with_events(session, target.id)),
+        source_threat=_threat_out(await _threat_with_events(session, source.id)),
+    )
 
 
 @router.delete("/admin/events/{event_id}", response_model=ThreatOut)

@@ -35,6 +35,7 @@ class _EventRow:
 @dataclass(frozen=True)
 class _ThreatState:
     incident_id: int | None
+    target_type: str | None
     corroboration_count: int | None
     confidence: float | None
     status: str | None
@@ -46,6 +47,7 @@ def _event_link(ev: _EventRow, state: _ThreatState | None) -> RawEventLinkOut:
         threat_id=ev.threat_id,
         event_id=ev.event_id,
         target_type=ev.target_type,
+        threat_target_type=state.target_type if state else None,
         district_id=ev.district_id,
         district_name=ev.district_name,
         decision_source=ev.decision_source,
@@ -216,7 +218,7 @@ async def serialize_raw_rows(session, rows: list[RawMessage]) -> list[RawMessage
         if threat_ids:
             t_rows = await session.execute(
                 select(
-                    Threat.id, Threat.incident_id,
+                    Threat.id, Threat.incident_id, Threat.target_type,
                     Threat.corroboration_count, Threat.confidence,
                     Threat.status, Threat.closed_reason,
                 ).where(Threat.id.in_(threat_ids))

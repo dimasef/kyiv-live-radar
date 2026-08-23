@@ -36,6 +36,31 @@ class EventDistrictIn(BaseModel):
     district_id: int
 
 
+class EventTrackIn(BaseModel):
+    """PATCH /admin/events/{id}/threat — admin regroups a sighting.
+
+    `threat_id` names the track to move it ONTO; None splits it out onto a track
+    of its own. Both are the same operation from tracking's point of view — it
+    grouped this sighting wrong, and the fix is to say where it belongs."""
+
+    threat_id: int | None = None
+
+
+class RegroupOut(BaseModel):
+    """PATCH /admin/events/{id}/threat — BOTH tracks the move touched.
+
+    A regroup always changes two tracks, and the admin view has to update both:
+    returning only the destination left the source still advertising a sighting
+    it no longer owns."""
+
+    event_id: int
+    # The track the sighting now lives on (newly created, when it was a split).
+    threat: ThreatOut
+    # The track it came from — still a row even when the move emptied and
+    # dismissed it, so the caller can redraw or drop it.
+    source_threat: ThreatOut
+
+
 class DismissedOut(BaseModel):
     """GET /admin/dismissed — recently admin-cancelled entities, for the
     'Повернути' (restore) list in the admin panel."""

@@ -32,12 +32,25 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.33.2";
+const LATEST = "0.34.0";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "Помітніший відбій",
+    date: "2026-08-23",
+    kind: "minor",
+    changes: [
+      "Відбій тривоги тепер має власну картку у стрічці — зі світінням, анімованою галочкою і зеленим акцентом. Її легко знайти очима, коли гортаєш стрічку після нальоту, серед десятків повідомлень про цілі",
+      "Замість службового тексту каналу, який щоразу однаковий, картка коротко каже головне — і показує, скільки тривала тривога",
+      "Стан «щойно відбій» більше не зникає після перезавантаження сторінки",
+      "Мапа лишається чистішою",
+      "Англійська версія більше не показує тривалість атаки українськими одиницями",
+    ],
+  },
+  {
+    version: "0.33.2",
     title: "Ціль не губиться між селами",
     date: "2026-08-23",
     kind: "patch",

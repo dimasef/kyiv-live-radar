@@ -8,21 +8,25 @@ import NoticeControl, { type NoticeSet } from "../NoticeControl";
 import OutcomeBadge from "../OutcomeBadge";
 import EventChips from "./EventChips";
 import { rowBorderClass } from "./rowStyle";
-import type { DropEvent } from "./types";
+import type { ApplyTrack, DropEvent, MoveEvent } from "./types";
 
-export type { DropEvent };
+export type { ApplyTrack, DropEvent, MoveEvent };
 
 export default function RawMessageRow({
   item,
   selected,
   onToggleSelect,
   onDropEvent,
+  onMoveEvent,
+  onApplyTrack,
   onSetNotice,
 }: {
   item: RawMessage;
   selected: boolean;
   onToggleSelect: (id: number) => void;
   onDropEvent: DropEvent;
+  onMoveEvent: MoveEvent;
+  onApplyTrack: ApplyTrack;
   onSetNotice: NoticeSet;
 }) {
   const borderClass = rowBorderClass(item);
@@ -90,6 +94,8 @@ export default function RawMessageRow({
         <EventChips
           item={item}
           onDropEvent={onDropEvent}
+          onMoveEvent={onMoveEvent}
+          onApplyTrack={onApplyTrack}
           onSetNotice={onSetNotice}
         />
         <NoticeControl item={item} onSetNotice={onSetNotice} />

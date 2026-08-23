@@ -411,3 +411,150 @@ async def test_admin_actions_require_admin(client):
         headers={"Authorization": f"Bearer {encode_access(user)}"},
     )
     assert r.status_code == 403
+
+
+# --- Regrouping a sighting: move it to another track, or split it out --------
+
+async def test_split_moves_a_sighting_onto_a_track_of_its_own(client):
+    """Tracking's split/merge mistakes used to be repairable only by DELETING
+    the sighting — throwing away a real observation to fix a grouping error."""
+    c, s = client
+    headers = await _admin_headers(s)
+    d = await _district(s)
+    threat, keep = await _threat_with_event(s, d, target_type="shahed")
+    move = ThreatEvent(threat_id=threat.id, district_id=d.id, raw_text="друга",
+                       event_target_type="jet_drone")
+    s.add(move)
+    await s.commit()
+
+    r = await c.patch(f"/admin/events/{move.id}/threat", json={"threat_id": None},
+                      headers=headers)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["source_threat"]["id"] == threat.id
+    assert [e["id"] for e in body["source_threat"]["events"]] == [keep.id]
+    new_track = body["threat"]
+    assert new_track["id"] != threat.id
+    assert [e["id"] for e in new_track["events"]] == [move.id]
+    # The event's own reading wins on a split — that is the point of splitting.
+    assert new_track["target_type"] == "jet_drone"
+
+
+async def test_a_split_inherits_the_lifecycle_of_the_track_it_left(client):
+    """Splitting a track the sweeper closed an hour ago must give a second
+    CLOSED track, not a fresh live dot for a target that is long gone."""
+    c, s = client
+    headers = await _admin_headers(s)
+    d = await _district(s)
+    threat, _keep = await _threat_with_event(s, d, closed_at=utcnow())
+    threat.closed_reason = "stale"
+    move = ThreatEvent(threat_id=threat.id, district_id=d.id, raw_text="друга")
+    s.add(move)
+    await s.commit()
+
+    r = await c.patch(f"/admin/events/{move.id}/threat", json={"threat_id": None},
+                      headers=headers)
+    assert r.status_code == 200
+    new_track = r.json()["threat"]
+    assert new_track["closed_at"] is not None
+    assert new_track["closed_reason"] == "stale"
+    assert threat.id not in await _active_ids(c, headers)
+
+
+async def test_moving_a_sighting_onto_another_track_merges_them(client):
+    c, s = client
+    headers = await _admin_headers(s)
+    d = await _district(s)
+    keeper, _ = await _threat_with_event(s, d)
+    stray, stray_ev = await _threat_with_event(s, d)
+
+    r = await c.patch(f"/admin/events/{stray_ev.id}/threat",
+                      json={"threat_id": keeper.id}, headers=headers)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["threat"]["id"] == keeper.id
+    assert len(body["threat"]["events"]) == 2
+    # The emptied track describes nothing any more — off the map.
+    assert body["source_threat"]["events"] == []
+    assert stray.id not in await _active_ids(c, headers)
+
+
+async def test_moving_the_only_sighting_of_a_track_does_not_delete_it(client):
+    """A regroup must never lose the observation: the sighting survives the move
+    even when its old track is emptied and dismissed by it."""
+    c, s = client
+    headers = await _admin_headers(s)
+    d = await _district(s)
+    keeper, _ = await _threat_with_event(s, d)
+    _stray, stray_ev = await _threat_with_event(s, d)
+
+    await c.patch(f"/admin/events/{stray_ev.id}/threat",
+                  json={"threat_id": keeper.id}, headers=headers)
+    survived = await s.get(ThreatEvent, stray_ev.id)
+    await s.refresh(survived)
+    assert survived is not None and survived.threat_id == keeper.id
+
+
+async def test_regroup_rejects_a_no_op_and_a_missing_target(client):
+    c, s = client
+    headers = await _admin_headers(s)
+    d = await _district(s)
+    threat, ev = await _threat_with_event(s, d)
+
+    same = await c.patch(f"/admin/events/{ev.id}/threat",
+                         json={"threat_id": threat.id}, headers=headers)
+    assert same.status_code == 400
+    missing = await c.patch(f"/admin/events/{ev.id}/threat",
+                            json={"threat_id": 9999}, headers=headers)
+    assert missing.status_code == 400
+
+
+async def test_regroup_refuses_to_group_a_sighting_into_an_impact(client):
+    """An impact is a terminal marker, not a path — and it is withheld from the
+    map by design, so a sighting moved into one would simply vanish."""
+    c, s = client
+    headers = await _admin_headers(s)
+    d = await _district(s)
+    impact = Threat(target_type="shahed", status="destroyed", kind="impact")
+    s.add(impact)
+    await s.commit()
+    _threat, ev = await _threat_with_event(s, d)
+
+    r = await c.patch(f"/admin/events/{ev.id}/threat",
+                      json={"threat_id": impact.id}, headers=headers)
+    assert r.status_code == 400
+
+
+async def test_regroup_requires_admin(client):
+    c, s = client
+    d = await _district(s)
+    _threat, ev = await _threat_with_event(s, d)
+    r = await c.patch(f"/admin/events/{ev.id}/threat", json={"threat_id": None})
+    assert r.status_code in (401, 403)
+
+
+async def test_admin_can_load_a_closed_track_the_public_route_hides(client):
+    """The editor opens on tracks the public API will not serve — closed ones,
+    and impacts. Impact privacy is a rule about the public map/feed/journal
+    (test_impact_privacy.py), not about the operator's own console."""
+    c, s = client
+    headers = await _admin_headers(s)
+    d = await _district(s)
+    impact = Threat(target_type="shahed", status="destroyed", kind="impact",
+                    closed_at=utcnow())
+    s.add(impact)
+    await s.commit()
+    s.add(ThreatEvent(threat_id=impact.id, district_id=d.id, raw_text="влучання"))
+    await s.commit()
+
+    assert (await c.get(f"/threats/{impact.id}/events")).status_code == 404
+    r = await c.get(f"/admin/threats/{impact.id}", headers=headers)
+    assert r.status_code == 200
+    assert len(r.json()["events"]) == 1
+
+
+async def test_track_detail_requires_admin(client):
+    c, s = client
+    d = await _district(s)
+    threat, _ = await _threat_with_event(s, d)
+    assert (await c.get(f"/admin/threats/{threat.id}")).status_code in (401, 403)

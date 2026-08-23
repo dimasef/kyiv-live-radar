@@ -1090,6 +1090,24 @@
         "title": "EventDistrictIn",
         "type": "object"
       },
+      "EventTrackIn": {
+        "description": "PATCH /admin/events/{id}/threat — admin regroups a sighting.\n\n`threat_id` names the track to move it ONTO; None splits it out onto a track\nof its own. Both are the same operation from tracking's point of view — it\ngrouped this sighting wrong, and the fix is to say where it belongs.",
+        "properties": {
+          "threat_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threat Id"
+          }
+        },
+        "title": "EventTrackIn",
+        "type": "object"
+      },
       "FeedEntryOut": {
         "description": "One event feed row: the sighting plus its track's current derived state,\nfor the frontend event log to hydrate on page load (see /events/recent).",
         "properties": {
@@ -2454,6 +2472,24 @@
               }
             ],
             "title": "Threat Status"
+          },
+          "threat_target_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "shahed",
+                  "jet_drone",
+                  "missile",
+                  "ballistic",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threat Target Type"
           }
         },
         "required": [
@@ -3069,6 +3105,28 @@
           "password"
         ],
         "title": "RegisterIn",
+        "type": "object"
+      },
+      "RegroupOut": {
+        "description": "PATCH /admin/events/{id}/threat — BOTH tracks the move touched.\n\nA regroup always changes two tracks, and the admin view has to update both:\nreturning only the destination left the source still advertising a sighting\nit no longer owns.",
+        "properties": {
+          "event_id": {
+            "title": "Event Id",
+            "type": "integer"
+          },
+          "source_threat": {
+            "$ref": "#/components/schemas/ThreatOut"
+          },
+          "threat": {
+            "$ref": "#/components/schemas/ThreatOut"
+          }
+        },
+        "required": [
+          "event_id",
+          "threat",
+          "source_threat"
+        ],
+        "title": "RegroupOut",
         "type": "object"
       },
       "ReprocessApplyIn": {
@@ -5115,6 +5173,72 @@
         "summary": "Admin Move Event"
       }
     },
+    "/admin/events/{event_id}/threat": {
+      "patch": {
+        "description": "Move a sighting onto another track, or split it out onto its own.\n\nTracking groups sightings by reply-chain and then same-district\ncorroboration (domain/tracking.py), and its two failure modes are exactly\nthese two shapes: one real target split across several tracks, or several\ntargets merged into one. Until now the only repair was DELETING the\nsighting, which throws away a real observation to fix a grouping mistake.\n\nDeliberately not recorded as a ParserCorrection: that dataset labels what\nthe PARSER should have produced (type, district, suppression), and grouping\nis not the parser's decision. Track-level ground truth lives in\neval/ground_truth_sessions.json.",
+        "operationId": "admin_regroup_event_admin_events__event_id__threat_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "title": "Event Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventTrackIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegroupOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Regroup Event"
+      }
+    },
     "/admin/incidents/{incident_id}/dismiss": {
       "post": {
         "operationId": "admin_dismiss_incident_admin_incidents__incident_id__dismiss_post",
@@ -5811,6 +5935,60 @@
       }
     },
     "/admin/threats/{threat_id}": {
+      "get": {
+        "description": "One track with all its sightings — what the track editor opens on.\n\nThe public `/threats/{id}/events` cannot serve this: it withholds impacts\nand returns no track state (type, lifecycle, fusion), both of which are\nexactly what an operator is here to inspect and fix. Impact privacy is a\nrule about the public map, feed and journal (tests/test_impact_privacy.py);\nthis route is behind require_admin and shows the operator the same rows the\nadmin feed at /raw already lists for them.",
+        "operationId": "admin_threat_admin_threats__threat_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "threat_id",
+            "required": true,
+            "schema": {
+              "title": "Threat Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreatOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Threat"
+      },
       "patch": {
         "operationId": "admin_retype_threat_admin_threats__threat_id__patch",
         "parameters": [

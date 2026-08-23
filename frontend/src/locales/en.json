@@ -125,7 +125,18 @@
     "directional": "Threat axis",
     "forecast": "Forecast",
     "status": "Status",
-    "ai": "AI · analysis"
+    "ai": "AI · analysis",
+    "clearTitle": "All clear",
+    "clearLasted": "lasted",
+    "clearBody": "The threat to {{where}} has passed. The air-raid alert is over — {{tail}}",
+    "clearWhere": {
+      "kyiv": "the capital",
+      "chernihiv": "the region"
+    },
+    "clearTail1": "you can breathe out.",
+    "clearTail2": "the threat is no longer being tracked.",
+    "clearTail3": "the sky over the city is clear.",
+    "clearTail4": "take care."
   },
   "status": {
     "impact": "incident",
@@ -486,5 +497,9 @@
     "eta": "≈ {{v}} min out",
     "etaSoon": "less than a minute out",
     "etaHint": "Estimated from the class speed and the distance to the district centre"
+  },
+  "region": {
+    "kyiv": "Kyiv · the whole city",
+    "chernihiv": "Chernihiv oblast"
   }
 }

@@ -144,7 +144,14 @@ export const fetchActiveIncidents = () => get<Incident[]>('/incidents/active')
 export const fetchRecentIncidents = (limit = 20) =>
   get<Incident[]>(`/incidents/recent?limit=${limit}`)
 export const fetchActiveAxes = () => get<ThreatAxis[]>('/axes/active')
-export const fetchActiveAlerts = () => get<Alert[]>('/alerts/active')
+/** Recent alert windows, ENDED ones included (newest first).
+ *
+ * What the feed and the banner hydrate from: `/alerts/active` returns only open
+ * windows, so after a відбій a reload left the store with no alert at all — the
+ * all-clear card had nothing to date its duration from, and the banner's
+ * 20-second "щойно відбій" linger could never fire on a fresh page. */
+export const fetchRecentAlerts = (limit = 30) =>
+  get<Alert[]>(`/alerts/recent?limit=${limit}`)
 export const fetchAlertZones = () => get<AlertZone[]>('/alert-zones')
 /** Lazy: only fetched when the raion-alert layer is first switched on. */
 export const fetchAlertZoneGeometry = () => get<AlertZoneGeometry>('/alert-zones/geometry')
@@ -225,6 +232,14 @@ export const restoreIncident = (id: number) =>
 export const dismissAlert = (id: number) => send<Alert>(`/admin/alerts/${id}/dismiss`, 'POST')
 export const restoreAlert = (id: number) => send<Alert>(`/admin/alerts/${id}/restore`, 'POST')
 export const deleteEvent = (id: number) => send<Threat>(`/admin/events/${id}`, 'DELETE')
+/** One track with all its sightings, for the track editor. Serves closed tracks
+ * and impacts, which the public /threats/{id}/events route will not. */
+export const fetchAdminThreat = (id: number) => get<Threat>(`/admin/threats/${id}`)
+export type Regroup = Schemas['RegroupOut']
+/** Move a sighting onto `threatId`, or split it onto a track of its own when
+ * that is null. Returns BOTH tracks — the move always changes two. */
+export const regroupEvent = (id: number, threatId: number | null) =>
+  send<Regroup>(`/admin/events/${id}/threat`, 'PATCH', { threat_id: threatId })
 export const setEventDistrict = (id: number, districtId: number) =>
   send<Threat>(`/admin/events/${id}`, 'PATCH', { district_id: districtId })
 

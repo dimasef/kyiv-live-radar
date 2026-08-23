@@ -1,20 +1,11 @@
 import { Swords } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { durationLabel } from "@/lib/duration";
 import { HOME_COLOR } from "@/theme";
 import type { Incident } from "@/types";
 
 import { DevId, EventTime } from "./badges";
-
-function durationLabel(startedAt: string, endedAt: string): string {
-  const mins = Math.max(
-    1,
-    Math.round((new Date(endedAt).getTime() - new Date(startedAt).getTime()) / 60000),
-  );
-  if (mins < 60) return `${mins} хв`;
-  const h = Math.floor(mins / 60);
-  return `${h} год ${mins % 60} хв`;
-}
 
 /** A retrospective rollup rendered at an attack's ended_at: how long it ran,
  * its classification, and its counts — the "one attack, summarized" card that
@@ -61,7 +52,7 @@ export default function AttackSummaryCard({ incident }: { incident: Incident }) 
         {label}
         {" · "}
         {t("log.duration")}{" "}
-        {durationLabel(incident.started_at, incident.ended_at ?? incident.started_at)}
+        {durationLabel(t, incident.started_at, incident.ended_at ?? incident.started_at)}
       </div>
       {(stats.length > 0 || incident.decoy_suspected) && (
         <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px] tabular-nums text-slate-500">

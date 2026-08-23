@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest_asyncio
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.api.raw_query import serialize_raw_rows
@@ -116,3 +117,25 @@ async def test_ingestion_lag_and_broken_reply_chain_are_visible(session):
     assert out[child.id].reply_parent_raw_id == parent.id
     # A reply whose parent we never stored: the chain could not be threaded.
     assert out[orphan.id].reply_parent_raw_id is None
+
+
+async def test_event_chip_carries_both_the_event_and_the_track_type(session):
+    """`target_type` is what THIS message was read as; `threat_target_type` is
+    what the track now says. They diverge the moment anything corrects the
+    track — the context tiers, a later message, an operator — and the admin view
+    needs both: one is the audit trail, the other is what the map draws."""
+    src = await _spotter(session)
+    raw = await _raw(session, src, "Оболонь", message_id=41)
+    district = (await session.scalars(select(District))).one()
+    threat = Threat(target_type="ballistic", status="tracking")
+    session.add(threat)
+    await session.commit()
+    session.add(ThreatEvent(
+        threat_id=threat.id, district_id=district.id, raw_text="Оболонь",
+        source_id=src.id, source_message_id=41, event_target_type="unknown",
+    ))
+    await session.commit()
+
+    chip = (await _serialize(session, [raw]))[raw.id].events[0]
+    assert chip.target_type == "unknown"
+    assert chip.threat_target_type == "ballistic"
