@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.config import settings
 from app.db import Base
 from app.gazetteer import DISTRICTS, SOURCES
-from app.models import District, RawMessage, Source, Threat, utcnow
+from app.models import District, RawMessage, Source, Threat, ThreatEvent, utcnow
 from app.parsing import DistrictMatcher, parse_message
 from app.parsing.rules import LlmUsage
 from app.parsing.type_llm import TypeVerdict, normalize_type_verdict
@@ -220,6 +220,218 @@ async def test_no_llm_reprocess_does_not_start_new_calls(db, stub_type, monkeypa
     monkeypatch.setattr(settings, "llm_fallback_enabled", False)
     await _ingest(session, matcher, "Троєщина 🔴", message_id=1)
     assert calls == []
+    track = (await session.scalars(select(Threat))).one()
+    assert track.target_type == "unknown"
+
+
+# --- the verdict feeds back into the channel context -------------------------
+#
+# Before it did, the fourth tier was per-MESSAGE: 2026-08-23, one loitering jet
+# drone over Новгород-Сіверський bought three identical verdicts in twelve
+# minutes (16:35, 16:40, 16:47 — all jet_drone/0.85/context) because the answer
+# never reached `_recent_type`. Replayed over five days of stored messages,
+# feeding it back cuts calls 845 -> 435 and raises typed coverage 81% -> 90%.
+#
+# These use the NORTHERN channel's real messages on purpose. Incidents are
+# Kyiv-only, so a Kyiv scenario would have the incident prior (tier 2) typing
+# the follow-ups anyway — the test would pass with the feature reverted.
+
+async def test_a_verdict_types_the_next_bare_toponym_without_a_second_call(
+    db, stub_type, monkeypatch
+):
+    session, matcher = db
+    calls, box = stub_type
+    monkeypatch.setattr(settings, "llm_type_mode", "live")
+    box["verdict"] = TypeVerdict("jet_drone", "context", 0.85)
+    t0 = utcnow()
+    await _ingest(session, matcher, "Рогівка зайшов", when=t0, message_id=1)
+    await _ingest(session, matcher, "Новгород ⚠️⚠️⚠️",
+                  when=t0 + timedelta(minutes=3), message_id=2)
+    assert len(calls) == 1
+    assert {t.target_type for t in await session.scalars(select(Threat))} == {"jet_drone"}
+
+
+async def test_an_inferred_type_decays_instead_of_refreshing_itself(db, stub_type, monkeypatch):
+    """One window per ANSWER, not a self-feeding chain. Inheritance never touches
+    the stored timestamp, so a verdict recorded at t0 stops being inherited a
+    window later however many messages inherited it in between."""
+    session, matcher = db
+    calls, box = stub_type
+    monkeypatch.setattr(settings, "llm_type_mode", "live")
+    monkeypatch.setattr(settings, "type_inherit_window_minutes", 5)
+    box["verdict"] = TypeVerdict("jet_drone", "context", 0.85)
+    t0 = utcnow()
+    await _ingest(session, matcher, "Рогівка зайшов", when=t0, message_id=1)
+    await _ingest(session, matcher, "Новгород ⚠️⚠️⚠️",
+                  when=t0 + timedelta(minutes=3), message_id=2)
+    await _ingest(session, matcher, "Ще є Новгород",
+                  when=t0 + timedelta(minutes=7), message_id=3)
+    assert len(calls) == 2   # t0 and t0+7; the middle one rode the context
+
+
+async def test_a_stated_type_still_overrules_an_inferred_one(db, stub_type, monkeypatch):
+    session, matcher = db
+    _, box = stub_type
+    monkeypatch.setattr(settings, "llm_type_mode", "live")
+    box["verdict"] = TypeVerdict("jet_drone", "context", 0.85)
+    t0 = utcnow()
+    await _ingest(session, matcher, "Рогівка зайшов", when=t0, message_id=1)
+    await _ingest(session, matcher, "Балістика на Рогівку",
+                  when=t0 + timedelta(minutes=1), message_id=2)
+    await _ingest(session, matcher, "Новгород ⚠️⚠️⚠️",
+                  when=t0 + timedelta(minutes=2), message_id=3)
+    newest = (await session.scalars(select(Threat).order_by(Threat.id.desc()))).first()
+    assert newest.target_type == "ballistic"
+
+
+async def test_an_unusable_verdict_is_not_remembered(db, stub_type, monkeypatch):
+    """Only what we were willing to put on the map is worth caching — a verdict
+    below llm_type_min_confidence must not silently type later messages that the
+    classifier itself never got to see."""
+    session, matcher = db
+    calls, box = stub_type
+    monkeypatch.setattr(settings, "llm_type_mode", "live")
+    box["verdict"] = TypeVerdict("jet_drone", "context", 0.4)
+    t0 = utcnow()
+    await _ingest(session, matcher, "Рогівка зайшов", when=t0, message_id=1)
+    await _ingest(session, matcher, "Новгород ⚠️⚠️⚠️",
+                  when=t0 + timedelta(minutes=1), message_id=2)
+    assert len(calls) == 2
+    assert {t.target_type for t in await session.scalars(select(Threat))} == {"unknown"}
+
+
+async def test_shadow_mode_does_not_leak_its_verdict_into_the_context(
+    db, stub_type, monkeypatch
+):
+    """Shadow mode's whole point is being inert. Caching a type it was not
+    allowed to apply would have let it steer the map through the back door."""
+    session, matcher = db
+    monkeypatch.setattr(settings, "llm_type_mode", "shadow")
+    t0 = utcnow()
+    await _ingest(session, matcher, "Рогівка зайшов", when=t0, message_id=1)
+    await _ingest(session, matcher, "Новгород ⚠️⚠️⚠️",
+                  when=t0 + timedelta(minutes=1), message_id=2)
+    assert {t.target_type for t in await session.scalars(select(Threat))} == {"unknown"}
+
+
+async def test_an_inherited_guess_never_splits_a_ballistic_enumeration(
+    db, stub_type, monkeypatch
+):
+    """The reason TypeContext carries `inferred`. «Холми Рогівка» is split into
+    two simultaneous targets only when the wave is KNOWN to be ballistic; on a
+    guess it stays one meandering track (handlers._handle_sighting)."""
+    session, matcher = db
+    _, box = stub_type
+    monkeypatch.setattr(settings, "llm_type_mode", "live")
+    box["verdict"] = TypeVerdict("ballistic", "context", 0.9)
+    t0 = utcnow()
+    await _ingest(session, matcher, "Новгород ⚠️⚠️⚠️", when=t0, message_id=1)
+    await _ingest(session, matcher, "Холми Рогівка",
+                  when=t0 + timedelta(minutes=1), message_id=2)
+    tracks = list(await session.scalars(select(Threat)))
+    assert len(tracks) == 2          # the Новгород track + ONE for the pair
+    events = list(await session.scalars(
+        select(ThreatEvent).where(ThreatEvent.threat_id == tracks[-1].id)))
+    assert len(events) == 2
+
+
+# --- a decline is an answer too --------------------------------------------
+
+async def test_a_decline_is_not_re_asked_while_the_feed_says_the_same_thing(
+    db, stub_type, monkeypatch
+):
+    """2026-08-23 18:40-18:41: three bare toponyms from one channel bought three
+    identical `unknown`/`none` verdicts in fifty seconds ($0.0058). The
+    classifier had already read that feed and said it could not tell; nothing
+    stated a type in between, so it was being asked the same question."""
+    session, matcher = db
+    calls, box = stub_type
+    monkeypatch.setattr(settings, "llm_type_mode", "live")
+    box["verdict"] = TypeVerdict("unknown", "none", 0.3)
+    t0 = utcnow()
+    await _ingest(session, matcher, "Новгород ⚠️⚠️⚠️", when=t0, message_id=1)
+    await _ingest(session, matcher, "Рогівка зайшов",
+                  when=t0 + timedelta(seconds=20), message_id=2)
+    await _ingest(session, matcher, "На холми лізе",
+                  when=t0 + timedelta(seconds=50), message_id=3)
+    assert len(calls) == 1
+
+
+async def test_a_stated_type_anywhere_makes_a_decline_worth_re_asking(
+    db, stub_type, monkeypatch
+):
+    """The invalidator, and what makes a 30-minute decline window safe: the one
+    thing that changes the classifier's answer is a wave being ANNOUNCED, and an
+    announcement is a stated type. It counts from any channel — the context it
+    reads is cross-channel by design."""
+    session, matcher = db
+    calls, box = stub_type
+    monkeypatch.setattr(settings, "llm_type_mode", "live")
+    box["verdict"] = TypeVerdict("unknown", "none", 0.3)
+    t0 = utcnow()
+    await _ingest(session, matcher, "Новгород ⚠️⚠️⚠️", when=t0, message_id=1)
+    await ingest_message(session, text="Балістика!", matcher=matcher,
+                         when=t0 + timedelta(seconds=20), source_id=2, message_id=2)
+    await _ingest(session, matcher, "Рогівка зайшов",
+                  when=t0 + timedelta(seconds=40), message_id=3)
+    assert len(calls) == 2
+
+
+async def test_a_weak_answer_is_not_a_decline(db, stub_type, monkeypatch):
+    """Live counter-example from the same night: «Новгород з півночі» scored
+    shahed 0.65 at 18:49:31 — below the apply threshold — and the next call 37
+    seconds later scored 0.75 and WAS applied. Backing off on a weak answer
+    would have thrown that away."""
+    session, matcher = db
+    calls, box = stub_type
+    monkeypatch.setattr(settings, "llm_type_mode", "live")
+    box["verdict"] = TypeVerdict("shahed", "context", 0.65)
+    t0 = utcnow()
+    await _ingest(session, matcher, "Новгород ⚠️⚠️⚠️", when=t0, message_id=1)
+    await _ingest(session, matcher, "Рогівка зайшов",
+                  when=t0 + timedelta(seconds=37), message_id=2)
+    assert len(calls) == 2
+
+
+async def test_an_operator_retype_types_the_next_callout_for_free(db, monkeypatch):
+    """End of the same chain: with the correction in the channel context, the
+    next bare toponym inherits it and never reaches the classifier at all."""
+    from app.pipeline.ingest import note_operator_type
+
+    session, matcher = db
+    calls: list = []
+
+    async def _fake(text, context, source_label):
+        calls.append(text)
+        return TypeVerdict("shahed", "context", 0.9), LlmUsage(700, 20, 0.0008)
+
+    monkeypatch.setattr("app.parsing.type_llm.llm_target_type", _fake)
+    monkeypatch.setattr(settings, "anthropic_api_key", "test-key")
+    monkeypatch.setattr(settings, "llm_type_mode", "live")
+    t0 = utcnow()
+    note_operator_type({1}, "jet_drone", t0)
+    await _ingest(session, matcher, "Рогівка зайшов", when=t0 + timedelta(minutes=1),
+                  message_id=1)
+    assert calls == []
+    track = (await session.scalars(select(Threat))).one()
+    assert track.target_type == "jet_drone"   # the operator's, not the stub's shahed
+
+
+async def test_a_call_that_never_completes_is_still_recorded_as_attempted(db, monkeypatch):
+    """A timeout used to leave no trace whatsoever — llm_attempted=0, no verdict,
+    no cost — so /raw showed it as "no call was made" and an analysis of the
+    2026-08-23 feed went looking for a config difference that did not exist."""
+    async def _timeout(text, context, source_label):
+        return None, None
+
+    monkeypatch.setattr("app.parsing.type_llm.llm_target_type", _timeout)
+    monkeypatch.setattr(settings, "anthropic_api_key", "test-key")
+    monkeypatch.setattr(settings, "llm_type_mode", "live")
+    session, matcher = db
+    await _ingest(session, matcher, "Троєщина 🔴", message_id=1)
+    raw = (await session.scalars(select(RawMessage))).one()
+    assert raw.llm_attempted is True
+    assert raw.llm_cost_usd is None and raw.llm_type is None
     track = (await session.scalars(select(Threat))).one()
     assert track.target_type == "unknown"
 

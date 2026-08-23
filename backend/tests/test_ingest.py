@@ -273,6 +273,32 @@ def test_buzz_slang_chatter_does_not_poison_type_context():
     assert r.citywide and r.target_type == "unknown"  # not the poisoned jet_drone
 
 
+def test_explainer_post_does_not_poison_type_context():
+    # 2026-08-23 17:58, «Місто Кия»: «Чергове нагадування, що таке Бандероль.» —
+    # a post explaining what the weapon IS. The model name types it jet_drone
+    # (_JET_MODEL), and with no district that type was its ONLY effect: it became
+    # the channel's live target type, and «Погреби/Троя 🔴» 1m50s later inherited
+    # it. It also bought a triage LLM call hunting for a place the sentence never
+    # contained (verdict: noise).
+    post = _feed("Чергове нагадування, що таке Бандероль.", source_id=1, when=T0)
+    assert post.chatter and post.target_type == "jet_drone"
+    assert not should_fallback(post)          # nothing to localize, no LLM
+    r = _feed("Погреби", source_id=1, when=T0 + timedelta(minutes=2))
+    assert r.districts and r.target_type == "unknown"
+
+
+def test_a_real_warning_that_opens_with_a_reminder_still_types_the_channel():
+    """The guard on the explainer marker. «Нагадую»/«нагадування» is also how
+    this channel opens a GENUINE warning (7 in the stored corpus), so only the
+    definition shape («що таке X») counts — widening the marker to the reminder
+    word would silence them. Real message, verbatim."""
+    warning = _feed("Уважно до балістичних загроз, окремі попередження нагадую, "
+                    "що зберігаються.", source_id=1, when=T0)
+    assert not warning.chatter and warning.target_type == "ballistic"
+    r = _feed("Троя", source_id=1, when=T0 + timedelta(minutes=1))
+    assert r.target_type == "ballistic"   # still types the channel
+
+
 def test_buzz_slang_does_not_overwrite_live_ballistic_context():
     # A buzz-slang aside carrying a jet keyword mid-salvo must not knock an
     # already-live ballistic context down to jet_drone.

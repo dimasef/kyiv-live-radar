@@ -337,6 +337,10 @@ class RawMessage(Base):
     # this column existed — genuinely unknown, not backfillable (unlike
     # Notice.source_message_id, re-deriving this from today's parser/rules
     # would reflect current logic, not what actually ran historically).
+    # True means WE TRIED, including a call that timed out or errored before it
+    # returned anything — such a row carries no tokens and no cost. Gating this
+    # on a completed response instead made a failed call indistinguishable from
+    # a call that was never made (2026-08-23, the type classifier's 2s timeout).
     # Indexed: True on only ~5% of rows, and the /raw LLM filter selects on it.
     llm_attempted: Mapped[bool | None] = mapped_column(nullable=True, index=True)
     # Token usage/cost for that call — set together with llm_attempted=True

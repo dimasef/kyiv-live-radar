@@ -34,6 +34,7 @@ from ...models import (
     utcnow,
 )
 from ...pipeline.broadcast import broadcast_results
+from ...pipeline.ingest import note_operator_type
 from ...pipeline.results import Broadcast
 from ...schemas import (
     AlertOut,
@@ -99,6 +100,15 @@ async def admin_retype_threat(
         raise HTTPException(status_code=404, detail="threat not found")
     threat.target_type = body.target_type
     await record_retype_for_track(session, threat, body.target_type, admin.id)
+    # …and tell the LIVE pipeline, not just the regression dataset. An operator
+    # correcting an open track is the strongest type signal the system gets, and
+    # it used to stop at the track: on 2026-08-23 a retype to jet_drone at
+    # 18:50:12.7 was followed 5.7s later by a classifier call that answered
+    # `shahed` and became the channel context, because a machine guess seeds it
+    # and a human's correction did not. Open tracks only — retyping a closed one
+    # is a history fix, and must not speak about the sky right now.
+    if threat.closed_at is None:
+        note_operator_type({e.source_id for e in threat.events}, body.target_type, utcnow())
     inc = threat.incident
     if inc is not None:
         recompute_incident_types(inc)

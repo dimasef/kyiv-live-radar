@@ -103,6 +103,16 @@ class TypeVerdict:
             and self.confidence >= settings.llm_type_min_confidence
         )
 
+    @property
+    def declined(self) -> bool:
+        """Whether the model said it CANNOT tell, as opposed to answering
+        weakly. The other half of the distinction `usable` draws, and the one
+        that decides whether re-asking is worth anything: a decline will repeat
+        until the feed gains a stated type, while a 0.65 answer genuinely
+        firmed up to 0.75 thirty-seven seconds later on 2026-08-23. See
+        ingest/context.type_context_declined."""
+        return self.target_type == "unknown" or self.evidence == "none"
+
     def as_dict(self) -> dict:
         return {"target_type": self.target_type, "evidence": self.evidence,
                 "confidence": self.confidence}

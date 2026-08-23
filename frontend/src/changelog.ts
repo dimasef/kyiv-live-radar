@@ -32,12 +32,24 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.33.1";
+const LATEST = "0.33.2";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "Ціль не губиться між селами",
+    date: "2026-08-23",
+    kind: "patch",
+    changes: [
+      "Маршрут цілі більше не обривається на незнайомій назві: коли спостерігач вів ціль від села до села, а радар одного з них не знав, мітка застигала на попередній позиції й тихо згасала, поки ціль ішла далі. Тепер такі повідомлення продовжують той самий маршрут",
+      "Упізнає ще 6 місць: Смяч, Машеве, Лизунівка, Гремʼяч і Муравʼї на Новгород-Сіверщині та Семенівщині, а також Новосілки на лівому березі Десни — підхід до Троєщини, який називають разом із Хотянівкою та Зазимʼям",
+      "Менше сірих «невідомих» міток у довгих серіях повідомлень: визначений тип цілі тепер тримається для наступних викликів того самого каналу, а не зʼясовується щоразу заново",
+      "Пости, які пояснюють, що таке той чи інший тип зброї, більше не впливають на типи цілей на мапі",
+    ],
+  },
+  {
+    version: "0.33.1",
     title: "Кожна ціль у своїй області",
     date: "2026-08-23",
     kind: "patch",

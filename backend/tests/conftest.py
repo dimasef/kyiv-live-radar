@@ -6,6 +6,17 @@ import os
 # traceback to the production issue stream and page the maintainer about a bug
 # that only ever existed in a test stub. Tests must never talk to Sentry.
 os.environ["SENTRY_DSN"] = ""
+# Same reasoning, and the same .env, for the Anthropic key — except this one
+# costs money. `stub_llm` below claims "real code reads
+# settings.anthropic_api_key='' -> never calls the network", which was only ever
+# true on CI: locally pydantic-settings loads the maintainer's real key, so any
+# test ingesting an untyped localized sighting fired a LIVE type-classifier call.
+# It stayed invisible because the 2s timeout usually killed the call before it
+# returned — raising that timeout to 3.5s promptly made
+# test_untyped_callout_stays_unknown_in_a_combined_incident flaky, which is how
+# it surfaced. The fixtures that WANT an LLM monkeypatch the key back to
+# "test-key" alongside a stubbed client, so nothing legitimate loses coverage.
+os.environ["ANTHROPIC_API_KEY"] = ""
 
 import pytest
 
@@ -19,8 +30,9 @@ from app.parsing.rules import LlmUsage
 def _reset_ingest_globals():
     """Reset process-global ingest/tracking caches before every test.
 
-    `_recent_type` (per-channel type inheritance) and the cached sentinel-
-    district id (`domain.districts`) are process-global. Each test builds a
+    The type-context globals (per-channel inheritance, classifier declines, the
+    feed generation counter) and the cached sentinel district id
+    (`domain.districts`) are process-global. Each test builds a
     FRESH DB, so a value cached from a prior test's DB would leak in — a
     spurious inherited type, or the wrong sentinel id. Live processes don't
     hit this (one long-lived DB, real-time progression).
@@ -29,12 +41,12 @@ def _reset_ingest_globals():
     builds a fresh loop per test, so a queue from a prior test would raise. Drop
     it (and the cost-guard cache) here too.
     """
-    ingest._recent_type.clear()
+    ingest.reset_type_context()
     districts.reset_cache()
     triage.reset_queue()
     triage._invalidate_spend_cache()
     yield
-    ingest._recent_type.clear()
+    ingest.reset_type_context()
     districts.reset_cache()
     triage.reset_queue()
     triage._invalidate_spend_cache()
@@ -80,9 +92,12 @@ class _StubLlm:
 
 @pytest.fixture
 def stub_llm(monkeypatch):
-    """Patch the LLM entry points with a canned fake and enable the triage path
-    (real code reads settings.anthropic_api_key='' -> never calls the network;
-    this makes that explicit AND lets llm_triage be driven from a fixture)."""
+    """Patch the LLM entry points with a canned fake and enable the triage path.
+
+    The suite runs with an empty `anthropic_api_key` (see the env stub at the top
+    of this file), which is what keeps every other test off the network; this
+    fixture hands the key back ALONGSIDE a stubbed client, so the code under test
+    takes its real branch without anything reaching the API."""
     from app.config import settings
 
     stub = _StubLlm()
@@ -131,3 +146,13 @@ def district_rows(*extra: dict) -> list:
         )
         for d in [*DISTRICTS, *extra]
     ]
+
+
+def test_the_suite_cannot_reach_the_anthropic_api():
+    """Load-bearing invariant, not a smoke test: every LLM consumer gates on
+    `settings.anthropic_api_key` being non-empty, so this blank is what stands
+    between the suite and the maintainer's billing. Kept next to the env stub
+    that sets it, so removing one fails here rather than silently at runtime."""
+    from app.config import settings
+
+    assert not settings.anthropic_api_key

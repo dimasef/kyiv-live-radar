@@ -17,7 +17,13 @@ from ...observability import ingest_span, metrics
 from ...parsing import DistrictHit, DistrictMatcher, LlmUsage, ParseResult
 from ..lock import ingest_lock
 from ..results import Broadcast
-from .context import IngestContext, _note_and_inherit_type
+from .context import (
+    IngestContext,
+    _note_and_inherit_type,
+    note_inferred_type,
+    note_type_decline,
+    type_context_declined,
+)
 from .handlers import _dispatch, _handle_citywide, _handle_sighting, _ingest_outcome
 from .resolve import _resolve, in_promo_thread
 from .type_context import build_type_context, wants_llm_type
@@ -133,7 +139,7 @@ async def _infer_incident_type(session, parsed: ParseResult, when: datetime) -> 
 
 
 async def _maybe_llm_type(session, raw: RawMessage, parsed: ParseResult, when: datetime,
-                          *, allow_llm: bool) -> str | None:
+                          *, allow_llm: bool, window_minutes: int | None = None) -> str | None:
     """Fourth and last type tier: ask the LLM what is in the sky right now.
 
     Reached only when the message names a place, produced something to record,
@@ -168,6 +174,12 @@ async def _maybe_llm_type(session, raw: RawMessage, parsed: ParseResult, when: d
         # untyped sighting instead of replaying the verdicts it already has.
         if not allow_llm or not settings.llm_fallback_enabled or not settings.anthropic_api_key:
             return None
+        # This channel already asked and was told "I can't tell", and nothing has
+        # stated a type in the feed since — the classifier would be reading the
+        # same picture and giving the same answer. Three such repeats cost
+        # $0.0058 in fifty seconds on 2026-08-23.
+        if type_context_declined(raw.source_id, when, window_minutes):
+            return None
         from ..triage import llm_spend_ok
 
         if not await llm_spend_ok():
@@ -176,13 +188,20 @@ async def _maybe_llm_type(session, raw: RawMessage, parsed: ParseResult, when: d
 
         source = await session.get(Source, raw.source_id) if raw.source_id else None
         context = await build_type_context(session, when, exclude_raw_id=raw.id)
+        # Stamped BEFORE the await, not after: llm_target_type swallows timeouts
+        # and API errors into (None, None), so gating this on `usage` recorded
+        # only the calls that SUCCEEDED. A timed-out call then looked byte-for-
+        # byte like a call that was never made — same llm_attempted=0, same NULL
+        # verdict, same $0 — and an analysis of the 2026-08-23 feed spent its
+        # time hunting a config difference that did not exist. The field means
+        # "we tried", which is exactly the thing /raw needs to show.
+        raw.llm_attempted = True
         verdict, usage = await llm_target_type(
             parsed.raw_text, context, source.name if source is not None else "канал"
         )
         if usage is not None:
             # ACCUMULATE: the budget guard sums this column, and a message can
             # in principle have paid for an inline localization call too.
-            raw.llm_attempted = True
             raw.llm_input_tokens = (raw.llm_input_tokens or 0) + usage.input_tokens
             raw.llm_output_tokens = (raw.llm_output_tokens or 0) + usage.output_tokens
             raw.llm_cost_usd = (raw.llm_cost_usd or 0.0) + usage.cost_usd
@@ -191,6 +210,9 @@ async def _maybe_llm_type(session, raw: RawMessage, parsed: ParseResult, when: d
         raw.llm_type = verdict.target_type
         raw.llm_type_confidence = verdict.confidence
         raw.llm_type_evidence = verdict.evidence
+    if verdict.declined:
+        note_type_decline(raw.source_id, when)
+        return None
     if settings.llm_type_mode != "live" or not verdict.usable:
         return None
     parsed.target_type = verdict.target_type
@@ -285,13 +307,22 @@ async def process_parsed(
         # branch below so a typed post updates the context even when it produces no
         # event of its own (e.g. a district-less "Балістика!"). The incident-level
         # fallback below is the second tier when the per-channel window has lapsed.
-        _note_and_inherit_type(parsed, source_id, when,
-                               await _inherit_window_for(session, source_id))
+        inherit_window = await _inherit_window_for(session, source_id)
+        inherited_inferred = _note_and_inherit_type(parsed, source_id, when, inherit_window)
         type_from_incident = await _infer_incident_type(session, parsed, when)
         # Fourth tier — the LLM reads the type off the last two hours of the
         # whole feed. Last on purpose: it must never overrule a type the rules,
         # the channel or the live incident already established.
-        type_from_llm = await _maybe_llm_type(session, raw, parsed, when, allow_llm=allow_llm)
+        type_from_llm = await _maybe_llm_type(session, raw, parsed, when, allow_llm=allow_llm,
+                                              window_minutes=inherit_window)
+        # …and its answer becomes this channel's context, so the next bare
+        # toponym inherits it for free instead of re-asking (see
+        # note_inferred_type for the measurement). The incident prior is
+        # deliberately NOT recorded: it costs nothing to recompute and it is
+        # already a whole-attack signal, so caching it per channel would only
+        # let it outlive the incident that justified it.
+        if type_from_llm is not None:
+            note_inferred_type(source_id, type_from_llm, when)
 
         span.set_attribute("decision_source", decision_source)
         span.set_attribute("target_type", parsed.target_type)
@@ -306,7 +337,8 @@ async def process_parsed(
             reply_to_message_id=reply_to_message_id,
             llm_summary=(llm_response.get("summary") or None
                          if llm_response is not None and decision_source == "llm" else None),
-            type_inferred=type_from_incident or type_from_llm is not None,
+            type_inferred=(type_from_incident or type_from_llm is not None
+                           or inherited_inferred),
             enforce_age=enforce_age,
             region=await resolve_region(
                 session, [h.district_id for h in parsed.districts], source_id

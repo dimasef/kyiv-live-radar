@@ -464,6 +464,23 @@ _DAY_RECAP_WORD = "сьогодн"
 # context (ingest._note_and_inherit_type). ---
 _BUZZ_CHATTER = ("бджілк", "бджол")
 
+# --- Explainer posts: a channel telling readers what a weapon IS, not that one
+# is flying ("Чергове нагадування, що таке Бандероль."). Same treatment and the
+# same reason as buzz-slang — the model name types the message (Бандероль ->
+# jet_drone via _JET_MODEL), and with no district that type is the ONLY thing it
+# contributes: it becomes the channel's live target type for the next window,
+# and it buys a triage LLM call looking for a place the sentence never had (two
+# such calls on 2026-08-23, both returning `noise`).
+#
+# «що таке» is the whole marker, and deliberately nothing broader. The obvious
+# widenings were checked against the corpus and every one of them is wrong:
+# «нагадування»/«нагадую» is how this channel opens a REAL warning («❗️Нагадую
+# Підвищена загроза балістики для Києва до самого ранку!», 6 more like it), and
+# «пояснення»/«стосовно питань» sit in genuine threat commentary that should
+# keep typing the channel. A definition is the one shape that is never about
+# the sky. ---
+_EXPLAINER = ("що таке", "шо таке")
+
 # --- Political/official quote naming a place ("У Вишневому був склад
 # боєприпасів... — Зеленський") — a news repost, not a sighting; about WHO is
 # speaking, unlike siren_only/day_recap. Marker: dash + named official. Corpus:

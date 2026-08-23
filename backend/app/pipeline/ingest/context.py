@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from typing import NamedTuple
 
 from ...config import settings
 from ...domain.lifecycle import promote_track
@@ -16,16 +17,58 @@ from ...parsing import ParseResult, normalize
 from ...parsing.vocab import _MISSILE_CARRIER, _MISSILE_NAMED, _MISSILE_WEAPON
 from ...timeutil import naive
 
-# Per-source "last stated target type" context for cross-message type
-# inheritance (see settings.type_inherit_window_minutes). Keyed by source_id ->
-# (target_type, when). In-memory and order-dependent, which is fine: ingestion
-# is serialized and every feed path (live, replay, reprocess) presents messages
-# in chronological order per source. A process restart drops it, which is why
-# `rehydrate_type_context` replays the recent window on startup — with a 30-min
-# per-source window a deploy mid-wave used to cost half an hour of typing.
+
+class TypeContext(NamedTuple):
+    """One channel's current target type. A NamedTuple rather than a dataclass so
+    the long-standing `_recent_type[sid][0]` indexing keeps working.
+
+    `inferred` marks a type nobody wrote down — the LLM classifier read it off
+    the surrounding feed. It rides along so a message that INHERITS such a type
+    can still be told apart from one whose own channel stated it: the ballistic
+    enumeration split (handlers._handle_sighting) must not treat a guess as
+    grounds for splitting «Вишневе Жуляни» into two targets. An OPERATOR retype
+    is not inferred — a human correcting the map outranks the rules.
+    """
+
+    target_type: str
+    when: datetime
+    inferred: bool = False
+
+
+# Per-source "last known target type" context for cross-message type
+# inheritance (see settings.type_inherit_window_minutes). In-memory and
+# order-dependent, which is fine: ingestion is serialized and every feed path
+# (live, replay, reprocess) presents messages in chronological order per source.
+# A process restart drops it, which is why `rehydrate_type_context` replays the
+# recent window on startup — with a 30-min per-source window a deploy mid-wave
+# used to cost half an hour of typing.
 # Rule-only: mutating an already-districted message's type never adds an LLM
 # call, since should_fallback short-circuits to False whenever districts exist.
-_recent_type: dict[int, tuple[str, datetime]] = {}
+_recent_type: dict[int, TypeContext] = {}
+
+# Channels whose last classifier call came back "I can't tell", as
+# source_id -> (when, feed generation at that moment). A decline is an ANSWER
+# about the current sky, and re-asking while the sky picture is unchanged buys
+# the same answer again: on 2026-08-23 18:40-18:41 the northern channel bought
+# three identical `unknown`/`none` verdicts in fifty seconds ($0.0058) across
+# three different toponyms. See `type_context_declined` for what un-declines it.
+_declined_type: dict[int, tuple[datetime, int]] = {}
+
+# Bumped every time a message STATES a type (see _note_and_inherit_type) or an
+# operator corrects one. Not bumped by the classifier's own verdict: the
+# classifier reads `raw_messages` text (type_context.build_type_context), and a
+# verdict is not a message — it changes nothing about what the next call sees.
+_type_generation: int = 0
+
+
+def reset_type_context() -> None:
+    """Drop every in-memory type-context global. Tests build a fresh DB per case,
+    so a value cached from a prior one would leak in as a spurious inherited type
+    or a spurious decline."""
+    global _type_generation
+    _recent_type.clear()
+    _declined_type.clear()
+    _type_generation = 0
 
 
 def is_late(when: datetime) -> bool:
@@ -63,16 +106,20 @@ def _note_and_inherit_type(
     source_id: int | None,
     when: datetime,
     window_minutes: int | None = None,
-) -> None:
+) -> bool:
     """Record this message's stated type, or inherit a recent one onto a
     district-bearing message that stated none. Mutates `parsed.target_type`.
+
+    Returns whether the type it INHERITED was itself inferred (see TypeContext),
+    so the caller can fold that into IngestContext.type_inferred. False whenever
+    nothing was inherited.
 
     `window_minutes` is the reporting channel's own window (Source.
     type_inherit_minutes); None falls back to the global default. Passed in
     rather than looked up here so this stays a pure function — the caller owns
     the DB."""
     if source_id is None:  # no channel identity (e.g. simulator) — no context
-        return
+        return False
     # Conversational/meta chatter mentions types without being about a live
     # target — a donation post's "до останнього Шахеда та ракети", a recap, a
     # quoted official — and on 07-18 such a mention poisoned a channel's
@@ -81,7 +128,7 @@ def _note_and_inherit_type(
             or parsed.civic_notice or parsed.eppo_marks or parsed.siren_only
             or parsed.negated or parsed.summary or parsed.day_recap
             or parsed.chatter):
-        return
+        return False
     # Same reasoning, one step earlier in the attack: a message typed only by
     # the CARRIER ("З оленя злетіли тушки") is about bombers hours from their
     # launch lines, so it must not claim the channel is now calling cruise
@@ -90,14 +137,14 @@ def _note_and_inherit_type(
     # 2026-08-19 21:11, where that toponym belonged to a ballistic salvo
     # running at the same time.
     if _carrier_only(parsed):
-        return
+        return False
     # And the same again for a wave that has not arrived: "Найближчим часом
     # можлива повторна хвиля балістики" is about what MIGHT come, not what is in
     # the sky. Live 2026-08-19 22:18-22:20, two such posts (one per channel) set
     # both channels to ballistic, and every Kalibr callout for the next nine
     # minutes — Богуслав, Тараща, «Група КР на Богуслав» — inherited it.
     if parsed.anticipated:
-        return
+        return False
     if parsed.target_type != "unknown":
         # "missile" is the generic parent of the specific "ballistic": during a
         # ballistic salvo a spotter often drops a bare "3 ракети" between the
@@ -111,6 +158,7 @@ def _note_and_inherit_type(
         # so it must be able to correct the context rather than be swallowed by
         # it. Same night, 22:22: both channels said «Калібри» and both stayed
         # ballistic, because the guard could not tell them from a bare "ракети".
+        global _type_generation
         prev = _recent_type.get(source_id)
         if (
             parsed.target_type == "missile"
@@ -119,21 +167,141 @@ def _note_and_inherit_type(
             and prev[0] == "ballistic"
             and _within_inherit_window(when, prev[1], window_minutes)
         ):
-            _recent_type[source_id] = ("ballistic", when)
+            _recent_type[source_id] = TypeContext("ballistic", when)
         else:
-            _recent_type[source_id] = (parsed.target_type, when)
-        return
+            _recent_type[source_id] = TypeContext(parsed.target_type, when)
+        # A stated type is new information in the FEED — every channel's stale
+        # "I can't tell" is now worth re-asking (see type_context_declined).
+        _type_generation += 1
+        return False
     # Untyped: inherit only when the message is a real (localizable or
     # city-wide) sighting — a bare "Троя" or "Ціль на місто!" between typed
     # posts — AND a recent stated type exists for this same channel.
     if not parsed.districts and not parsed.citywide:
-        return
+        return False
     recent = _recent_type.get(source_id)
     if recent is None:
+        return False
+    if not _within_inherit_window(when, recent.when, window_minutes):
+        return False
+    parsed.target_type = recent.target_type
+    return recent.inferred
+
+
+def note_inferred_type(source_id: int | None, target_type: str, when: datetime) -> None:
+    """Record a type the LLM classifier read off the feed as this channel's
+    current context, so the NEXT bare toponym inherits it instead of paying for
+    the same answer again.
+
+    Without this the fourth tier was per-message: on 2026-08-23 one loitering
+    jet drone over Новгород-Сіверський cost three identical calls in twelve
+    minutes (16:35, 16:40, 16:47 — all jet_drone/0.85/context), because the
+    verdict mutated only that message's ParseResult and the channel context
+    stayed as stale as it was before the call. Replayed over five days of stored
+    messages (2 453 localizable sightings, classifier hit-rate 41% as measured
+    by eval/type_eval), feeding it back cuts type calls 845 -> 435 AND raises
+    typed coverage 80.6% -> 90.0%: the inherited verdict also types the
+    sightings a call would have answered `unknown` on.
+
+    Decay is bounded to ONE window per answer, not a self-refreshing chain —
+    inheritance deliberately never touches the stored timestamp, so a verdict
+    recorded at 16:35 stops being inherited at 17:05 whatever happens in
+    between. `inferred=True` keeps it distinguishable downstream.
+    """
+    if source_id is None or target_type == "unknown":
         return
-    rtype, rwhen = recent
-    if _within_inherit_window(when, rwhen, window_minutes):
-        parsed.target_type = rtype
+    _recent_type[source_id] = TypeContext(target_type, when, inferred=True)
+
+
+def note_operator_type(source_ids, target_type: str, when: datetime) -> None:
+    """Record an operator's /admin retype as the current type of every channel
+    that reported the corrected track.
+
+    A human looking at the map is the most authoritative type signal the system
+    has — above the rules, and far above the classifier's read of the feed. It
+    was also the only one that went nowhere: `admin_retype_threat` fixed the
+    track and filed a ParserCorrection, and the live context carried on as
+    though nothing had been said. Live 2026-08-23: the operator retyped track
+    1279 to jet_drone at 18:50:12.7, and 5.7 seconds later the next callout paid
+    $0.002 to be told `shahed` — which then became the channel context, because
+    the classifier's guess seeds it (note_inferred_type) and the correction did
+    not.
+
+    ALL contributing channels, not just the latest: they were all describing the
+    one target the operator just relabelled, and the cross-channel case is
+    exactly the gap the classifier exists to fill. `inferred=False` — this is a
+    stated type, so the ballistic enumeration split may trust it.
+
+    Callers must pass only an OPEN track's channels: retyping a closed track is
+    a history correction, and injecting yesterday's type into today's live
+    context is the poisoning this module spends most of its rules preventing.
+
+    Called from an /admin request rather than from ingest, so it runs outside
+    `ingest_lock` — deliberately. There is no await here, so on the single event
+    loop this whole function is atomic against a concurrent ingest pass; the lock
+    exists for multi-step DB mutation (see rehydrate_type_context), which this
+    is not.
+    """
+    global _type_generation
+    if target_type == "unknown":
+        return
+    for source_id in {s for s in source_ids if s is not None}:
+        _recent_type[source_id] = TypeContext(target_type, when)
+        _declined_type.pop(source_id, None)
+    _type_generation += 1
+
+
+def note_type_decline(source_id: int | None, when: datetime) -> None:
+    """Remember that the classifier looked at the feed and could not tell."""
+    if source_id is None:
+        return
+    _declined_type[source_id] = (when, _type_generation)
+
+
+def type_context_declined(source_id: int | None, when: datetime,
+                          window_minutes: int | None = None) -> bool:
+    """Whether asking the classifier again would just re-buy a recent decline.
+
+    True only while BOTH hold: the decline is inside this channel's inheritance
+    window, and no message has stated a type anywhere since (`_type_generation`).
+    That second condition is what makes a window as long as 30 minutes safe —
+    the thing that would change the answer is a wave being announced, and an
+    announcement is precisely a stated type. A run of bare toponyms, which is
+    what the northern channel emits for most of a night, changes nothing the
+    classifier is told to read.
+
+    A LOW-CONFIDENCE verdict is deliberately not a decline (see
+    TypeVerdict.usable): «Новгород з півночі» scored shahed 0.65 at 18:49:31 and
+    the next call 37 seconds later scored 0.75 and was applied. Only an explicit
+    `unknown`/`evidence=none` counts, and a call that never returned counts as
+    nothing at all — that is a failure, not an answer.
+    """
+    if source_id is None:
+        return False
+    entry = _declined_type.get(source_id)
+    if entry is None:
+        return False
+    declined_at, generation = entry
+    if generation != _type_generation:
+        return False
+    return _within_inherit_window(when, declined_at, window_minutes)
+
+
+def _stored_llm_type(raw) -> str | None:
+    """The type verdict stored on a raw message, if it was one we would apply.
+    Mirrors `_maybe_llm_type`'s replay branch so a rehydrate restores the same
+    context the live pass established — including its mode check, so verdicts
+    banked during a SHADOW night can't start steering the map the moment the
+    process restarts in live mode."""
+    if raw.llm_type is None or settings.llm_type_mode != "live":
+        return None
+    from ...parsing.type_llm import normalize_type_verdict
+
+    verdict = normalize_type_verdict({
+        "target_type": raw.llm_type, "evidence": raw.llm_type_evidence,
+        "confidence": raw.llm_type_confidence or 0.0,
+    })
+    return verdict.target_type if verdict.usable else None
 
 
 async def rehydrate_type_context(session) -> int:
@@ -150,7 +318,10 @@ async def rehydrate_type_context(session) -> int:
     itself rather than re-deriving "the last type stated": that keeps every rule
     identical — the suppressor skips, the carrier-only veto, the
     ballistic-over-generic-missile guard. The ParseResult it mutates is thrown
-    away; only the recorded context survives. Read-only, no events, no LLM.
+    away; only the recorded context survives. Read-only, no events, no LLM: a
+    STORED classifier verdict is replayed through `note_inferred_type`, so a
+    restart doesn't throw away a type we already paid for and start paying for
+    it again message by message.
 
     Returns the number of channels whose context was restored.
     """
@@ -193,6 +364,13 @@ async def rehydrate_type_context(session) -> int:
             region = sources[raw.source_id].region
             parsed = parse_message(raw.text or "", matcher.for_region(region))
             _note_and_inherit_type(parsed, raw.source_id, raw.event_time, windows[raw.source_id])
+            # Same order as the live pass: the classifier is the LAST tier, so
+            # its verdict only lands where the rules and the channel window
+            # left the message untyped.
+            if parsed.target_type == "unknown":
+                stored = _stored_llm_type(raw)
+                if stored is not None:
+                    note_inferred_type(raw.source_id, stored, raw.event_time)
     return len({sid for sid in _recent_type if sid in sources})
 
 

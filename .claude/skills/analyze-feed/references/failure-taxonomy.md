@@ -63,7 +63,14 @@ match-latest-only behaviour were tuned empirically against
 `eval/track_eval.py` — treat them as measurements, not guesses.
 
 - **Split**: one real target became several tracks. Usually a broken reply chain
-  (see below) or a channel that never uses replies.
+  (see below) or a channel that never uses replies. The commonest way a chain
+  breaks is a GAZETTEER gap, not a tracking bug: `_dispatch` drops an
+  unlocalized message at step 2b, *before* `find_track_by_reply` runs, so a
+  reply naming a village we don't have never reaches the tracking layer at all
+  — the parent track never learns the target moved, and every further reply
+  down that chain is orphaned too. Confirm with `parse_message` on the reply's
+  text before proposing anything in `tracking.py` (2026-08-23: «Рогівка
+  зайшов» → «На Смяч», and 08-20 «БпЛА біля Рогівки» before it).
 - **Merge**: several targets in one track. The failure mode the current design
   exists to prevent; regressions show up as `TRACK PURITY` falling.
 - **Type churn** inside one track (the report lists these) comes from
@@ -116,10 +123,24 @@ rows that produced an event or a notice: `raw_query.py` blanks their
 **undetermined** rather than guessing. Settle one by re-running
 `should_fallback` on its text.
 
-Each call ships the whole gazetteer enum (~3.5k input tokens, ~$0.004), so the
-question for a wasted call is always "could a deterministic rule have known
-this for free?" — e.g. `resolve.py::in_promo_thread` vetoes replies inside a
-fundraising thread by walking up the reply chain.
+There is a THIRD consumer and it is now the highest-volume one: the target-type
+classifier, `core.py::_maybe_llm_type` (~1.7k tokens, ~$0.0018 a call). Its
+answer is written back into the per-channel type context
+(`context.py::note_inferred_type`), so a run of bare toponyms pays once per
+inheritance window, not once per message. If an export shows the same channel
+buying the same verdict every few minutes, that feedback is what broke — check
+it before blaming the window length.
+
+`llm_attempted=True` with NULL tokens/cost means the call was made and never
+returned (timeout, network, API error). It is NOT "no call": before 2026-08-23
+the flag was only set on a completed response, so a timing-out classifier looked
+exactly like a disabled one and cost one analysis its whole first hypothesis.
+`llm_type_timeout_s` is deliberately tight — that call holds the ingest lock.
+
+Each localization call ships the whole gazetteer enum (~3.5k input tokens,
+~$0.004), so the question for a wasted call is always "could a deterministic
+rule have known this for free?" — e.g. `resolve.py::in_promo_thread` vetoes
+replies inside a fundraising thread by walking up the reply chain.
 
 ## Things that look like bugs but are decisions
 

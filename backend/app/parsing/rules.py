@@ -44,6 +44,7 @@ from .vocab import (
     _ENGAGEMENT,
     _EPPO_DISMISS,
     _EPPO_WORD,
+    _EXPLAINER,
     _FORECAST_TIMEFRAME,
     _FORECAST_VERB,
     _HEDGE_MODAL_RE,
@@ -170,11 +171,13 @@ class ParseResult:
     # live targets. Suppressed like civic_notice (see rules._eppo_marks).
     eppo_marks: bool = field(default=False)
     day_recap: bool = field(default=False)
-    # Spotter buzz-slang ("бджілки"/"бджоли" = drones) in casual reassurance
-    # chatter — must not set/consume the per-channel live target-type context
-    # (see ingest._note_and_inherit_type). Not a suppressor: with no district it
-    # forms no track anyway; this flag exists purely to keep it out of type
-    # inheritance, which it otherwise poisons ("реактивні бджілки" -> jet_drone).
+    # Talk that NAMES a weapon without one being in the sky: spotter buzz-slang
+    # ("бджілки"/"бджоли" = our drones) and explainer posts ("що таке
+    # Бандероль"). Must not set/consume the per-channel live target-type context
+    # (see ingest._note_and_inherit_type). Barely a suppressor — with no district
+    # it forms no track either way — but it keeps such a message out of type
+    # inheritance, which it otherwise poisons ("реактивні бджілки" -> jet_drone),
+    # and out of the triage LLM, which has no place in the text to find.
     chatter: bool = field(default=False)
     political_quote: bool = field(default=False)
     # Relayed news of a destruction elsewhere ("Повідомляють про знищення в
@@ -916,7 +919,7 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
     # accumulating onto the incident even on an otherwise-terse message.
     decoy = bool(_DECOY_RE.search(norm))
     hypersonic = bool(_HYPERSONIC_RE.search(norm))
-    chatter = any(w in norm for w in _BUZZ_CHATTER)
+    chatter = any(w in norm for w in (*_BUZZ_CHATTER, *_EXPLAINER))
 
     clear_scope = _clear_scope(status, target_type, norm)
     impact = _impact(districts, norm, status)

@@ -340,9 +340,15 @@ class Settings(BaseSettings):
     # how long the target lingers on the map).
     llm_type_min_confidence: float = 0.7
     # Tighter than llm_timeout_s: this call is on the INLINE path and holds the
-    # ingest lock. Measured p90 1.5s / max 1.7s on real traffic; past 2s we
-    # would rather stay untyped than stall the pipeline mid-barrage.
-    llm_type_timeout_s: float = 2.0
+    # ingest lock, so a slow call stalls the pipeline mid-barrage — we would
+    # rather stay untyped. The original 2.0s came from a p90 of 1.5s / max 1.7s
+    # measured over Railway's link to the API; from a home connection that
+    # cut a visible share of calls, and because a timeout left NO trace at all
+    # (see _maybe_llm_type) the losses read in /raw as "no call was made" —
+    # 2026-08-23, two of four calls on one Novhorod-Siverskyi session. Raised to
+    # keep the tail: the type-context feedback below roughly halves how many
+    # calls are made in the first place, which buys the extra second back.
+    llm_type_timeout_s: float = 3.5
 
     # --- LLM cost guard (both the inline fallback AND the triage engine). When
     #     the running spend for the current UTC day/month reaches the cap, the LLM

@@ -402,6 +402,15 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Гнідин", "name_en": "Hnidyn", "lat": 50.3287, "lon": 30.7058, "aliases": []},
     {"name_uk": "Горенка", "name_en": "Horenka", "lat": 50.5596, "lon": 30.3123, "aliases": []},
     {"name_uk": "Хотянівка", "name_en": "Khotianivka", "lat": 50.5959, "lon": 30.5668, "aliases": []},
+    # Ships with Хотянівка and Зазимʼя, and the corpus is what picks WHICH
+    # Новосілки: Kyiv oblast has several (Бучанський, Броварський, Вишгородський,
+    # plus an Іванківський one Nominatim answers first). All three stored
+    # mentions are this one — «Новосілки/Хотянівка/Зазимʼя та Троя 🔴»,
+    # «Новосілки 🔴. На Бровари другий 🔴», and 2026-08-23 18:00 between «Троя!!»
+    # and «Погреби/Троя 🔴» — i.e. the Desna left-bank approach into Троєщина,
+    # geographically between the two neighbours it is named with.
+    {"name_uk": "Новосілки", "name_en": "Novosilky", "lat": 50.612, "lon": 30.6304,
+     "aliases": []},
     {"name_uk": "Чабани", "name_en": "Chabany", "lat": 50.3414, "lon": 30.4271, "aliases": []},
     # "Щасливе" also means "happy" (щасливий/-а/-е) — a very common Ukrainian
     # adjective/farewell word ("будьте щасливі"). High collision risk, same
@@ -1339,6 +1348,40 @@ DISTRICTS: list[dict] = [
     # south of Kyiv. Do not remove one without removing the other.
     {"name_uk": "Українка", "name_en": "Ukrainka", "lat": 50.1537, "lon": 30.7421,
      "region": "kyiv", "aliases": ["українки", "українку"]},
+
+    # --- N. 2026-08-23 evening, the Новгород-Сіверський loitering session. Not
+    # a coverage pass either: every one of these is a message that REPLIED into
+    # an open track, which is the expensive kind of gap. `_dispatch` drops an
+    # unlocalized message before `find_track_by_reply` ever runs (handlers.py,
+    # "2b. Nothing localizable"), so a missing entry doesn't just cost a pin —
+    # the track never learns the target moved, and anything replying further
+    # down the chain has no parent event to join. «Рогівка зайшов» opened track
+    # 4039 and its own reply «На Смяч» vanished; «Новгород, виліз з заходу»
+    # opened 4038 and «На Шостку пішов» vanished the same way.
+    #
+    # Geocoded via scripts/geocode_localities.py (section after K), and swept as
+    # stems over all 6 221 stored messages: 8 messages change, every one is a
+    # village that resolved to nothing before, and no existing match moves —
+    # zero collisions, so none of these needs region_only.
+    {"name_uk": "Смяч", "name_en": "Smiach", "lat": 52.1365, "lon": 33.1882,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Машеве", "name_en": "Masheve", "lat": 52.0865, "lon": 32.7975,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Лизунівка", "name_en": "Lyzunivka", "lat": 52.0694, "lon": 32.9257,
+     "region": "chernihiv", "aliases": []},
+    # The channel types both «Гремʼяч» and «Гремяч»; the normalizer strips the
+    # apostrophe, so one stem covers both while the entry keeps it for the label.
+    {"name_uk": "Гремʼяч", "name_en": "Hremiach", "lat": 52.3393, "lon": 33.2908,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Муравʼї", "name_en": "Muravi", "lat": 52.3413, "lon": 33.3689,
+     "region": "chernihiv", "aliases": []},
+    # DELIBERATELY NOT ADDED, same session: «Красна Гірка» («виліз з заходу на
+    # красну гірку»). A two-word entry only matches through a single-word alias
+    # (the stemmer strips spaces), and neither word is safe here — «гірк» is
+    # already how this channel names a DIFFERENT settlement, Гірки («З сумської
+    # на гірки», «На дігтярівку /гірки»), and «красн» swallows «Краснодарського»,
+    # which is an ORIGIN mention that domain/origins.py owns. One callout is not
+    # worth either. Revisit if the matcher learns multi-word forms.
 
     # Sentinel "district" for CITY-WIDE threats — a strike aimed at the city as
     # a whole ("ціль на місто", "балістика на Київ") that no spotter localizes

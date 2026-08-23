@@ -9,6 +9,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+import app.pipeline.ingest as ingest
 from app.auth.security import encode_access
 from app.config import settings
 from app.db import Base, get_session
@@ -23,6 +24,7 @@ from app.models import (
     Threat,
     ThreatEvent,
     User,
+    utcnow,
 )
 
 
@@ -59,13 +61,15 @@ async def _district(session) -> District:
     return d
 
 
-async def _threat_with_event(session, district, *, target_type="shahed", incident=None):
-    threat = Threat(target_type=target_type, status="tracking")
+async def _threat_with_event(session, district, *, target_type="shahed", incident=None,
+                             source_id=None, closed_at=None):
+    threat = Threat(target_type=target_type, status="tracking", closed_at=closed_at)
     if incident is not None:
         threat.incident_id = incident.id
     session.add(threat)
     await session.commit()
-    ev = ThreatEvent(threat_id=threat.id, district_id=district.id, raw_text="x")
+    ev = ThreatEvent(threat_id=threat.id, district_id=district.id, raw_text="x",
+                     source_id=source_id)
     session.add(ev)
     await session.commit()
     return threat, ev
@@ -131,6 +135,44 @@ async def test_retype_updates_incident(client):
     await s.refresh(refreshed)
     assert refreshed.target_type == "ballistic"
     assert refreshed.attack_types == ["ballistic"]
+
+
+async def test_retype_of_an_open_track_becomes_the_channel_type_context(client):
+    """An operator correcting a LIVE track is the strongest type signal there is,
+    and it used to stop at the track. 2026-08-23: a retype to jet_drone at
+    18:50:12.7 was followed 5.7 s later by a classifier call answering `shahed`,
+    which then became the channel context — a machine guess seeded it, the human
+    correction did not."""
+    c, s = client
+    headers = await _admin_headers(s)
+    d = await _district(s)
+    threat, _ = await _threat_with_event(s, d, target_type="unknown", source_id=7)
+
+    r = await c.patch(
+        f"/admin/threats/{threat.id}", json={"target_type": "jet_drone"}, headers=headers
+    )
+    assert r.status_code == 200
+    ctx = ingest._recent_type[7]
+    assert ctx.target_type == "jet_drone"
+    assert not ctx.inferred      # stated by a human, not read off the feed
+
+
+async def test_retype_of_a_closed_track_leaves_the_live_context_alone(client):
+    """Retyping a CLOSED track is a history correction. Injecting its type into
+    the live context would be the same poisoning every other rule in
+    ingest/context.py exists to prevent."""
+    c, s = client
+    headers = await _admin_headers(s)
+    d = await _district(s)
+    threat, _ = await _threat_with_event(
+        s, d, target_type="unknown", source_id=7, closed_at=utcnow()
+    )
+
+    r = await c.patch(
+        f"/admin/threats/{threat.id}", json={"target_type": "ballistic"}, headers=headers
+    )
+    assert r.status_code == 200
+    assert 7 not in ingest._recent_type
 
 
 async def test_retype_rejects_unknown_type(client):

@@ -144,3 +144,71 @@ async def test_channels_with_no_window_are_still_handled(session, minutes):
     await session.commit()
     _recent_type.clear()
     await rehydrate_type_context(session)  # must not raise
+
+
+async def test_a_stored_classifier_verdict_survives_the_restart(session):
+    """A type the LLM already answered for is context too — dropping it on a
+    deploy means paying for the same answer again, one message at a time."""
+    src = await _channel(session, 30)
+    now = naive(utcnow())
+    session.add(
+        RawMessage(source_id=src.id, message_id=1, text="Троєщина 🔴",
+                   event_time=now - timedelta(minutes=20),
+                   llm_type="jet_drone", llm_type_confidence=0.85,
+                   llm_type_evidence="context")
+    )
+    await session.commit()
+
+    _recent_type.clear()  # the restart
+    assert await rehydrate_type_context(session) == 1
+    assert _feed("Оболонь", src.id, now, 30).target_type == "jet_drone"
+    assert _recent_type[src.id].inferred   # still marked as a guess, not a statement
+
+
+async def test_a_stored_verdict_we_would_not_have_applied_is_not_restored(session):
+    """Replay mirrors the live gate: below llm_type_min_confidence the verdict
+    never reached the map, so it must not reach the context either."""
+    src = await _channel(session, 30)
+    session.add(
+        RawMessage(source_id=src.id, message_id=1, text="Троєщина 🔴",
+                   event_time=naive(utcnow()) - timedelta(minutes=20),
+                   llm_type="jet_drone", llm_type_confidence=0.4,
+                   llm_type_evidence="context")
+    )
+    await session.commit()
+    _recent_type.clear()
+    assert await rehydrate_type_context(session) == 0
+
+
+async def test_a_stated_type_wins_over_a_stored_verdict_on_the_same_message(session):
+    """The classifier is the LAST tier on replay too — it may only fill a gap."""
+    src = await _channel(session, 30)
+    now = naive(utcnow())
+    session.add(
+        RawMessage(source_id=src.id, message_id=1, text="Балістика на Троєщину",
+                   event_time=now - timedelta(minutes=20),
+                   llm_type="shahed", llm_type_confidence=0.99,
+                   llm_type_evidence="context")
+    )
+    await session.commit()
+    _recent_type.clear()
+    await rehydrate_type_context(session)
+    assert _recent_type[src.id] == ("ballistic", now - timedelta(minutes=20), False)
+
+
+async def test_a_shadow_mode_verdict_is_not_restored_into_a_live_process(session, monkeypatch):
+    """Shadow mode banks verdicts without applying them. A restart into live
+    mode must not turn that bank into context — the operator is still auditing."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "llm_type_mode", "shadow")
+    src = await _channel(session, 30)
+    session.add(
+        RawMessage(source_id=src.id, message_id=1, text="Троєщина 🔴",
+                   event_time=naive(utcnow()) - timedelta(minutes=20),
+                   llm_type="jet_drone", llm_type_confidence=0.85,
+                   llm_type_evidence="context")
+    )
+    await session.commit()
+    _recent_type.clear()
+    assert await rehydrate_type_context(session) == 0

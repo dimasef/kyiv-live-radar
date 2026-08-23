@@ -285,6 +285,33 @@ def test_multi_district_order_preserved():
     assert ids.index(BY_EN["Obolon"]) < ids.index(BY_EN["Vynohradar"])
 
 
+def test_novosilky_resolves_on_the_left_bank_approach():
+    """Kyiv oblast has several Новосілки; all three stored mentions are the
+    Зазимська-громада one, always named alongside its neighbours on the Desna
+    left-bank run into Троєщина. Bare «Новосілки» (2026-08-23 18:00, «Віраж
+    Києва») matched nothing at all before."""
+    bare = parse_message("Новосілки", M)
+    assert [h.district_id for h in bare.districts] == [BY_EN["Novosilky"]]
+    run = parse_message("Новосілки/Хотянівка/Зазимʼя та Троя 🔴.", M)
+    ids = [h.district_id for h in run.districts]
+    assert ids == [BY_EN["Novosilky"], BY_EN["Khotianivka"],
+                   BY_EN["Zazymia"], BY_EN["Troieshchyna"]]
+
+
+def test_explainer_post_is_chatter_not_a_sighting():
+    """«Чергове нагадування, що таке Бандероль.» names a weapon without one
+    being in the sky. The model name still types it (that is what _JET_MODEL is
+    for), but `chatter` keeps it out of the channel type context and the triage
+    LLM."""
+    r = parse_message("Чергове нагадування, що таке Бандероль.", M)
+    assert r.chatter and r.target_type == "jet_drone" and r.districts == []
+
+
+def test_a_banderol_sighting_is_not_swallowed_by_the_explainer_marker():
+    r = parse_message("2-3 Бандеролі в бік Києва", M)
+    assert not r.chatter and r.target_type == "jet_drone"
+
+
 def test_new_target_marker():
     r = parse_message("Новий шахед зайшов з півночі на Виноградар", M)
     assert r.is_new_target

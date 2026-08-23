@@ -1294,3 +1294,28 @@ async def test_stale_incident_ends_when_its_activity_stopped(ctx):
     # 11 minutes of activity + the 40-minute stale window — not 24 hours.
     assert naive(ended[0].ended_at) == naive(BASE) + timedelta(minutes=51)
     assert ended[0].ended_reason == "stale"
+
+
+async def test_a_reply_naming_a_covered_village_continues_its_parents_track(ctx):
+    """The 2026-08-23 Новгород-Сіверський session, and the reason «Смяч» is in
+    the gazetteer.
+
+    `_dispatch` drops an unlocalized message at step 2b, BEFORE
+    `find_track_by_reply` runs — so a reply naming a village we don't have does
+    not merely lose its pin, it never reaches the tracking layer at all. Live,
+    «Рогівка зайшов» opened track 4039 and its own reply «На Смяч» produced
+    nothing: the track never learned the target had moved, and aged out over
+    Рогівка. With both villages covered it is one track walking Рогівка -> Смяч.
+    """
+    s, m, src = ctx
+    await ingest_message(s, text="Рогівка зайшов", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="На Смяч", matcher=m, when=BASE + timedelta(seconds=8),
+                         source_id=src[0].id, message_id=2, reply_to_message_id=1)
+    assert await _count_threats(s) == 1
+    events = list(await s.scalars(select(ThreatEvent).order_by(ThreatEvent.id)))
+    names = [
+        await s.scalar(select(District.name_uk).where(District.id == e.district_id))
+        for e in events
+    ]
+    assert names == ["Рогівка", "Смяч"]
