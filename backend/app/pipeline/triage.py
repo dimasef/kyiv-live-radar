@@ -104,7 +104,19 @@ def should_triage(parsed: ParseResult, decision_source: str, llm_response: dict 
                   or parsed.eppo_marks or parsed.siren_only
                   or parsed.political_quote or parsed.day_recap)
     threat_flavored = parsed.target_type != "unknown" or parsed.status in ("confirmed", "unconfirmed")
-    return suppressed and threat_flavored
+    if suppressed and threat_flavored:
+        return True
+    # An unlocalized but NOT suppressed threat callout («ціль на Пакуль», «з
+    # Брянщини курсом на нас») used to reach the LLM through the inline
+    # localization fallback, and its verdict then arrived here via the branch
+    # above. With localization off that inline call is gone, so this class would
+    # otherwise lose its second pass entirely — and with it the notice/axis the
+    # verdict produces. `should_fallback` is exactly that test (it already
+    # excludes every suppressed class, junk, and other oblasts), which is why it
+    # is reused rather than restated.
+    from .ingest.resolve import should_fallback  # lazy: ingest imports triage
+
+    return should_fallback(parsed)
 
 
 def enqueue_job(job: TriageJob) -> bool:
@@ -343,6 +355,14 @@ async def _route_rescue(
     handlers. The riskiest path (a false rescue = a phantom track): every gate
     is code-side, and it ships disabled — until enabled, a candidate is only
     recorded for /raw audit."""
+    # No gazetteer in the prompt means no district id can come back, so a
+    # `localized` verdict here is not a rescue candidate at all — it is the
+    # model saying "this names a place you don't have". That is the coverage-gap
+    # queue's business (api/coverage.py picks it up automatically: the message
+    # produced neither event nor notice), and labelling it honestly keeps the
+    # /raw filter from reading as 26 missed rescues a night.
+    if not settings.llm_localize_enabled and verdict.get("category") == "localized":
+        return [], "gap_candidate", "done"
     # Never rescue an LLM-declared clear/destroyed — rules + the official alert
     # channel own those (guardrail D4).
     if verdict.get("status") in ("clear", "destroyed"):

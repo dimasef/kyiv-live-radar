@@ -115,8 +115,13 @@ async def _resolve(
     raw message for /raw audit regardless of whether its districts were used
     (see llm_extract)."""
     parsed = parse_message(text, matcher)
-    if (allow_llm and settings.llm_fallback_enabled and settings.anthropic_api_key
-            and should_fallback(parsed)):
+    # `llm_localize_enabled` is off by default: the gazetteer listing this call
+    # exists to consult was 81% of the prompt and recovered a district on 6.8% of
+    # calls (see parsing/llm.py). With it off, a message that reaches this gate
+    # goes to the async triage engine instead — same verdict fields minus the
+    # districts, no ingest-lock latency, an eighth of the price.
+    if (allow_llm and settings.llm_fallback_enabled and settings.llm_localize_enabled
+            and settings.anthropic_api_key and should_fallback(parsed)):
         # Lazy: triage and ingest are mutually recursive (ingest enqueues to
         # triage; triage's rescue calls back into ingest), so this edge stays
         # in-function to avoid an import cycle.

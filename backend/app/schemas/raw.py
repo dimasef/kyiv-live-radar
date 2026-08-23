@@ -6,7 +6,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, field_validator
 
-from ..models import TargetType, TriageAction, TriageState
+from ..models import TargetType, TriageAction, TriageState, TypeEvidence
 from .base import _as_utc
 
 
@@ -120,6 +120,13 @@ class RawMessageOut(BaseModel):
     # NULL for messages the triage engine never enqueued.
     triage_state: TriageState | None = None
     triage_action: TriageAction | None = None
+    # The LLM target-type verdict (app/parsing/type_llm.py), present only for
+    # sightings no rule/context tier could type. In shadow mode this is the ONLY
+    # place it shows up — the whole point of the mode is comparing it against
+    # what the track actually got before letting it drive anything.
+    llm_type: TargetType | None = None
+    llm_type_confidence: float | None = None
+    llm_type_evidence: TypeEvidence | None = None
 
     # `ingested_at` needs this as much as `event_time`: the two are SUBTRACTED
     # on the client to show the backfill lag, so one naive and one aware reads

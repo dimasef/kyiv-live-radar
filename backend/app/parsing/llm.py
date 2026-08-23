@@ -1,13 +1,31 @@
 """LLM parser (Claude Haiku 4.5) — two consumers over ONE prompt/schema.
 
-1. `llm_extract` — the INLINE, synchronous localization fallback (unchanged
-   behavior/contract): called from ingest._resolve while the ingest lock is held
-   when rules couldn't localize a threat-flavored message. Its result is used
-   for DISTRICTS only.
+1. `llm_extract` — the INLINE, synchronous localization fallback: called from
+   ingest._resolve while the ingest lock is held when rules couldn't localize a
+   threat-flavored message. Its result is used for DISTRICTS only. **Off by
+   default** (settings.llm_localize_enabled) — see below.
 2. `llm_triage` — the ASYNC second-pass triage (app/pipeline/triage.py): returns
    the full structured verdict (category/surface/summary/origin/…) so the
    context layer can route directional/forecast/status notices, feed the axis
    layer, and (behind a flag) rescue a wrongly-suppressed live threat.
+
+`settings.llm_localize_enabled` decides whether the gazetteer goes into the
+prompt at all, and it is the single biggest cost lever in the backend. Measured
+on the real corpus (2026-08-23, 381 stored verdicts):
+
+  * the district listing was 6 139 of the 7 597 prompt tokens — **81%** — and it
+    grows by ~800 tokens per 50 gazetteer entries;
+  * only 26 verdicts (6.8%) came back with any district, which is 3 inline
+    events (decision_source='llm') and 26 triage rescues for the whole life of
+    the project — $1.56 of the $1.71 spent bought no localization at all;
+  * everything the layer actually delivers (111 notices, 19 axes) comes from the
+    triage fields, which need no listing.
+
+So the listing is off and that budget goes to `parsing.type_llm` instead, where
+the real gap is (79% of localizable sightings name no target type). Unlocalized
+messages are not lost: they surface in the admin coverage-gap queue
+(api/coverage.py), which is the gazetteer lever CLAUDE.md points at. Flip the
+flag back on to restore the old behaviour verbatim.
 
 Hard safety rails (both paths):
   * Districts ONLY from the provided enum of known ids — the model cannot invent
@@ -61,45 +79,69 @@ def _get_client() -> AsyncAnthropic:
 # other word in the prompt's examples is.
 _REGION_LABEL = {"kyiv": "Київщина", "chernihiv": "Чернігівщина"}
 
-_SYSTEM = (
+_SYSTEM_BASE = (
     "You extract structured aerial-threat data from short Ukrainian Telegram "
     "messages by volunteer spotters watching drones/missiles over the Kyiv "
     "region AND over Чернігівщина, the northern approach corridor toward it. "
-    "Return ONLY districts from the provided list, choosing their numeric ids. "
-    "If the message names a place not in the list, or is not a sighting/status "
-    "report (ads, casualty news, commentary), return an empty district list. "
-    "Do not guess coordinates or invent locations. Preserve movement order: "
-    "list district ids in the order they appear in the text.\n"
-    "CRITICAL — do NOT map an out-of-scope city/oblast onto a same-sounding "
-    "district. A target 'на Дніпро' / 'Дніпропетровщина' is the CITY Dnipro "
-    "(~300km away), NOT 'Дніпровський' district — return empty. Likewise "
-    "Харків, Запоріжжя, Миколаїв, Суми, Полтава and any oblast other than the "
-    "two watched ones are out of scope — return empty. Each place in the list "
-    "is tagged with its region; when a name exists on both sides of the border "
-    "(Лебедівка, Рокитне, Дніпровське) pick the region of the places named "
-    "around it. A bare 'на Київ' with no district is empty, and so is a bare "
-    "'на Чернігівщину' with no settlement named.\n"
+    "Report only what the text states — never guess coordinates or invent "
+    "locations.\n"
+    "CRITICAL — an out-of-scope city/oblast is NOT a Kyiv place. A target 'на "
+    "Дніпро' / 'Дніпропетровщина' is the CITY Dnipro (~300km away), NOT the "
+    "'Дніпровський' district of Kyiv. Likewise Харків, Запоріжжя, Миколаїв, "
+    "Суми, Полтава and any oblast other than the two watched ones are out of "
+    "scope: a target there is noise, not a sighting.\n"
     "ORIGIN is different from a target location: an INBOUND threat's launch/"
     "approach zone ('з Брянщини', 'з боку Чорного моря', 'курсом з півночі') is "
-    "reported via origin_place / origin_sector, NEVER as a Kyiv district. Pick "
+    "reported via origin_place / origin_sector, NEVER as a target place. Pick "
     "origin_place ONLY from the provided origin list, and ONLY when the text "
     "names it as where the threat is coming FROM; otherwise 'none'."
 )
 
+# Appended only when the gazetteer listing is in the prompt (llm_localize_enabled).
+_SYSTEM_DISTRICTS = (
+    "\nReturn ONLY districts from the provided list, choosing their numeric ids. "
+    "If the message names a place not in the list, or is not a sighting/status "
+    "report (ads, casualty news, commentary), return an empty district list. "
+    "Preserve movement order: list district ids in the order they appear in the "
+    "text. Each place in the list is tagged with its region; when a name exists "
+    "on both sides of the border (Лебедівка, Рокитне, Дніпровське) pick the "
+    "region of the places named around it. A bare 'на Київ' with no district is "
+    "empty, and so is a bare 'на Чернігівщину' with no settlement named."
+)
+
+
+def _system(localize: bool) -> str:
+    return _SYSTEM_BASE + (_SYSTEM_DISTRICTS if localize else "")
+
+
 # Triage taxonomy for the operator situational-awareness feed.
 _CATEGORIES = ("localized", "citywide", "directional", "forecast", "status", "noise")
 
+# What `localized` means depends on whether the model was given the gazetteer.
+# With the listing it is "a place we know"; without it, it is "a place at all" —
+# which is precisely the coverage-gap signal (api/coverage.py) rather than
+# something to rescue, since no district id can come back to place it.
+_LOCALIZED_WITH_LIST = "names a place from the list"
+_LOCALIZED_NO_LIST = (
+    "names a concrete settlement/raion/neighbourhood in the watched regions, "
+    "however small or misspelled"
+)
+
+# The gazetteer enum — 81% of the prompt's tokens, and only present when
+# settings.llm_localize_enabled is on (see the module docstring).
+_PROMPT_LISTING = "Known districts (id: name):\n{listing}\n\n"
+
 _PROMPT = (
-    "Known districts (id: name):\n{listing}\n\n"
     "Known origins (key): {origins}. Use an origin key ONLY for an inbound "
     "threat's launch/approach zone named with 'з/від/з боку/з напрямку'; else "
     "'none'.\n\n"
     # The type list has to mirror rules._target_type, including the named jet
-    # models: when this call recovers a district, ingest takes its WHOLE verdict
-    # (resolve.py) — type included — so anything the rules know and the prompt
-    # doesn't is silently downgraded on exactly the messages the rules could not
-    # localize. «Бандероль» is the live case: the same night calls it a «ракета»
-    # and a «баражуючий боєприпас», both of which point this model elsewhere.
+    # models. It types every notice and axis this verdict produces, and — when
+    # localization is on — ingest takes the WHOLE verdict of a call that
+    # recovered a district (resolve.py), type included. Either way, anything the
+    # rules know and the prompt doesn't is silently downgraded. «Бандероль» is
+    # the live case: the same night calls it a «ракета» and a «баражуючий
+    # боєприпас», both of which point this model elsewhere.
     "Target type: shahed (шахед/мопед/герань/generic БпЛА), jet_drone "
     "(реактивний/швидкісний/Бандероль), ballistic (балістика/іскандер/кинджал/"
     "С-400/С-300), missile (крилата ракета/калібр/Х-101/КАБ/generic ракета), or "
@@ -113,7 +155,7 @@ _PROMPT = (
     "друга ціль).\n\n"
     "Triage fields (for an operator feed — independent of the district rules "
     "above; picking these NEVER lets you invent or force a district):\n"
-    "- category: localized (names a place from the list) | citywide (threat on "
+    "- category: localized ({localized_hint}) | citywide (threat on "
     "Kyiv as a whole, no single raion — 'ціль на місто', 'балістика на Київ') | "
     "directional (an inbound axis/origin, no Kyiv point — 'балістика з Брянська', "
     "'на правий берег', 'курсом з півночі') | forecast (a future/expected strike "
@@ -149,11 +191,13 @@ _PROMPT = (
 _MESSAGE_BLOCK = "Message:\n{text}"
 
 
-def _schema(id_enum: list[int]) -> dict:
-    return {
+def _schema(id_enum: list[int] | None) -> dict:
+    """The structured-output schema. `id_enum` is None when the prompt carries no
+    district listing — then `district_ids` is absent from the schema entirely
+    rather than an empty enum, which would be an unsatisfiable constraint."""
+    schema = {
         "type": "object",
         "properties": {
-            "district_ids": {"type": "array", "items": {"type": "integer", "enum": id_enum}},
             "target_type": {"type": "string",
                             "enum": ["shahed", "jet_drone", "missile", "ballistic", "unknown"]},
             "status": {"type": "string",
@@ -166,16 +210,22 @@ def _schema(id_enum: list[int]) -> dict:
             "surface": {"type": "boolean"},
             "summary": {"type": "string"},
         },
-        "required": ["district_ids", "target_type", "status", "is_new_target",
+        "required": ["target_type", "status", "is_new_target",
                      "confidence", "category", "origin_place", "origin_sector",
                      "surface", "summary"],
         "additionalProperties": False,
     }
+    if id_enum is not None:
+        schema["properties"]["district_ids"] = {
+            "type": "array", "items": {"type": "integer", "enum": id_enum}
+        }
+        schema["required"].insert(0, "district_ids")
+    return schema
 
 
 def _content_blocks(static: str, text: str) -> list[dict]:
-    """The user turn as two blocks: the static prefix (district listing +
-    instructions), then the message. The cache breakpoint goes at the end of the
+    """The user turn as two blocks: the static prefix (instructions, plus the
+    district listing when localizing), then the message. The breakpoint goes at the
     first one, so everything before it — system prompt included — is what gets
     cached and re-read at a tenth of the price. With caching off it is still two
     blocks, which the API concatenates exactly as the single string used to be."""
@@ -212,7 +262,29 @@ def _usage_from(resp) -> LlmUsage:
     )
 
 
-async def _call(text: str, matcher: DistrictMatcher) -> tuple[dict | None, LlmUsage | None]:
+def _static_prompt(matcher: DistrictMatcher, localize: bool) -> tuple[str, list[int] | None]:
+    """The cacheable prefix and the district id enum that goes with it. Without
+    localization neither the listing nor the enum exists — that is the whole
+    saving: 6 139 of 7 597 tokens on the measured gazetteer (383 entries)."""
+    if not localize:
+        return _PROMPT.format(origins=", ".join(ORIGIN_KEYS),
+                              localized_hint=_LOCALIZED_NO_LIST), None
+    index = matcher.districts_index
+    # Each line carries its region: two watched regions share the enum, and
+    # several names exist in both, so the id alone is ambiguous to the model.
+    listing = "\n".join(
+        f"{i}: {n} [{_REGION_LABEL.get(matcher.region_by_id.get(i, ''), 'Київщина')}]"
+        for i, n in index
+    )
+    static = _PROMPT_LISTING.format(listing=listing) + _PROMPT.format(
+        origins=", ".join(ORIGIN_KEYS), localized_hint=_LOCALIZED_WITH_LIST
+    )
+    return static, [i for i, _ in index]
+
+
+async def _call(
+    text: str, matcher: DistrictMatcher, *, localize: bool
+) -> tuple[dict | None, LlmUsage | None]:
     """Shared transport for both entry points: one API call (with a single
     immediate retry on a transient error), returning (parsed_json, usage).
 
@@ -221,15 +293,7 @@ async def _call(text: str, matcher: DistrictMatcher) -> tuple[dict | None, LlmUs
     call that never completed (timeout/network/API error). `parsed_json` is the
     raw structured JSON (enum-constrained by the schema) or None when nothing
     usable came back."""
-    index = matcher.districts_index
-    # Each line carries its region: two watched regions share the enum, and
-    # several names exist in both, so the id alone is ambiguous to the model.
-    listing = "\n".join(
-        f"{i}: {n} [{_REGION_LABEL.get(matcher.region_by_id.get(i, ''), 'Київщина')}]"
-        for i, n in index
-    )
-    id_enum = [i for i, _ in index]
-    static = _PROMPT.format(listing=listing, origins=", ".join(ORIGIN_KEYS))
+    static, id_enum = _static_prompt(matcher, localize)
     schema = _schema(id_enum)
     # One immediate retry: a transient timeout/5xx during a mass attack (many
     # concurrent inbound callouts) dropped GENUINE threats — a real inbound "3
@@ -249,7 +313,7 @@ async def _call(text: str, matcher: DistrictMatcher) -> tuple[dict | None, LlmUs
                 _get_client().messages.create(
                     model=settings.llm_model,
                     max_tokens=400,
-                    system=_SYSTEM,
+                    system=_system(localize),
                     messages=[{"role": "user", "content": blocks}],
                     output_config={"format": {"type": "json_schema", "schema": schema}},
                 ),
@@ -322,8 +386,12 @@ async def llm_extract(
     carries only the LOCALIZATION fields (districts/type/status) — ingest uses
     its districts only. `response` is the full verdict (triage + origin) stored
     verbatim on raw_messages for /raw audit and for the async triage engine to
-    reuse without a second API call."""
-    data, usage = await _call(text, matcher)
+    reuse without a second API call.
+
+    The only caller (`ingest.resolve`) is itself gated on
+    settings.llm_localize_enabled, so this always asks for the listing — a
+    localization call without the enum would have nothing to return."""
+    data, usage = await _call(text, matcher, localize=True)
     if data is None:
         return None, usage, None
     hits, verdict = _normalize(data, matcher)
@@ -344,8 +412,12 @@ async def llm_triage(
 ) -> tuple[dict | None, LlmUsage | None]:
     """ASYNC second-pass triage. Returns (verdict, usage) — the full structured
     verdict the routing table in app/pipeline/triage.py consumes, or (None, usage)
-    when no usable JSON came back."""
-    data, usage = await _call(text, matcher)
+    when no usable JSON came back.
+
+    Carries the gazetteer only when localization is on: the routing table needs
+    district ids solely for the `localized` rescue branch, which is exactly the
+    branch that measured 26 events for $1.56 (see the module docstring)."""
+    data, usage = await _call(text, matcher, localize=settings.llm_localize_enabled)
     if data is None:
         return None, usage
     _, verdict = _normalize(data, matcher)

@@ -127,12 +127,29 @@ async def test_localized_verdict_is_rescue_candidate_when_disabled(ctx, monkeypa
     # The kill-switch still works: with rescue off (it ships ENABLED since the
     # 07-18 audit) a qualifying verdict is only recorded, never acted on.
     session, _ = ctx
+    monkeypatch.setattr(settings, "llm_localize_enabled", True)
     monkeypatch.setattr(settings, "triage_rescue_enabled", False)
     raw, job = await _raw_job(session, "ціль над оболонню")
     verdict = make_verdict(category="localized", surface=True, district_ids=[1],
                            target_type="shahed", confidence=0.9)
     bcs, action, state = await route_verdict(session, raw, job, verdict)
     assert action == "rescue_candidate" and bcs == []
+    assert await session.scalar(select(func.count()).select_from(ThreatEvent)) == 0
+
+
+async def test_localized_verdict_without_a_gazetteer_is_a_coverage_gap(ctx, monkeypatch):
+    # Default config: no listing in the prompt, so no district id can come back.
+    # The verdict still says "this names a place" — which is the gazetteer queue's
+    # signal, not a missed rescue. Recorded as such and nothing is created, even
+    # with rescue fully enabled.
+    session, _ = ctx
+    monkeypatch.setattr(settings, "triage_rescue_enabled", True)
+    raw, job = await _raw_job(session, "на пакуль")
+    verdict = make_verdict(category="localized", surface=True, target_type="shahed",
+                           confidence=0.95)
+    bcs, action, state = await route_verdict(session, raw, job, verdict)
+    assert action == "gap_candidate" and bcs == []
+    assert state == "done"
     assert await session.scalar(select(func.count()).select_from(ThreatEvent)) == 0
 
 

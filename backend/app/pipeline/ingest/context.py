@@ -265,12 +265,13 @@ class IngestContext:
     # stamped onto each ThreatEvent this message creates, for the feed headline.
     # None for rule-only messages.
     llm_summary: str | None = None
-    # True when parsed.target_type came from the open INCIDENT's dominant type
-    # (second-tier fallback), not the message/channel itself. The ballistic
-    # enumeration split must not trust it: on a mixed drone+ballistic night the
-    # incident reads "ballistic" and would wrongly split a meandering drone's
-    # «Троя/Воскресенка» enumeration.
-    type_from_incident: bool = False
+    # True when parsed.target_type was INFERRED from the surrounding picture —
+    # the open incident's dominant type (tier 2) or the LLM's read of the recent
+    # feed (tier 4) — rather than stated by the message or its own channel's
+    # last typed post. The ballistic enumeration split must not trust it: on a
+    # mixed drone+ballistic night the wider picture reads "ballistic" and would
+    # wrongly split a meandering drone's «Троя/Воскресенка» enumeration.
+    type_inferred: bool = False
     # Whether this message's AGE may veto it (see handlers._dispatch). Only the
     # live Telegram path sets it: replay and reprocess deliberately re-run old
     # messages at their own timestamps, where every message is "old" and the

@@ -2,6 +2,7 @@ import { kyivStamp } from "@/lib/kyivTime";
 import type { RawMessage } from "@/types";
 
 import LlmTriageBadge from "../LlmTriageBadge";
+import LlmTypeBadge from "../LlmTypeBadge";
 import LlmUsageBadge from "../LlmUsageBadge";
 import NoticeControl, { type NoticeSet } from "../NoticeControl";
 import OutcomeBadge from "../OutcomeBadge";
@@ -52,6 +53,13 @@ export default function RawMessageRow({
               <LlmTriageBadge
                 category={item.llm_response.category}
                 surface={item.llm_response.surface}
+              />
+            )}
+            {item.llm_type && (
+              <LlmTypeBadge
+                targetType={item.llm_type}
+                evidence={item.llm_type_evidence ?? null}
+                confidence={item.llm_type_confidence ?? null}
               />
             )}
             {item.llm_attempted && (

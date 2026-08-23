@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -272,18 +274,25 @@ class Settings(BaseSettings):
     llm_fallback_enabled: bool = True
     llm_model: str = "claude-haiku-4-5"
     llm_timeout_s: float = 5.0
-    # Prompt caching. 99.9% of every call is the same static prefix — the
-    # district listing, the instructions and the schema come to ~5.9k tokens
-    # while the message itself is ~5, so the same prefix is paid for again on
-    # every call. A cache READ costs a tenth of that; a WRITE costs 1.25x (5m)
-    # or 2x (1h).
+    # Whether the gazetteer listing goes into the prompt at all — i.e. whether
+    # the LLM is asked to LOCALIZE. Off: the listing was 81% of the prompt's
+    # tokens and bought 3 inline events + 26 triage rescues for the life of the
+    # project (measured 2026-08-23, see parsing/llm.py's docstring). That budget
+    # now goes to llm_type_* below. Unlocalized messages still surface in the
+    # admin coverage-gap queue, which is the real gazetteer lever.
+    llm_localize_enabled: bool = False
+    # Prompt caching. Only worth anything WITH the listing: without it the
+    # prefix is ~1.5k tokens, below Haiku 4.5's 4096-token minimum cacheable
+    # prefix, so cache_control is silently ignored.
     #
-    # '1h', not the '5m' default, because the calls are SPARSE: on the real
-    # traffic (55 calls) the gaps run 3-95 minutes and only 17 of them land
-    # within five minutes of the previous one, so a 5m TTL pays the write
-    # penalty over and over for a 1.1x net gain. At 1h it is 13 writes and 42
-    # reads — 1.8x. Set '5m' or '' (off) to change that.
-    llm_cache_ttl: str = "1h"
+    # It also has a sharp edge that bit us live. Once the gazetteer crossed 4096
+    # tokens (2026-08-22, 401 entries) caching finally engaged — and the calls
+    # are SPARSE, so every one paid the 2x WRITE multiplier and nothing was ever
+    # read back inside the hour: the effective input price went from 1.01 to
+    # 2.02 $/MTok. A cache is only a saving when reads outnumber writes; turn
+    # this back on ('1h' or '5m') together with llm_localize_enabled, and only
+    # after checking raw_messages.llm_cost_usd / llm_input_tokens for the ratio.
+    llm_cache_ttl: str = ""
 
     # --- Async LLM triage engine (app/pipeline/triage.py) — the second consumer
     #     of the LLM. Rules answer instantly (sync); a district-less / suppressed
@@ -300,6 +309,40 @@ class Settings(BaseSettings):
     # A verdict that lands more than this long after the message is stored for
     # audit only — no live notice/axis/rescue (the situation has moved on).
     triage_max_age_minutes: int = 10
+
+    # --- LLM target-type classifier (app/parsing/type_llm.py) — the third and
+    #     cheapest consumer of the LLM, and the one the gazetteer's budget moved
+    #     to. 79% of localizable sightings name no target type at all («На
+    #     хоробичі», «Троя/Воскресенка 3х 🔴»); the per-channel inheritance and
+    #     the incident prior together still leave ~46% of sightings untyped, and
+    #     an untyped track is a generic dot on the map with the wrong stale
+    #     window. The type is in the CONVERSATION, so that is what we send. ---
+    # off — rules only (the pre-0.33 behaviour);
+    # shadow — call and store the verdict, but never apply it. The validation
+    #   mode: compare it against what the track actually got, in /admin -> Весь
+    #   фід, before letting it drive anything. It COSTS THE SAME as live — the
+    #   call is made either way; only the applying is withheld;
+    # live — apply it when it clears llm_type_min_confidence. Shipped on:
+    #   eval/type_eval.py measured coverage 40.9% -> 65.1% with family accuracy
+    #   RISING 93.7% -> 95.5%, so it is not a coverage-for-accuracy trade. The
+    #   verdict is stored either way, so 'shadow' remains the way to re-audit a
+    #   night without touching the map.
+    llm_type_mode: Literal["off", "shadow", "live"] = "live"
+    # How much of the sky picture goes in. Measured on 25 real untyped sightings:
+    # the same classifier over 6 messages of the SAME channel / 30 min typed
+    # 3/25, and over 25 messages of ALL channels / 2h typed 22/25 — the type is
+    # usually announced once, in one channel, long before the toponym callouts
+    # start. That is the whole feature; a narrow window silently does nothing.
+    llm_type_context_messages: int = 25
+    llm_type_context_minutes: int = 120
+    # Below this we keep `unknown`. A generic marker is honest; a wrong weapon
+    # icon is not (and it drives the per-type stale window, so it also decides
+    # how long the target lingers on the map).
+    llm_type_min_confidence: float = 0.7
+    # Tighter than llm_timeout_s: this call is on the INLINE path and holds the
+    # ingest lock. Measured p90 1.5s / max 1.7s on real traffic; past 2s we
+    # would rather stay untyped than stall the pipeline mid-barrage.
+    llm_type_timeout_s: float = 2.0
 
     # --- LLM cost guard (both the inline fallback AND the triage engine). When
     #     the running spend for the current UTC day/month reaches the cap, the LLM

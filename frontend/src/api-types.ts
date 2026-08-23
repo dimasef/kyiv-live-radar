@@ -2801,6 +2801,12 @@ export interface components {
             llm_response?: {
                 [key: string]: unknown;
             } | null;
+            /** Llm Type */
+            llm_type?: ("shahed" | "jet_drone" | "missile" | "ballistic" | "unknown") | null;
+            /** Llm Type Confidence */
+            llm_type_confidence?: number | null;
+            /** Llm Type Evidence */
+            llm_type_evidence?: ("text" | "context" | "none") | null;
             /** Message Id */
             message_id?: number | null;
             /** Notice Id */
@@ -2827,7 +2833,7 @@ export interface components {
             /** Text */
             text: string;
             /** Triage Action */
-            triage_action?: ("none" | "suppress_confirmed" | "notice" | "axis" | "rescue_candidate" | "rescued" | "late") | null;
+            triage_action?: ("none" | "suppress_confirmed" | "notice" | "axis" | "rescue_candidate" | "rescue_notice" | "rescued" | "gap_candidate" | "late") | null;
             /** Triage State */
             triage_state?: ("pending" | "done" | "skipped" | "budget" | "error") | null;
         };

@@ -2633,6 +2633,51 @@
             ],
             "title": "Llm Response"
           },
+          "llm_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "shahed",
+                  "jet_drone",
+                  "missile",
+                  "ballistic",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Type"
+          },
+          "llm_type_confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Type Confidence"
+          },
+          "llm_type_evidence": {
+            "anyOf": [
+              {
+                "enum": [
+                  "text",
+                  "context",
+                  "none"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Type Evidence"
+          },
           "message_id": {
             "anyOf": [
               {
@@ -2763,7 +2808,9 @@
                   "notice",
                   "axis",
                   "rescue_candidate",
+                  "rescue_notice",
                   "rescued",
+                  "gap_candidate",
                   "late"
                 ],
                 "type": "string"

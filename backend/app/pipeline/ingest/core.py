@@ -9,6 +9,7 @@ from datetime import datetime
 
 from sqlalchemy import select
 
+from ...config import settings
 from ...domain.districts import district_regions, resolve_region
 from ...domain.incidents import find_active_incident, incident_type_prior
 from ...models import RawMessage, Source
@@ -19,6 +20,7 @@ from ..results import Broadcast
 from .context import IngestContext, _note_and_inherit_type
 from .handlers import _dispatch, _handle_citywide, _handle_sighting, _ingest_outcome
 from .resolve import _resolve, in_promo_thread
+from .type_context import build_type_context, wants_llm_type
 
 
 async def ingest_message(session, **kwargs) -> list[Broadcast]:
@@ -130,6 +132,71 @@ async def _infer_incident_type(session, parsed: ParseResult, when: datetime) -> 
     return False
 
 
+async def _maybe_llm_type(session, raw: RawMessage, parsed: ParseResult, when: datetime,
+                          *, allow_llm: bool) -> str | None:
+    """Fourth and last type tier: ask the LLM what is in the sky right now.
+
+    Reached only when the message names a place, produced something to record,
+    and the text, the per-channel window and the incident prior all said
+    `unknown` — 46% of localizable sightings on the real corpus. Mutates
+    parsed.target_type in 'live' mode and returns the applied type (None when
+    nothing was applied), so the caller can mark the event's provenance.
+
+    A STORED verdict is replayed rather than re-queried: that is what makes an
+    admin reprocess of a whole night free, and it mirrors how the triage engine
+    replays `llm_response`.
+    """
+    if settings.llm_type_mode == "off" or not wants_llm_type(parsed):
+        return None
+    # Lazy like every other parsing.llm import: it pulls the anthropic client,
+    # which the eval/reprocess tooling has no reason to load.
+    from ...parsing.type_llm import normalize_type_verdict
+
+    if raw.llm_type is not None:
+        verdict = normalize_type_verdict({
+            "target_type": raw.llm_type, "evidence": raw.llm_type_evidence,
+            "confidence": raw.llm_type_confidence or 0.0,
+        })
+    else:
+        # The promo-thread veto and the budget guard gate spend the same way
+        # they gate the other two consumers — this is the highest-VOLUME of the
+        # three (one call per untyped sighting, 267 on the busiest night in the
+        # corpus), so it is the one a runaway would show up on first.
+        # `llm_fallback_enabled` is the pipeline-wide "may we call the API at
+        # all" switch, which is exactly what a `--no-llm` reprocess turns off:
+        # without it, rebuilding a night of history would fire one live call per
+        # untyped sighting instead of replaying the verdicts it already has.
+        if not allow_llm or not settings.llm_fallback_enabled or not settings.anthropic_api_key:
+            return None
+        from ..triage import llm_spend_ok
+
+        if not await llm_spend_ok():
+            return None
+        from ...parsing.type_llm import llm_target_type
+
+        source = await session.get(Source, raw.source_id) if raw.source_id else None
+        context = await build_type_context(session, when, exclude_raw_id=raw.id)
+        verdict, usage = await llm_target_type(
+            parsed.raw_text, context, source.name if source is not None else "канал"
+        )
+        if usage is not None:
+            # ACCUMULATE: the budget guard sums this column, and a message can
+            # in principle have paid for an inline localization call too.
+            raw.llm_attempted = True
+            raw.llm_input_tokens = (raw.llm_input_tokens or 0) + usage.input_tokens
+            raw.llm_output_tokens = (raw.llm_output_tokens or 0) + usage.output_tokens
+            raw.llm_cost_usd = (raw.llm_cost_usd or 0.0) + usage.cost_usd
+        if verdict is None:
+            return None
+        raw.llm_type = verdict.target_type
+        raw.llm_type_confidence = verdict.confidence
+        raw.llm_type_evidence = verdict.evidence
+    if settings.llm_type_mode != "live" or not verdict.usable:
+        return None
+    parsed.target_type = verdict.target_type
+    return verdict.target_type
+
+
 async def _maybe_triage(ctx: IngestContext, triage: str, matcher: DistrictMatcher,
                         allow_llm: bool = True) -> list[Broadcast]:
     """Hand this message to the second-pass triage engine. 'live' enqueues a
@@ -221,10 +288,15 @@ async def process_parsed(
         _note_and_inherit_type(parsed, source_id, when,
                                await _inherit_window_for(session, source_id))
         type_from_incident = await _infer_incident_type(session, parsed, when)
+        # Fourth tier — the LLM reads the type off the last two hours of the
+        # whole feed. Last on purpose: it must never overrule a type the rules,
+        # the channel or the live incident already established.
+        type_from_llm = await _maybe_llm_type(session, raw, parsed, when, allow_llm=allow_llm)
 
         span.set_attribute("decision_source", decision_source)
         span.set_attribute("target_type", parsed.target_type)
         span.set_attribute("llm_attempted", llm_attempted)
+        span.set_attribute("type_from_llm", type_from_llm or "")
 
         ctx = IngestContext(
             session=session, raw=raw, parsed=parsed, decision_source=decision_source,
@@ -234,7 +306,7 @@ async def process_parsed(
             reply_to_message_id=reply_to_message_id,
             llm_summary=(llm_response.get("summary") or None
                          if llm_response is not None and decision_source == "llm" else None),
-            type_from_incident=type_from_incident,
+            type_inferred=type_from_incident or type_from_llm is not None,
             enforce_age=enforce_age,
             region=await resolve_region(
                 session, [h.district_id for h in parsed.districts], source_id

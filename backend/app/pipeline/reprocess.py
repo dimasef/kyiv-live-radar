@@ -172,7 +172,11 @@ async def run_reprocess(
     """Wipe and rebuild tracks/incidents from raw_messages. Returns counts.
 
     `no_llm` disables the LLM fallback for the run only — the original setting is
-    restored afterwards so the live listener keeps its configured behavior.
+    restored afterwards so the live listener keeps its configured behavior. It
+    also stops the type classifier from making NEW calls: a stored verdict is
+    still replayed (that is the point — a rebuilt night keeps the types it had,
+    for free), but a message that never had one stays untyped rather than
+    turning a whole-history rebuild into thousands of live API calls.
 
     `last` rebuilds only the tail: the last N stored messages (widened by
     `scope_cutoff` so nothing is cut in half), leaving older history untouched.

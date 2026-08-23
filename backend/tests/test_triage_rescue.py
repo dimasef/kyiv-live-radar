@@ -17,7 +17,11 @@ from tests.conftest import make_verdict
 
 
 @pytest_asyncio.fixture
-async def ctx():
+async def ctx(monkeypatch):
+    # Rescue only exists when the prompt carries the gazetteer — without it no
+    # district id can come back and a `localized` verdict is a coverage gap, not
+    # a rescue (see triage._route_rescue). This whole file is about that path.
+    monkeypatch.setattr(settings, "llm_localize_enabled", True)
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

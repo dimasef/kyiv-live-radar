@@ -65,6 +65,9 @@ class District(Base):
 # frontend types narrow these fields too.
 TargetType = Literal["shahed", "jet_drone", "missile", "ballistic", "unknown"]
 TARGET_TYPES: tuple[TargetType, ...] = get_args(TargetType)
+# Where the LLM type classifier got its answer (app/parsing/type_llm.py).
+TypeEvidence = Literal["text", "context", "none"]
+TYPE_EVIDENCE: tuple[TypeEvidence, ...] = get_args(TypeEvidence)
 # 'dismissed' = an admin manually cancelled a false-positive track (see
 # app/domain/lifecycle.py::close_track with reason 'dismissed'). Closed like any
 # other, but excluded from stats/journal so a parser mistake never counts as a
@@ -106,10 +109,18 @@ DECISION_SOURCES: tuple[DecisionSource, ...] = get_args(DecisionSource)
 # Async-triage bookkeeping on a raw message (app/pipeline/triage.py). state =
 # where the message is in the triage queue's lifecycle; action = what routing
 # ultimately did with the verdict. Both NULL for messages never enqueued.
+# 'rescue_notice' was returned by the routing table for months without being
+# listed here, so serializing any such row raised a validation error and took
+# the whole /raw page with it — this Literal IS the wire contract (it generates
+# the frontend's union), so every string route_verdict can return must be in it.
+# 'gap_candidate': the verdict named a place, but the prompt carried no
+# gazetteer to place it with (llm_localize_enabled off) — a coverage gap, not
+# something to rescue.
 TriageState = Literal["pending", "done", "skipped", "budget", "error"]
 TRIAGE_STATES: tuple[TriageState, ...] = get_args(TriageState)
 TriageAction = Literal[
-    "none", "suppress_confirmed", "notice", "axis", "rescue_candidate", "rescued", "late"
+    "none", "suppress_confirmed", "notice", "axis", "rescue_candidate", "rescue_notice",
+    "rescued", "gap_candidate", "late"
 ]
 TRIAGE_ACTIONS: tuple[TriageAction, ...] = get_args(TriageAction)
 # A directional threat axis' lifecycle (app/domain/axes.py). 'unverified' = one
@@ -349,6 +360,19 @@ class RawMessage(Base):
     # enqueued (rules already localized them, or they were pure junk).
     triage_state: Mapped[str | None] = mapped_column(String(12), nullable=True)
     triage_action: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # The LLM target-type classifier's verdict (parsing/type_llm.py), stored
+    # WHETHER OR NOT it was applied: in shadow mode nothing else consumes it, and
+    # in live mode a verdict below llm_type_min_confidence still tells the
+    # operator why a marker stayed grey. Also what makes a reprocess free —
+    # ingest replays a stored verdict instead of re-calling the API.
+    # NULL for every message that never needed a type call (the vast majority:
+    # the rules, the channel context or the incident prior typed it already).
+    llm_type: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    llm_type_confidence: Mapped[float | None] = mapped_column(nullable=True)
+    # 'text' (the type was written in the message and the rules' vocabulary
+    # missed it — a vocab gap worth fixing), 'context' (read off the recent
+    # feed), 'none' (the model declined).
+    llm_type_evidence: Mapped[str | None] = mapped_column(String(8), nullable=True)
 
 
 class ThreatAxis(Base):

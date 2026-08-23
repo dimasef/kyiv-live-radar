@@ -44,6 +44,13 @@ Parser accuracy gate (hand-labeled golden set, `eval/eval_set.jsonl`):
 .venv/bin/python eval/run_eval.py --verbose      # also runs as tests/test_eval.py
 ```
 
+Target-type accuracy per tier (rules → channel window → LLM classifier), on the
+same hand-labeled sessions; `--llm` costs ~$0.0017/message and asks before it
+spends:
+```bash
+DATABASE_URL="sqlite+aiosqlite:///./eval_backfill.db" .venv/bin/python eval/type_eval.py [--llm --yes]
+```
+
 Track-level accuracy (does a real target end up as ONE track, not split/merged
 — the thing that actually matters for the map): `eval/track_eval.py` against
 `eval/ground_truth_sessions.json` (74 hand-labeled real target sessions from
@@ -112,14 +119,25 @@ fuse → broadcast**.
    echoes, negation, day-recap softening — each is a curated word list, not
    NLP; extend these when a new false-positive pattern shows up in real
    data).
-3. **LLM fallback** (`app/parsing/llm.py`, Claude Haiku 4.5) — only when
-   rules found no district on a threat-flavored message AND it isn't
-   obviously about another oblast (`pipeline.ingest.should_fallback` gates
-   this to avoid paying for calls known to return empty). Structured output
-   constrains `district_ids` to an **enum of known gazetteer ids** — the
-   model cannot invent a location. Bearing/vector math is never delegated to
-   the LLM. ~5% hit rate on rule-misses (measured) — the real coverage lever
-   is the gazetteer, not the LLM.
+3. **LLM** (Claude Haiku 4.5) — three consumers, one budget guard
+   (`llm_spend_ok`), all enum-railed by structured output so the model can
+   never invent a value. Bearing/vector math is never delegated to the LLM.
+   - `app/parsing/type_llm.py` — **target type from the recent feed**, the
+     main consumer. 79% of localizable sightings state no type, and after the
+     per-channel window and the incident prior 46% are still `unknown`. Gets
+     the last 25 messages of ALL channels over 2h (measured: own-channel/30min
+     types 3 of 25 cases, cross-channel/2h types 22 of 25). Runs LAST, so it
+     can only fill an `unknown` — never overrule the rules. `llm_type_mode='live'`;
+     `eval/type_eval.py` scores it (coverage 40.9% -> 65.1%, family accuracy
+     93.7% -> 95.5%), and `'shadow'` re-audits a night without touching the map.
+   - `app/pipeline/triage.py` — the async second pass (notices, axes, rescue).
+   - `app/parsing/llm.py` localization — **off by default**
+     (`llm_localize_enabled`): the gazetteer enum was 81% of the prompt's
+     tokens and produced 3 inline events + 26 rescues for the life of the
+     project. Coverage gaps are found by the admin queue in
+     `app/api/coverage.py` instead — the gazetteer is the real lever, not the
+     LLM. `pipeline.ingest.should_fallback` still gates what reaches the
+     second pass.
 4. **Track grouping** (`app/domain/tracking.py`) — the most failure-prone
    layer. Priority order: (a) Telegram reply-threading (a reply to an OPEN
    track's message joins that track — the strongest signal), (b)

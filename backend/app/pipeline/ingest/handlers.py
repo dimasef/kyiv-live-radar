@@ -457,7 +457,7 @@ async def _handle_sighting(ctx: IngestContext) -> list[Broadcast]:
     # (drone/cruise nights) loses 16 points of session purity if those split,
     # and ballistic tracks never draw vectors anyway, so nothing is lost there.
     if (parsed.multi_targets and parsed.target_type == "ballistic"
-            and not ctx.type_from_incident):
+            and not ctx.type_inferred):
         return await _handle_multi_targets(ctx)
     track = await find_track_by_reply(session, ctx.source_id, ctx.reply_to_message_id)
     if track is None and not parsed.is_new_target:
