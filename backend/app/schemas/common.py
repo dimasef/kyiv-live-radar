@@ -23,20 +23,12 @@ class DistrictOut(BaseModel):
     region: Region = "kyiv"
 
 
-class SourceOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    channel_key: str
-    name: str
-    trust_weight: float
-
-
 class SourceLinkOut(BaseModel):
     """One channel we read, for public attribution (the map legend's «Джерела»).
 
-    Deliberately NOT `SourceOut`: that carries `trust_weight`, an internal
-    fusion knob that would read publicly as our rating of a volunteer channel.
+    Deliberately carries no `trust_weight`: that internal fusion knob would read
+    publicly as our rating of a volunteer channel (admins get it via
+    `SourceAdminOut`).
 
     `url` is None for anything that is not a plain public @username — a private
     channel's invite link must never be republished, and a numeric channel id

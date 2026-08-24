@@ -399,6 +399,7 @@ def _new_track(parsed: ParseResult, when: datetime, **overrides) -> Threat:
         "status": _threat_status_for(parsed),
         "target_count": parsed.target_count or 1,
         "created_at": when,
+        "movement_stated": parsed.movement,
     }
     fields.update(overrides)
     return Threat(**fields)
@@ -416,6 +417,10 @@ def _apply_update(parsed: ParseResult, track: Threat, *, promote: bool = True,
         promote_track(track)
     if grow_count and parsed.target_count and parsed.target_count > track.target_count:
         track.target_count = parsed.target_count
+    # Latches: a path stated once stays stated. A later bare «Смяч» corroborating
+    # the same track doesn't make the leg already drawn any less real.
+    if parsed.movement:
+        track.movement_stated = True
 
 
 @dataclass

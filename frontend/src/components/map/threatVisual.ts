@@ -28,8 +28,9 @@ export function threatVisual(threat: Threat): ThreatVisual {
   const pts = trackPoints(threat)
   const type = threat.target_type
 
-  // Only a track that actually moved over time gets a heading/vector — a single
-  // multi-district message is an enumeration, not a trajectory (see hasMovement).
+  // Only a track that actually moved gets a heading/vector — a single
+  // multi-district message is an enumeration, not a trajectory, UNLESS it
+  // stated a path between the places (see hasMovement).
   // An impact is a POINT strike, never a trajectory: it must NEVER draw a
   // connecting vector even when re-reports give it several timestamps (a
   // ballistic can't "move" between districts) — so kind='impact' is excluded.

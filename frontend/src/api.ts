@@ -299,8 +299,6 @@ export const deleteSource = (id: number) =>
 
 // --- Admin reprocess (rebuild tracks from raw messages) — replaces the
 // REPROCESS_ON_BOOT env+restart footgun with a guarded, one-click apply. ---
-export type ReprocessDay = Schemas['ReprocessDayOut']
-export type ReprocessSummary = Schemas['ReprocessSummaryOut']
 export type ReprocessPreview = Schemas['ReprocessPreviewOut']
 export type ReprocessResult = Schemas['ReprocessResultOut']
 /** `last` previews the "rebuild only the tail" scope: the response's
@@ -377,7 +375,6 @@ export const authLogout = () => authPost<{ ok: boolean }>('/auth/logout', {})
 export type HomePoint = Schemas['HomePointOut']
 export type FriendUserBrief = Schemas['FriendUserBrief']
 export type Friend = Schemas['FriendOut']
-export type FriendRequest = Schemas['FriendRequestOut']
 export type FriendRequests = Schemas['FriendRequestsOut']
 export type MyHome = Schemas['MyHomeOut']
 export type FriendAction = Schemas['FriendActionOut']

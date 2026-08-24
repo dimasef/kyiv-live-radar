@@ -390,3 +390,44 @@ def test_each_city_gets_its_own_station():
     # The station must not steal вул. Вокзальна, which is its own entry.
     assert [h.name for h in kyiv.find(normalize("БПЛА Вокзальна/Чоколівка 🔴."))] == \
         ["Вокзальна площа", "Чоколівка"]
+
+
+async def test_stated_path_marks_the_track_as_a_real_vector(ctx):
+    """«A на B» is one track whose two same-timestamp events are a trajectory.
+    The flag is what lets the map draw that leg — without it a whole class of
+    northern drone tracks (39 in the live DB on 2026-08-24) rendered as dots."""
+    s, m, _sources, _client = ctx
+    await ingest_message(s, text="Мамекине на Смяч", matcher=m, when=BASE,
+                         source_id=_north_id(_sources), message_id=1)
+    track = (await s.scalars(select(Threat))).one()
+    await s.refresh(track, ["events"])
+    names = {d.id: d.name_uk for d in await s.scalars(select(District))}
+    assert [names[e.district_id] for e in track.events] == ["Мамекине", "Смяч"]
+    assert track.movement_stated is True
+    # One timestamp — precisely the case the map could not previously tell from
+    # an enumeration.
+    assert len({e.event_time for e in track.events}) == 1
+
+
+async def test_enumeration_does_not_mark_a_vector(ctx):
+    s, m, _sources, _client = ctx
+    await ingest_message(s, text="Ніжин, Бахмач увага!", matcher=m, when=BASE,
+                         source_id=_north_id(_sources), message_id=2)
+    for track in await s.scalars(select(Threat)):
+        assert track.movement_stated is False
+
+
+async def test_a_later_bare_callout_does_not_unset_the_vector(ctx):
+    """The flag latches: the leg already drawn stays real."""
+    s, m, _sources, _client = ctx
+    sid = _north_id(_sources)
+    await ingest_message(s, text="Мамекине на Смяч", matcher=m, when=BASE,
+                         source_id=sid, message_id=3)
+    await ingest_message(s, text="Смяч 🔴", matcher=m, when=BASE + timedelta(minutes=1),
+                         source_id=sid, message_id=4)
+    track = (await s.scalars(select(Threat))).one()
+    assert track.movement_stated is True
+
+
+def _north_id(sources):
+    return next(x for x in sources if x.channel_key == "north_watch").id

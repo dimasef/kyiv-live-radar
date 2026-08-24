@@ -69,6 +69,9 @@ from .vocab import (
     _NEW_TARGET,
     _NEW_TARGET_COUNT_RE,
     _OWN_SCOPE_RE,
+    _PATH_CONNECTIVE,
+    _PATH_COUNT_BREAK,
+    _PATH_FILLER,
     _POWER_OUTAGE,
     _PREPOSITION_BEFORE_DISTRICT,
     _PULSE_PREP_KNOWN,
@@ -229,6 +232,14 @@ class ParseResult:
     # for a movement frame ("через Бровари", "курсом на Троєщину") — that's a
     # route and stays one track (the vector case).
     multi_targets: bool = field(default=False)
+    # A path was STATED between two named places in this one message («Мамекине
+    # на Смяч») — the districts are waypoints of one trajectory, in text order,
+    # not an enumeration. Display metadata only: it never changes which track a
+    # sighting joins, it tells the map that a single-timestamp track is a real
+    # vector (see track.ts::hasMovement). Distinct from `multi_targets`, which
+    # is the NEGATIVE of the same question and also False for a plain
+    # prepositional frame ("удар по Оболоні") that states no path.
+    movement: bool = field(default=False)
 
 
 # Some keywords are short abbreviations that collide with common words (e.g.
@@ -881,6 +892,49 @@ def _multi_targets(districts, norm: str) -> bool:
     return True
 
 
+def _movement_path(districts, norm: str) -> bool:
+    """Did this ONE message state a path between two named places?
+
+    True when a path connective sits in the gap BETWEEN two consecutive district
+    hits («Мамекине [на] Смяч», «Реактивний йде григорівка [на район] Дмитрівка»)
+    — so the hits, already ordered by text position, are waypoints of one
+    trajectory. A bare enumeration («Троя, Оболонь») has no connective in the
+    gap and stays False, which is what keeps this off the Kyiv channels'
+    meandering-drone shape.
+
+    Positive-signal-only on purpose: `not multi_targets` would be far broader
+    (it is also False for "удар по Оболоні", a located frame stating no path).
+
+    Three guards, each earned from a real Kyiv-channel false positive — the
+    connective alone is far too weak (measured 2026-08-24: it fired on 29
+    Kyiv-channel messages, of which ~14 were separate targets or unrelated
+    prose):
+      * a sentence or line break ends the statement — «повз Десну на південь.
+        Ще один реактивний…» is two targets;
+      * a count inside the gap makes it a distribution, not a path;
+      * whatever follows the connective must be the destination itself, not a
+        threat noun («через БпЛА»).
+    """
+    if len(districts) < 2:
+        return False
+    for a, b in zip(districts, districts[1:], strict=False):
+        gap = norm[a.end:b.position]
+        if re.search(r"[.!?\n]", gap) or re.search(r"\d", gap):
+            continue
+        if any(w in gap for w in _PATH_COUNT_BREAK):
+            continue
+        last = max((m.end() for c in _PATH_CONNECTIVE
+                    for m in re.finditer(
+                        rf"(?<![а-яіїєґ]){re.escape(c)}(?![а-яіїєґ])", gap)),
+                   default=None)
+        if last is None:
+            continue
+        tail = [w for w in re.split(r"[^а-яіїєґ-]+", gap[last:]) if w]
+        if all(w in _PATH_FILLER for w in tail):
+            return True
+    return False
+
+
 def _origin_present(origin: Origin | None, status: str, target_type: str, norm: str,
                     sup: Suppressors) -> bool:
     """A curated inbound origin named in FROM-position ("з Брянщини", "з боку
@@ -973,6 +1027,9 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
     # predicate sat on silently decided which of the two it saw.
     reported_districts = [] if sup.clears_districts else _drop_standby_districts(districts, norm)
     multi_targets = not impact and _multi_targets(reported_districts, norm)
+    # An impact is a point strike, never a trajectory — same rule the map holds
+    # (threatVisual.ts), applied here so the flag can't contradict it.
+    movement = not impact and _movement_path(reported_districts, norm)
     # Confidence drops when we can't localize the target.
     if not reported_districts and status not in ("clear",):
         conf = min(conf, 0.3)
@@ -1011,4 +1068,5 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
         origin_key=origin.key if origin_present and origin is not None else None,
         origin_sector=origin.sector if origin_present and origin is not None else None,
         multi_targets=multi_targets,
+        movement=movement,
     )

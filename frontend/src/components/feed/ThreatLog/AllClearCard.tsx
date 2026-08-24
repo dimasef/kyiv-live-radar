@@ -72,9 +72,12 @@ export default function AllClearCard({ notices }: { notices: Notice[] }) {
         // in one place rather than repeated on each animated layer.
         ["--ac-pd" as string]: PULSE,
         borderColor: "rgba(255,255,255,.06)",
-        borderLeft: `3px solid ${AC}`,
+        // 2px, like every other feed card — the accent bar below sits ON TOP of
+        // this edge, so anything wider reads as a heavier rail than the rest of
+        // the log and breaks the column.
+        borderLeft: `2px solid ${AC}`,
         background: `linear-gradient(103deg, ${mix(16)} 0%, ${mix(7)} 42%, rgba(255,255,255,.02) 100%)`,
-        boxShadow: `inset 3px 0 18px -6px ${mix(65)}, 0 0 0 1px ${mix(12)}, 0 8px 26px -14px ${mix(80)}`,
+        boxShadow: `inset 2px 0 18px -6px ${mix(65)}, 0 0 0 1px ${mix(12)}, 0 8px 26px -14px ${mix(80)}`,
       }}
     >
       <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl" aria-hidden>
@@ -85,11 +88,6 @@ export default function AllClearCard({ notices }: { notices: Notice[] }) {
           }}
         />
       </div>
-      <div
-        className="ac-edge absolute inset-y-0 left-0 w-[3px]"
-        style={{ background: AC }}
-        aria-hidden
-      />
 
       <div className="relative flex items-center justify-between gap-2.5">
         <div className="flex min-w-0 items-center gap-2.5">

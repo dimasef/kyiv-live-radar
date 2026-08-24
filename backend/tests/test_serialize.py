@@ -18,7 +18,7 @@ def _threat() -> Threat:
     th = Threat(
         target_type="shahed", status="tracking", kind="track",
         closed_reason=None, scope="district", region="kyiv", incident_id=None,
-        target_count=2, closed_at=None, corroboration_count=2,
+        target_count=2, closed_at=None, movement_stated=True, corroboration_count=2,
         has_conflict=True, confidence=0.75,
     )
     th.id = 42

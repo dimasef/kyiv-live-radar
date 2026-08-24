@@ -10,8 +10,6 @@ import EventChips from "./EventChips";
 import { rowBorderClass } from "./rowStyle";
 import type { ApplyTrack, DropEvent, MoveEvent } from "./types";
 
-export type { ApplyTrack, DropEvent, MoveEvent };
-
 export default function RawMessageRow({
   item,
   selected,

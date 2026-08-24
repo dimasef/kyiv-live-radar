@@ -13,14 +13,11 @@ export type ThreatEvent = Schemas['ThreatEventOut']
 export type Threat = Schemas['ThreatOut']
 export type FeedEntry = Schemas['FeedEntryOut']
 export type Incident = Schemas['IncidentOut']
-export type JournalAlertWindow = Schemas['JournalAlertWindowOut']
 export type JournalDay = Schemas['JournalDayOut']
 export type Journal = Schemas['JournalOut']
 export type JournalStats = Schemas['JournalStatsOut']
 export type StatsDay = Schemas['StatsDayOut']
-export type StatsTotals = Schemas['StatsTotalsOut']
 export type HourBucket = Schemas['HourBucketOut']
-export type DurationBucket = Schemas['DurationBucketOut']
 export type DistrictStat = Schemas['DistrictStatOut']
 export type AnalyticsPeriod = JournalStats['period']
 export type Notice = Schemas['NoticeOut']
@@ -57,18 +54,12 @@ export type ThreatAnalysisState = Schemas['ThreatAnalysisStateOut']
 
 export type TargetType = Threat['target_type']
 export type ThreatStatus = Threat['status']
-export type ThreatKind = Threat['kind']
 /** Watched region — 'kyiv' (м. Київ + Київська обл., what the journal, the
  * attack banner and home-danger push are about) or 'chernihiv' (the northern
  * early-warning approach). */
 export type Region = Threat['region']
 export type ClosedReason = NonNullable<Threat['closed_reason']>
-/** Weapon-family classification of an attack, derived server-side (never
- * stored) from its accumulated member types — see backend domain/attack.py. */
-export type AttackClassification = Incident['classification']
 export type NoticeKind = Notice['kind']
-export type AlertScope = Alert['scope']
-export type AxisStatus = ThreatAxis['status']
 export type AlertZone = Schemas['AlertZoneOut']
 
 /** GET /alert-zones/geometry — `response_model`-less for the same reason as

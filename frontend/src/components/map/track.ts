@@ -13,11 +13,18 @@ export function trackPoints(threat: Threat): Pt[] {
   return pts
 }
 
-/** A track "moves" only if its located sightings span ≥2 DISTINCT timestamps.
- * A single message naming several districts ("по Дарницькому та Соломʼянському")
- * produces several same-time events — an enumeration, not a trajectory — and
- * must not draw a connecting vector between those places. */
+/** A track "moves" if its located sightings span ≥2 DISTINCT timestamps, or if
+ * the parser saw a path STATED in one message.
+ *
+ * The timestamp rule alone is what keeps an enumeration from drawing a vector:
+ * "по Дарницькому та Соломʼянському" is several same-time events naming places
+ * a drone is near, not a trajectory between them. But the northern spotter
+ * channel writes movement as one message per leg — «Мамекине на Смяч» — which
+ * is also same-time, and 39 real drone tracks drew as bare dots because of it.
+ * Only the parser can tell the two apart (a path connective sits between the
+ * two place names), so the backend decides and sends `movement_stated`. */
 export function hasMovement(threat: Threat): boolean {
+  if (threat.movement_stated && trackPoints(threat).length > 1) return true
   const times = new Set<string>()
   for (const ev of threat.events as ThreatEvent[]) {
     if (ev.lat == null || ev.lon == null) continue

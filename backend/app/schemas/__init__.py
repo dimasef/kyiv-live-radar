@@ -57,7 +57,6 @@ from .common import (
     SourceDeleteOut,
     SourceIn,
     SourceLinkOut,
-    SourceOut,
     SourceStatsOut,
     SourceUpdateIn,
 )
@@ -213,7 +212,6 @@ __all__ = [
     "SourceDeleteOut",
     "SourceIn",
     "SourceLinkOut",
-    "SourceOut",
     "SourceStatsOut",
     "SourceUpdateIn",
     "StatsDayOut",

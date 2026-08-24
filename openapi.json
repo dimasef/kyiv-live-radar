@@ -3504,7 +3504,7 @@
         "type": "object"
       },
       "SourceLinkOut": {
-        "description": "One channel we read, for public attribution (the map legend's «Джерела»).\n\nDeliberately NOT `SourceOut`: that carries `trust_weight`, an internal\nfusion knob that would read publicly as our rating of a volunteer channel.\n\n`url` is None for anything that is not a plain public @username — a private\nchannel's invite link must never be republished, and a numeric channel id\nhas no public page to point at. Such a source is still listed by name;\ncredit is owed either way.",
+        "description": "One channel we read, for public attribution (the map legend's «Джерела»).\n\nDeliberately carries no `trust_weight`: that internal fusion knob would read\npublicly as our rating of a volunteer channel (admins get it via\n`SourceAdminOut`).\n\n`url` is None for anything that is not a plain public @username — a private\nchannel's invite link must never be republished, and a numeric channel id\nhas no public page to point at. Such a source is still listed by name;\ncredit is owed either way.",
         "properties": {
           "id": {
             "title": "Id",
@@ -4233,6 +4233,11 @@
               }
             ],
             "title": "Last Event At"
+          },
+          "movement_stated": {
+            "default": false,
+            "title": "Movement Stated",
+            "type": "boolean"
           },
           "region": {
             "default": "kyiv",

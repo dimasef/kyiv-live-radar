@@ -555,6 +555,13 @@ class Threat(Base):
     # Replaces status='lost' overloading відбій/дорозвідка/silence-timeout
     # into one meaning; set only via app.domain.lifecycle.close_track().
     closed_reason: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # A contributing message stated a path between two places («Мамекине на
+    # Смяч»), so this track's events are waypoints of one trajectory even when
+    # they all share a single timestamp. Display-only: it never affects which
+    # track a sighting joins, it tells the map a one-message track is a real
+    # vector (track.ts::hasMovement, which otherwise needs 2+ distinct times).
+    # Latches on — a path once stated is not un-stated by a later bare callout.
+    movement_stated: Mapped[bool] = mapped_column(default=False)
     # --- Derived multi-source fusion signals ---
     corroboration_count: Mapped[int] = mapped_column(default=1)  # distinct independent sources
     has_conflict: Mapped[bool] = mapped_column(default=False)    # sources disagree

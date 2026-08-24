@@ -892,6 +892,22 @@ def test_post_strike_fire_is_aftermath():
     assert parse_message("10 БПЛА на Вишгород", M).matched
 
 
+def test_pohoriltsi_is_a_village_not_a_burning_verb():
+    """The bare stem "горіл" used to sit inside «Погорільці» (Семенівська
+    громада), so the Chernihiv channel's callouts were suppressed as post-strike
+    fire — even an explicit drone one (2026-08-23, raw id 8089)."""
+    for txt in ["Погорільці", "Погорільці 🔴", "БпЛА на Погорільці"]:
+        r = parse_message(txt, M)
+        assert not r.aftermath and r.matched, txt
+        assert [d.name for d in r.districts] == ["Погорільці"], txt
+    assert parse_message("БпЛА на Погорільці", M).target_type == "shahed"
+    # Real aftermath AT that village must still be suppressed — the fix narrows
+    # the stem, it does not drop the class.
+    for txt in ["У Погорільцях горить будинок",
+                "Пожежа у Погорільцях, працюють рятувальники"]:
+        assert parse_message(txt, M).aftermath, txt
+
+
 def test_link_bearing_message_is_promo_not_a_sighting():
     # A URL means promo/donation/ad/meta — never a live spotter sighting.
     for txt in ["Друзі, створив ракетний канал по Києву https://t.me/kyiv_allerts",
@@ -1599,3 +1615,42 @@ def test_ripky_genitive_plural_needs_its_alias():
     # unlocalized on that one vowel.
     assert names(parse_message("З півночі на район ріпок ⚠️", M)) == ["Ріпки"]
     assert names(parse_message("Ріпки", M)) == ["Ріпки"]
+
+
+def test_stated_path_between_two_places_is_movement():
+    """«A на B» on the northern spotter channel is a trajectory, not an
+    enumeration: the districts are waypoints in text order and the map must draw
+    the leg even though both events share one timestamp (2026-08-24)."""
+    for txt in ["Мамекине на Смяч", "Талалаївка на Ічню", "Кукшин на Чемер",
+                "Поки курс на плиски на круги на Ніжин",
+                "Південь від Броварів до району Борисполя останній.",
+                "🛵Шахед повз Вишгород на Троєщину!", "Деміївка, далі на Жуляни"]:
+        r = parse_message(txt, M)
+        assert r.movement, txt
+        assert len(r.districts) >= 2, txt
+
+
+def test_enumeration_and_distribution_are_not_movement():
+    """The guards that keep the flag off the Kyiv dialect. Each line is a real
+    message that the bare connective rule wrongly called a path."""
+    for txt in [
+        # A bare enumeration names places a drone is near, not a route.
+        "Троєщина, Оболонь увага!", "Вишневе Жуляни", "Особливо Поділ, Святошин та Жуляни!",
+        # Own count per place = separate targets, not one path.
+        "6 БпЛА на Вишгород, 2 на Згурівку.", "Крутиться біля Глевахи, ще один на Бориспіль",
+        "Група КР на Богуслав\nГрупа КР на Миронівку",
+        # A sentence break ends the statement.
+        "Реактивний шахед повз Десну на південь. Ще один реактивний на Яготин",
+        # "через" governing a threat noun, not a place ("because of", not "via").
+        "Тривога у Вишгородському та Броварському районах через БпЛА з Чернігівщини,"
+        " в районі Ніжина",
+        # A located frame states no path at all.
+        "Удар по Оболоні, пошкоджено Троєщину",
+    ]:
+        assert not parse_message(txt, M).movement, txt
+
+
+def test_impact_never_states_a_path():
+    # Same rule the map holds: a strike is a point, never a trajectory.
+    r = parse_message("Влучання в Дарницькому районі, ще одне на Троєщині", M)
+    assert not r.movement

@@ -36,6 +36,7 @@ function threat(
     region: 'kyiv',
     target_count: 1,
     confidence: 0.8,
+    movement_stated: false,
     corroboration_count: 1,
     has_conflict: false,
     created_at: '2026-08-08T22:00:00',

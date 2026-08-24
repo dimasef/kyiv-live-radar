@@ -21,9 +21,6 @@ import { createUiSlice } from './uiSlice'
 import { createWsSlice } from './wsSlice'
 import { createZonesSlice } from './zonesSlice'
 
-export type { Home } from './homeSlice'
-export type { RadarState } from './types'
-
 export const useRadar = create<RadarState>()((...a) => ({
   ...createDistrictsSlice(...a),
   ...createSourcesSlice(...a),

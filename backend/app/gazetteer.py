@@ -519,8 +519,11 @@ DISTRICTS: list[dict] = [
     # village and as the region-wide noun). Two of those three were reversed on
     # 08-22, when more callouts settled which one the channel means — see
     # «Берилівка» (the spelling Nominatim does have) and «Городище» in block K.
+    # «ліюбеч» is a real typo the channel made mid-callout («Ліюбеч на Славутичі»)
+    # — one transposed letter the stemmer cannot bridge, and it cost the FROM end
+    # of a stated path. Same treatment as «Гремʼяч»/«Гремяч».
     {"name_uk": "Любеч", "name_en": "Liubech", "lat": 51.7005, "lon": 30.6587,
-     "region": "chernihiv", "aliases": []},
+     "region": "chernihiv", "aliases": ["ліюбеч"]},
     # Михайло-Коцюбинська громада, Чернігівський район. Added after raw 7249
     # (2026-08-21) — a bare «Антоновичі» produced a Kyiv dot, because the
     # Нивки alias «антонов» matched it as a stem. That alias is now whole-word
@@ -1375,6 +1378,81 @@ DISTRICTS: list[dict] = [
      "region": "chernihiv", "aliases": []},
     {"name_uk": "Муравʼї", "name_en": "Muravi", "lat": 52.3413, "lon": 33.3689,
      "region": "chernihiv", "aliases": []},
+    # 2026-08-23, id 8089: a bare «Погорільці» from the Chernihiv channel. Adding
+    # the entry alone would have changed nothing — the name contains the stem
+    # "горіл", so _AFTERMATH suppressed the message as post-strike fire news
+    # before the gazetteer was ever consulted (even «БпЛА на Погорільці» was
+    # dropped). Fixed at both ends; see the _AFTERMATH comment in parsing/vocab.py.
+    {"name_uk": "Погорільці", "name_en": "Pohoriltsi", "lat": 52.0402, "lon": 32.5123,
+     "region": "chernihiv", "aliases": []},
+    # 2026-08-24, mined against the STATED-PATH flag (parsing/rules._movement_path):
+    # every one of these was the unresolved end of an «A на B» callout, so the gap
+    # cost a whole vector, not just a pin — the message localized to one place and
+    # the map drew a dot where the channel had described a leg.
+    #
+    # Swept as stems over all 7 428 stored messages: each matches only its own
+    # callouts, and no existing match moves.
+    {"name_uk": "Араповичі", "name_en": "Arapovychi", "lat": 51.9495, "lon": 33.3109,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Гмирянка", "name_en": "Hmyrianka", "lat": 50.7936, "lon": 32.4334,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Линовиця", "name_en": "Lynovytsia", "lat": 50.4641, "lon": 32.3963,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Дрімайлівка", "name_en": "Drimailivka", "lat": 51.2685, "lon": 31.8516,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Печенюги", "name_en": "Pecheniuhy", "lat": 52.0542, "lon": 33.0065,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Івківці", "name_en": "Ivkivtsi", "lat": 50.5316, "lon": 32.4902,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Кудлаївка", "name_en": "Kudlaivka", "lat": 51.9056, "lon": 33.1001,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Райгородок", "name_en": "Raihorodok", "lat": 51.6289, "lon": 33.0954,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Фаївка", "name_en": "Faivka", "lat": 51.9928, "lon": 32.9361,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Парафіївка", "name_en": "Parafiivka", "lat": 50.884, "lon": 32.6447,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Здрягівка", "name_en": "Zdriahivka", "lat": 51.9289, "lon": 31.7495,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Перелюб", "name_en": "Pereliub", "lat": 51.9835, "lon": 32.33,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Омбиш", "name_en": "Ombysh", "lat": 51.0552, "lon": 32.3165,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Дуболугівка", "name_en": "Duboluhivka", "lat": 51.2604, "lon": 32.0403,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Григорівка", "name_en": "Hryhorivka", "lat": 51.0377, "lon": 32.8567,
+     "region": "chernihiv", "aliases": []},
+    # Both of these name TWO villages in the oblast; the neighbouring callouts in
+    # the same minutes decided which, and for Курилівка that overturned the guess
+    # the name alone suggested:
+    #   Блистова  — «Зелений гай на блистова» sits among Козилівка/Дачне/
+    #     Ларинівка/Бугринівка (51.88–52.00), the Novhorod-Siverskyi corridor;
+    #     the Мена one is 90 km southwest.
+    #   Курилівка — «по кордону … від курилівки» runs with Носівка/Козелець/
+    #     Бобровиця (50.74–50.94), so it is the NIZHYN one, not the northern
+    #     Понорниця one that "по кордону" first suggests.
+    {"name_uk": "Блистова", "name_en": "Blystova", "lat": 51.8877, "lon": 32.9157,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Курилівка", "name_en": "Kurylivka", "lat": 50.9563, "lon": 31.9726,
+     "region": "chernihiv", "aliases": []},
+    # Means "dawn". Kept on the same empirical grounds as «Щасливе» (="happy"):
+    # the stem matches 1 message in 7 428 and it is the village. If «на світанку»
+    # ever shows up in a forecast, this is the entry that produced it.
+    {"name_uk": "Світанок", "name_en": "Svitanok", "lat": 52.0405, "lon": 31.3725,
+     "region": "chernihiv", "aliases": []},
+    # DELIBERATELY NOT ADDED, same batch:
+    #   «Високе» — the stem «висок» matches 24 real messages, essentially all of
+    #     them «висока загроза», «на висоті», «високопосадовці». The «Остер» ⊂
+    #     «остерігайтеся» class; a village worth one callout is not worth that.
+    #   «Гути» («Мньов на Гути», «Неданчичі на Гути») — geocodes to nothing on its
+    #     own. It is almost certainly the channel's shorthand for one of the three
+    #     -Гута entries already here (Лошакова/Василева/Хатилова), but which one
+    #     is a decoding question for the maintainer, not a guess worth 3 callouts.
+    #   «Хороше Озеро», «Мала Дівиця», «Зелений Гай», «Великий Щимель», «Велика
+    #     Доч» — two-word names, which only match through a single-word alias
+    #     (the stemmer strips spaces), and here every candidate word is either a
+    #     common adjective or a noun that collides. Same reasoning as «Красна
+    #     Гірка» below.
     # DELIBERATELY NOT ADDED, same session: «Красна Гірка» («виліз з заходу на
     # красну гірку»). A two-word entry only matches through a single-word alias
     # (the stemmer strips spaces), and neither word is safe here — «гірк» is

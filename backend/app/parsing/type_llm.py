@@ -113,10 +113,6 @@ class TypeVerdict:
         ingest/context.type_context_declined."""
         return self.target_type == "unknown" or self.evidence == "none"
 
-    def as_dict(self) -> dict:
-        return {"target_type": self.target_type, "evidence": self.evidence,
-                "confidence": self.confidence}
-
 
 async def llm_target_type(
     text: str, context: str, source_label: str

@@ -72,6 +72,10 @@ class ThreatOut(BaseModel):
     incident_id: int | None = None
     target_count: int = 1
     closed_at: datetime | None = None
+    # A message stated a path between two places, so this track's events are one
+    # trajectory even at a single timestamp — the map needs this to draw the
+    # vector (track.ts::hasMovement). Defaulted for pre-field clients.
+    movement_stated: bool = False
     # Derived multi-source fusion signals.
     corroboration_count: int = 1
     has_conflict: bool = False

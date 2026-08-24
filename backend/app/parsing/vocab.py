@@ -291,6 +291,26 @@ _MOVEMENT_CUE = ("курс", "у бік", "в бік", "через", "пряму
 _PREPOSITION_BEFORE_DISTRICT = ("на", "у", "в", "до", "з", "зі", "із", "над",
                                 "біля", "під", "по")
 
+# Connectives that, sitting BETWEEN two named places, state a path FROM the
+# earlier one TO the later («Мамекине на Смяч», «Талалаївка на Ічню»). The
+# northern spotter channel writes almost every movement this way. Deliberately
+# excludes the FROM-markers "з"/"від": «На Смяч з Мамекиного» puts the
+# destination first, and drawing text-order there would reverse the arrow. That
+# shape does not occur in the corpus (measured 2026-08-24: 89 «A на B», 0 real
+# reversed), so it is left unhandled rather than guessed at.
+_PATH_CONNECTIVE = ("на", "до", "через", "повз")
+# Only these may stand between the connective and the destination — anything
+# else means the connective governs something other than the place, which is
+# how «…районах через БпЛА з Чернігівщини, в районі Ніжина» read as a path.
+_PATH_FILLER = ("район", "районі", "району", "районом", "рн", "р-н",
+                "лівий", "правий", "бік", "боку", "сторону", "межу", "межі")
+# A gap carrying its own count is a DISTRIBUTION of separate targets, not one
+# path: «6 БпЛА на Вишгород, 2 на Згурівку», «Крутиться біля Глевахи, ще один
+# на Бориспіль». Each place has its own target, and chaining them would redraw
+# the 07-18 zigzag mega-track.
+_PATH_COUNT_BREAK = ("ще один", "ще одна", "ще два", "ще дві", "другий", "друга",
+                     "друге", "третій", "третя", "інший", "інша", "група")
+
 # --- Aftermath: the RESULT of a strike (casualties, damage, rescue) is news
 # about a place, not a live target, even when it names a district. ---
 _AFTERMATH = ("постраждал", "загинул", "поранен", "жертв", "уламк", "пошкодж",
@@ -299,8 +319,13 @@ _AFTERMATH = ("постраждал", "загинул", "поранен", "же�
               "евакуй", "загибл", "потерпіл",
               "пожеж",
               # Post-strike fire. Stems picked to avoid collisions:
-              # "горіл"/"згорі" ⊄ "Вишгород", "горять" ⊄ "говорять".
-              "горить", "горять", "горіл", "згорі",
+              # "згорі" ⊄ "Вишгород", "горять" ⊄ "говорять". NOT the bare stem
+              # "горіл": it sits inside the village Погорільці, so «БпЛА на
+              # Погорільці» was suppressed as aftermath (2026-08-23, id 8089).
+              # "вигорі" keeps the one real form the corpus actually uses
+              # ("вигорілі авто"); dropping "горіл" cost 0 suppressions across
+              # 1171 real messages — both hits carry 2+ other aftermath stems.
+              "горить", "горять", "вигорі", "згорі",
               # Full forms, NOT the stem "пала" — "ракета впала" contains it and
               # must keep its live meaning. ("Вся Лукʼянівка палає" raised a live
               # ballistic track on 07-19.)
@@ -860,4 +885,7 @@ NON_TOPONYM_STEMS: frozenset[str] = frozenset(
 # word-start guard and every caller anchors the end). Ukrainian place names
 # begin with them often enough that treating them as stems is a live hazard:
 # "три" is the head of Трипілля, "троє" of Троєщина, "семи" of Семиполки.
-NON_TOPONYM_WORDS: frozenset[str] = frozenset(_NUM_WORDS)
+# «пара» ("a couple of targets") belongs to the same class and for the same
+# reason: as a prefix it is the head of Парафіївка, so the coverage-gap queue
+# would never have proposed that village (2026-08-24).
+NON_TOPONYM_WORDS: frozenset[str] = frozenset(_NUM_WORDS) | {"пара", "пари", "пару"}
