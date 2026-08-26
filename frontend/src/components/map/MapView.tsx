@@ -17,7 +17,7 @@ import { HOME_DANGER_COLORS } from "@/theme";
 import AlertZoneLayer from "./AlertZoneLayer";
 import AxisLayer from "./AxisLayer";
 import CitywidePulse from "./CitywidePulse";
-import { KYIV_BOUNDS, MIN_ZOOM, WORLD_BOUNDS } from "./constants";
+import { BASEMAP_URL, KYIV_BOUNDS, MIN_ZOOM, WORLD_BOUNDS } from "./constants";
 import {
   HomeController,
   InspectController,
@@ -99,8 +99,7 @@ export default function MapView() {
       >
         <TileLayer
           attribution="&copy; OpenStreetMap &copy; CARTO"
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-          subdomains="abcd"
+          url={BASEMAP_URL}
           maxZoom={20}
           // Stops the tiles themselves from repeating past the antimeridian —
           // maxBounds alone constrains panning, not what gets drawn.

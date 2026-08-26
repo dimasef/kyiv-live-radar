@@ -29,6 +29,16 @@ export const WORLD_BOUNDS: [[number, number], [number, number]] = [
   [85.05, 180],
 ];
 
+// CARTO stopped serving its raster basemaps anonymously: a keyless request
+// still returns the tile, but with an "API KEY REQUIRED" watermark burned into
+// the PNG by their CDN — nothing on our side can strip it. A key (free tier,
+// 5M tiles/month, requested at carto.com/basemaps/apikey) removes it. Left
+// optional so a checkout with no .env still renders a map, watermark and all.
+const CARTO_KEY = import.meta.env.VITE_CARTO_KEY;
+export const BASEMAP_URL =
+  "https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" +
+  (CARTO_KEY ? `?key=${CARTO_KEY}` : "");
+
 // Inspect fly-to zoom — kept modest so a lone sighting lands with district
 // context, not at street level. INSPECT_MAX_ZOOM caps flyToBounds for a short track.
 export const INSPECT_ZOOM = 11;

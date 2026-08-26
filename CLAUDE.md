@@ -173,16 +173,17 @@ endpoint to the module that owns its area, not to `routes.py`.
 
 ### Gazetteer (`app/gazetteer.py`)
 
-112 entries: 10 administrative raions + in-city micro-neighborhoods/landmarks
-+ approach-corridor villages, each with a stem + aliases the spotters
-actually use. Grown reactively from real feed gaps — coverage is the primary
-lever for both rule and LLM accuracy. **Watch for stem collisions** when
-adding a short name: a district stem can accidentally match an unrelated
-common word (e.g. "Остер" was dropped — its stem falsely matched
-"остерігайтеся"=beware; "Щасливе" was kept only after an empirical
-false-positive sweep against the real corpus, since it also means "happy").
-Always geocode via `scripts/geocode_localities.py` and sweep the real corpus
-before committing a new entry.
+~440 entries: 10 administrative raions + in-city micro-neighborhoods/landmarks
++ approach-corridor villages across Київщина and Чернігівщина, each with a
+stem + aliases the spotters actually use. Grown reactively from real feed
+gaps — coverage is the primary lever for both rule and LLM accuracy.
+
+**Read `GAZETTEER.md` (repo root) before touching an entry.** The module keeps
+only per-line notes; the doc holds the rest: how the stemmer shapes a name (and
+why so many entries need an alias), the mandatory geocode + corpus-sweep +
+before/after-diff procedure, the names deliberately NOT added and why (re-adding
+one is a regression — "Остер" was dropped for matching "остерігайтеся"=beware),
+and the entries kept only on a clean sweep ("Щасливе" also means "happy").
 
 ### Frontend code conventions (`frontend/src`)
 

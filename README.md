@@ -266,7 +266,13 @@ npm run dev     # http://localhost:5173
 npm run build   # tsc -b && vite build — this IS the type-check step
 ```
 
-The frontend reads `VITE_API_URL` / `VITE_WS_URL` from `frontend/.env`.
+The frontend reads `VITE_API_URL` / `VITE_WS_URL` from `frontend/.env`, plus
+`VITE_CARTO_KEY` — a free CARTO basemap key (5M tiles/month, requested at
+[carto.com/basemaps/apikey](https://carto.com/basemaps/apikey)). CARTO no longer
+serves its raster basemaps anonymously: without the key every tile arrives with
+an "API KEY REQUIRED" watermark burned into the PNG by their CDN. The map still
+works unkeyed, so the variable is optional locally, but production needs it set
+in Vercel too.
 
 ## Deployment
 

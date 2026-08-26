@@ -264,3 +264,28 @@ def test_region_only_entry_is_hidden_from_the_llm_enum():
     names = {n for _, n in _region_matcher("kyiv").districts_index}
     assert "Летовище" not in names
     assert "Летовище" in {n for _, n in _region_matcher("chernihiv").districts_index}
+
+
+def test_no_entry_is_listed_twice():
+    """A duplicate is invisible at runtime — DistrictMatcher keeps one hit per
+    match offset, so the second copy just never fires — but it means two ids for
+    one place, and `seed.py` upserts on name_en, so a repeated name_en silently
+    overwrites the earlier row instead of adding one.
+
+    Shipped once (2026-08-24: Блистова, Дуболугівка and Омбиш were re-added by a
+    batch that had already been mined against an older gazetteer), which is why
+    this is a test and not a note in GAZETTEER.md.
+    """
+    for field in ("name_en", "name_uk"):
+        seen: dict[str, int] = {}
+        for d in DISTRICTS:
+            seen[d[field]] = seen.get(d[field], 0) + 1
+        dupes = {k: n for k, n in seen.items() if n > 1}
+        if field == "name_uk":
+            # A shared name_uk is legitimate for a cross-border homonym, but only
+            # when the two carry different coordinates AND distinct name_en.
+            for name in list(dupes):
+                rows = [d for d in DISTRICTS if d["name_uk"] == name]
+                if len({(d["lat"], d["lon"]) for d in rows}) == len(rows):
+                    del dupes[name]
+        assert dupes == {}, f"duplicate {field}: {dupes}"

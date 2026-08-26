@@ -9,6 +9,9 @@ interface ImportMetaEnv {
   // Telegram Login Widget bot username (without @) — when set, the Telegram
   // sign-in button renders.
   readonly VITE_TELEGRAM_LOGIN_BOT?: string
+  // CARTO basemap key — without it the tiles carry an "API KEY REQUIRED"
+  // watermark (see BASEMAP_URL in components/map/constants.ts).
+  readonly VITE_CARTO_KEY?: string
 }
 
 interface ImportMeta {

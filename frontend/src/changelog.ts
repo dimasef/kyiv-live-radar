@@ -32,12 +32,23 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.35.0";
+const LATEST = "0.35.1";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "Чиста підложка",
+    date: "2026-08-26",
+    kind: "patch",
+    changes: [
+      "З мапи зник напис, що останнім часом лежав навскіс поверх кожного квадрата підложки й заважав читати місцевість. Це вимога постачальника карти, яку ми виконали — мітки, райони й маршрути тепер видно на чистому тлі",
+      "Упізнає ще два села на Чернігівщині: Яцево під самим Черніговом і Терехівку на схід від нього",
+      "Село Світанок більше не потрапляє на мапу: у цьому жанрі «до світанку» — це майже завжди про час кінця тривоги, а не про місце",
+    ],
+  },
+  {
+    version: "0.35.0",
     title: "Ціль малює маршрут",
     date: "2026-08-24",
     kind: "minor",
