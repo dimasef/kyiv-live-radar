@@ -196,15 +196,16 @@ say so explicitly and record the new sweep.
 | **Остер** | Stem `остер` ⊂ «остерігайтеся». Козелець on the same M-01 axis covers the corridor. *(The village was later added as a `chernihiv` entry — the rejection stands for any Kyiv-side use.)* |
 | **Високе** | 24 corpus hits, ~2 the village: `висок` eats «висока загроза», «на висоті», «летить не високо», «високопосадовці». The Остер failure exactly. |
 | **Світанок** | A real village, but «на світанок» / «до світанку» is what this genre says about the end of an alert. Whole-word matching cannot help — the phrase uses the same word form. *(Added 2026-08-24 on a clean sweep, then reverted: the rejection predates it and the failure mode is realistic.)* |
-| **Заспа** (bare) | Stem `засп` is 14/15 clean, but the 15th is «заспокоїтись», and a different village Заспа ~45 km away breaks geocoding. Конча-Заспа rides on the «конча» alias instead. |
+| **Заспа** (bare, as a STEM or as its own entry) | Stem `засп` fires inside «заспокоїтись», and a different village Заспа ~45 km away means a standalone entry has to put a point on one of the two. *(Reversed in the only form that dodges both, 2026-08-27 — see the row in "kept under watch". The rejection stands for a stem and for a separate record.)* |
 | **Віта** (bare) | `віта` ⊂ вітаю / вітання. Віта-Поштова matches on its hyphenated compound only. |
 | **ТЕС** (bare) | ⊂ тест / тесля. Трипільська ТЕС rides on «трипіл». |
 | **ТЕЦ** (bare, Kyiv) | Tried 2026-08-21 and reverted. As a whole-word alias it survives «тец-6», but the corpus also spells it «ТЕЦ - 6» spaced, where the bare alias matched and ТЕЦ-6's hyphenated stem did not — a message went from matching nothing to matching the wrong plant 12 km away. The Chernihiv «ТЕЦ» is unaffected: it is `region_only`, so it never meets a numbered form. |
 | **зона** (bare) | Common noun. Чорнобильська зона uses «чзв» + «чорнобиль». |
 | **Красна Гірка** | Two-word, and neither word is safe: «гірк» is how this channel names a *different* settlement (Гірки), and «красн» swallows «Краснодарського», an ORIGIN mention `domain/origins.py` owns. |
 | **Хороше Озеро, Червоне Озеро, Велика Доч, Мала Дівиця, Зелений Гай, Великий Щимель** (as spaced names) | No distinctive single word; the shared «озеро» is generic (5 unrelated corpus hits). Великий Щимель ships only because «щимель» itself is distinctive. |
-| **Гути** | No Nominatim point, and it collides with the three `-Гута` entries. Almost certainly the channel's shorthand for one of them — a decoding question for the maintainer, not a guess. |
+| **Гути** *(decoded 2026-08-27 — now an alias on Василева Гута)* | It is the channel's plural for the Василева/Хатилова pair, and the channel decoded it itself: the corridor bulletin (raw 6589) reads «…Славутич/Неданчичі ➡️ **Боровики/Гути** ➡️ Десна/Остер», and Боровики is 2.1 km from Василева Гута, while Лошакова Гута sits 30 km on — 14 km from Десна, i.e. in the *next* stage. Worst case the pin lands 2.3 km off, on the pair's other half. Whole-word alias; the three `-Гута` entries keep their own full-name callouts. |
 | **Наливайківка** (in-city Sviatoshynskyi) | Not resolvable: every query variant matches the same-named village in Bucha raion ~45 km away. The oblast village *is* in the list. |
+| **Романівка** (2026-08-27, with Стоянка) | One corpus mention, and it is a *district of Ірпінь* — the Ірпінь entry already sits 3.8 km away, so the gap it would close is smaller than this map's own precision. The name is also among the most common in the country, which makes a future homonym likelier than a future callout. |
 | **Замістя / Розсудів** | Stems eat «замість» and «на власний розсуд» — kept, but as whole-word entries. |
 | **Печі** | The only Печі in the oblast is 100 km from the Остер it was called out with; the word is also the plural of «піч». |
 | **Селище** | Six in the oblast, none on a corridor, and the channel uses the generic noun too. |
@@ -230,6 +231,8 @@ corpus sweep found zero bad matches. Re-sweep if the feed changes.
 | **Вишня** (Вишневе alias) | cherry | all forms are the town |
 | **Море / моря / морі** | морально, мороз | 8 genuine calls; the only false hit is a foreign sea, vetoed in the matcher |
 | **Водосховище** | other Dnipro reservoirs | 2 occurrences, both this one |
+| **Стоянка** (2026-08-27) | «стоянка» = a parking lot | 6/6 corpus hits are the village, named by four different channels. «автостоянка» is structurally safe — the matcher anchors on a word start — so only the bare noun could ever collide, and it never has. Pinned by a test either way. |
+| **Заспа / Заспу / Заспи** (Конча-Заспа aliases, 2026-08-27) | «заспокоїтись» as a stem; a second Заспа 45 km south | 15/15 corpus hits are Конча-Заспа. Whole-word only, so the verb is unreachable; aliases rather than an entry, so no second point exists to be wrong. «Конча-Заспа» still resolves to ONE hit — both branches are the same id. Two tests pin the verb (`test_parser.py`), three pin the callouts. |
 | **Пуща** | «запущено», «пуски» | blocked by the word-start boundary |
 
 ---
@@ -252,3 +255,4 @@ Reactively, from real feed gaps. Each pass is recorded in git; the short version
 | 08-22 | **K** — the ring and corridors *around* Чернігів, at village granularity. **K2** — the morning Бахмач→Борзна→Ніжин→Носівка run. |
 | 08-23 | **L** — cross-region audit: the names that made the northern channel produce a *Kyiv* target. **M** — whole-corpus gap pass (Мамекине, Лісконоги, Kyiv's Вокзал, Українка). **N** — the Новгород-Сіверський loitering session, all reply-chain gaps. |
 | 08-24 | Mined against the stated-path flag (`rules._movement_path`): each entry was the unresolved end of an «A на B» callout, so the gap cost a whole vector rather than a pin. Plus Яцево / Терехівка from the raid over Чернігів itself. |
+| 08-27 | Глузди + Горбове — a Куликівка pair 4.5 km and 9 s apart, one target that produced nothing at either end. Plus the Заспа aliases: the first *reversal* of a documented rejection, allowed only because the whole-word/alias form dodges both of its reasons. Then «Гути», decoded off the channel's own corridor bulletin — three of its five callouts are «A на Гути», so the gap was costing a whole route, not a pin. And Стоянка on the Zhytomyr highway, where the nearest entry was 7.8 km off. |

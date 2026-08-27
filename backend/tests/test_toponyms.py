@@ -266,6 +266,87 @@ def test_region_only_entry_is_hidden_from_the_llm_enum():
     assert "Летовище" in {n for _, n in _region_matcher("chernihiv").districts_index}
 
 
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        # 2026-08-26, 9 s apart on the Chernihiv channel: one target walked
+        # between two Куликівка villages 4.5 km apart and NEITHER callout
+        # matched anything, so the map showed no dot and no route at all.
+        ("Глузди", "Глузди"),
+        ("Горбове", "Горбове"),
+    ],
+)
+def test_kulykivka_pair_localizes(text, expected):
+    assert [h.name for h in _region_matcher("chernihiv").find(normalize(text))] == [expected]
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["Заспа 🔴.", "Заспа/Сади 🔴.", "Акустично БПЛА район Заспи/Сади/ТЕЦ 🔴.",
+     "Той реактивний на Гнідин/Заспу 🔴.",
+     "Йдуть по Дніпру через Заспу на південь Києва."],
+)
+def test_bare_zaspa_reaches_koncha_zaspa(text):
+    """The Kyiv channel's habitual terse form. It was dropped for the life of the
+    project — 15 corpus mentions, every one of them silent — because a bare
+    «Заспа» entry was rejected over a second village 45 km south. Riding on
+    Конча-Заспа's aliases keeps that rejection intact: no new point exists."""
+    assert "Конча-Заспа" in [h.name for h in _region_matcher("kyiv").find(normalize(text))]
+
+
+@pytest.mark.parametrize(
+    "text", ["На Гути", "Мньов на Гути", "Неданчичі на Гути"],
+)
+def test_plural_huty_resolves_to_the_northern_pair(text):
+    """Decoded from the channel's own corridor bulletin, which spells the stage
+    out as «Славутич/Неданчичі ➡️ Боровики/Гути ➡️ Десна/Остер». Боровики is
+    2.1 km from Василева Гута; Лошакова Гута is 30 km on and belongs to the
+    NEXT stage, 14 km from Десна. GAZETTEER.md had this filed as undecodable."""
+    assert "Василева Гута" in [
+        h.name for h in _region_matcher("chernihiv").find(normalize(text))
+    ]
+
+
+def test_named_huta_villages_keep_their_own_callouts():
+    """The plural must not swallow the three singulars — each is named in full
+    when the spotter means that one, and they are up to 30 km apart."""
+    m = _region_matcher("chernihiv")
+    for text, expected in (
+        ("На лошакову гуту", "Лошакова Гута"),
+        ("Борсуків на Лошакову Гуту", "Лошакова Гута"),
+        ("Хатилова гута", "Хатилова Гута"),
+        ("На василеву гуту", "Василева Гута"),
+    ):
+        assert expected in [h.name for h in m.find(normalize(text))], text
+
+
+@pytest.mark.parametrize(
+    "text", ["Стоянка", "Стоянка 🔴.", "Стоянка увага!", "Стоянка, Романівка"],
+)
+def test_stoianka_localizes(text):
+    """2026-08-27: four channels called it on one western approach and every
+    message died as «не про загрозу». The nearest entry was Ірпінь, 7.8 km off."""
+    assert "Стоянка" in [h.name for h in _region_matcher("kyiv").find(normalize(text))]
+
+
+def test_stoianka_does_not_eat_a_parking_lot():
+    """The reason this name was a risk at all. «автостоянка» is structurally
+    safe (the matcher anchors on a word start); the bare noun is not, so it is
+    pinned here — the entry rides on a clean sweep, not on an assumption."""
+    m = _region_matcher("kyiv")
+    assert [h.name for h in m.find(normalize("Пошкоджено автостоянку"))] == []
+    assert [h.name for h in m.find(normalize("біля автостоянки"))] == []
+
+
+def test_koncha_zaspa_does_not_double_match():
+    """The spelled-out name contains the alias. Both branches belong to one
+    entry, so the matcher must still return a single hit — two would enumerate
+    one place into two targets."""
+    m = _region_matcher("kyiv")
+    for text in ("Конча-Заспа", "конча заспа"):
+        assert [h.name for h in m.find(normalize(text))] == ["Конча-Заспа"], text
+
+
 def test_no_entry_is_listed_twice():
     """A duplicate is invisible at runtime — DistrictMatcher keeps one hit per
     match offset, so the second copy just never fires — but it means two ids for

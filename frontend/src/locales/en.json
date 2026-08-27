@@ -275,7 +275,11 @@
     "hm": "{{h}}h {{m}}m",
     "m": "{{m}}m",
     "compactH": "{{h}}h",
-    "compactM": "{{m}}m"
+    "compactM": "{{m}}m",
+    "noticeOff": "Alert layer off",
+    "ariaCount_one": "{{count}} raion under siren",
+    "ariaCount_other": "{{count}} raions under siren",
+    "noticeOn": "Alert layer on"
   },
   "zonesCtl": {
     "show": "Show air alerts by raion",

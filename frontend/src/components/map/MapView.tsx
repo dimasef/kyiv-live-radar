@@ -17,7 +17,7 @@ import { HOME_DANGER_COLORS } from "@/theme";
 import AlertZoneLayer from "./AlertZoneLayer";
 import AxisLayer from "./AxisLayer";
 import CitywidePulse from "./CitywidePulse";
-import { BASEMAP_URL, KYIV_BOUNDS, MIN_ZOOM, WORLD_BOUNDS } from "./constants";
+import { BASEMAP_URL, KYIV_BOUNDS, MIN_ZOOM, MOTION_BUDGET, WORLD_BOUNDS } from "./constants";
 import {
   HomeController,
   InspectController,
@@ -30,6 +30,8 @@ import HomeCompass from "./HomeCompass";
 import HomePlacement from "./HomePlacement";
 import MapControls from "./MapControls";
 import ThreatLayer from "./ThreatLayer";
+import { useMapViewport } from "./useMapViewport";
+import { isVisible } from "./viewportCull";
 
 const HOME_SIZE = 22;
 
@@ -67,6 +69,32 @@ export default function MapView() {
   // than rendering a second, stale layer on top of it.
   const inspectedIsLive = inspectedThreat != null && inspectedThreat.id in threats;
 
+  // Only what the operator can actually see gets handed to Leaflet. Every open
+  // track used to be drawn and animated regardless of where the view was
+  // pointing: at the 2026-08-21 peak that was 113 tracks and ~380 continuous
+  // animations to show maybe a dozen. Null viewport = the map hasn't reported
+  // one yet, which must mean "draw everything", never "draw nothing".
+  //
+  // Two tracks are exempt, both for the same reason — the operator is reading
+  // them: the inspected one (its card may be open while the map looks
+  // elsewhere) and whichever has its popup open. Culling the second would tear
+  // the popup off the screen mid-sentence, and its close event would then let
+  // the store evict the track outright.
+  const view = useMapViewport(map);
+  const openPopupThreatId = useRadar((s) => s.openPopupThreatId);
+  const shown = useMemo(() => {
+    const all = Object.values(threats);
+    if (!view) return all;
+    return all.filter(
+      (th) =>
+        th.id === inspectedThreat?.id || th.id === openPopupThreatId || isVisible(th, view),
+    );
+  }, [threats, view, inspectedThreat?.id, openPopupThreatId]);
+
+  // Counted over what is DRAWN, not what is open — with culling in front of it,
+  // a quiet corner of a busy night keeps its motion (see MOTION_BUDGET).
+  const overBudget = shown.length > MOTION_BUDGET;
+
   // 25 point-in-polygon tests over every raion boundary, and it depends only
   // on the home zone — without this it re-ran on every live frame, which during
   // a raid is dozens of times a minute.
@@ -74,6 +102,9 @@ export default function MapView() {
     () => (home ? raionIdsForZone(home, boundaries) : []),
     [home, boundaries],
   );
+  // Deliberately the FULL set, not `shown`: a target closing on the home raion
+  // is exactly the one worth warning about while the map is looking elsewhere.
+  // Culling decides what is drawn, never what is known.
   const danger = home ? homeDangerFor(threats, home, homeRaionIds) : "none";
   // The user's colour is theirs only while nothing is coming: an approaching
   // threat repaints the marker orange/red, because that colour is a warning
@@ -162,8 +193,13 @@ export default function MapView() {
         {/* Shared homes of friends (markers only — no radius, no danger). */}
         <FriendLayer />
 
-        {Object.values(threats).map((th) => (
-          <ThreatLayer key={th.id} threat={th} highlighted={inspectedThreat?.id === th.id} />
+        {shown.map((th) => (
+          <ThreatLayer
+            key={th.id}
+            threat={th}
+            highlighted={inspectedThreat?.id === th.id}
+            lean={overBudget}
+          />
         ))}
         {/* The inspected track isn't currently live (closed/evicted) — render
             it from its independently-fetched event history. */}

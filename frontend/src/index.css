@@ -236,6 +236,13 @@ body::after {
     transform: translateX(0);
   }
 }
+/* No backdrop-filter here, deliberately. A feed card sits on the mobile sheet
+   (bg-ink-900/90) or the desktop rail, both of which already blur what is behind
+   them — so a card's own blur changed almost nothing visually while costing a
+   backdrop readback per card, per frame. And the backdrop is the MAP, which
+   never stops animating during a raid, so it was dirty on every one of those
+   frames: ~15 cards re-blurring at 60 fps was the phone's biggest single
+   expense with the feed open. */
 .feed-item {
   animation: feed-in 0.45s var(--ease-out) both;
 }
@@ -622,6 +629,13 @@ body::after {
   stroke-dasharray: 7 9;
   stroke-linecap: round;
   animation: dash-flow 1.15s linear infinite;
+}
+/* The same track over the motion budget (map/constants MOTION_BUDGET): the
+   dashes stay, so a live track still looks different from a closed solid one —
+   only the crawl stops. */
+.track-dashed {
+  stroke-dasharray: 7 9;
+  stroke-linecap: round;
 }
 
 /* ---------- map: pulsing head marker ---------- */

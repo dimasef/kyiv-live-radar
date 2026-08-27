@@ -10,13 +10,17 @@ import type { Threat } from "@/types";
 import ThreatPopup from "./ThreatPopup";
 import { threatVisual } from "./threatVisual";
 
-/** Two expanding rings pulsing in the threat color — the live head of a track. */
-function pulseIcon(color: string): L.DivIcon {
+/** Two expanding rings pulsing in the threat color — the live head of a track.
+ * One ring under the motion budget: the second exists to make a lone contact
+ * read as breathing, and it is the first thing worth spending when the map is
+ * carrying a crowd (see MOTION_BUDGET). */
+function pulseIcon(color: string, lean: boolean): L.DivIcon {
+  const ring = `<span class="pulse-ring" style="--c:${color}"></span>`;
   return L.divIcon({
     className: "pulse-wrap",
-    html:
-      `<span class="pulse-ring" style="--c:${color}"></span>` +
-      `<span class="pulse-ring pulse-ring--slow" style="--c:${color}"></span>`,
+    html: lean
+      ? ring
+      : ring + `<span class="pulse-ring pulse-ring--slow" style="--c:${color}"></span>`,
     iconSize: [12, 12],
     iconAnchor: [6, 6],
   });
@@ -33,9 +37,13 @@ function pulseIcon(color: string): L.DivIcon {
 const ThreatLayer = memo(function ThreatLayer({
   threat,
   highlighted = false,
+  lean = false,
 }: {
   threat: Threat;
   highlighted?: boolean;
+  /** The map is over MOTION_BUDGET: keep every shape, drop the motion. The
+   * inspected track is exempt — it is the one the operator is reading. */
+  lean?: boolean;
 }) {
   // Ticks every 10s (clockSlice), corrected for a wrong device clock. Selected
   // as a primitive right here rather than passed down from MapView, so the tick
@@ -50,7 +58,9 @@ const ThreatLayer = memo(function ThreatLayer({
   const type = threat.target_type;
   const { pts, color, moved, heading, state } = threatVisual(threat);
 
-  const pulse = useMemo(() => pulseIcon(color), [color]);
+  // Motion is spent on the inspected track no matter how busy the map is.
+  const still = lean && !highlighted;
+  const pulse = useMemo(() => pulseIcon(color, still), [color, still]);
   // Computed before the early returns below so the hook order stays fixed — the
   // icon needs it, and it depends on the ticking clock.
   const live = showsLiveMotion(threat, now);
@@ -63,10 +73,10 @@ const ThreatLayer = memo(function ThreatLayer({
         size: highlighted ? 30 : 26,
         closing: leaving,
         count: threat.target_count,
-        drift: live,
+        drift: live && !still,
         seed: threat.id,
       }),
-    [type, state, heading, color, highlighted, leaving, threat.target_count, threat.id, live],
+    [type, state, heading, color, highlighted, leaving, threat.target_count, threat.id, live, still],
   );
 
   if (pts.length === 0) return null;
@@ -94,7 +104,7 @@ const ThreatLayer = memo(function ThreatLayer({
         <Polyline
           // className is applied at creation only — remount when activity (or
           // going quiet, which drops the flow animation) flips.
-          key={`${threat.id}-${active ? "live" : "closed"}-${live ? "" : "quiet"}-${highlighted ? "insp" : ""}`}
+          key={`${threat.id}-${active ? "live" : "closed"}-${live ? "" : "quiet"}-${highlighted ? "insp" : ""}-${still ? "still" : ""}`}
           positions={latlngs}
           pathOptions={{
             color,
@@ -102,7 +112,11 @@ const ThreatLayer = memo(function ThreatLayer({
             opacity: (active ? 0.8 : highlighted ? 0.75 : 0.45) * dim,
             className:
               [
-                live && "track-flow",
+                // Same dashes either way — a live track still READS as live.
+                // Only the crawl is dropped, and it is the expensive half:
+                // stroke-dashoffset is not a compositor property, so each
+                // flowing track repaints its whole path every frame.
+                live && (still ? "track-dashed" : "track-flow"),
                 highlighted && "track-inspect",
                 leaving && "track-closing",
               ]

@@ -812,6 +812,21 @@ _WHOLE_WORD_ALIASES = frozenset({"чзв", "пох", "бц", "голос", "пу
                                  # a Kyiv microdistrict (raw 7249, 2026-08-21).
                                  # Both real case forms listed, like море/моря.
                                  "антонов", "антонова",
+                                 # Конча-Заспа as the Kyiv feed actually types
+                                 # it — bare «Заспа/Сади 🔴.». This is the form
+                                 # that kept the name out of the gazetteer for
+                                 # the life of the project: the stem "засп"
+                                 # fires inside «заспокоїтись», and two tests
+                                 # lock that down. As whole words the three case
+                                 # forms cover all 15 corpus mentions and cannot
+                                 # reach the verb. All three listed, like
+                                 # море/моря/морі — a whole-word alias carries
+                                 # no case tail of its own.
+                                 "заспа", "заспу", "заспи",
+                                 # The plural the northern channel uses for the
+                                 # Василева/Хатилова Гута pair. Four letters, so
+                                 # it could never be a stem anyway.
+                                 "гути",
                                  # Both cities' power plant, as the spotters
                                  # type it bare. Three letters, so it could
                                  # never be a stem anyway; whole-word matching

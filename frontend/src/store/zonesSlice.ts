@@ -11,6 +11,14 @@ import type { RadarState } from './types'
  * 6s === the .zone-allclear animation in index.css. */
 export const ALL_CLEAR_FLASH_MS = 6000
 
+/** How long the layer notice holds the top-centre stack after the operator
+ * flips the switch. Long enough to read a raion list at a glance, short enough
+ * that it is gone before it becomes furniture. */
+export const ZONE_NOTICE_MS = 5000
+
+/** What the layer notice currently says, or null while it says nothing. */
+export type ZoneLayerNotice = 'on' | 'off'
+
 export interface ZonesSlice {
   /** Siren state per watched raion, keyed by zone_id. */
   zones: Record<string, AlertZone>
@@ -27,6 +35,11 @@ export interface ZonesSlice {
   /** Raions whose all-clear just landed, held for ALL_CLEAR_FLASH_MS so the map
    * can light them green. A moment, not a state — nothing reads it as "quiet". */
   zoneAllClear: Record<string, true>
+  /** Set for ZONE_NOTICE_MS after a toggle, so the top-centre stack can say
+   * what just happened (see banners/ZoneLayerNotice). Only a gesture raises it
+   * — a switch remembered from the last session announces nothing, the same
+   * rule zoneFitToken follows. */
+  zoneLayerNotice: ZoneLayerNotice | null
   setZones: (zones: AlertZone[]) => void
   /** Load the polygons if the layer is on and doesn't have them yet. Called on
    * toggle-on AND at boot — the switch is remembered across reloads, so a
@@ -47,12 +60,18 @@ let geometryPending = false
 // provider is polled every 20 s and would leave a green raion sitting there.
 const flashTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
+// The layer notice's own expiry. One timer, restarted on every toggle, so
+// flipping the switch twice in a row shows the second message for its full
+// span instead of inheriting what was left of the first.
+let noticeTimer: ReturnType<typeof setTimeout> | undefined
+
 export const createZonesSlice: StateCreator<RadarState, [], [], ZonesSlice> = (set, get) => ({
   zones: {},
   zoneGeometry: {},
   zoneLayerOn: safeGet(STORAGE_KEYS.zoneLayer) === '1',
   zoneFitToken: 0,
   zoneAllClear: {},
+  zoneLayerNotice: null,
   // Both the hydration fetch and the WS frame land here: a frame carries only
   // the zones that changed, so this merges rather than replaces.
   setZones: (zones) => {
@@ -93,7 +112,13 @@ export const createZonesSlice: StateCreator<RadarState, [], [], ZonesSlice> = (s
   toggleZoneLayer: () => {
     const on = !get().zoneLayerOn
     safeSet(STORAGE_KEYS.zoneLayer, on ? '1' : '0')
-    set((st) => ({ zoneLayerOn: on, zoneFitToken: on ? st.zoneFitToken + 1 : st.zoneFitToken }))
+    set((st) => ({
+      zoneLayerOn: on,
+      zoneFitToken: on ? st.zoneFitToken + 1 : st.zoneFitToken,
+      zoneLayerNotice: on ? 'on' : 'off',
+    }))
+    clearTimeout(noticeTimer)
+    noticeTimer = setTimeout(() => set({ zoneLayerNotice: null }), ZONE_NOTICE_MS)
     if (on) get().ensureZoneGeometry()
   },
 })

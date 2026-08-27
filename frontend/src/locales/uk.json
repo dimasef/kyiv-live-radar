@@ -275,7 +275,12 @@
     "hm": "{{h}} год {{m}} хв",
     "m": "{{m}} хв",
     "compactH": "{{h}}год",
-    "compactM": "{{m}}хв"
+    "compactM": "{{m}}хв",
+    "noticeOff": "Шар тривог вимкнено",
+    "ariaCount_one": "гудить {{count}} район",
+    "ariaCount_few": "гудять {{count}} райони",
+    "ariaCount_many": "гудять {{count}} районів",
+    "noticeOn": "Шар тривог активовано"
   },
   "zonesCtl": {
     "show": "Показати тривоги по районах",

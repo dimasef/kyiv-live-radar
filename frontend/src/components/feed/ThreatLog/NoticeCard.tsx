@@ -42,7 +42,7 @@ export default function NoticeCard({ notices }: { notices: Notice[] }) {
 
   return (
     <li
-      className="feed-item rounded-lg border px-2.5 py-2 text-xs backdrop-blur-sm"
+      className="feed-item rounded-lg border px-2.5 py-2 text-xs"
       style={{
         borderColor: `${color}22`,
         borderLeft: `2px solid ${color}`,

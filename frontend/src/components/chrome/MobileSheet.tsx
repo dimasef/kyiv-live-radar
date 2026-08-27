@@ -27,8 +27,15 @@ export default function MobileSheet() {
   }, [inspectedThreatId]);
 
   return (
+    // No backdrop-filter, deliberately — this used to be `backdrop-blur-2xl`.
+    // It was a 40px blur over half a phone screen, and the thing behind it is
+    // the MAP: during a raid the backdrop is dirty every frame, so the blur was
+    // recomputed every frame over that whole area. At 90% opacity it was
+    // spending the most expensive effect on the mobile GPU for the last tenth
+    // of the image. The extra 5% of ink covers what the blur was softening, so
+    // what shows through is a hint of depth rather than sharp map detail.
     <section
-      className={`sheet lg:hidden absolute inset-x-0 bottom-0 z-[1100] ${HEIGHT_CLASS[sheetHeight]} flex flex-col rounded-t-2xl border-t border-x border-white/10 bg-ink-900/90 backdrop-blur-2xl shadow-[0_-18px_50px_-20px_rgba(0,0,0,0.8)] ${
+      className={`sheet lg:hidden absolute inset-x-0 bottom-0 z-[1100] ${HEIGHT_CLASS[sheetHeight]} flex flex-col rounded-t-2xl border-t border-x border-white/10 bg-ink-900/95 shadow-[0_-18px_50px_-20px_rgba(0,0,0,0.8)] ${
         sheetOpen ? "translate-y-0" : "translate-y-[calc(100%-3.4rem)]"
       }`}
     >

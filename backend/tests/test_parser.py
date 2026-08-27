@@ -1054,7 +1054,10 @@ def test_a_town_outside_the_watched_regions_buys_no_llm_call():
     # never names the oblast, so only the town itself can say so.
     for txt in ("Реактивний біля Пирятина", "Біля Пирятина також реактивний",
                 "На Конотоп йде ймовірно бандероль.", "Ймовірно бандероль біля Конотопу",
-                "Є загроза Кропивницькому, в районі була розвідка"):
+                "Є загроза Кропивницькому, в районі була розвідка",
+                # 08-26: Ромни (Sumy) was the same shape — 4 of its 12 corpus
+                # mentions bought a call that came back "noise".
+                "Ромни літає один", "Одне чмо біля Ромни", "Реактивні на Ромни"):
         assert not should_fallback(parse_message(txt, M)), txt
 
 

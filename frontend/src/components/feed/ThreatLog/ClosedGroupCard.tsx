@@ -22,7 +22,7 @@ export default function ClosedGroupCard({ group }: { group: FeedEntry[] }) {
 
   return (
     <li
-      className="feed-item rounded-lg border border-emerald-400/20 bg-emerald-400/[0.05] px-2.5 py-2 text-xs backdrop-blur-sm"
+      className="feed-item rounded-lg border border-emerald-400/20 bg-emerald-400/[0.05] px-2.5 py-2 text-xs"
       style={{
         borderLeft: `2px solid ${closedColor}`,
         boxShadow: `inset 2px 0 10px -4px ${closedColor}55`,

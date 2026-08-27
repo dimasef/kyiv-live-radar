@@ -1,12 +1,8 @@
 import type { CSSProperties, ReactNode } from 'react'
 
-export type BannerTone = 'attack' | 'alert' | 'clear'
+import { PILL_CLASS, PILL_TONE } from './pillStyles'
 
-const TONE_CLASS: Record<Exclude<BannerTone, 'attack'>, string> = {
-  alert: 'border-red-400/40 bg-red-500/15 text-red-200 shadow-[0_0_22px_-4px_rgba(239,68,68,0.6)]',
-  clear:
-    'border-emerald-400/30 bg-emerald-500/10 text-emerald-300 shadow-[0_0_22px_-4px_rgba(16,185,129,0.5)]',
-}
+export type BannerTone = 'attack' | 'alert' | 'clear'
 
 export default function BannerShell({
   tone,
@@ -34,9 +30,7 @@ export default function BannerShell({
         onClick={onToggle}
         aria-label={label}
         aria-expanded={expanded}
-        className={`pointer-events-auto flex max-w-full items-center gap-2 whitespace-nowrap rounded-full border px-3.5 py-2 text-[11.5px] font-semibold backdrop-blur-md sm:gap-2.5 sm:text-[13px] ${
-          attack ? '' : TONE_CLASS[tone]
-        }`}
+        className={`pointer-events-auto ${PILL_CLASS} ${attack ? '' : PILL_TONE[tone]}`}
         style={
           attack
             ? ({

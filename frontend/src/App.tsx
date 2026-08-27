@@ -1,7 +1,7 @@
 import { Analytics } from "@vercel/analytics/react";
 import { useEffect, useState } from "react";
 
-import { StatusBanner } from "@/components/banners";
+import { StatusBanner, ZoneLayerNotice } from "@/components/banners";
 import { AppStatus, DisclaimerModal, MobileSheet } from "@/components/chrome";
 import { ThreatLog } from "@/components/feed";
 import { MapView } from "@/components/map";
@@ -30,8 +30,11 @@ export default function App() {
       <div className="absolute inset-0 lg:relative lg:flex-1 lg:min-w-0">
         <MapView />
         {/* Map overlays — pinned to the top of the map, not the navbar. */}
+        {/* A column, so a second pill stacks under the banner rather than
+            competing for its line — see banners/ZoneLayerNotice. */}
         <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex flex-col items-center gap-2 px-3 pt-3">
           <StatusBanner />
+          <ZoneLayerNotice />
         </div>
         {/* Connection status — top-right corner of the map. */}
         <div className="absolute right-3 top-3 z-[1000]">

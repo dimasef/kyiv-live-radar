@@ -39,6 +39,19 @@ export const BASEMAP_URL =
   "https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" +
   (CARTO_KEY ? `?key=${CARTO_KEY}` : "");
 
+// Above this many tracks ON SCREEN at once, every target stops animating on its
+// own (see ThreatLayer's `lean`). The second half of the same budget: viewport
+// culling decides WHICH tracks are drawn, this decides whether the survivors
+// may move.
+//
+// Per-target motion does not survive a crowd anyway: three separate signals
+// (two pulse rings, a crawling dash, a drifting glyph) multiplied by a hundred
+// targets is not "a hundred live contacts", it is noise. 24 is where a
+// phone-sized viewport is already dense enough that a reader tracks the CLUSTER
+// rather than any one contact. The static forms all remain — a lean track keeps
+// its dashes, its head and one ring, it just stops moving.
+export const MOTION_BUDGET = 24;
+
 // Inspect fly-to zoom — kept modest so a lone sighting lands with district
 // context, not at street level. INSPECT_MAX_ZOOM caps flyToBounds for a short track.
 export const INSPECT_ZOOM = 11;
@@ -50,6 +63,15 @@ export const INSPECT_MAX_ZOOM = 12;
 // the mobile sheet handle and the control cluster sit over it, and a raion
 // tucked under them is not visible for this purpose.
 export const ZONE_FIT_PADDING: [number, number] = [40, 72];
+
+// How far ZoneAutoFit may pull BACK. Fitting every lit raion unconditionally
+// landed the view at zoom 7, where the scale bar reads 50 km and a raion is a
+// smudge; 8 (scale bar 30 km) keeps the names and the lit edges legible.
+//
+// The trade is deliberate: on a narrow screen the watched area no longer fits
+// in one frame at this zoom, so the far north can stay off-view until panned
+// to. The fit still only ever zooms OUT — this just stops it short.
+export const ZONE_FIT_MIN_ZOOM = 8;
 
 /** Raion air-alert outlines (AlertZoneLayer). Drawn UNDER the Kyiv raion
  * outlines and every marker, so the state has to read at a glance while staying

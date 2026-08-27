@@ -165,7 +165,12 @@ _OTHER_OBLAST = ("брянщин", "курщин", "ростов", "вороне
                  # northern corridor doing its job, and it belongs in the
                  # gazetteer, not in this list. Same for Ніжин and Прилуки, see
                  # _WATCHED_OBLAST below.
-                 "пирятин", "конотоп", "кропивницьк")
+                 "пирятин", "конотоп", "кропивницьк",
+                 # Fourth sweep, same shape: «Ромни літає один», «Ромни кружляє
+                 # реактивний» — a Sumy town named as the target with its oblast
+                 # unmentioned, so 4 of its 12 corpus mentions reached the LLM
+                 # and came back "noise". 12/12 word-start hits are the town.
+                 "ромн")
 # Regions we WATCH but that are still not Kyiv. A target over one of them is
 # ours to track (its own pool) — but it is not a Kyiv target, so anything that
 # speaks specifically about the KYIV city alert must keep ignoring it: a terse

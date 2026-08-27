@@ -218,6 +218,12 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Крюківщина", "name_en": "Kriukivshchyna", "lat": 50.3719, "lon": 30.3716, "aliases": []},
     {"name_uk": "Гатне", "name_en": "Hatne", "lat": 50.3585, "lon": 30.3963, "aliases": []},
     {"name_uk": "Білогородка", "name_en": "Bilohorodka", "lat": 50.3772, "lon": 30.2837, "aliases": []},
+    # On the Zhytomyr highway west of the city, in a real hole — the nearest
+    # entry was Ірпінь, 7.8 km away. Four different channels name it.
+    # The obvious collider «автостоянка» cannot fire: the matcher anchors on a
+    # word start. The bare noun («стоянка таксі») could, and is zero for zero
+    # across the corpus — watch-listed in GAZETTEER.md rather than assumed safe.
+    {"name_uk": "Стоянка", "name_en": "Stoianka", "lat": 50.454, "lon": 30.2261, "aliases": []},
     {"name_uk": "Ржищів", "name_en": "Rzhyshchiv", "lat": 49.9682, "lon": 31.0412, "aliases": []},
     {"name_uk": "Козин", "name_en": "Kozyn", "lat": 50.229, "lon": 30.6479, "aliases": []},
     # "церкв" requires a preceding "Біл…" (vocab._ALIAS_PREV_WORD_REQUIRED), or
@@ -288,8 +294,14 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Щасливе", "name_en": "Shchaslyve", "lat": 50.3782, "lon": 30.7913, "aliases": []},
     {"name_uk": "Згурівка", "name_en": "Zghurivka", "lat": 50.4951, "lon": 31.7692, "aliases": []},
     {"name_uk": "Ходосівка", "name_en": "Khodosivka", "lat": 50.2728, "lon": 30.5221, "aliases": []},
+    # The bare «Заспа» rides here as an ALIAS rather than as its own entry —
+    # there is a second Заспа ~45 km south, and a standalone record would have
+    # to put a point on one of them. As an alias no new point exists.
+    # заспа/заспу/заспи are WHOLE-WORD (vocab._WHOLE_WORD_ALIASES): as stems
+    # they fire inside «заспокоїтись», which is the collision that kept this
+    # name out for the life of the project. See GAZETTEER.md.
     {"name_uk": "Конча-Заспа", "name_en": "KonchaZaspa", "lat": 50.3007, "lon": 30.5765,
-     "aliases": ["конча"]},
+     "aliases": ["конча", "заспа", "заспу", "заспи"]},
     # Stem "рогоз" is also the cattail plant — clean sweep only (watch list).
     {"name_uk": "Рогозів", "name_en": "Rohoziv", "lat": 50.2339, "lon": 31.055, "aliases": []},
     # Stem "пирог" is also пироги/пиріг — clean sweep only (watch list).
@@ -349,8 +361,14 @@ DISTRICTS: list[dict] = [
      "region": "chernihiv", "aliases": []},
     {"name_uk": "Лошакова Гута", "name_en": "Loshakova Huta", "lat": 51.0291, "lon": 30.656,
      "region": "chernihiv", "aliases": ["лошакова", "лошакову"]},
+    # The channel's plural «Гути» rides here. It means the Василева/Хатилова
+    # pair 2.3 km apart, NOT Лошакова Гута 30 km south: the corridor bulletin
+    # (raw 6589) lists «…Славутич/Неданчичі ➡️ Боровики/Гути ➡️ Десна/Остер»,
+    # and Боровики is 2.1 km from here while Лошакова belongs to the NEXT stage
+    # (14 km from Десна). Whole-word (vocab._WHOLE_WORD_ALIASES) — 4 letters is
+    # too short to stem. Worst case it lands 2.3 km off, on its own neighbour.
     {"name_uk": "Василева Гута", "name_en": "Vasyleva Huta", "lat": 51.288, "lon": 30.7064,
-     "region": "chernihiv", "aliases": ["василева", "василеву"]},
+     "region": "chernihiv", "aliases": ["василева", "василеву", "гути"]},
     {"name_uk": "Чудівка", "name_en": "Chudivka", "lat": 51.8765, "lon": 30.9985,
      "region": "chernihiv", "aliases": []},
     {"name_uk": "Хотівля", "name_en": "Khotivlia", "lat": 51.9585, "lon": 31.5016,
@@ -409,6 +427,15 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Мощенка", "name_en": "Moshchenka", "lat": 52.0302, "lon": 31.7395,
      "region": "chernihiv", "aliases": []},
     {"name_uk": "Куликівка", "name_en": "Kulykivka", "lat": 51.3736, "lon": 31.6456,
+     "region": "chernihiv", "aliases": []},
+    # Two neighbours of Куликівка, 4.5 km apart, added together: they arrived 9 s
+    # apart as one target walked between them and BOTH matched nothing.
+    {"name_uk": "Глузди", "name_en": "Hluzdy", "lat": 51.4776, "lon": 31.6213,
+     "region": "chernihiv", "aliases": []},
+    # HOMONYM: the other Горбове is 115 km away in Новгород-Сіверський (51.94,
+    # 33.22). This is the Куликівка one — its callout came 9 s after Глузди,
+    # 4.5 km away, and the neighbours decide (GAZETTEER.md step 1).
+    {"name_uk": "Горбове", "name_en": "Horbove", "lat": 51.4572, "lon": 31.5626,
      "region": "chernihiv", "aliases": []},
     {"name_uk": "Кратинь", "name_en": "Kratyn", "lat": 51.7806, "lon": 30.8425,
      "region": "chernihiv", "aliases": []},

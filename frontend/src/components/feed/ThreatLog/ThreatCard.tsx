@@ -41,7 +41,7 @@ export default function ThreatCard({ event, threat }: FeedEntry) {
           toggleInspect()
         }
       }}
-      className={`feed-item cursor-pointer rounded-lg border px-2.5 py-2 text-xs backdrop-blur-sm transition-colors duration-200 ${
+      className={`feed-item cursor-pointer rounded-lg border px-2.5 py-2 text-xs transition-colors duration-200 ${
         isSelected
           ? 'border-white/20 bg-white/[0.09]'
           : 'border-white/[0.05] bg-white/[0.03] hover:bg-white/[0.06]'

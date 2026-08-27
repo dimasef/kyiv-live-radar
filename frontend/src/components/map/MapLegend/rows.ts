@@ -42,7 +42,7 @@ const TYPES: TargetType[] = ['shahed', 'jet_drone', 'missile', 'ballistic', 'unk
  * Homes are deliberately absent: the user picked their own marker and labelled
  * every contact's, so a legend entry explains nothing they don't already know
  * by looking. */
-export function legendRows(zoneLayerOn: boolean): LegendRow[] {
+export function legendRows(): LegendRow[] {
   const rows: LegendRow[] = TYPES.map((ty) => ({
     id: ty,
     labelKey: `target.${ty}`,
@@ -59,18 +59,19 @@ export function legendRows(zoneLayerOn: boolean): LegendRow[] {
     labelKey: 'legend.launcher',
     html: launcherGlyphSvg({ size: GLYPH_PX, color: TYPE_COLORS.ballistic }),
   })
-  // The raion-alert layer has its own visual language (an area, not a marker),
-  // so its row only appears while it is switched on.
-  if (zoneLayerOn) {
-    rows.push({
-      id: 'zone',
-      labelKey: 'zones.alert',
-      html: zoneEdgeSwatch(ZONE_STYLES.alert.color, ZONE_GLOW.opacity),
-      flipped: {
-        labelKey: 'zones.clear',
-        html: zoneEdgeSwatch(ZONE_ALL_CLEAR.color, ZONE_ALL_CLEAR.opacity),
-      },
-    })
-  }
+  // The raion-alert layer is listed even while it is switched OFF. It used to
+  // appear only once the layer was on, which made the legend useless for the
+  // one thing it could have explained: what that siren button in the corner
+  // would put on the map. Everything else here is a marker the operator has
+  // already seen; this is the only row that can be news.
+  rows.push({
+    id: 'zone',
+    labelKey: 'zones.alert',
+    html: zoneEdgeSwatch(ZONE_STYLES.alert.color, ZONE_GLOW.opacity),
+    flipped: {
+      labelKey: 'zones.clear',
+      html: zoneEdgeSwatch(ZONE_ALL_CLEAR.color, ZONE_ALL_CLEAR.opacity),
+    },
+  })
   return rows
 }
