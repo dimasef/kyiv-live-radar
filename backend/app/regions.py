@@ -101,14 +101,14 @@ REGION_SPECS: tuple[RegionSpec, ...] = (
         threat_stems=("чернігівщин", "чернігів", "ніжин", "прилук"),
         oblast_city_stems=("черніг",),
     ),
-    # Declared, not yet covered. Each still needs gazetteer entries and a raion
-    # roster in `domain/alert_zones.py` before `active` can go True — see the
-    # activation checklist in `.claude/plans/region-expansion.md`.
+    # Активована 2026-08-28: 137 gazetteer entries mined from 3760 messages of
+    # its two spotter channels (0% -> 64% rule coverage) plus the five-raion
+    # roster in `domain/alert_zones.py`.
     RegionSpec(
         id="sumy",
         name_uk="Сумщина",
         name_en="Sumy oblast",
-        active=False,
+        active=True,
         oblasts=("Сумська область",),
         outline_queries=("Сумська область, Україна",),
         center=(50.91, 34.80),
@@ -118,6 +118,9 @@ REGION_SPECS: tuple[RegionSpec, ...] = (
         threat_stems=("сумщин", "суми", "сумах", "конотоп", "ромн"),
         prompt_names=("Суми",),
     ),
+    # Declared, not yet covered. Each still needs gazetteer entries and a raion
+    # roster in `domain/alert_zones.py` before `active` can go True — see the
+    # activation checklist in `.claude/plans/region-expansion.md`.
     RegionSpec(
         id="kharkiv",
         name_uk="Харківщина",

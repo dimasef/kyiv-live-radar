@@ -21,6 +21,7 @@ const EVIDENCE_LABEL: Record<string, string> = {
 const TYPE_LABEL: Record<TargetType, string> = {
   shahed: 'БПЛА',
   jet_drone: 'реактивний',
+  fpv: 'FPV',
   missile: 'ракета',
   ballistic: 'балістика',
   unknown: '—',

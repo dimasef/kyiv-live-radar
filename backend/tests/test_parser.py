@@ -1,5 +1,7 @@
 """Parser unit tests on realistic Kyiv-monitoring phrasing."""
 
+import pytest
+
 from app.gazetteer import DISTRICTS
 from app.parsing import DistrictMatcher, parse_message
 from app.parsing.vocab import _CITYWIDE_BARE_RE
@@ -12,6 +14,10 @@ def _matcher():
 
 
 M = _matcher()
+# A Сумщина channel's matcher, for the entries that are `region_only` there.
+_SUMY_M = DistrictMatcher(
+    [{"id": i + 1, **d} for i, d in enumerate(DISTRICTS)], prefer_region="sumy"
+)
 # Convenience: district id by English name.
 BY_EN = {d["name_en"]: i + 1 for i, d in enumerate(DISTRICTS)}
 
@@ -667,6 +673,36 @@ def test_street_name_collision_is_not_a_district():
         "Планова промивка мереж по вулицях: Оболонський проспект, 23-30/51.", M
     )
     assert not r.matched and r.districts == []
+
+
+def test_a_street_word_after_a_comma_is_a_separate_callout():
+    """The street veto reads the ADJACENT word, and a comma means there isn't
+    one. «Далі на Суми, Проспект Перемоги» is two locations; before the fix the
+    second one made the first a "street reference" and the message localized to
+    nothing (2026-08-28)."""
+    r = parse_message("Далі на Суми, Проспект Перемоги", _SUMY_M)
+    assert sorted(d.name for d in r.districts) == ["Проспект Перемоги", "Суми"]
+
+
+def test_an_entry_that_is_itself_a_street_survives_the_street_veto():
+    """«Проспект Перемоги» carries a street word in its own name, so the veto
+    that keeps «Оболонський проспект» off Оболонь fired on the one phrasing this
+    entry exists for."""
+    r = parse_message("Проспект Перемоги уважно по fpv", _SUMY_M)
+    assert [d.name for d in r.districts] == ["Проспект Перемоги"]
+    # ...and the veto still does its original job for an entry that is NOT one.
+    r = parse_message(
+        "Планова промивка мереж по вулицях: Оболонський проспект, 23-30/51.", M
+    )
+    assert r.districts == []
+
+
+def test_a_quoted_landmark_still_reaches_the_street_veto():
+    """Quote marks WRAP a name rather than end it. Treating them as a list break
+    (the first cut of the comma fix) let «метро «Бориспільська»» resolve to the
+    town of Бориспіль, 30 km outside the city it happened in."""
+    r = parse_message("У Києві біля метро «Бориспільська» стався вибух", M)
+    assert [d.name for d in r.districts] == []
 
 
 def test_overlap_is_won_by_the_stem_that_actually_matched():
@@ -1657,3 +1693,55 @@ def test_impact_never_states_a_path():
     # Same rule the map holds: a strike is a point, never a trajectory.
     r = parse_message("Влучання в Дарницькому районі, ще одне на Троєщині", M)
     assert not r.movement
+
+
+# --- `fpv` as its own target type (2026-08-28, with Сумщина) ------------------
+
+def test_fpv_is_its_own_type_not_a_shahed():
+    """154 localized Сумщина messages typed as nothing before this: an FPV is a
+    ~20 km quadcopter, and every per-type table (staleness, severity, speed,
+    push) gives it a different answer than a Shahed."""
+    for txt in ["Рибці, Піщане FPV", "Суми увага по фпв",
+                "Загроза оптоволокна для Сум"]:
+        assert parse_message(txt, _SUMY_M).target_type == "fpv", txt
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        # Priority: the FPV list sits BELOW the missile and jet lists and ABOVE
+        # the generic drone one. Of 198 corpus messages naming an FPV only 21
+        # name another type at all, so this only decides those.
+        ("Каби курсом на Зелений Гай, далі fpv", "missile"),
+        ("Реактивний шах, також fpv по місту", "jet_drone"),
+        ("fpv, невідомий БпЛа над Рибцями", "fpv"),
+        # Model names the Сумщина feed uses and Kyiv's does not.
+        ("Молнія далі курсом на Бездрик", "jet_drone"),
+        ("Річки ланцет", "shahed"),
+        ("Хотінь Італмас курсом на Вакалівщину", "shahed"),
+        ("Могриця Гербера", "shahed"),
+    ],
+)
+def test_sumy_weapon_vocabulary(text, expected):
+    assert parse_message(text, _SUMY_M).target_type == expected, text
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("КАБ по Сумському району", "missile"),
+        ("Каби курсом на Зелений Гай", "missile"),   # the plural never typed
+        ("Прилетіло 3 кабів", "missile"),
+        ("Пуски КАБам по громаді", "missile"),
+        ("Удар кабами по Есмані", "missile"),
+        # ...and the words the whole-word restriction exists for stay out.
+        ("Засідання Кабміну перенесли", "unknown"),
+        ("Пожежа у кабінеті", "unknown"),
+    ],
+)
+def test_kab_case_forms_type_but_kabinet_does_not(text, expected):
+    """«каб» is whole-word because it heads «кабінет»/«Кабмін», which left its
+    Ukrainian plural and oblique forms typing as nothing at all — 81 corpus
+    messages against 10 colliders. The forms are listed explicitly rather than
+    the stem relaxed."""
+    assert parse_message(text, _SUMY_M).target_type == expected, text

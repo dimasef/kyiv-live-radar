@@ -32,12 +32,26 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.38.1";
+const LATEST = "0.39.0";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "Сумщина",
+    date: "2026-08-29",
+    kind: "minor",
+    changes: [
+      "Сумщина запрацювала по-справжньому: цілі на мапі, райони тривог і власна стрічка подій. У списку областей вона більше не «готується» — можна обрати її своєю або додати у стрічку сусідньою",
+      "Мапа Сумщини знає понад сотню місць: районні центри, прикордонні села і самі Суми аж до окремих районів — Рибці, Піщане, Веретенівка, Зелений Гай, Проспект Перемоги",
+      "Новий тип цілі — FPV, з власним значком-квадрокоптером і бірюзовим кольором на мапі, у легенді та стрічці. На мапі він згасає швидше за інші цілі: FPV живе хвилини, а не години",
+      "Застосунок розрізняє більше назв цілей — Молнія, Ланцет, Італмас, Гербера",
+      "Мапа при відкритті показує вашу область. Якщо область ще не обрано — усю Україну, щоб було видно, з чого обирати",
+      "Ваша область тепер завжди закріплена у стрічці подій, хай яка вона, а сусідні можна вільно додавати й прибирати",
+    ],
+  },
+  {
+    version: "0.38.1",
     title: "Технічне обслуговування",
     date: "2026-08-28",
     kind: "patch",

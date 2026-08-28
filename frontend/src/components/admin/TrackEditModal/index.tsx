@@ -9,7 +9,9 @@ import type { TargetType, Threat } from '@/types'
 
 import TrackEventRow from './TrackEventRow'
 
-const TARGET_TYPES: TargetType[] = ['shahed', 'jet_drone', 'missile', 'ballistic', 'unknown']
+const TARGET_TYPES: TargetType[] = [
+  'shahed', 'jet_drone', 'fpv', 'missile', 'ballistic', 'unknown',
+]
 
 /** Edit one track without leaving «Весь фід»: its type, its lifecycle, and the
  * grouping of the sightings under it.

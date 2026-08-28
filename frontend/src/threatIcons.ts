@@ -3,7 +3,8 @@
 // Директивні типи (shahed/jet_drone/missile) намальовані носом вгору (азимут 0°)
 // і повертаються через rotate. ballistic/unknown — симетричні, не обертаються.
 // КОЛІР = ТИП (див. theme.ts TYPE_COLORS): жовтий shahed, помаранч jet_drone,
-// білий missile, фіолетовий ballistic. Збита/пропала → сіра (передається ззовні).
+// білий missile, фіолетовий ballistic, бірюзовий fpv. Збита/пропала → сіра
+// (передається ззовні).
 
 import L from 'leaflet'
 
@@ -31,6 +32,18 @@ export const THREAT_PATHS: Record<TargetType, string> = {
   // ширше пропорційно, щоб не злитись у товщому корпусі в одну пляму.
   ballistic:
     'M12 23 C13.1 21.5 14 19.8 14 18 L14 7 L17.5 4 L17.5 2.2 L14 3.8 L14 1 L10 1 L10 3.8 L6.5 2.2 L6.5 4 L10 7 L10 18 C10 19.8 10.9 21.5 12 23 Z',
+  // Квадрокоптер згори: чотири ротори по кутах, X-рама, корпус по центру.
+  // Силует навмисно не схожий на жоден інший — це єдиний тип, що читається
+  // без кольору на 14px у стрічці.
+  fpv:
+    'M6.64 5.36 L18.64 17.36 L17.36 18.64 L5.36 6.64 Z '
+    + 'M18.64 6.64 L6.64 18.64 L5.36 17.36 L17.36 5.36 Z '
+    + 'M3.2 6 A2.8 2.8 0 1 0 8.8 6 A2.8 2.8 0 1 0 3.2 6 Z '
+    + 'M15.2 6 A2.8 2.8 0 1 0 20.8 6 A2.8 2.8 0 1 0 15.2 6 Z '
+    + 'M3.2 18 A2.8 2.8 0 1 0 8.8 18 A2.8 2.8 0 1 0 3.2 18 Z '
+    + 'M15.2 18 A2.8 2.8 0 1 0 20.8 18 A2.8 2.8 0 1 0 15.2 18 Z '
+    + 'M9.4 10.2 Q9.4 9.4 10.2 9.4 L13.8 9.4 Q14.6 9.4 14.6 10.2 L14.6 13.8 '
+    + 'Q14.6 14.6 13.8 14.6 L10.2 14.6 Q9.4 14.6 9.4 13.8 Z',
   // Нейтральний порожній ромб (fill-rule="evenodd")
   unknown: 'M12 3 L21 12 L12 21 L3 12 Z M12 7.6 L16.4 12 L12 16.4 L7.6 12 Z',
 }
@@ -41,6 +54,9 @@ export const THREAT_PATHS: Record<TargetType, string> = {
 export const DIRECTIONAL: Record<TargetType, boolean> = {
   shahed: true,
   jet_drone: true,
+  // A quadcopter seen from above is four-fold symmetric — rotating it changes
+  // nothing on screen, so the rotation would only ever read as jitter.
+  fpv: false,
   missile: true,
   ballistic: false,
   unknown: false,
@@ -54,6 +70,7 @@ export const DIRECTIONAL: Record<TargetType, boolean> = {
 export const DOT_UNTIL_MOVING: Record<TargetType, boolean> = {
   shahed: false,
   jet_drone: false,
+  fpv: false,
   missile: true,
   ballistic: false,
   unknown: false,

@@ -35,6 +35,7 @@ export const STATUS_LABEL_KEY: Record<ThreatStatus, string> = {
 export const DOWN_LABEL_KEY: Record<TargetType, string> = {
   shahed: 'legend.down.shahed',
   jet_drone: 'legend.down.jet_drone',
+  fpv: 'legend.down.fpv',
   missile: 'legend.down.missile',
   ballistic: 'legend.down.ballistic',
   unknown: 'legend.down.unknown',

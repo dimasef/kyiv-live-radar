@@ -30,7 +30,7 @@ function zoneEdgeSwatch(color: string, glowOpacity: number): string {
   )
 }
 
-const TYPES: TargetType[] = ['shahed', 'jet_drone', 'missile', 'ballistic', 'unknown']
+const TYPES: TargetType[] = ['shahed', 'jet_drone', 'fpv', 'missile', 'ballistic', 'unknown']
 
 /** What the legend lists: colour = type, glyph = shape, and every row that has
  * an opposite carries it.

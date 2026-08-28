@@ -68,6 +68,12 @@ class Settings(BaseSettings):
         "ballistic": 5,   # a barrage lulls between waves; scope='city' also lands here
         "missile": 6,
         "jet_drone": 10,
+        # Measured on 3760 Сумщина messages: within one FPV run the callouts
+        # sit 3.0 min apart at the median and 8.6 at p90. It is also the
+        # shortest-legged thing on the map — ~20 km of range at rooftop
+        # height, so a 10-minute-old dot has had time to be anywhere or
+        # nowhere.
+        "fpv": 8,
         "shahed": 15,     # the SLOWEST-reported type: p95 gap between callouts is 25 min
         "unknown": 20,
     }
@@ -87,6 +93,9 @@ class Settings(BaseSettings):
         # costs less here than it costs to have nothing to look at. The fade
         # still marks it as ageing from a third of the way in.
         "jet_drone": 8,
+        # At the measured floor, not above it: an FPV is neither slow nor
+        # loitering, so the exception the two lines above make does not apply.
+        "fpv": 3,
         "shahed": 5,
         "unknown": 6,
     }
@@ -492,7 +501,7 @@ class Settings(BaseSettings):
     # ubilling.net.ua proxies several alert services into one shape and asks for
     # no key. `skog` is the only source that returns a FULL snapshot — every
     # raion, alerted or not, with the instant it last changed — which is what
-    # painting all thirteen shapes needs.
+    # painting every raion shape needs.
     alert_zones_url: str = "https://ubilling.net.ua/aerialalerts/"
     alert_zones_source: str = "skog"
     # Second source, polled EVERY tick and merged, not kept as a fallback.

@@ -1504,11 +1504,15 @@ export interface paths {
         };
         /**
          * Region Containing
-         * @description Which watched region a point falls in — how a device turns its home
-         *     location into "the region I am in" without shipping the polygons and the
-         *     ray-casting to every client. Unauthenticated, because an anonymous session
-         *     has a home too (it lives in localStorage).
+         * @description Which watched region a point falls in.
          *
+         *     A SUGGESTION, not a decision: the first-run picker uses it to pre-select an
+         *     oblast from a browser location, so the common case is one tap. Which region
+         *     a reader follows is always their explicit choice — nothing derives it from a
+         *     coordinate, because a home point and a region answer different questions and
+         *     inferring one from the other made travelling break the alert radius.
+         *
+         *     Unauthenticated, because an anonymous session has a location too.
          *     `region` is null for a point outside every watched region, which is most of
          *     the country and not an error.
          */
@@ -1761,7 +1765,7 @@ export interface components {
              * Target Type
              * @enum {string}
              */
-            target_type: "shahed" | "jet_drone" | "missile" | "ballistic" | "unknown";
+            target_type: "shahed" | "jet_drone" | "fpv" | "missile" | "ballistic" | "unknown";
         };
         /**
          * BrowserSubscriptionIn
@@ -2031,7 +2035,7 @@ export interface components {
              * Detected Target Type
              * @enum {string}
              */
-            detected_target_type: "shahed" | "jet_drone" | "missile" | "ballistic" | "unknown";
+            detected_target_type: "shahed" | "jet_drone" | "fpv" | "missile" | "ballistic" | "unknown";
             /**
              * Event Time
              * Format: date-time
@@ -2418,7 +2422,7 @@ export interface components {
              * Target Type
              * @enum {string}
              */
-            target_type: "shahed" | "jet_drone" | "missile" | "ballistic" | "unknown";
+            target_type: "shahed" | "jet_drone" | "fpv" | "missile" | "ballistic" | "unknown";
             /**
              * Track Count
              * @default 0
@@ -2697,7 +2701,7 @@ export interface components {
              * Target Type
              * @enum {string}
              */
-            target_type: "shahed" | "jet_drone" | "missile" | "ballistic" | "unknown";
+            target_type: "shahed" | "jet_drone" | "fpv" | "missile" | "ballistic" | "unknown";
             /** Text */
             text: string;
         };
@@ -2777,10 +2781,11 @@ export interface components {
              *       "ballistic",
              *       "missile",
              *       "shahed",
-             *       "jet_drone"
+             *       "jet_drone",
+             *       "fpv"
              *     ]
              */
-            types: ("ballistic" | "missile" | "shahed" | "jet_drone")[];
+            types: ("ballistic" | "missile" | "shahed" | "jet_drone" | "fpv")[];
         };
         /**
          * PushPrefsOut
@@ -2843,7 +2848,7 @@ export interface components {
             /** Incident Id */
             incident_id?: number | null;
             /** Target Type */
-            target_type?: ("shahed" | "jet_drone" | "missile" | "ballistic" | "unknown") | null;
+            target_type?: ("shahed" | "jet_drone" | "fpv" | "missile" | "ballistic" | "unknown") | null;
             /** Threat Closed Reason */
             threat_closed_reason?: string | null;
             /** Threat Id */
@@ -2851,7 +2856,7 @@ export interface components {
             /** Threat Status */
             threat_status?: string | null;
             /** Threat Target Type */
-            threat_target_type?: ("shahed" | "jet_drone" | "missile" | "ballistic" | "unknown") | null;
+            threat_target_type?: ("shahed" | "jet_drone" | "fpv" | "missile" | "ballistic" | "unknown") | null;
         };
         /**
          * RawExportOut
@@ -2929,7 +2934,7 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             /** Llm Type */
-            llm_type?: ("shahed" | "jet_drone" | "missile" | "ballistic" | "unknown") | null;
+            llm_type?: ("shahed" | "jet_drone" | "fpv" | "missile" | "ballistic" | "unknown") | null;
             /** Llm Type Confidence */
             llm_type_confidence?: number | null;
             /** Llm Type Evidence */
@@ -3046,7 +3051,7 @@ export interface components {
              * Target Type
              * @enum {string}
              */
-            target_type: "shahed" | "jet_drone" | "missile" | "ballistic" | "unknown";
+            target_type: "shahed" | "jet_drone" | "fpv" | "missile" | "ballistic" | "unknown";
         };
         /**
          * RawSourceOut
@@ -3535,7 +3540,7 @@ export interface components {
             /** Event Target Count */
             event_target_count?: number | null;
             /** Event Target Type */
-            event_target_type?: ("shahed" | "jet_drone" | "missile" | "ballistic" | "unknown") | null;
+            event_target_type?: ("shahed" | "jet_drone" | "fpv" | "missile" | "ballistic" | "unknown") | null;
             /**
              * Event Time
              * Format: date-time
@@ -3640,7 +3645,7 @@ export interface components {
              * Target Type
              * @enum {string}
              */
-            target_type: "shahed" | "jet_drone" | "missile" | "ballistic" | "unknown";
+            target_type: "shahed" | "jet_drone" | "fpv" | "missile" | "ballistic" | "unknown";
         };
         /**
          * ThreatTypeIn
@@ -3651,7 +3656,7 @@ export interface components {
              * Target Type
              * @enum {string}
              */
-            target_type: "shahed" | "jet_drone" | "missile" | "ballistic" | "unknown";
+            target_type: "shahed" | "jet_drone" | "fpv" | "missile" | "ballistic" | "unknown";
         };
         /**
          * TokenPairOut

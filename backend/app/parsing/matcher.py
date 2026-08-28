@@ -8,8 +8,10 @@ from dataclasses import dataclass
 from ..gazetteer import CITYWIDE_NAME_EN as _CITYWIDE_NAME_EN
 from ..regions import HOME_REGION as _HOME_REGION
 from .vocab import (
+    _ALIAS_NEXT_WORD_REQUIRED,
     _ALIAS_NEXT_WORD_VETO,
     _ALIAS_PREV_WORD_REQUIRED,
+    _ALIAS_PREV_WORD_VETO,
     _APOSTROPHES,
     _OBLAST_CITY_STEMS,
     _STREET_WORDS,
@@ -54,14 +56,43 @@ class DistrictHit:
 _EDGE = " ,.;:()–—-«»\"'„“”"
 
 
-def _is_street_reference(norm_text: str, start: int, end: int) -> bool:
+# Punctuation that ENDS a callout: whatever follows it is the next item in the
+# list, not part of this name. A street word reached across one of these is a
+# different place being named, so the veto below must not see it — «Суми,
+# Проспект Перемоги» is two locations, and treating the second as an adjacent
+# word made the first one a street reference (2026-08-28).
+#
+# Quote marks are deliberately NOT here. They WRAP a name rather than end it —
+# «метро "Бориспільська"» is one phrase — and treating them as a break took the
+# veto off exactly the quoted-landmark phrasing `_EDGE` above exists for.
+_LIST_BREAK = ",;/|\n>"
+
+
+def _is_street_reference(norm_text: str, start: int, end: int,
+                         is_street_name: bool = False) -> bool:
     """True if the district-stem match at [start:end) is really part of a
     street name ("Оболонський проспект"), judged by the immediately adjacent
-    word on either side."""
-    before = norm_text[:start].rstrip(_EDGE)
-    after = norm_text[end:].lstrip(_EDGE)
-    before_word = before.rsplit(" ", 1)[-1] if before else ""
-    after_word = after.split(" ", 1)[0] if after else ""
+    word on either side.
+
+    `is_street_name` exempts an entry that IS a street or a square («Проспект
+    Перемоги», «Вокзальна площа»): for those the street word is the other half
+    of their own name, so the veto fires on exactly the phrasing they exist for.
+    """
+    if is_street_name:
+        return False
+    # The break is looked for BEFORE `_EDGE` is stripped — stripping first would
+    # eat the comma that says the neighbour is a separate callout. Only spaces
+    # are skipped on the way to it.
+    if norm_text[:start].rstrip(" ")[-1:] in _LIST_BREAK:
+        before_word = ""
+    else:
+        before = norm_text[:start].rstrip(_EDGE)
+        before_word = before.rsplit(" ", 1)[-1] if before else ""
+    if norm_text[end:].lstrip(" ")[:1] in _LIST_BREAK:
+        after_word = ""
+    else:
+        after = norm_text[end:].lstrip(_EDGE)
+        after_word = after.split(" ", 1)[0] if after else ""
     return any(w in before_word for w in _STREET_WORDS) or any(
         w in after_word for w in _STREET_WORDS
     )
@@ -176,6 +207,33 @@ def _is_proper_name(norm_text: str, start: int, end: int) -> bool:
     return next_word.startswith(veto)
 
 
+def _missing_required_next(norm_text: str, start: int, end: int) -> bool:
+    """True if the match at [start:end) needs a specific FOLLOWING word and
+    doesn't have it («старе» only counts before «село») — see
+    vocab._ALIAS_NEXT_WORD_REQUIRED."""
+    matched = norm_text[start:end]
+    for alias, required in _ALIAS_NEXT_WORD_REQUIRED.items():
+        if not matched.startswith(alias):
+            continue
+        after = norm_text[end:].lstrip(_EDGE)
+        next_word = after.split(" ", 1)[0] if after else ""
+        return not next_word.startswith(required)
+    return False
+
+
+def _has_vetoed_prev(norm_text: str, start: int, end: int) -> bool:
+    """True if the match at [start:end) is disqualified by the word before it
+    («Велика Писарівка» is not Писарівка) — see vocab._ALIAS_PREV_WORD_VETO."""
+    matched = norm_text[start:end]
+    for alias, veto in _ALIAS_PREV_WORD_VETO.items():
+        if not matched.startswith(alias):
+            continue
+        before = norm_text[:start].rstrip(_EDGE)
+        prev_word = before.rsplit(" ", 1)[-1] if before else ""
+        return prev_word.startswith(veto)
+    return False
+
+
 def _missing_required_prev(norm_text: str, start: int, end: int) -> bool:
     """True if the match at [start:end) needs a specific preceding word and
     doesn't have it ("церкв" only counts inside "Біла Церква") — see
@@ -265,7 +323,7 @@ class DistrictMatcher:
         allowed_regions: frozenset[str] | None = None,
     ):
         # districts: iterable of objects/dicts with id, name_uk, aliases
-        self._patterns: list[tuple[int, str, re.Pattern, bool]] = []
+        self._patterns: list[tuple[int, str, re.Pattern, bool, bool]] = []
         # (id, name) index — the allowed district set for the LLM fallback.
         self.districts_index: list[tuple[int, str]] = []
         # id -> region, so the LLM prompt can label each allowed place (a name
@@ -325,15 +383,18 @@ class DistrictMatcher:
                 branches.append(r"(?P<word>" + _alt(exact) + r")(?![а-яіїєґ])")
             pat = re.compile(r"(?<![а-яіїєґ])(?:" + "|".join(branches) + r")", re.IGNORECASE)
             preferred = prefer_region is not None and region == prefer_region
-            self._patterns.append((did, name, pat, preferred))
+            # An entry that IS a street or a square is exempt from the street
+            # veto — see _is_street_reference.
+            is_street_name = any(w in normalize(name) for w in _STREET_WORDS)
+            self._patterns.append((did, name, pat, preferred, is_street_name))
 
     def find(self, norm_text: str) -> list[DistrictHit]:
         hits: dict[int, tuple[DistrictHit, bool]] = {}
-        for did, name, pat, preferred in self._patterns:
+        for did, name, pat, preferred, is_street_name in self._patterns:
             for m in pat.finditer(norm_text):
                 groups = m.groupdict()
                 matched = groups.get("stem") or groups.get("word") or m.group(0)
-                if _is_street_reference(norm_text, m.start(), m.end()):
+                if _is_street_reference(norm_text, m.start(), m.end(), is_street_name):
                     continue
                 if _is_foreign_sea(norm_text, m.start(), m.end()):
                     continue
@@ -344,6 +405,10 @@ class DistrictMatcher:
                 if _is_proper_name(norm_text, m.start(), m.end()):
                     continue
                 if _missing_required_prev(norm_text, m.start(), m.end()):
+                    continue
+                if _has_vetoed_prev(norm_text, m.start(), m.end()):
+                    continue
+                if _missing_required_next(norm_text, m.start(), m.end()):
                     continue
                 hits[did] = (
                     DistrictHit(did, name, m.start(), len(matched), m.end()), preferred)

@@ -4,7 +4,7 @@ import type { Alert, Incident, TargetType } from '@/types'
 
 export const CLEAR_LINGER_MS = 20000
 
-const DRONE_FAMILY = new Set<TargetType>(['shahed', 'jet_drone'])
+const DRONE_FAMILY = new Set<TargetType>(['shahed', 'jet_drone', 'fpv'])
 const SEVERITY: Record<string, number> = { ballistic: 3, missile: 2, drone: 1 }
 
 const severity = (type: TargetType) => SEVERITY[DRONE_FAMILY.has(type) ? 'drone' : type] ?? 0

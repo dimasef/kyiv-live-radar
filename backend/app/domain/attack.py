@@ -12,7 +12,7 @@ from dataclasses import dataclass
 # combined raid of shaheds AND ballistic missiles together must read as
 # "combined", not just "ballistic".
 _FAMILIES: dict[str, set[str]] = {
-    "drone": {"shahed", "jet_drone"},
+    "drone": {"shahed", "jet_drone", "fpv"},
     "cruise_missile": {"missile"},
     "ballistic": {"ballistic"},
 }

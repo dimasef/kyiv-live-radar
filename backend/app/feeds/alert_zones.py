@@ -170,7 +170,7 @@ def is_stale(now: datetime | None = None) -> bool:
 
 
 def current_states() -> list[ZoneState]:
-    """Every zone in roster order, so the client always gets all thirteen."""
+    """Every zone in roster order, so the client always gets the whole roster."""
     return [_states.get(z.id) or unknown_state(z) for z in ZONES]
 
 

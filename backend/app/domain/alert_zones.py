@@ -29,6 +29,7 @@ from ..regions import REGION_SPECS, SPEC_BY_ID, Region
 # changes a region's oblast count fails here rather than silently.
 KYIV_OBLAST, KYIV_CITY = SPEC_BY_ID["kyiv"].oblasts
 (CHERNIHIV_OBLAST,) = SPEC_BY_ID["chernihiv"].oblasts
+(SUMY_OBLAST,) = SPEC_BY_ID["sumy"].oblasts
 
 
 @dataclass(frozen=True)
@@ -70,6 +71,17 @@ ZONES: tuple[Zone, ...] = (
          "Корюківський район, Чернігівська область"),
     Zone("chernihiv-obl-novhorod-siverskyi", "Новгород-Сіверський район", CHERNIHIV_OBLAST,
          "Новгород-Сіверський район, Чернігівська область"),
+    # Сумська область — 5 raions.
+    Zone("sumy-obl-sumskyi", "Сумський район", SUMY_OBLAST,
+         "Сумський район, Сумська область"),
+    Zone("sumy-obl-konotopskyi", "Конотопський район", SUMY_OBLAST,
+         "Конотопський район, Сумська область"),
+    Zone("sumy-obl-okhtyrskyi", "Охтирський район", SUMY_OBLAST,
+         "Охтирський район, Сумська область"),
+    Zone("sumy-obl-romenskyi", "Роменський район", SUMY_OBLAST,
+         "Роменський район, Сумська область"),
+    Zone("sumy-obl-shostkynskyi", "Шосткинський район", SUMY_OBLAST,
+         "Шосткинський район, Сумська область"),
 )
 
 # Derived from ZONES and NOT from the region registry, on purpose: a region can
@@ -108,6 +120,6 @@ class ZoneState:
 
 def unknown_state(zone: Zone) -> ZoneState:
     """A zone the provider didn't mention. Treated as clear-but-unknown rather
-    than dropped, so the map always draws all thirteen shapes."""
+    than dropped, so the map always draws every declared shape."""
     return ZoneState(zone_id=zone.id, name_uk=zone.name_uk, oblast=zone.oblast,
                      alert=False, changed_at=None)

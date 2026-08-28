@@ -8,7 +8,9 @@ import type { TargetType, Threat } from '@/types'
 import AdminActionButton from './AdminActionButton'
 import EventAdminRow from './EventAdminRow'
 
-const TARGET_TYPES: TargetType[] = ['shahed', 'jet_drone', 'missile', 'ballistic', 'unknown']
+const TARGET_TYPES: TargetType[] = [
+  'shahed', 'jet_drone', 'fpv', 'missile', 'ballistic', 'unknown',
+]
 
 /** One active track: retype its target, cancel it (false positive), or expand
  * to edit its individual sightings. */

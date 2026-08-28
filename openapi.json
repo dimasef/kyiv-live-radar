@@ -289,6 +289,7 @@
             "enum": [
               "shahed",
               "jet_drone",
+              "fpv",
               "missile",
               "ballistic",
               "unknown"
@@ -898,6 +899,7 @@
             "enum": [
               "shahed",
               "jet_drone",
+              "fpv",
               "missile",
               "ballistic",
               "unknown"
@@ -1634,6 +1636,7 @@
             "enum": [
               "shahed",
               "jet_drone",
+              "fpv",
               "missile",
               "ballistic",
               "unknown"
@@ -2116,6 +2119,7 @@
             "enum": [
               "shahed",
               "jet_drone",
+              "fpv",
               "missile",
               "ballistic",
               "unknown"
@@ -2267,14 +2271,16 @@
               "ballistic",
               "missile",
               "shahed",
-              "jet_drone"
+              "jet_drone",
+              "fpv"
             ],
             "items": {
               "enum": [
                 "ballistic",
                 "missile",
                 "shahed",
-                "jet_drone"
+                "jet_drone",
+                "fpv"
               ],
               "type": "string"
             },
@@ -2459,6 +2465,7 @@
                 "enum": [
                   "shahed",
                   "jet_drone",
+                  "fpv",
                   "missile",
                   "ballistic",
                   "unknown"
@@ -2503,6 +2510,7 @@
                 "enum": [
                   "shahed",
                   "jet_drone",
+                  "fpv",
                   "missile",
                   "ballistic",
                   "unknown"
@@ -2699,6 +2707,7 @@
                 "enum": [
                   "shahed",
                   "jet_drone",
+                  "fpv",
                   "missile",
                   "ballistic",
                   "unknown"
@@ -3047,6 +3056,7 @@
             "enum": [
               "shahed",
               "jet_drone",
+              "fpv",
               "missile",
               "ballistic",
               "unknown"
@@ -4173,6 +4183,7 @@
                 "enum": [
                   "shahed",
                   "jet_drone",
+                  "fpv",
                   "missile",
                   "ballistic",
                   "unknown"
@@ -4459,6 +4470,7 @@
             "enum": [
               "shahed",
               "jet_drone",
+              "fpv",
               "missile",
               "ballistic",
               "unknown"
@@ -4483,6 +4495,7 @@
             "enum": [
               "shahed",
               "jet_drone",
+              "fpv",
               "missile",
               "ballistic",
               "unknown"
@@ -9040,7 +9053,7 @@
     },
     "/regions/at": {
       "get": {
-        "description": "Which watched region a point falls in — how a device turns its home\nlocation into \"the region I am in\" without shipping the polygons and the\nray-casting to every client. Unauthenticated, because an anonymous session\nhas a home too (it lives in localStorage).\n\n`region` is null for a point outside every watched region, which is most of\nthe country and not an error.",
+        "description": "Which watched region a point falls in.\n\nA SUGGESTION, not a decision: the first-run picker uses it to pre-select an\noblast from a browser location, so the common case is one tap. Which region\na reader follows is always their explicit choice — nothing derives it from a\ncoordinate, because a home point and a region answer different questions and\ninferring one from the other made travelling break the alert radius.\n\nUnauthenticated, because an anonymous session has a location too.\n`region` is null for a point outside every watched region, which is most of\nthe country and not an error.",
         "operationId": "region_containing_regions_at_get",
         "parameters": [
           {

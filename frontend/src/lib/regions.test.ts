@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest'
 
 import type { Region, RegionInfo } from '@/types'
 
-import { currentRegion, effectiveRegion, regionBounds, regionLabel } from './regions'
+import {
+  currentRegion,
+  effectiveRegion,
+  framingBounds,
+  regionBounds,
+  regionLabel,
+} from './regions'
 
 const region = (id: Region, is_home = false): RegionInfo =>
   ({
@@ -55,5 +61,38 @@ describe('labels', () => {
   it('falls back to the raw id before the catalogue loads', () => {
     expect(regionLabel([], 'kyiv')).toBe('kyiv')
     expect(regionLabel(CATALOGUE, 'kyiv')).toBe('Київщина')
+  })
+})
+
+describe('what the map is framed on', () => {
+  const UA: [[number, number], [number, number]] = [
+    [44.2, 22.1],
+    [52.4, 40.3],
+  ]
+
+  it('frames the chosen region once the catalogue has answered', () => {
+    expect(framingBounds(CATALOGUE, 'kharkiv', UA)).toEqual(
+      regionBounds(CATALOGUE, 'kharkiv'),
+    )
+    expect(framingBounds(CATALOGUE, 'kharkiv', UA)).not.toEqual(UA)
+  })
+
+  it('frames the whole country before the catalogue has answered', () => {
+    // The bug, exactly: the catalogue is FETCHED, so it is empty at first
+    // paint on every single reload. A reader following Сумщина opened on Kyiv
+    // every time, because the fallback was the Kyiv city box and the "not yet"
+    // branch was in fact the only branch that ever ran (2026-08-29).
+    expect(framingBounds([], 'kharkiv', UA)).toEqual(UA)
+  })
+
+  it('frames the whole country when the reader has chosen nothing', () => {
+    // NOT the home region — that is what `currentRegion` is for, and it stays
+    // right for the feed and for push. On the map, an unanswered picker framed
+    // on one oblast hides the other four off-screen.
+    expect(framingBounds(CATALOGUE, null, UA)).toEqual(UA)
+  })
+
+  it('frames the whole country for a region the catalogue does not declare', () => {
+    expect(framingBounds(CATALOGUE, 'nowhere' as never, UA)).toEqual(UA)
   })
 })

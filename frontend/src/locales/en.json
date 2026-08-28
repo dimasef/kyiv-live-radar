@@ -96,6 +96,7 @@
     "down": {
       "shahed": "UAV shot down",
       "jet_drone": "Jet UAV shot down",
+      "fpv": "FPV shot down",
       "missile": "Missile shot down",
       "ballistic": "Ballistic shot down",
       "unknown": "Unknown closed"
@@ -152,6 +153,7 @@
   "target": {
     "shahed": "UAV",
     "jet_drone": "Jet UAV",
+    "fpv": "FPV",
     "missile": "Missile",
     "ballistic": "Ballistic",
     "unknown": "Unknown"
@@ -508,7 +510,7 @@
     "chernihiv": "Chernihiv oblast"
   },
   "regionMenu": {
-    "home": "Home region — always in the feed",
+    "home": "Your region — always in the feed",
     "inFeed": "In the event feed",
     "outOfFeed": "Not in the event feed",
     "pending": "No data yet — coverage is being prepared",

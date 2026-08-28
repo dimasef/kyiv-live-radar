@@ -47,6 +47,7 @@ from anthropic import AsyncAnthropic
 from ..config import settings
 from ..domain.origins import ORIGIN_KEYS
 from ..domain.origins import SECTORS as _SECTORS
+from ..models import TARGET_TYPES
 from ..regions import (
     HOME_SPEC,
     REGION_SPECS,
@@ -161,8 +162,10 @@ _PROMPT = (
     # rules know and the prompt doesn't is silently downgraded. «Бандероль» is
     # the live case: the same night calls it a «ракета» and a «баражуючий
     # боєприпас», both of which point this model elsewhere.
-    "Target type: shahed (шахед/мопед/герань/generic БпЛА), jet_drone "
-    "(реактивний/швидкісний/Бандероль), ballistic (балістика/іскандер/кинджал/"
+    "Target type: shahed (шахед/мопед/герань/generic БпЛА/ланцет/італмас/"
+    "гербера), jet_drone (реактивний/швидкісний/Бандероль/Молнія), fpv "
+    "(FPV/фпв/оптоволокно — an operator-flown quadcopter, near the border or "
+    "over a city only), ballistic (балістика/іскандер/кинджал/"
     "С-400/С-300), missile (крилата ракета/калібр/Х-101/КАБ/generic ракета), or "
     "unknown. Use ballistic ONLY for an explicit ballistic marker; a bare "
     "'ракета' is missile. A named model wins over the word around it: "
@@ -217,8 +220,7 @@ def _schema(id_enum: list[int] | None) -> dict:
     schema = {
         "type": "object",
         "properties": {
-            "target_type": {"type": "string",
-                            "enum": ["shahed", "jet_drone", "missile", "ballistic", "unknown"]},
+            "target_type": {"type": "string", "enum": list(TARGET_TYPES)},
             "status": {"type": "string",
                        "enum": ["confirmed", "unconfirmed", "destroyed", "clear", "sighting"]},
             "is_new_target": {"type": "boolean"},
@@ -368,7 +370,7 @@ def _normalize(data: dict, matcher: DistrictMatcher) -> tuple[list[DistrictHit],
     ]
     conf = max(0.0, min(1.0, float(data.get("confidence", 0.5))))
     target_type = data.get("target_type", "unknown")
-    if target_type not in ("shahed", "jet_drone", "missile", "ballistic", "unknown"):
+    if target_type not in TARGET_TYPES:
         target_type = "unknown"
     status = data.get("status", "sighting")
     if status not in ("confirmed", "unconfirmed", "destroyed", "clear", "sighting"):

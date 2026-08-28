@@ -36,6 +36,14 @@ editing a specific line. Read this before adding, changing or removing an entry.
 | `region` | Optional, defaults to `kyiv`. Decides which **track pool** a sighting joins and which region the event feed files it under, so it must follow real geography — not "which channel usually reports it". Славутич is administratively Kyiv oblast but sits 150 km north, so it is `chernihiv`. |
 | `region_only` | Optional. Makes the entry matchable **only** by a channel reporting from its own region — `DistrictMatcher` drops it from every other region's index entirely. |
 
+An entry that is itself a street or a square (its `name_uk` contains one of
+`vocab._STREET_WORDS`) is exempt from `_is_street_reference`. Without that,
+«Проспект Перемоги» was vetoed by the very word it is named after — the guard
+that keeps «Оболонський проспект» off Оболонь fired on the one phrasing the
+entry exists for. The same guard also stops at a comma now: «Суми, Проспект
+Перемоги» is two callouts, not a street reference. Quote marks are NOT a stop —
+they wrap a name («метро «Бориспільська»»), which is what `_EDGE` is for.
+
 `CITYWIDE_NAME_EN` marks the sentinel "Київ" entry at the end of the list: a
 city-wide threat («ціль на місто») has to attach its event to *some* district
 row. `DistrictMatcher` skips it, and the LLM never sees it — otherwise it would
@@ -114,6 +122,21 @@ ordinary word: «центр» (⊂ центральний, укргідроме�
 - `_is_oblast_form` — «Чернігівщина» must not match the city «Чернігів».
 - `vocab._ALIAS_PREV_WORD_REQUIRED` — «церкв» matches Біла Церква only after a
   «Біл…» word, or «приліт у церкву» would pin a strike 80 km out of town.
+  «перемоги» matches Суми's Проспект Перемоги only after «просп…».
+- `vocab._ALIAS_PREV_WORD_VETO` — the mirror, added 2026-08-28: «писарівк» stops
+  counting after a «Велик…» word, because Писарівка and Велика Писарівка are
+  80 km apart and share their only matchable word. The bare village keeps the
+  alias (41 corpus callouts against 24); the qualified form is left unmatched
+  rather than pinned wrong.
+- `vocab._ALIAS_NEXT_WORD_REQUIRED` — the fourth of the set: «зелений»,
+  «блакитні» and «старе» count only before «гай», «озер…» and «сел…». This is
+  what makes a spaced name shippable when the DISTINCTIVE half is the first word
+  and the second is generic — the case that would otherwise be the Красна Гірка
+  rejection below.
+
+The four are keyed by the MATCHED TEXT and so apply to every entry that matched
+it, not to one entry. That is why Велика Писарівка cannot simply "require"
+«велик» — the requirement would veto the bare village too.
 
 ---
 
@@ -213,6 +236,13 @@ say so explicitly and record the new sweep.
 | **Берелівка, Городище, Полісся** (2026-08-20 pass) | No point / ambiguous / also a region-wide noun. *(Берилівка — the spelling Nominatim does have — and Городище were added on 08-22.)* |
 | **летовище** (Nizhyn airfield) | A common noun, and local airfield defence is not this map's business. *(The Chernihiv «Летовище» later shipped as `region_only`.)* |
 | **Хорівля, Красяни, Івнівка, Поусівка, Круги, Тальне, Шишки** | Nominatim has no point in Чернігівська область. |
+| **Жужики** (Сумщина, 2026-08-28) | Not a place. All 8 corpus hits are the channel's slang for OUR OWN drones — «це жужики наші в Сумах, спокійно», «звуки які ви чуєте це наші жужики». Ranked 40th on the mining list and would have shipped without the sweep. |
+| **Лука / Велика Лука** (Сумщина) | Two different places 60 km apart in the same corpus, and 1 of the 6 hits of the bare word is «стріляє із лука» (a bow). Nothing distinguishes them, so one of the two would always be wrong. |
+| **Береза** (Глухівська громада) | Stem `берез` swallows «березня» — the month, which every dated report carries. Exactly the Остер failure, and the village has 2 corpus hits against it. |
+| **Веселе** (Сумщина) | `весел` eats «веселка»/«веселий»; 3 hits, and Веселе is among the commonest names in the country. |
+| **Епіцентр** (Суми) | The store IS a landmark the spotters use, but only 1 of its 2 corpus hits is the Sumy one — the other is the Melitopol store being burned in a news post. Чернігів's Епіцентр ships because its feed names it 6 times. One usable hit is an anecdote. |
+| **Еспланадна** (Суми) | 3 callouts, and Nominatim has no point for the street under any spelling tried. |
+| **Герасима Кондратьєва** (Суми) | 3 hits, but 2 are postal addresses in a fundraising post and a road-closure notice. One real callout. |
 | **Люлецька, Чорновола, Мазепи…** (streets, as a class) | A street is a line across a whole city, not a point, and every one of those names exists in Kyiv too. Some later shipped as `region_only` city landmarks where the spotters really do narrate at that granularity. |
 | **Нафтобаза, Земснаряд, Тероборони** | Bare city objects, same problem as streets. |
 
@@ -234,6 +264,10 @@ corpus sweep found zero bad matches. Re-sweep if the feed changes.
 | **Стоянка** (2026-08-27) | «стоянка» = a parking lot | 6/6 corpus hits are the village, named by four different channels. «автостоянка» is structurally safe — the matcher anchors on a word start — so only the bare noun could ever collide, and it never has. Pinned by a test either way. |
 | **Заспа / Заспу / Заспи** (Конча-Заспа aliases, 2026-08-27) | «заспокоїтись» as a stem; a second Заспа 45 km south | 15/15 corpus hits are Конча-Заспа. Whole-word only, so the verb is unreachable; aliases rather than an entry, so no second point exists to be wrong. «Конча-Заспа» still resolves to ONE hit — both branches are the same id. Two tests pin the verb (`test_parser.py`), three pin the callouts. |
 | **Пуща** | «запущено», «пуски» | blocked by the word-start boundary |
+| **Глухів** (2026-08-28) | «глухий»/«глухо» — «глухий вибух» is a phrase this genre plausibly types | zero hits in 13.6k messages; all 20 are the town. `region_only`, so only a Сумщина channel can reach it |
+| **Терни / Річки / Садки / Низи / Вири** | `терн` ⊂ Тернопільщина + Тернівка; `річк` ⊂ «річка»; `садк` ⊂ «садків»; `низи` ⊂ «низина»; `вири` ⊂ «вирив» | Терни, Річки and the poplar/«сад» family are whole-word (see the vocab notes); Низи 21/21 and Вири 16/16 are clean as stems |
+| **Земляне, Мозкове, Синяк, Спаське** | ordinary-looking adjectives/nouns | 3–7 hits each, every one the settlement |
+| **Верхня Сироватка** (one entry for a pair) | Нижня Сироватка 9 km away shares the only alias «сироватк» | 36 hits, 27 of them the upper village; the 4 lower ones land 9 km off, the Гути trade one raion wide |
 
 ---
 
@@ -255,4 +289,5 @@ Reactively, from real feed gaps. Each pass is recorded in git; the short version
 | 08-22 | **K** — the ring and corridors *around* Чернігів, at village granularity. **K2** — the morning Бахмач→Борзна→Ніжин→Носівка run. |
 | 08-23 | **L** — cross-region audit: the names that made the northern channel produce a *Kyiv* target. **M** — whole-corpus gap pass (Мамекине, Лісконоги, Kyiv's Вокзал, Українка). **N** — the Новгород-Сіверський loitering session, all reply-chain gaps. |
 | 08-24 | Mined against the stated-path flag (`rules._movement_path`): each entry was the unresolved end of an «A на B» callout, so the gap cost a whole vector rather than a pin. Plus Яцево / Терехівка from the raid over Чернігів itself. |
+| 08-28 | **S** — Сумщина's first layer, and the region's activation. 137 entries mined from 3760 messages of its two spotter channels, which localized **0%** before (the region shipped declared-and-empty in 0.38.0) and **64%** after. Three groups, the same shape the north took over three passes: raion/hromada centres, the Сумський-район border belt where the КАБ and FPV traffic is, and a Суми CITY layer. It also needed two new context hooks (`_ALIAS_PREV_WORD_VETO`, `_ALIAS_NEXT_WORD_REQUIRED`) and unmuted eight names the coverage-gap stoplist had been hiding. |
 | 08-27 | Глузди + Горбове — a Куликівка pair 4.5 km and 9 s apart, one target that produced nothing at either end. Plus the Заспа aliases: the first *reversal* of a documented rejection, allowed only because the whole-word/alias form dodges both of its reasons. Then «Гути», decoded off the channel's own corridor bulletin — three of its five callouts are «A на Гути», so the gap was costing a whole route, not a pin. And Стоянка on the Zhytomyr highway, where the nearest entry was 7.8 km off. |

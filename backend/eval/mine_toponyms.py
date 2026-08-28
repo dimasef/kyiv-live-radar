@@ -5,10 +5,14 @@ NOT localize, extracts toponym candidates (words after locational prepositions,
 plus "X/Y" slash pairs). Ranks by frequency so we see the real coverage gaps —
 the work-list for growing the gazetteer.
 
+Channels come from the ACTIVE sources in the DB (what the listener subscribes
+to), not the env list. `--region` narrows to one oblast's channels, which is how
+you grow a single region's gazetteer without its candidates drowning in Kyiv's.
+
 Reads only; needs the Telegram session. Stop the live listener first (it holds
 the session lock).
 
-    cd backend && .venv/bin/python eval/mine_toponyms.py [--limit 300]
+    cd backend && .venv/bin/python eval/mine_toponyms.py [--limit 300] [--region sumy]
 """
 
 from __future__ import annotations
@@ -21,9 +25,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from sqlalchemy import select  # noqa: E402
+
 from app.config import settings  # noqa: E402
+from app.db import SessionLocal  # noqa: E402
 from app.feeds.telegram import _resolve_channel  # noqa: E402
 from app.gazetteer import DISTRICTS  # noqa: E402
+from app.models import Source  # noqa: E402
 from app.parsing import DistrictMatcher, normalize, parse_message  # noqa: E402
 
 _PREP = r"(?:на|над|у|в|біля|поблизу|повз|через|під|коло|район[іуа]?|масив[іуа]?|бік)"
@@ -52,10 +60,39 @@ def _candidates(text: str) -> list[str]:
     return out
 
 
+async def _channel_refs(region: str | None) -> list[str]:
+    """The spotter channels to mine — the ACTIVE sources from the DB, which is
+    what the listener actually subscribes to (see feeds/telegram
+    `_active_source_specs`). This script used to read the env list instead, so a
+    channel added in the admin console was silently skipped: no error, just a
+    thinner corpus than you thought you had.
+
+    The env list stays as a fallback for a machine whose DB was never seeded —
+    but NOT when a region was asked for, where falling back would quietly mine
+    the wrong oblast's channels.
+    """
+    async with SessionLocal() as s:
+        stmt = select(Source.subscribe_ref, Source.channel_key).where(
+            Source.is_active.is_(True), Source.role == "spotter"
+        )
+        if region:
+            stmt = stmt.where(Source.region == region)
+        rows = list(await s.execute(stmt))
+    refs = [ref or key for ref, key in rows if (ref or key)]
+    if refs or region:
+        return refs
+    return list(settings.telegram_channel_list)
+
+
 async def main() -> None:
     limit = 300
     if "--limit" in sys.argv:
         limit = int(sys.argv[sys.argv.index("--limit") + 1])
+    # Mining is per-region work: growing Сумщина's gazetteer off a corpus that
+    # is nine parts Kyiv buries the candidates you came for.
+    region = None
+    if "--region" in sys.argv:
+        region = sys.argv[sys.argv.index("--region") + 1]
 
     from telethon import TelegramClient
 
@@ -64,8 +101,16 @@ async def main() -> None:
                             settings.telegram_api_hash)
     await client.start()
 
+    channels = await _channel_refs(region)
+    if not channels:
+        where = f" for region {region}" if region else ""
+        print(f"no active spotter channels{where}", file=sys.stderr)
+        await client.disconnect()
+        return
+    print(f"mining {len(channels)} channel(s): {', '.join(channels)}", file=sys.stderr)
+
     texts: list[str] = []
-    for raw in settings.telegram_channel_list:
+    for raw in channels:
         try:
             entity = await _resolve_channel(client, raw)
         except Exception as ex:

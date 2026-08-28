@@ -107,6 +107,10 @@ async def test_context_is_cross_channel_and_time_bounded(db):
     assert "Балістика з Брянщини" in lines[0]
     assert "Група 3х на Бровари" in lines[1]
     assert "давня історія" not in ctx
+    # Every line names its channel's REGION. A national window is the point of
+    # this tier, but a Сумщина FPV callout must be discountable by a model
+    # classifying a Kyiv target — see build_type_context's docstring.
+    assert all(line.startswith("[-") and "Київщина/" in line for line in lines)
 
 
 async def test_context_excludes_the_message_being_classified(db):

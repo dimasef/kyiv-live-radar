@@ -11,6 +11,17 @@ export const KYIV_BOUNDS: [[number, number], [number, number]] = [
   [50.59, 30.83],
 ];
 
+// The whole country [[south, west], [north, east]] — what the map frames when
+// the reader has not chosen a region, and what it frames on a cold load before
+// the region catalogue has answered. It used to fall back to KYIV_BOUNDS, which
+// meant a reader following Сумщина opened on Kyiv every single reload: the
+// catalogue is fetched, so it is ALWAYS empty at first paint and the fallback
+// was never the exception it was written as (2026-08-29).
+export const UKRAINE_BOUNDS: [[number, number], [number, number]] = [
+  [44.2, 22.1],
+  [52.4, 40.3],
+];
+
 // How far out the map may be zoomed — wide enough to put Kyiv in a European
 // context (where a raid came from), which is the only reason to leave the city
 // at all. At this level a 390px phone spans ≈2400 km and a 1440px desktop

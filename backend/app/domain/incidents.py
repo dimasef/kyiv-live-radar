@@ -24,11 +24,14 @@ from .lifecycle import close_track, reopen_track
 log = logging.getLogger("incidents")
 
 # Target-type severity — an incident is labelled by its most dangerous member.
-_SEVERITY = {"unknown": 0, "shahed": 1, "jet_drone": 2, "missile": 3, "ballistic": 4}
+# `fpv` sits BELOW shahed: it is the least consequential thing on this list per
+# target — one quadcopter, one building — even though it is the most frequent.
+_SEVERITY = {"unknown": 0, "fpv": 1, "shahed": 2, "jet_drone": 3,
+             "missile": 4, "ballistic": 5}
 
 # Types that mean "the same kind of thing is flying" for inference purposes.
 # missile/ballistic is already treated as one family by target_types.upgrade_type.
-_FAMILY = {"shahed": "drone", "jet_drone": "drone",
+_FAMILY = {"shahed": "drone", "jet_drone": "drone", "fpv": "drone",
            "missile": "missile", "ballistic": "missile"}
 
 

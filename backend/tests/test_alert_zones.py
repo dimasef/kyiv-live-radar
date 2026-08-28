@@ -1,9 +1,12 @@
 """Alert-zone layer: parsing both providers, diffing, and failing honestly.
 
-The fixtures in tests/data/ are REAL captured provider payloads (2026-08-19),
-trimmed to the watched oblasts plus one unwatched, with a handful of states
-flipped to true so the alerted path is covered — the shape, key names and
-timestamp formats are untouched, which is the part that would silently break.
+The fixtures in tests/data/ are REAL captured provider payloads (2026-08-19,
+Сумська область appended from a 2026-08-28 capture), trimmed to the watched
+oblasts plus one unwatched, with a handful of states flipped to true so the
+alerted path is covered — the shape, key names and timestamp formats are
+untouched, which is the part that would silently break. Сумщина's rows are all
+quiet on purpose: the alerted-path assertions name specific Kyiv/Chernihiv
+zones, and a new oblast must not be able to satisfy them by accident.
 
 Nothing here touches the network: every test feeds a payload straight to the
 pure parsers, or stubs the fetch.

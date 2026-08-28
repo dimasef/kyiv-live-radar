@@ -31,9 +31,16 @@ from .webpush import send_push
 
 log = logging.getLogger("home_push")
 
+# The label a push says out loud («‼️ Шахед поруч із домом»). It must match what
+# the type MEANS, and `shahed` is the generic drone bucket — «дрон», «бпла»,
+# «баражуюч», Ланцет, Італмас and Гербера all land in it — not the Shahed-136.
+# This was the only surface still naming the model: the map, the feed and the
+# admin badge have all said «БПЛА» throughout, so a bare «БпЛА» callout has been
+# pushing as «Шахед» since the feature shipped.
 _TYPE_LABEL = {
-    "shahed": "Шахед",
+    "shahed": "БпЛА",
     "jet_drone": "Реактивний БпЛА",
+    "fpv": "FPV",
     "missile": "Ракета",
     "ballistic": "Балістика",
     "unknown": "Ціль",
@@ -48,7 +55,7 @@ def _sub_prefs(sub: PushSubscription) -> tuple[DangerLevel, set[str], bool]:
     the one mistake this feature must not make."""
     prefs = sub.prefs or {}
     min_level = DangerLevel.DANGER if prefs.get("min_level") == "danger" else DangerLevel.WARNING
-    types = set(prefs.get("types") or ("ballistic", "missile", "shahed", "jet_drone"))
+    types = set(prefs.get("types") or ("ballistic", "missile", "shahed", "jet_drone", "fpv"))
     types.add("unknown")
     return min_level, types, bool(prefs.get("citywide", True))
 

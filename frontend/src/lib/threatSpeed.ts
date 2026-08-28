@@ -21,6 +21,9 @@ export interface SpeedRange {
 export const TYPE_SPEED_KMH: Record<TargetType, SpeedRange | null> = {
   shahed: { min: 150, max: 200 },
   jet_drone: { min: 350, max: 600 },
+  // An operator flies it by video link; cruise speed is what the airframe and
+  // the link allow, not what a warhead needs.
+  fpv: { min: 100, max: 150 },
   missile: { min: 700, max: 900 },
   ballistic: { min: 1500, max: 3000 },
   unknown: null,

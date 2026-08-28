@@ -47,6 +47,7 @@ from .vocab import (
     _EXPLAINER,
     _FORECAST_TIMEFRAME,
     _FORECAST_VERB,
+    _FPV,
     _HEDGE_MODAL_RE,
     _HYPERSONIC,
     _IMPACT,
@@ -83,7 +84,6 @@ from .vocab import (
     _REPORTAGE,
     _RETROSPECTIVE,
     _SENTENCE_END_RE,
-    _SHAHED,
     _SIREN_WORD,
     _STANDDOWN_CLEAN_RE,
     _STANDDOWN_LIVE_THREAT,
@@ -91,6 +91,7 @@ from .vocab import (
     _SUMMARY_NO_DISTRICT,
     _THREAT_CONTEXT,
     _TOPONYM_WORD_RE,
+    _UAV,
     _UNCONFIRMED,
     _UNSCOPED_CLEAR_WORD,
     count_value,
@@ -143,7 +144,7 @@ def _has_conditional_hedge(norm: str) -> bool:
 
 @dataclass
 class ParseResult:
-    target_type: str  # 'shahed' | 'jet_drone' | 'missile' | 'ballistic' | 'unknown'
+    target_type: str  # 'shahed' | 'jet_drone' | 'fpv' | 'missile' | 'ballistic' | 'unknown'
     status: str       # 'confirmed' | 'sighting' | 'unconfirmed' | 'destroyed' | 'clear'
     is_new_target: bool
     districts: list[DistrictHit]
@@ -246,7 +247,11 @@ class ParseResult:
 # "каб" inside "кабель"/"кабіна", "реб" inside "теребити"/"ребро"). Match
 # those as whole words; match everything else at a word start so inflected
 # suffixes still hit (ракет→ракети).
-_WHOLE_WORD = {"каб", "реб"}
+# Three-letter abbreviations that are the head of an ordinary word — «каб» of
+# «кабінет»/«Кабмін», «реб» of «ребро». Every case form has to be listed
+# explicitly (vocab._MISSILE_WEAPON, _DECOY), because a whole-word match carries
+# no case tail of its own.
+_WHOLE_WORD = {"каб", "каби", "кабів", "кабам", "кабами", "реб", "реби"}
 
 
 def _kw_regex(words) -> re.Pattern:
@@ -269,7 +274,8 @@ _BALLISTIC_RE = _kw_regex(_BALLISTIC)
 _MISSILE_RE = _kw_regex(_MISSILE)
 _JET_MODEL_RE = _kw_regex(_JET_MODEL)
 _JET_RE = _kw_regex(_JET)
-_SHAHED_RE = _kw_regex(_SHAHED)
+_FPV_RE = _kw_regex(_FPV)
+_UAV_RE = _kw_regex(_UAV)
 _DECOY_RE = _kw_regex(_DECOY)
 _HYPERSONIC_RE = _kw_regex(_HYPERSONIC)
 
@@ -281,7 +287,7 @@ _HYPERSONIC_RE = _kw_regex(_HYPERSONIC)
 # не притаманна для «Іскандер-М»") still talks about that type for real.
 _NEGATED_TYPE_RE = re.compile(
     r"(?<![а-яіїєґ])не\s+(?:"
-    + "|".join(re.escape(w) for w in (*_BALLISTIC, *_MISSILE, *_JET_MODEL, *_JET, *_SHAHED))
+    + "|".join(re.escape(w) for w in (*_BALLISTIC, *_MISSILE, *_JET_MODEL, *_JET, *_FPV, *_UAV))
     + r")[а-яіїєґ]*"
 )
 
@@ -299,7 +305,15 @@ def _target_type(norm: str) -> str:
         return "missile"
     if _JET_RE.search(norm):
         return "jet_drone"
-    if _SHAHED_RE.search(norm):
+    # Below the missile/jet lists and above the generic drone one. Of the 198
+    # Сумщина messages naming an FPV, only 21 name any other type word at all —
+    # so the position barely matters, and where it does the more severe reading
+    # should win: «каб ... fpv» is a KAB, «реактивний ... fpv» is a jet drone,
+    # while «fpv ... БпЛА» (9 messages) is the specific statement beating the
+    # generic one.
+    if _FPV_RE.search(norm):
+        return "fpv"
+    if _UAV_RE.search(norm):
         return "shahed"
     if _MASC_ONE_RE.search(norm):
         return "shahed"

@@ -66,7 +66,11 @@ class District(Base):
 # both by hand. That makes the two impossible to drift apart, and it is what puts
 # a real union (not a bare `string`) into the OpenAPI schema, so the generated
 # frontend types narrow these fields too.
-TargetType = Literal["shahed", "jet_drone", "missile", "ballistic", "unknown"]
+# `fpv` is a SEPARATE type and not a `shahed` (added 2026-08-28 with Сумщина):
+# ~20 km of range against 1000+, rooftop height, stale within minutes. Every
+# per-type table below — staleness, severity, push prefs, speed, icon — gives
+# it a different answer than a Shahed, which is what having a type is for.
+TargetType = Literal["shahed", "jet_drone", "fpv", "missile", "ballistic", "unknown"]
 TARGET_TYPES: tuple[TargetType, ...] = get_args(TargetType)
 # Where the LLM type classifier got its answer (app/parsing/type_llm.py).
 TypeEvidence = Literal["text", "context", "none"]

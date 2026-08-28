@@ -370,3 +370,76 @@ def test_no_entry_is_listed_twice():
                 if len({(d["lat"], d["lon"]) for d in rows}) == len(rows):
                     del dupes[name]
         assert dupes == {}, f"duplicate {field}: {dupes}"
+
+
+# --- Сумщина, 2026-08-28 -----------------------------------------------------
+# Every one of these pins a decision the gazetteer pass made against real corpus
+# evidence. They are here so the next pass has to argue with the evidence rather
+# than with a red build.
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        # A stem that is an ordinary word, shipped whole-word instead.
+        ("Реактивний шах курсом на Терни", ["Терни"]),
+        ("Шахед крутиться над районом", []),          # not Героїв Крут
+        ("Ще 1 крутяться, слідкуємо", []),
+        ("Героїв Крут, Лушпи молнія", ["Героїв Крут", "Лушпи"]),
+        ("Річки, Білопілля 2 невідомих БпЛа", ["Білопілля", "Річки"]),
+        ("Річка «Либідь» пофарбувалася", []),          # the collision that found it
+        ("Пуски КАБ в напрямку Річківської громади", ["Річки"]),
+        ("Тополя, Верхнє Піщане увага по fpv", ["Піщане", "Тополя"]),
+        ("Сад, Роменська уважно по fpv", ["Сад"]),
+        # Спаced names that ride on the FIRST word plus the noun after it.
+        ("Долітають до Вакалівщини курсом на Зелений Гай", ["Вакалівщина", "Зелений Гай"]),
+        ("яскраво зелений колір", []),
+        ("Блакитні Озера, Героїв Крут уважно", ["Блакитні Озера", "Героїв Крут"]),
+        ("Повз Сумихімпром курсом на Старе Село", ["Старе Село", "Сумихімпром"]),
+        ("старе відео з минулого тижня", []),
+        # Проспект Перемоги needs the word BEFORE it; a village Перемога and
+        # «заради нашої перемоги» must not reach it.
+        ("Далі на Суми, Проспект Перемоги", ["Проспект Перемоги", "Суми"]),
+        ("робить усе можливе заради нашої перемоги", []),
+        # The city stops at the word boundary — the plant is a target of its own.
+        ("Ще ракета на Суми", ["Суми"]),
+        ("Окупанти атакували промислову зону в Сумах", ["Суми"]),
+        ("Хімпром далі", ["Сумихімпром"]),
+    ],
+)
+def test_sumy_stems_that_are_also_ordinary_words(text, expected):
+    hits = _region_matcher("sumy").find(normalize(text))
+    assert sorted({h.name for h in hits}) == sorted(expected), text
+
+
+def test_velyka_pysarivka_never_becomes_the_border_village():
+    """80 km apart, and «писарівк» is the only word either of them has.
+
+    The bare village carries the traffic (41 corpus callouts against 24), so it
+    keeps the alias and the qualified form vetoes it — see
+    vocab._ALIAS_PREV_WORD_VETO. Велика Писарівка still answers to its hromada
+    adjective; its spaced mentions stay unlocalized, which is where they were.
+    """
+    m = _region_matcher("sumy")
+    assert [h.name for h in m.find(normalize("Болото > Писарівка реактивний шах"))] \
+        == ["Писарівка"]
+    assert m.find(normalize("1 реактивний з Харківщини, курсом на Велику Писарівку")) == []
+    assert [h.name for h in m.find(normalize("Обстріл у Великописарівській громаді"))] \
+        == ["Велика Писарівка"]
+
+
+@pytest.mark.parametrize("text", ["Ціль на Суми.", "Маневр по трасі Київ-Суми.",
+                                  "Глухів", "Великий Бобрик"])
+def test_sumy_place_is_invisible_to_a_kyiv_channel(text):
+    """A Kyiv channel writes these only as somewhere else. Before `region_only`
+    each one drew a live target 300+ km away on the Kyiv map."""
+    assert _region_matcher("kyiv").find(normalize(text)) == []
+
+
+@pytest.mark.parametrize("name", ["Суми", "Шостка", "Конотоп", "Ворожба", "Кияниця",
+                                  "Миколаївка", "Постольне", "Сумихімпром"])
+def test_the_stoplist_would_still_have_proposed_the_sumy_batch(name):
+    """Eight of the new entries were muted by a word list that predates them —
+    «суми»/«шостк»/«конотоп» as far-away oblast centres, and «миколаїв», «кияни»,
+    «пост», «ворож» as prefixes of ordinary words. The queue that is supposed to
+    surface a missing village could not have surfaced any of these."""
+    assert any(not is_known_word(w) for w in normalize(name).split() if len(w) >= 4)

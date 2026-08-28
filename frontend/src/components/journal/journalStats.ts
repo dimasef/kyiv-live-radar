@@ -1,16 +1,25 @@
 import type { JournalDay, TargetType } from '@/types'
 
 /** Segment order for every type-mix bar/stack (roughly severity-descending).
- * `missile` sits between `jet_drone` and `shahed` on purpose: the palette is
- * fixed by the map legend (TYPE_COLORS), and orange↔yellow next to each other
- * fails the adjacent-pair separation check (normal-vision ΔE 14.6, deutan 10.6).
- * The white `missile` step between them lifts the worst adjacent pair to ΔE 20.9
- * / 20.4 without recoloring anything. Verified with the dataviz palette
- * validator against the panel surface #0d151f. */
+ * Two steps are OUT of severity order on purpose, both to pass the adjacent-pair
+ * separation check against the panel surface #0d151f — the palette itself is
+ * fixed by the map legend (TYPE_COLORS) and may not be recolored to suit a bar.
+ *
+ * `missile` sits between `jet_drone` and `shahed` because orange↔yellow adjacent
+ * fails it (normal-vision ΔE 14.6, deutan 10.6); the white step lifts the worst
+ * pair to 20.9 / 20.4.
+ *
+ * `fpv` sits above `shahed` rather than below it because teal↔slate — the two
+ * that would meet if it took its severity slot next to `unknown` — is a HARD
+ * FAIL at normal-vision ΔE 14.8. Placed here the worst adjacent pair is
+ * teal↔white at ΔE 22.5 normal / 14.1 protan, i.e. better than the five-colour
+ * palette was. Verified with the dataviz palette validator, not by eye: by eye
+ * the failing arrangement looked fine. */
 export const TYPE_ORDER: TargetType[] = [
   'ballistic',
   'jet_drone',
   'missile',
+  'fpv',
   'shahed',
   'unknown',
 ]

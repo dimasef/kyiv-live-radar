@@ -43,6 +43,26 @@ export function currentRegion(s: {
   return effectiveRegion(s.regions, s.chosenRegion)
 }
 
+/** What the MAP should be framed on: the region the reader picked, or
+ * `fallback` (the whole country) when they have not picked one or the catalogue
+ * has not answered yet.
+ *
+ * Reads `chosen` DIRECTLY rather than through `currentRegion`, and that
+ * difference is the point. For the feed and for push, "no choice yet" has to
+ * mean the deployment's own region — otherwise a first-run reader gets an empty
+ * feed and no notifications. For the map it must not: framing an unanswered
+ * picker on one oblast hides the other four behind the edge of the screen, and
+ * the whole country is both the honest answer and the one that makes the picker
+ * obvious.
+ */
+export function framingBounds(
+  catalogue: RegionInfo[],
+  chosen: Region | null,
+  fallback: [[number, number], [number, number]],
+): [[number, number], [number, number]] {
+  return regionBounds(catalogue, chosen) ?? fallback
+}
+
 export function regionBounds(
   catalogue: RegionInfo[],
   id: Region | null,

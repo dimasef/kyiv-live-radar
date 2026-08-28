@@ -59,7 +59,8 @@ function fromWirePrefs(wire: {
     minLevel: wire.min_level === 'danger' ? 'danger' : 'warning',
     ballistic: types.includes('ballistic'),
     missile: types.includes('missile'),
-    drone: types.includes('shahed') || types.includes('jet_drone'),
+    drone:
+      types.includes('shahed') || types.includes('jet_drone') || types.includes('fpv'),
     citywide: wire.citywide ?? true,
   }
 }

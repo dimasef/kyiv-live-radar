@@ -243,9 +243,17 @@ _NON_KYIV_ORIGIN_RE = _origin_re(_OBLAST_ALT_NON_KYIV)
 # another oblast: "Маневр по трасі Київ-Суми" and "ДТП на Одеській трасі" are
 # both about Kyivshchyna. Blanked before counting, so the highway register can't
 # suppress a local sighting.
+#
+# Built from the UNION, not from `_OTHER_OBLAST` alone. Both callers blank with
+# this regex, and `target_not_kyiv` counts against the union — so a name that
+# moves into `_WATCHED_OBLAST` on activation would keep being counted while no
+# longer being blanked. That is not hypothetical: activating Сумщина took "суми"
+# out of `_OTHER_OBLAST`, and «Шахед по трасі Київ-Суми» went from ours to
+# somebody else's without a line of this file changing (2026-08-28).
 _ROAD_USE_RE = re.compile(
-    r"(?:" + _OBLAST_ALT_ANY + r")[а-яіїєґ]*\s+(?:трас|шосе|площ|вулиц|проспект)[а-яіїєґ]*"
-    r"|(?<![а-яіїєґ])київ[а-яіїєґ]*\s*[-–—]\s*(?:" + _OBLAST_ALT_ANY + r")[а-яіїєґ]*"
+    r"(?:" + _OBLAST_ALT_NON_KYIV + r")[а-яіїєґ]*\s+"
+    r"(?:трас|шосе|площ|вулиц|проспект)[а-яіїєґ]*"
+    r"|(?<![а-яіїєґ])київ[а-яіїєґ]*\s*[-–—]\s*(?:" + _OBLAST_ALT_NON_KYIV + r")[а-яіїєґ]*"
 )
 
 

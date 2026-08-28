@@ -31,7 +31,7 @@ export function sinceParts(
  * gets "40хв" or "2г" where the hover caption can afford «1 год 20 хв». Under an
  * hour the minutes are the whole answer; past it they stop mattering — nobody
  * acts differently on a siren that has run 1:20 versus 1:35, and the extra
- * digits are two more characters to read past on thirteen labels at once.
+ * digits are two more characters to read past on a screenful of labels at once.
  *
  * Rounded, not truncated: 1 h 50 min is "2г", because floor would call it "1г"
  * for the better part of an hour and read as newer than it is. */

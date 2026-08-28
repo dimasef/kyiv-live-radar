@@ -66,6 +66,11 @@ export const INCIDENT_SEVERITY_COLOR = {
 export const TYPE_COLORS: Record<TargetType, string> = {
   shahed: '#facc15', // yellow
   jet_drone: '#fb923c', // orange
+  // Teal. Not the warm ramp (yellow -> orange -> red is severity, and an FPV is
+  // the LEAST severe target here), not green (the all-clear), not sky (HOME_COLOR
+  // and the `unseen` chip). Its quadcopter glyph carries most of the load anyway
+  // — no other type is four blobs in a square.
+  fpv: '#2dd4bf',
   missile: '#f1f5f9', // white (cruise)
   ballistic: '#a855f7', // violet
   unknown: '#94a3b8', // neutral slate

@@ -34,22 +34,32 @@ import logging
 from dataclasses import dataclass
 
 from ..config import settings
+from ..models import TARGET_TYPES
+from ..regions import HOME_SPEC, watched_regions
 from .llm import _get_client, _usage_from
 from .rules import LlmUsage
 
 log = logging.getLogger("llm")
 
-TYPES = ("shahed", "jet_drone", "missile", "ballistic", "unknown")
+# Derived, never restated: a type the enum rail does not name is one the model
+# can never return, so a new member added to `TargetType` and forgotten here
+# would be silently unreachable rather than broken (CLAUDE.md, "declare once").
+TYPES = TARGET_TYPES
 EVIDENCE = ("text", "context", "none")
 
 _SYSTEM = (
     "Ти — аналітик ППО-фіду. Визначаєш ТИП повітряної цілі, про яку йдеться в "
-    "цільовому повідомленні українського спостерігача (Київщина/Чернігівщина). "
+    "цільовому повідомленні українського спостерігача ({regions}). "
     "Дається стрічка попередніх повідомлень усіх каналів за останні дві години "
-    "(з мітками каналу та часу) — це поточна картина в небі.\n"
-    "Типи: shahed (шахед/мопед/герань/БпЛА), jet_drone (реактивний/швидкісний/"
-    "Бандероль), ballistic (балістика/іскандер-М/кинджал/С-300/С-400), missile "
-    "(крилата ракета/калібр/Х-101/КАБ/іскандер-К), unknown.\n"
+    "(з мітками області, каналу та часу) — це поточна картина в небі. Хвиля "
+    "ракет чи балістики за дві години перетинає кілька областей, тож сусідня "
+    "область — валідний доказ. А от FPV/оптоволокно — це коптер оператора з "
+    "радіусом ~20 км: він НІЧОГО не говорить про ціль в іншій області.\n"
+    "Типи: shahed (шахед/мопед/герань/БпЛА/ланцет/італмас/гербера), jet_drone "
+    "(реактивний/швидкісний/Бандероль/Молнія), fpv (FPV/фпв/оптоволокно — "
+    "коптер оператора, тільки поблизу кордону або над містом), ballistic "
+    "(балістика/іскандер-М/кинджал/С-300/С-400), missile (крилата ракета/"
+    "калібр/Х-101/КАБ/іскандер-К), unknown.\n"
     "Більшість цільових повідомлень — це голі топоніми («На сосницю», «Троя 🔴»), "
     "тип у них не названо. Це НОРМА: визнач тип із стрічки — якщо в цей момент у "
     "небі йде хвиля одного типу (її оголосили раніше або вона видно з сусідніх "
@@ -64,6 +74,13 @@ _SYSTEM = (
     "unknown.\n"
     "evidence: text (тип названо у самому цільовому повідомленні), context "
     "(взято зі стрічки), none (визначити неможливо). confidence: 0..1."
+).format(
+    # From the registry, not spelled out: the prompt named two oblasts while
+    # a third was live, so every Сумщина message was being classified by a
+    # model told the region does not exist.
+    regions="/".join(
+        [HOME_SPEC.name_uk] + [s.name_uk for s in watched_regions()]
+    )
 )
 
 _PROMPT = (

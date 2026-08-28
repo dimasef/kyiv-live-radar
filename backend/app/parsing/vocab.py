@@ -31,7 +31,15 @@ _BALLISTIC = ("баліст", "іскандер", "кинджал", "кн-23", "
 # correct a channel's ballistic type context — see
 # ingest/context.py::_note_and_inherit_type.
 _MISSILE_NAMED = ("крилат", "калібр", "х-101", "х-59", "х-22")
-_MISSILE_WEAPON = ("ракет", *_MISSILE_NAMED, "каб", "авіабомб", "керован авіа")
+# «каб» is whole-word (see rules._WHOLE_WORD) because it is the head of
+# «кабінет»/«кабіна»/«Кабмін» — which meant its Ukrainian plural and oblique
+# forms never typed at all. Over the whole corpus that is 81 messages against 10
+# colliders, and it only showed up once Сумщина arrived: КАБи are the border
+# oblast's routine weapon and reach Kyiv about never (of the 81, two are Kyiv).
+# Listed as explicit forms rather than relaxed to a stem, so the colliders stay
+# unreachable.
+_MISSILE_WEAPON = ("ракет", *_MISSILE_NAMED, "каб", "каби", "кабів", "кабам",
+                   "кабами", "авіабомб", "керован авіа")
 # Strategic aviation IS the cruise-missile threat, and the spotters name the
 # CARRIER instead of the weapon: "пуски зі стратегічної авіації", "пуски ракет
 # із ТУшок", "виліт групи Ту-95МС", "в повітрі: 7 Ту-95, 2 Ту-160". Those
@@ -58,7 +66,12 @@ _MISSILE = _MISSILE_WEAPON + _MISSILE_CARRIER
 # spotters track it position by position, which is exactly the jet-drone
 # profile the vector rendering is built for. 14 callouts in one night
 # (2026-08-19) stayed `unknown` before it was listed at all.
-_JET_MODEL = ("бандерол",)
+# «Молнія» joins it for the same reason and on the same evidence: a jet-powered
+# one-way drone that the Сумщина feed names 110 times, 84 of them in a message
+# the parser could otherwise not type at all. Listed here rather than in _JET
+# because it is a MODEL name and the feed pairs it with «ракета» twice — the
+# same priority argument Бандероль already makes.
+_JET_MODEL = ("бандерол", "молні")
 # Bare "реактив", not "реактивн" — the noun form is used too ("3 реактива повз
 # Славутич"); on 08-04 those stayed unknown and inherited ballistic.
 _JET = ("реактив", "швидкісн")
@@ -66,8 +79,36 @@ _JET = ("реактив", "швидкісн")
 # the generic class word the alert channel uses when it names no model
 # ("двом баражаючим боєприпасам"); with a model named, the more specific list
 # above wins the priority chain.
-_SHAHED = ("шахед", "shahed", "мопед", "герань", "герані", "дрон", "бпла",
-           "безпілотник", "безпілотн", "баражуюч", "баражаюч")
+# The three model names the Сумщина feed uses that the Kyiv one does not:
+# «Ланцет» (a loitering munition, 59 callouts), «Італмас» (a cheap long-range
+# strike drone, 25) and «Гербера» (the Shahed decoy clone, 37). None has a slot
+# of its own in `TargetType` and none behaves differently enough on this map to
+# earn one — they are all "a drone is coming", which is what `shahed` means
+# here. Гербера overlaps «шахед» in 21 of its 37 messages, so it only adds the
+# other 16; the other two are standalone in every message they appear in.
+# Named `_UAV`, not `_SHAHED`: this is the GENERIC drone bucket, and always was —
+# «дрон», «бпла», «безпілотник» and the class word «баражуюч» have been in it
+# since the first pass. It feeds `target_type == "shahed"`, which is a wire value
+# frozen in five DB columns, two JSON blobs, the OpenAPI schema, the LLM enum
+# rail and 44 hand-labelled eval rows, so THAT string stays. Every surface a
+# reader sees already says «БПЛА»/«UAV».
+_UAV = ("шахед", "shahed", "мопед", "герань", "герані", "дрон", "бпла",
+           "безпілотник", "безпілотн", "баражуюч", "баражаюч",
+           "ланцет", "італмас", "гербер")
+
+# FPV — a short-range quadcopter flown by an operator on a video link, and the
+# dominant weapon over a BORDER oblast: 198 Сумщина messages, 154 of them
+# localized and typed as nothing at all before this list existed. It is its own
+# `TargetType` rather than a `shahed`, because the two agree on nothing that
+# matters operationally — an FPV has ~20 km of range against a Shahed's 1000+,
+# flies at rooftop height, and is stale within minutes.
+#
+# «оптоволокно» is the fibre-optic control spool, not a weapon, but on this feed
+# it is only ever written about an FPV («fpv на оптоволокні», «загроза
+# оптоволокна для Сум») and it carries 28 messages that name no other type.
+# Zero occurrences in the Kyiv/Chernihiv corpus, all three of them — so this
+# list cannot move the existing type evals.
+_FPV = ("fpv", "фпв", "оптоволок")
 
 # Gender fallback: a bare masculine numeral implies a drone, since шахед/дрон/
 # БПЛА are masculine and "ракета" is feminine ("Один на водосховище"). Corpus:
@@ -748,7 +789,7 @@ _ENGAGEMENT = ("підтримало збір", "підтримали збір",
 # _WHOLE_WORD like "каб". Behavioural inference ("every track vanished with no
 # impacts" => decoy) is deliberately NOT done — a hint for a human, not a
 # classifier signal. ---
-_DECOY = ("імітаці", "реб", "обманк", "хибн", "фальшив")
+_DECOY = ("імітаці", "реб", "реби", "обманк", "хибн", "фальшив")
 
 # --- Hypersonic names — a flag on the attack (has_hypersonic), deliberately not
 # a 6th target_type (which would spread into evals/icons/severity for one
@@ -855,7 +896,52 @@ _WHOLE_WORD_ALIASES = frozenset({"чзв", "пох", "бц", "голос", "пу
                                  # village whose name is an ordinary noun — as a
                                  # stem it would claim «прогресу»/«прогресом» in
                                  # any fundraising or status post.
-                                 "прогрес"})
+                                 "прогрес",
+                                 # --- Сумщина, 2026-08-28. Each of these is a
+                                 # real place whose STEM is an ordinary word;
+                                 # whole-word matching keeps the place and drops
+                                 # the collision, exactly as for «остер».
+                                 # "суми" as a stem also swallows Сумихімпром,
+                                 # Сумиобленерго and a local media handle; the
+                                 # plant is a target of its own, so the city has
+                                 # to stop at the word boundary. All four case
+                                 # forms the corpus uses are listed — a
+                                 # whole-word alias carries no case tail.
+                                 "суми", "сум", "сумах", "сумами",
+                                 # "терн" reaches Тернопільщина and Тернівка.
+                                 "терни",
+                                 # "крут" is inside «крутиться»/«крутяться» —
+                                 # the two verbs this genre uses for a loitering
+                                 # drone, 12 corpus hits against the street's 15.
+                                 "крут",
+                                 # "перемог" is inside «заради нашої перемоги»
+                                 # and there is also a village Перемога. Paired
+                                 # with _ALIAS_PREV_WORD_REQUIRED below, so it
+                                 # counts only after «просп…».
+                                 "перемоги",
+                                 # "топол" is the poplar, and it is also the
+                                 # head of Тополянська — a different Суми area
+                                 # 1.2 km away with its own entry.
+                                 "тополя", "тополю",
+                                 # "сад" is 3 chars (never a stem) and "сади"
+                                 # would eat «садиби»/«садків».
+                                 "сад", "сади",
+                                 # Зелений Гай's only distinctive word, and
+                                 # "зелен" as a stem swallows «Зеленський» (39
+                                 # corpus hits against the place's 37).
+                                 "зелений",
+                                 # Блакитні Озера, same shape: «озера» is
+                                 # generic, and "блакитн" would claim any
+                                 # ordinary use of the adjective. Both, plus
+                                 # «старе», are additionally pinned to the noun
+                                 # that follows them — see
+                                 # _ALIAS_NEXT_WORD_REQUIRED below.
+                                 "блакитні", "старе",
+                                 # "річк" is the singular «річка» — it pinned
+                                 # the Kyiv feed's «річка "Либідь"
+                                 # пофарбувалася» onto a Sumy village. The
+                                 # hromada form rides on the longer «річків».
+                                 "річки"})
 
 # An alias that is also part of a PROPER NAME, keyed to the word that follows it.
 # "Голос Києва" is a Telegram channel other channels quote ("Голос Києва —
@@ -879,7 +965,50 @@ _ALIAS_NEXT_WORD_VETO: dict[str, tuple[str, ...]] = {
 # with one of these. "церкв" is Біла Церква's only matchable word (a spaced name
 # never becomes one stem), but on its own it would read a real strike report
 # ("приліт у церкву") as a callout over a town 80 km south.
-_ALIAS_PREV_WORD_REQUIRED: dict[str, tuple[str, ...]] = {"церкв": ("біл",)}
+_ALIAS_PREV_WORD_REQUIRED: dict[str, tuple[str, ...]] = {
+    "церкв": ("біл",),
+    # Суми's Проспект Перемоги is a spaced name, so it can only ride on
+    # «перемоги» — which is also an ordinary noun and the name of a village.
+    # The corpus never writes the avenue without the word before it («просп.»
+    # once, one typo «пропеспект»), so the preceding word settles it.
+    "перемоги": ("просп", "пропесп"),
+}
+
+# The third of the set: an alias that STOPS counting when the preceding word
+# starts with one of these — the mirror of _ALIAS_NEXT_WORD_VETO.
+#
+# It exists for one shape the other two cannot express: two places in the same
+# oblast whose only matchable word is identical, where one of them is a spaced
+# name qualified by the other's absence. Писарівка (Хотінська громада, on the
+# border, 41 corpus callouts) and Велика Писарівка (Охтирський район, 80 km
+# south-west, 24) share «писарівк» exactly. `_ALIAS_PREV_WORD_REQUIRED` is
+# keyed by the matched text and so applies to EVERY entry that matched it —
+# using it here would veto the bare village too. This veto keeps the bare
+# entry's 41 correct and leaves the 24 qualified ones unlocalized (Велика
+# Писарівка still matches its own «великописарівськ…» hromada form), which is
+# the trade GAZETTEER.md prescribes: unmatched is where they already were, a
+# pin 80 km out is a new lie.
+_ALIAS_PREV_WORD_VETO: dict[str, tuple[str, ...]] = {"писарівк": ("велик",)}
+
+# The fourth of the set, and the mirror of _ALIAS_PREV_WORD_REQUIRED: an alias
+# that counts only when the word AFTER it starts with one of these.
+#
+# It is what makes a spaced name shippable when the DISTINCTIVE half is the
+# first word and the second is generic. `_stem` strips spaces, so «зеленийгай»
+# never appears in text and such an entry can only ride on one of its words —
+# but «зелений», «блакитні» and «старе» are ordinary adjectives, so on their own
+# they are the Красна Гірка class GAZETTEER.md rejects. Pinned to the noun that
+# follows they are exact: all 37 Сумщина callouts of Зелений Гай carry it, and
+# the Kyiv feed's «яскраво зелений колір» — a real match before this existed —
+# cannot.
+#
+# Kept as whole-word aliases too, so the requirement is checked against a whole
+# adjective rather than a stem that a longer word could smuggle in.
+_ALIAS_NEXT_WORD_REQUIRED: dict[str, tuple[str, ...]] = {
+    "зелений": ("гай",),
+    "блакитні": ("озер",),
+    "старе": ("сел",),
+}
 
 # --- Everything above, as one word-start stem set ---
 # Consumed by `toponyms.py` to answer "is this word already something the parser
@@ -894,7 +1023,7 @@ _ALIAS_PREV_WORD_REQUIRED: dict[str, tuple[str, ...]] = {"церкв": ("біл"
 NON_TOPONYM_STEMS: frozenset[str] = frozenset(
     stem
     for stem in (
-        *_BALLISTIC, *_MISSILE, *_JET, *_JET_MODEL, *_SHAHED,
+        *_BALLISTIC, *_MISSILE, *_JET, *_JET_MODEL, *_UAV,
         *_CLEAR, *_DESTROYED, *_UNCONFIRMED, *_CONFIRMED, _UNSCOPED_CLEAR_WORD,
         *_NEW_TARGET, *_MOVEMENT_CUE, *_PULSE_WORD,
         *_THREAT_CONTEXT, *_AFTERMATH, *_CIVIC_NOTICE, *_REPORTAGE,
@@ -911,4 +1040,10 @@ NON_TOPONYM_STEMS: frozenset[str] = frozenset(
 # «пара» ("a couple of targets") belongs to the same class and for the same
 # reason: as a prefix it is the head of Парафіївка, so the coverage-gap queue
 # would never have proposed that village (2026-08-24).
-NON_TOPONYM_WORDS: frozenset[str] = frozenset(_NUM_WORDS) | {"пара", "пари", "пару"}
+NON_TOPONYM_WORDS: frozenset[str] = frozenset(_NUM_WORDS) | {
+    "пара", "пари", "пару",
+    # Kyiv's inhabitants, and «пост» — same class again: as prefixes they are the
+    # heads of Кияниця and Постольне, two Sumy villages (2026-08-28).
+    "кияни", "киян", "киянам", "киянами", "киянка", "киянин",
+    "пост", "пости", "постів", "постом",
+}

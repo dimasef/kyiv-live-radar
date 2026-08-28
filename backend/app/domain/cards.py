@@ -53,7 +53,7 @@ _DRAW_WEIGHTS = [RARITY_WEIGHT[CARD_RARITY.get(i, "common")] for i in _CARD_IDS]
 
 # Target types that represent a real inbound weapon a spotter would track — the
 # only ones eligible for analysis. Excludes 'unknown' (unclassified/banner rows).
-ANALYSABLE_TARGET_TYPES = frozenset({"shahed", "jet_drone", "missile", "ballistic"})
+ANALYSABLE_TARGET_TYPES = frozenset({"shahed", "jet_drone", "fpv", "missile", "ballistic"})
 
 
 def draw_card() -> int:

@@ -60,10 +60,16 @@ _OBLAST_STEMS = (
     # Дніпровське (a village on both sides of the border). The city itself
     # reaches us almost only as «Ціль на Дніпро», one candidate row's worth of
     # noise — cheaper than losing the next Дніпров- settlement.
-    "дніпропетровськ", "харків", "одес", "миколаїв", "херсон", "запоріж", "полтав",
-    "суми", "черкас", "кропивницьк", "житомир", "вінниц", "львів", "рівне",
+    "дніпропетровськ", "харків", "одес", "херсон", "запоріж", "полтав",
+    "черкас", "кропивницьк", "житомир", "вінниц", "львів", "рівне",
     "луцьк", "ужгород", "тернопіл", "хмельницьк", "чернівц", "кременчук",
-    "шостк", "конотоп",
+    # NOT "суми"/"шостк"/"конотоп" any more, and NOT bare "миколаїв". The first
+    # three left this list when Сумщина got a gazetteer (2026-08-28): they name
+    # OUR places now, and muting them here would have kept the coverage-gap
+    # queue from ever proposing Суми, Шостка, Конотоп or Сумихімпром. "миколаїв"
+    # went for the reason the "дніпро" note above gives — it is the head of
+    # Миколаївка, a village name too common to lose. The bare oblast centres
+    # cost one candidate row each; a village costs a night of blank map.
 )
 
 # --- Ordinary words the parser has no opinion about ---
@@ -76,7 +82,10 @@ _CHATTER_WORDS = (
     # Kyiv itself. `DistrictMatcher` skips the city-wide sentinel on purpose, so
     # `find("київ")` reports nothing and the bare city name would otherwise rank
     # as the single most frequent "missing place" in the whole feed.
-    "київ", "києв", "київськ", "кияни",
+    # "кияни" is NOT here: it is the head of Кияниця. The inhabitants are
+    # matched whole in vocab.NON_TOPONYM_WORDS instead, the same move «пара»
+    # made for Парафіївка.
+    "київ", "києв", "київськ",
     # Observation verbs and their forms.
     "спостеріга", "спостерігаєт", "спостерігают", "спостерігаються", "фіксуєт",
     "фіксується", "фіксуют", "зникл", "зникає", "залітают", "залітають",
@@ -116,7 +125,8 @@ _CHATTER_WORDS = (
     "бережіть", "себе", "безпеці", "спокійно", "спокійного", "спокійніше",
     "тихого", "тихо", "мирного", "бажаю", "уважно", "увага", "обережно",
     "додому", "дістатися", "стаємо", "нарешті", "підтримку", "підтримк",
-    "канал", "читач", "пост", "звязку", "звязок", "емоці",
+    # "пост" would be the head of Постольне; the noun is matched whole instead.
+    "канал", "читач", "звязку", "звязок", "емоці",
     # Adversary and generic threat nouns that are not target types.
     "ворог", "ворожих", "ворожі", "росія", "росіян", "терор", "атак", "обстріл",
     "удар", "ударів", "завдава", "нанесенн", "пуски", "пускові", "виліт",
@@ -156,7 +166,10 @@ _CHATTER_WORDS = (
     "ймовірн", "південні", "сумськ", "превентивн",
     # Fourth pass, against the live queue rather than the export — the loop this
     # list is meant to have: read the ranking, move what is plainly speech here.
-    "тримаєм", "тримают", "фіксац", "висовуй", "ворож", "працює", "бют",
+    # Not bare "ворож" — that is the head of Ворожба. Spelt out to the letter
+    # after the stem, so every adjective form still counts and the town does not.
+    "тримаєм", "тримают", "фіксац", "висовуй", "працює", "бют",
+    "ворожа", "ворожо", "ворожу", "ворожи", "ворожі", "вороже",
     "відомо", "краще", "лівом", "навіть", "немає", "нехай", "основном",
     "перебува", "попередн", "проте",
 )

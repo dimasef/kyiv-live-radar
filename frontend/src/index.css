@@ -910,7 +910,7 @@ body::after {
   pointer-events: none;
 }
 
-/* Switching the layer on used to drop thirteen raions, their glows and their
+/* Switching the layer on used to drop every raion, its glow and its
    labels onto the map in a single frame — a hard cut that reads as a glitch
    rather than as a layer arriving. Everything the layer owns fades in instead.
 

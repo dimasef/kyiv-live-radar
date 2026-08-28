@@ -20,6 +20,7 @@ from sqlalchemy import select
 from ...config import settings
 from ...models import RawMessage, Source
 from ...parsing import ParseResult
+from ...regions import HOME_REGION, label
 from ...timeutil import naive
 
 # One line per message: enough text to carry the type word and the direction,
@@ -60,13 +61,24 @@ async def build_type_context(session, when: datetime, *, exclude_raw_id: int | N
     """The last `llm_type_context_messages` messages from every channel within
     `llm_type_context_minutes` before `when`, oldest first, one line each.
 
+    Each line is labelled with its channel's REGION as well as its name. The
+    window is deliberately still national — a cruise or ballistic wave crosses
+    three oblasts inside one of these windows, and reading the neighbouring feed
+    is what makes the tier work at all (measured: cross-channel context types 22
+    of 25 cases, own-channel 3). But it stopped being safe to leave the region
+    implicit once Сумщина went live: that feed posts ~188 messages a day, most of
+    them about FPV quadcopters with a 20 km reach, which say nothing whatsoever
+    about a target over Kyiv. Naming the region lets the model discount them —
+    a cheaper and less destructive fix than filtering the window down, which
+    would also throw away the northern corridor that does predict Kyiv.
+
     `exclude_raw_id` drops the message being classified: on the live path it is
     already stored by the time this runs, and seeing itself in its own context
     invites the model to treat a bare toponym as its own evidence.
     """
     window_start = naive(when) - timedelta(minutes=settings.llm_type_context_minutes)
     stmt = (
-        select(RawMessage.text, RawMessage.event_time, Source.name)
+        select(RawMessage.text, RawMessage.event_time, Source.name, Source.region)
         .outerjoin(Source, RawMessage.source_id == Source.id)
         .where(RawMessage.event_time < when, RawMessage.event_time >= window_start)
         .order_by(RawMessage.event_time.desc(), RawMessage.id.desc())
@@ -76,8 +88,9 @@ async def build_type_context(session, when: datetime, *, exclude_raw_id: int | N
         stmt = stmt.where(RawMessage.id != exclude_raw_id)
     rows = list(await session.execute(stmt))
     lines = [
-        f"[-{_age_minutes(when, event_time)}хв {name or 'канал'}] "
+        f"[-{_age_minutes(when, event_time)}хв {label(region or HOME_REGION)}"
+        f"/{name or 'канал'}] "
         + " ".join((text or "").split())[:_MAX_LINE_CHARS]
-        for text, event_time, name in reversed(rows)
+        for text, event_time, name, region in reversed(rows)
     ]
     return "\n".join(lines)

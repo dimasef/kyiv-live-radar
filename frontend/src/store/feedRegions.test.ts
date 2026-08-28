@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest'
 
 import type { Region, RegionInfo } from '@/types'
 
-import { migrateFeedRegions, pruneFeedRegions, shownRegions } from './feedRegions'
+import {
+  isInFeed,
+  isPinnedRegion,
+  migrateFeedRegions,
+  pruneFeedRegions,
+  shownRegions,
+} from './feedRegions'
 
 const info = (id: Region, is_home = false): RegionInfo =>
   ({ id, name_uk: id, active: true, is_home, center_lat: 0, center_lon: 0 }) as RegionInfo
@@ -61,5 +67,55 @@ describe('which regions the feed shows', () => {
 
   it('sends just the extras before the catalogue names a home', () => {
     expect(shownRegions(['chernihiv'], null)).toEqual(['chernihiv'])
+  })
+})
+
+describe('the chip state a reader outside the home region sees', () => {
+  // Reported 2026-08-29: after switching the followed region to Сумщина, its
+  // chip in Налаштування → Стрічка подій could not be turned on.
+  //
+  // Three components computed "always in the feed" as `region.is_home` — the
+  // DEPLOYMENT's home (Київщина) — while the store computed it as the region
+  // the reader FOLLOWS. For a reader on Сумщина the two disagree, so its chip
+  // rendered off while `toggleFeedRegion` treated it as the pinned one and
+  // returned early: stuck off, and clicking did nothing.
+  const CATALOGUE = [info('kyiv', true), info('chernihiv'), info('sumy')]
+  const home = (id: Region) => CATALOGUE.find((r) => r.id === id)!.is_home
+
+  it('pins the FOLLOWED region and not the deployment home', () => {
+    expect(isPinnedRegion('sumy', 'sumy')).toBe(true)
+    expect(isPinnedRegion('kyiv', 'sumy')).toBe(false)
+    // The bug, stated as the disagreement it was: for this reader the
+    // catalogue flag and the real answer point at different regions.
+    expect(home('sumy')).toBe(false)
+    expect(home('kyiv')).toBe(true)
+  })
+
+  it('shows the followed region in the feed with no extras chosen', () => {
+    expect(isInFeed('sumy', [], 'sumy')).toBe(true)
+    // ...and this is what rendered false before, on a chip that then refused
+    // to toggle because the store considered it pinned.
+    expect(home('sumy') || [].includes('sumy' as never)).toBe(false)
+  })
+
+  it('still lets that reader add and drop the other regions', () => {
+    expect(isInFeed('kyiv', ['kyiv'], 'sumy')).toBe(true)
+    expect(isInFeed('chernihiv', ['kyiv'], 'sumy')).toBe(false)
+    expect(isPinnedRegion('kyiv', 'sumy')).toBe(false)
+  })
+
+  it('agrees with the catalogue for a reader who stayed on the home region', () => {
+    for (const r of CATALOGUE) {
+      expect(isPinnedRegion(r.id, 'kyiv')).toBe(r.is_home)
+    }
+    expect(shownRegions(['chernihiv'], 'kyiv')).toEqual(['kyiv', 'chernihiv'])
+  })
+
+  it('never lists the followed region twice when a stale extra names it', () => {
+    expect(shownRegions(['sumy', 'chernihiv'], 'sumy')).toEqual(['sumy', 'chernihiv'])
+  })
+
+  it('offers every declared region as a chip, home or not', () => {
+    expect(pruneFeedRegions(['sumy'], CATALOGUE)).toEqual(['sumy'])
   })
 })

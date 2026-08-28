@@ -3,13 +3,19 @@ import { useMemo, useState } from "react";
 import { MapContainer, ScaleControl, TileLayer } from "react-leaflet";
 
 import { homeStyleOf } from "@/lib/contactMarker";
-import { currentRegion, regionBounds } from "@/lib/regions";
+import { framingBounds } from "@/lib/regions";
 import { homeDangerFor, raionIdsForZone } from "@/lib/homeDanger";
 import { useRadar } from "@/store";
 import AlertZoneLayer from "./AlertZoneLayer";
 import AxisLayer from "./AxisLayer";
 import CitywidePulse from "./CitywidePulse";
-import { BASEMAP_URL, KYIV_BOUNDS, MIN_ZOOM, MOTION_BUDGET, WORLD_BOUNDS } from "./constants";
+import {
+  BASEMAP_URL,
+  MIN_ZOOM,
+  MOTION_BUDGET,
+  UKRAINE_BOUNDS,
+  WORLD_BOUNDS,
+} from "./constants";
 import {
   HomeController,
   InspectController,
@@ -39,13 +45,17 @@ export default function MapView() {
   const regions = useRadar((s) => s.regions);
   const chosenRegion = useRadar((s) => s.chosenRegion);
 
-  // What the map fits on load: the region the reader is in, or the city box
-  // when the catalogue has not answered yet. Read ONCE per mount on purpose —
-  // `bounds` is Leaflet's initial framing, and re-deriving it mid-session would
-  // yank the view out from under someone who had panned somewhere.
-  const [openingBounds] = useState(
-    () =>
-      regionBounds(regions, currentRegion({ regions, chosenRegion })) ?? KYIV_BOUNDS,
+  // What the map frames: the region the reader follows, or the whole country
+  // until one is known. Derived every render rather than read once at mount —
+  // the catalogue arrives AFTER first paint, so a mount-time read could only
+  // ever see the fallback, and a reader on Сумщина opened on Kyiv every reload.
+  //
+  // Re-deriving it is safe because ResizeHandler owns the actual fitting and
+  // only re-fits when this VALUE changes (the catalogue landing, or the reader
+  // picking another region) — never over a view they panned themselves.
+  const framing = useMemo(
+    () => framingBounds(regions, chosenRegion, UKRAINE_BOUNDS),
+    [regions, chosenRegion],
   );
 
   // A track being inspected might already be live (in `threats`) — in that
@@ -95,7 +105,7 @@ export default function MapView() {
     <div className="relative h-full w-full">
       <MapContainer
         ref={setMap}
-        bounds={openingBounds}
+        bounds={framing}
         boundsOptions={{ padding: [20, 20] }}
         minZoom={MIN_ZOOM}
         // Without these the map is an infinite carousel: Leaflet repeats the
@@ -139,7 +149,7 @@ export default function MapView() {
             because the bottom-left corner belongs to MapControls. */}
         <ScaleControl position="bottomright" imperial={false} maxWidth={110} />
 
-        <ResizeHandler />
+        <ResizeHandler bounds={framing} />
         <HomeController />
         <InspectController />
 

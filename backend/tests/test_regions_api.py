@@ -34,8 +34,12 @@ async def test_reports_which_regions_are_not_covered_yet(client):
     body = {r["id"]: r for r in (await client.get("/regions")).json()}
     assert body["kyiv"]["active"] is True
     assert body["chernihiv"]["active"] is True
-    assert body["sumy"]["active"] is False
+    assert body["sumy"]["active"] is True  # activated 2026-08-28
     assert body["sumy"]["name_uk"] == "Сумщина"
+    # Харківщина and Дніпропетровщина are still declared-but-empty: the picker
+    # has to be able to say «готується» for them.
+    assert body["kharkiv"]["active"] is False
+    assert body["dnipro"]["active"] is False
 
 
 @pytest.mark.asyncio

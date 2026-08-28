@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
 
 from pydantic import BaseModel, field_validator
 
@@ -27,7 +26,7 @@ class RawNoticeIn(BaseModel):
 class ThreatTypeIn(BaseModel):
     """PATCH /admin/threats/{id} — admin retype of a track's target."""
 
-    target_type: Literal["shahed", "jet_drone", "missile", "ballistic", "unknown"]
+    target_type: TargetType
 
 
 class EventDistrictIn(BaseModel):

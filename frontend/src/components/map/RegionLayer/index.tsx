@@ -2,7 +2,9 @@ import L from 'leaflet'
 import { useEffect } from 'react'
 import { GeoJSON, Popup, useMap } from 'react-leaflet'
 
+import { currentRegion } from '@/lib/regions'
 import { useRadar } from '@/store'
+import { isInFeed, isPinnedRegion } from '@/store/feedRegions'
 
 import { REGION_LAYER_MAX_ZOOM } from '../constants'
 import { tagPath } from '../tagPath'
@@ -37,6 +39,8 @@ export default function RegionLayer() {
   const ensureRegionOutlines = useRadar((s) => s.ensureRegionOutlines)
   const feedExtraRegions = useRadar((s) => s.feedExtraRegions)
   const noteRegionLayerSeen = useRadar((s) => s.noteRegionLayerSeen)
+  // The region the reader FOLLOWS — see store/feedRegions.isPinnedRegion.
+  const followed = useRadar((s) => currentRegion(s))
 
   const visible = zoom != null && zoom <= REGION_LAYER_MAX_ZOOM
 
@@ -56,15 +60,16 @@ export default function RegionLayer() {
       {regions.map((region) => {
         const shape = outlines[region.id]
         if (!shape) return null
-        const inFeed = region.is_home || feedExtraRegions.includes(region.id)
+        const inFeed = isInFeed(region.id, feedExtraRegions, followed)
+        const pinned = isPinnedRegion(region.id, followed)
         return (
           <GeoJSON
             // Remount on a state change so the new style is applied — Leaflet
             // caches the path options it was created with.
-            key={`${region.id}-${inFeed}`}
+            key={`${region.id}-${inFeed}-${pinned}`}
             data={shape.geojson}
             ref={(layer) => tagPath(layer, REGION_ATTR, region.id)}
-            style={regionStyle({ isHome: region.is_home, inFeed, active: region.active })}
+            style={regionStyle({ isHome: pinned, inFeed, active: region.active })}
             eventHandlers={{ click: (e) => L.DomEvent.stopPropagation(e) }}
           >
             <Popup>

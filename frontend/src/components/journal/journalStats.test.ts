@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { JournalDay } from '@/types'
+import type { JournalDay, TargetType } from '@/types'
 
 import {
   hasActivity,
@@ -9,6 +9,7 @@ import {
   monthGrid,
   monthRange,
   monthSummary,
+  TYPE_ORDER,
   typeSegments,
 } from './journalStats'
 
@@ -140,5 +141,18 @@ describe('monthRange', () => {
   it('spans the whole month, zero-padded', () => {
     expect(monthRange(2026, 6)).toEqual({ from: '2026-07-01', to: '2026-07-31' })
     expect(monthRange(2026, 1)).toEqual({ from: '2026-02-01', to: '2026-02-28' })
+  })
+})
+
+describe('TYPE_ORDER exhaustiveness', () => {
+  // TYPE_ORDER is a TargetType[], so TypeScript checks that every MEMBER is a
+  // valid type but not that every type is a member — a new one added to the
+  // union silently vanishes from every mix bar instead of failing the build.
+  // `fpv` was added on 2026-08-28 and this is what would have caught missing it.
+  it('lists every target type exactly once', () => {
+    const all: TargetType[] = [
+      'shahed', 'jet_drone', 'fpv', 'missile', 'ballistic', 'unknown',
+    ]
+    expect([...TYPE_ORDER].sort()).toEqual([...all].sort())
   })
 })

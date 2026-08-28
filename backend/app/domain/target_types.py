@@ -12,7 +12,8 @@ from __future__ import annotations
 def family(target_type: str) -> str:
     """Collapse target types to a family.
 
-    Ballistic is a specialization of missile, and jet_drone of a generic drone
+    Ballistic is a specialization of missile, and jet_drone and fpv of a generic
+    drone
     callout (a bare «БпЛА» parses as shahed, so «Реактивний БпЛА» + «БпЛА» about
     one target flagged a false conflict — track 274, 2026-07-18). Used for
     fusion's conflict detection, for axis matching (a ballistic wedge and a bare
@@ -24,7 +25,7 @@ def family(target_type: str) -> str:
     """
     if target_type in ("missile", "ballistic"):
         return "missile"
-    if target_type in ("shahed", "jet_drone"):
+    if target_type in ("shahed", "jet_drone", "fpv"):
         return "drone"
     return target_type
 
@@ -43,4 +44,8 @@ def upgrade_type(current: str, new: str) -> str:
         return new
     if {current, new} == {"missile", "ballistic"}:
         return "ballistic"
+    # Same shape one family over: the Сумщина feed opens with a bare «невідомий
+    # БпЛа» (which types `shahed`) and names the FPV a callout or two later.
+    if {current, new} == {"shahed", "fpv"}:
+        return "fpv"
     return current
