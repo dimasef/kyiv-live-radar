@@ -19,6 +19,9 @@ import type {
   RawOutcomeFilter,
   RawSource,
   Region,
+  RegionAt,
+  RegionInfo,
+  RegionOutlines,
   SourceLink,
   TargetType,
   Threat,
@@ -155,14 +158,27 @@ export const fetchRecentAlerts = (limit = 30) =>
 export const fetchAlertZones = () => get<AlertZone[]>('/alert-zones')
 /** Lazy: only fetched when the raion-alert layer is first switched on. */
 export const fetchAlertZoneGeometry = () => get<AlertZoneGeometry>('/alert-zones/geometry')
+/** The watched-region catalogue. Server-owned so a newly declared region shows
+ * up in the picker, the source grouping and the map without a frontend edit. */
+export const fetchRegions = () => get<RegionInfo[]>('/regions')
+/** Lazy: only fetched when the map first zooms out far enough to draw them. */
+export const fetchRegionOutlines = () => get<RegionOutlines>('/regions/geometry')
+/** Which watched region a point falls in. Asked of the server so the polygons
+ * and the ray-casting stay in one place; `region` is null outside all of them. */
+export const fetchRegionAt = (lat: number, lon: number) =>
+  get<RegionAt>(`/regions/at?lat=${lat}&lon=${lon}`)
 export const fetchHealth = () => get<HealthStatus>('/health')
 export const fetchRecentNotices = (limit = 30) =>
   get<Notice[]>(`/notices/recent?limit=${limit}`)
-// `region` narrows the page the feed loads to one watched pool. Without it a
-// reader who hides the other regions gets `limit` rows and only a fraction left
-// to read — the filter has to reach the query, not just the render.
-export const fetchRecentEvents = (limit = 60, region?: Region) =>
-  get<FeedEntry[]>(`/events/recent?limit=${limit}${region ? `&region=${region}` : ''}`)
+// `regions` narrows the page the feed loads to the pools asked for. Without it
+// a reader who hides the other regions gets `limit` rows and only a fraction
+// left to read — the filter has to reach the query, not just the render.
+// Repeated params rather than a CSV so the backend keeps validating each value.
+export const fetchRecentEvents = (limit = 60, regions?: readonly Region[]) =>
+  get<FeedEntry[]>(
+    `/events/recent?limit=${limit}` +
+      (regions ?? []).map((r) => `&region=${encodeURIComponent(r)}`).join(''),
+  )
 // Per-day threat-activity journal for the calendar page (/journal). `from`/`to`
 // are Kyiv-local YYYY-MM-DD; the response spans every day in [from, to].
 export const fetchJournal = (from: string, to: string) =>
@@ -276,12 +292,19 @@ export interface SourceCreateBody {
   name?: string
   role?: 'spotter' | 'alert'
   region?: Region
+  extra_regions?: Region[]
   trust_weight?: number
 }
 export type SourcePatch = Partial<
   Pick<
     Source,
-    'name' | 'role' | 'region' | 'trust_weight' | 'type_inherit_minutes' | 'is_active'
+    | 'name'
+    | 'role'
+    | 'region'
+    | 'extra_regions'
+    | 'trust_weight'
+    | 'type_inherit_minutes'
+    | 'is_active'
   >
 >
 export type SourceDeleteResult = Schemas['SourceDeleteOut']

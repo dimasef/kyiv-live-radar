@@ -15,14 +15,14 @@ Comments below are only what you need while editing that specific line.
 
 from __future__ import annotations
 
+# Re-exported: an entry with no `region` key defaults to it, and `app.parsing`
+# reads it from here. Safe to import — the registry is ORM-free too.
+from .regions import HOME_REGION as HOME_REGION
+
 # name_en of the city-wide sentinel "district" (last entry). DistrictMatcher
 # skips it so a real "київ" never over-matches; ingest attaches city-wide events
 # to it.
 CITYWIDE_NAME_EN = "Kyiv (citywide)"
-
-# Mirrors models.HOME_REGION — duplicated as a plain string rather than
-# imported, because this module and app.parsing are deliberately ORM-free.
-HOME_REGION = "kyiv"
 
 # Initial map framing AND the sentinel district's coordinates.
 KYIV_CENTER = {"lat": 50.4501, "lon": 30.5234}
@@ -1009,11 +1009,19 @@ DISTRICTS: list[dict] = [
 # Seed set of monitored sources. `channel_key` is the Telegram handle we'd
 # subscribe to via Telethon later; `trust_weight` biases fusion confidence.
 # The aggregator has a low weight because it mostly reposts the others.
+# `extra_regions` widens what a channel may localize into beyond its primary
+# `region` — a source never pins a place outside its bindings. The Kyiv spotter
+# channels carry the northern approach as well as their own oblast, so they are
+# bound to both; narrow or widen a real channel in /admin, not here.
 SOURCES: list[dict] = [
-    {"channel_key": "kyiv_ppo", "name": "Київ ППО монітор", "trust_weight": 1.0},
-    {"channel_key": "povitryanka", "name": "Повітряна тривога", "trust_weight": 1.0},
-    {"channel_key": "shahed_watch", "name": "Shahed Watch", "trust_weight": 0.8},
-    {"channel_key": "aggregator", "name": "Агрегатор (репости)", "trust_weight": 0.4},
+    {"channel_key": "kyiv_ppo", "name": "Київ ППО монітор", "trust_weight": 1.0,
+     "extra_regions": ["chernihiv"]},
+    {"channel_key": "povitryanka", "name": "Повітряна тривога", "trust_weight": 1.0,
+     "extra_regions": ["chernihiv"]},
+    {"channel_key": "shahed_watch", "name": "Shahed Watch", "trust_weight": 0.8,
+     "extra_regions": ["chernihiv"]},
+    {"channel_key": "aggregator", "name": "Агрегатор (репости)", "trust_weight": 0.4,
+     "extra_regions": ["chernihiv"]},
     # role='alert' -> routed through alert_parser.py, not the spotter parser
     # (see telegram_listener.py). Dormant unless ALERT_CHANNELS names it.
     # trust_weight is unused for an alert-role source (spotter fusion only).

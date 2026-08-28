@@ -22,6 +22,7 @@ from ..feeds.common import RegionMatchers
 from ..gazetteer import DISTRICTS
 from ..migrate import upgrade_to_head
 from ..models import (
+    HOME_REGION,
     Alert,
     District,
     Incident,
@@ -217,11 +218,14 @@ async def run_reprocess(
             if limit:
                 stmt = stmt.limit(limit)
             raws = list(await s.scalars(stmt))
-        # Per-region matchers, picked by each message's own channel — the
-        # rebuild must resolve homonyms exactly as the live listener did.
+        # Per-source matchers, restricted to each channel's own region binding —
+        # the rebuild must see exactly what the live listener saw, homonyms and
+        # out-of-region names alike.
         matchers = RegionMatchers(districts)
         role_by_source_id = {src.id: src.role for src in sources}
-        region_by_source_id = {src.id: src.region for src in sources}
+        binding_by_source_id = {
+            src.id: (src.region, list(src.extra_regions or [])) for src in sources
+        }
 
         log.info("reprocess: replaying %d raw messages", len(raws))
         matched = 0
@@ -239,7 +243,9 @@ async def run_reprocess(
                 else:
                     broadcasts = await process_parsed(
                         s, raw=r, text=text,
-                        matcher=matchers.for_region(region_by_source_id.get(raw.source_id)),
+                        matcher=matchers.for_source(
+                            *binding_by_source_id.get(raw.source_id, (HOME_REGION, []))
+                        ),
                         when=raw.event_time,
                         source_id=raw.source_id, message_id=raw.message_id,
                         forwarded_from_id=raw.forwarded_from_id,

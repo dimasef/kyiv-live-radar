@@ -2,8 +2,12 @@ import { Rows3 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { fetchRecentEvents } from '@/api'
+import { currentRegion } from '@/lib/regions'
 import { useRadar } from '@/store'
+import { shownRegions } from '@/store/feedRegions'
 import { FEED_LIMITS, type FeedLimit, type FeedTextSize, type SheetHeight } from '@/store/prefsSlice'
+
+import FeedRegionChips from './FeedRegionChips'
 
 const HEIGHTS: SheetHeight[] = ['low', 'mid', 'high']
 const SIZES: FeedTextSize[] = ['sm', 'md', 'lg']
@@ -25,23 +29,22 @@ export default function FeedSettings() {
   const setFeedTextSize = useRadar((s) => s.setFeedTextSize)
   const feedLimit = useRadar((s) => s.feedLimit)
   const setFeedLimit = useRadar((s) => s.setFeedLimit)
-  const feedOtherRegions = useRadar((s) => s.feedOtherRegions)
-  const setFeedOtherRegions = useRadar((s) => s.setFeedOtherRegions)
+  const feedExtraRegions = useRadar((s) => s.feedExtraRegions)
+  const regions = useRadar((s) => s.regions)
+  const chosenRegion = useRadar((s) => s.chosenRegion)
   const feedShowSource = useRadar((s) => s.feedShowSource)
   const setFeedShowSource = useRadar((s) => s.setFeedShowSource)
   const setLog = useRadar((s) => s.setLog)
 
   // Changing the count re-fetches the feed so it takes effect immediately.
+  // (Toggling a region re-fetches too — that one lives in the store action, so
+  // the chips don't have to know.)
   const changeLimit = (n: FeedLimit) => {
     setFeedLimit(n)
-    fetchRecentEvents(n, feedOtherRegions ? undefined : 'kyiv').then(setLog).catch(() => {})
-  }
-
-  // Re-fetch on toggle too, so the page is worth `feedLimit` rows either way —
-  // filtering only what's already loaded would leave a fraction of a feed.
-  const changeRegions = (on: boolean) => {
-    setFeedOtherRegions(on)
-    fetchRecentEvents(feedLimit, on ? undefined : 'kyiv').then(setLog).catch(() => {})
+    const region = currentRegion({ regions, chosenRegion })
+    fetchRecentEvents(n, shownRegions(feedExtraRegions, region))
+      .then(setLog)
+      .catch(() => {})
   }
 
   const label = 'mb-1 block text-[11px] text-slate-500'
@@ -89,18 +92,7 @@ export default function FeedSettings() {
       </div>
 
       <span className={`${label} mt-3`}>{t('settings.feedRegions')}</span>
-      <div className="flex gap-1">
-        {[true, false].map((on) => (
-          <button
-            key={String(on)}
-            onClick={() => changeRegions(on)}
-            aria-pressed={feedOtherRegions === on}
-            className={seg(feedOtherRegions === on)}
-          >
-            {t(on ? 'settings.feedRegionsAll' : 'settings.feedRegionsHome')}
-          </button>
-        ))}
-      </div>
+      <FeedRegionChips />
 
       {/* Display only — unlike the region filter above, nothing is re-fetched:
           every card already carries its source name. */}

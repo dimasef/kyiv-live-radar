@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta
 
+import sqlalchemy as sa
 from sqlalchemy import select
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -70,23 +71,28 @@ async def evaluate_home_danger(session, threat: Threat) -> None:
     (broadcast_results' _load_full already does)."""
     if not (settings.home_danger_enabled and settings.push_configured):
         return
-    # Homes are in Kyiv. A northern early-warning track is 100+ km away by
-    # construction, so the geometry would say "safe" anyway — but this is a
-    # phone waking someone at 3am, so the region gate is explicit rather than
-    # left to the distance math.
-    if threat.region != HOME_REGION:
-        return
     if threat.scope == "city":
         await _evaluate_citywide(session, threat)
         return
-    # Only subscriptions that have a home can be assessed against one — filter
-    # in SQL rather than loading every row and skipping most of them. (The
-    # citywide path below deliberately does NOT require a home.)
+    # Only subscriptions that have a home can be assessed against one, and only
+    # those following THIS track's region — a device in Kharkiv is not woken by
+    # a Kyiv track and vice versa. Both filters in SQL rather than loading every
+    # row and skipping most of them.
+    #
+    # The region gate used to be a single `threat.region != HOME_REGION` return
+    # at the top. It cannot be: the region is a property of the DEVICE now, not
+    # of the deployment, so it has to be asked per subscription. NULL means the
+    # home region, which is what every row predating the column was.
+    #
+    # It stays an explicit gate rather than being left to the distance math even
+    # though a far-away track would measure "safe" anyway — this is a phone
+    # waking someone at 3am.
     subs = list(
         await session.scalars(
             select(PushSubscription).where(
                 PushSubscription.home_lat.is_not(None),
                 PushSubscription.home_lon.is_not(None),
+                _follows_region(threat.region),
             )
         )
     )
@@ -186,13 +192,28 @@ def build_payload(level: DangerLevel, threat: Threat, home: HomeZone) -> dict:
     }
 
 
+def _follows_region(region: str):
+    """SQL predicate: this subscription wants `region`'s tracks.
+
+    NULL on the column means the deployment's home region — the implicit value
+    of every row written before devices could travel."""
+    if region == HOME_REGION:
+        return sa.or_(PushSubscription.region.is_(None), PushSubscription.region == region)
+    return PushSubscription.region == region
+
+
 async def _evaluate_citywide(session, threat: Threat) -> None:
     """Push once per city-wide alert track to every subscription that opted in
     («загроза по всьому місту»). No zone geometry — the whole city is the zone;
     a home is not even required. Deduped per (subscription, track) via the same
     danger_state bookkeeping (key "city:<id>"), so the grace-period reopen of a
     stood-down alert does NOT re-push; a genuinely new salvo has a new track."""
-    subs = list(await session.scalars(select(PushSubscription)))
+    # City-wide tracks are forced to the home region on creation (see
+    # ingest/handlers), so this is «загроза по всьому місту» for the home city
+    # only — a device following another region must not be woken by it.
+    subs = list(
+        await session.scalars(select(PushSubscription).where(_follows_region(threat.region)))
+    )
     any_changed = False
     for sub in subs:
         _, allowed_types, citywide_on = _sub_prefs(sub)

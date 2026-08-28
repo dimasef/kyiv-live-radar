@@ -21,6 +21,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from ..regions import watched_regions
+
 # Compass sector -> representative bearing (deg, 0=N, 90=E), the wedge direction
 # the frontend draws when only a sector is known (no specific origin toponym).
 SECTORS = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
@@ -141,42 +143,70 @@ def match_origin(norm: str) -> Origin | None:
 # had somewhere to go: its own region's track pool. What still has to hold is
 # that «з Чернігівщини курсом на Дніпро» stays suppressed — Дніпро is in this
 # list and is not in origin position, so the count below still catches it.
-_OTHER_OBLAST = ("брянщин", "курщин", "ростов", "воронеж", "воронєж",
-                 "дніпропетровщин", "дніпро", "запоріжж", "миколаївщин", "сумщин",
-                 "полтавщин", "харківщин", "харков", "білорус", "крим",
-                 "житомирщин", "вінницьк", "вінниччин", "вінничин",
-                 "черкащин", "одещин", "херсонщин",
-                 "черкас", "полтав", "суми", "сумах", "житомирську обл",
-                 "житомирської обл", "жашків", "одес", "миколаїв",
-                 "львівщин", "дрогобич", "самбір", "стрий", "рівненщин", "волин",
-                 "тернопільщин", "тернопіл", "закарпат", "франківськ",
-                 "хмельниччин", "хмельницьк", "кіровоградщин", "донеччин",
-                 "луганщин", "чернівц", "буковин",
-                 "польщ", "люблін", "молдов", "румун",
-                 # Third sweep, same rule as the second: a TOWN the feed names
-                 # as the target while its oblast is never mentioned, so the
-                 # message reached the LLM and came back empty — «Реактивний
-                 # біля Пирятина» (Poltava), «На Конотоп йде ймовірно
-                 # бандероль» (Sumy), «Є загроза Кропивницькому» (Kirovohrad).
-                 # Zero collisions across the 4900-message corpus.
-                 #
-                 # NOT here, deliberately: Бахмач. It is CHERNIHIV oblast, a
-                 # watched region — «Ще бандероль на Бахмач з Сумської» is the
-                 # northern corridor doing its job, and it belongs in the
-                 # gazetteer, not in this list. Same for Ніжин and Прилуки, see
-                 # _WATCHED_OBLAST below.
-                 "пирятин", "конотоп", "кропивницьк",
-                 # Fourth sweep, same shape: «Ромни літає один», «Ромни кружляє
-                 # реактивний» — a Sumy town named as the target with its oblast
-                 # unmentioned, so 4 of its 12 corpus mentions reached the LLM
-                 # and came back "noise". 12/12 word-start hits are the town.
-                 "ромн")
+#
+# That removal is now the MECHANISM rather than an edit: this list is the raw
+# material, and `split_oblast_stems` below hands every stem belonging to a
+# watched region (`RegionSpec.threat_stems`) over to `_WATCHED_OBLAST`. Leave
+# entries here when their region goes active — deleting one throws away the
+# corpus evidence recorded beside it.
+_OTHER_OBLAST_RAW = ("брянщин", "курщин", "ростов", "воронеж", "воронєж",
+                     "дніпропетровщин", "дніпро", "запоріжж", "миколаївщин", "сумщин",
+                     "полтавщин", "харківщин", "харков", "білорус", "крим",
+                     "житомирщин", "вінницьк", "вінниччин", "вінничин",
+                     "черкащин", "одещин", "херсонщин",
+                     "черкас", "полтав", "суми", "сумах", "житомирську обл",
+                     "житомирської обл", "жашків", "одес", "миколаїв",
+                     "львівщин", "дрогобич", "самбір", "стрий", "рівненщин", "волин",
+                     "тернопільщин", "тернопіл", "закарпат", "франківськ",
+                     "хмельниччин", "хмельницьк", "кіровоградщин", "донеччин",
+                     "луганщин", "чернівц", "буковин",
+                     "польщ", "люблін", "молдов", "румун",
+                     # Third sweep, same rule as the second: a TOWN the feed names
+                     # as the target while its oblast is never mentioned, so the
+                     # message reached the LLM and came back empty — «Реактивний
+                     # біля Пирятина» (Poltava), «На Конотоп йде ймовірно
+                     # бандероль» (Sumy), «Є загроза Кропивницькому» (Kirovohrad).
+                     # Zero collisions across the 4900-message corpus.
+                     #
+                     # NOT here, deliberately: Бахмач. It is CHERNIHIV oblast, a
+                     # watched region — «Ще бандероль на Бахмач з Сумської» is the
+                     # northern corridor doing its job, and it belongs in the
+                     # gazetteer, not in this list. Same for Ніжин and Прилуки, see
+                     # _WATCHED_OBLAST below.
+                     "пирятин", "конотоп", "кропивницьк",
+                     # Fourth sweep, same shape: «Ромни літає один», «Ромни кружляє
+                     # реактивний» — a Sumy town named as the target with its oblast
+                     # unmentioned, so 4 of its 12 corpus mentions reached the LLM
+                     # and came back "noise". 12/12 word-start hits are the town.
+                     "ромн")
+
+
+def split_oblast_stems(
+    raw: tuple[str, ...], watched: tuple[str, ...]
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Split the curated list into (someone else's threat, ours but not Kyiv).
+
+    A stem naming a WATCHED region moves out of the first list into the second:
+    a target there stops being noise and becomes a sighting for that region's
+    own pool, while still not being a Kyiv target. Activating a region is
+    therefore one flag in `app.regions`, not an edit to the list above — the
+    corpus evidence recorded per line stays true either way.
+
+    Pure so a test can play out a hypothetical activation without flipping it.
+    """
+    watched_set = set(watched)
+    return tuple(s for s in raw if s not in watched_set), watched
+
+
 # Regions we WATCH but that are still not Kyiv. A target over one of them is
 # ours to track (its own pool) — but it is not a Kyiv target, so anything that
 # speaks specifically about the KYIV city alert must keep ignoring it: a terse
 # «Цілі на Чернігівщині» must not corroborate the city-wide alert, and a
 # «По Чернігівщині тихо» bulletin is not a Kyiv bulletin.
-_WATCHED_OBLAST = ("чернігівщин", "чернігів", "ніжин", "прилук")
+_OTHER_OBLAST, _WATCHED_OBLAST = split_oblast_stems(
+    _OTHER_OBLAST_RAW,
+    tuple(stem for spec in watched_regions() for stem in spec.threat_stems),
+)
 
 
 def _alt(forms) -> str:

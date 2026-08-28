@@ -96,7 +96,7 @@ export const createNotifySlice: StateCreator<RadarState, [], [], NotifySlice> = 
     safeSet(STORAGE_KEYS.notifyPrefs, JSON.stringify(next))
     set({ notifyPrefs: next })
     if (get().notifyStatus === 'on') {
-      void resyncHomePush(get().home, next).catch(() => {})
+      void resyncHomePush(get().home, next, get().chosenRegion).catch(() => {})
     }
   },
 
@@ -105,7 +105,7 @@ export const createNotifySlice: StateCreator<RadarState, [], [], NotifySlice> = 
     if (!home || get().notifyStatus === 'unsupported') return
     set({ notifyStatus: 'pending' })
     try {
-      const permission = await subscribeHomePush(home, get().notifyPrefs)
+      const permission = await subscribeHomePush(home, get().notifyPrefs, get().chosenRegion)
       if (permission === 'granted') {
         safeSet(STORAGE_KEYS.notify, '1')
         set({ notifyStatus: 'on' })

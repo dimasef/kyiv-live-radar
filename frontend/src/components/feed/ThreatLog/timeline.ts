@@ -14,7 +14,7 @@ export function daySeparatorLabel(dayKey: string, lang: string, t: (k: string) =
   return label.charAt(0).toUpperCase() + label.slice(1)
 }
 
-/** Drop sightings from watched regions other than the home one.
+/** Keep only the sightings from regions the reader has chosen to see.
  *
  * A northern night is mostly Чернігівщина — real targets, but 150 km away and
  * not what someone watching Kyiv is reading the feed for. Filtering here rather
@@ -23,10 +23,9 @@ export function daySeparatorLabel(dayKey: string, lang: string, t: (k: string) =
  */
 export function filterFeedRegions(
   log: FeedEntry[],
-  otherRegions: boolean,
-  home: Region = 'kyiv',
+  shown: ReadonlySet<Region>,
 ): FeedEntry[] {
-  return otherRegions ? log : log.filter((e) => e.threat.region === home)
+  return log.filter((e) => shown.has(e.threat.region))
 }
 
 /** The same filter for notices, which the sightings filter used to skip.
@@ -43,10 +42,10 @@ export function filterFeedRegions(
  */
 export function filterFeedNotices(
   notices: Notice[],
-  otherRegions: boolean,
+  shown: ReadonlySet<Region>,
   home: Region = 'kyiv',
 ): Notice[] {
-  return otherRegions ? notices : notices.filter((n) => (n.region ?? home) === home)
+  return notices.filter((n) => shown.has(n.region ?? home))
 }
 
 // One real message can close several tracks at once (e.g. an untyped

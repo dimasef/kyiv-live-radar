@@ -1,6 +1,7 @@
 import { deletePushSubscribe, fetchPushConfig, postPushSubscribe } from '@/api'
 import type { Home } from '@/store/homeSlice'
 import type { NotifyPrefs } from '@/store/notifySlice'
+import type { Region } from '@/types'
 
 /** Browser side of Web Push for danger-near-home: permission + PushManager
  * subscription + registering it (with the home zone) on the backend. The
@@ -35,7 +36,12 @@ function wirePrefs(prefs: NotifyPrefs) {
   return { min_level: prefs.minLevel, types, citywide: prefs.citywide }
 }
 
-function toBody(sub: PushSubscription, home: Home | null, prefs: NotifyPrefs) {
+function toBody(
+  sub: PushSubscription,
+  home: Home | null,
+  prefs: NotifyPrefs,
+  region: Region | null,
+) {
   const json = sub.toJSON()
   return {
     subscription: {
@@ -44,6 +50,10 @@ function toBody(sub: PushSubscription, home: Home | null, prefs: NotifyPrefs) {
     },
     home: home ? { lat: home.lat, lon: home.lon, radius_km: home.radiusKm } : null,
     prefs: wirePrefs(prefs),
+    // Only the HAND-PICKED region travels: with none, the server derives it
+    // from the home point above, which keeps one answer to "where is this
+    // device" instead of two that can disagree.
+    region,
   }
 }
 
@@ -52,6 +62,7 @@ function toBody(sub: PushSubscription, home: Home | null, prefs: NotifyPrefs) {
 export async function subscribeHomePush(
   home: Home,
   prefs: NotifyPrefs,
+  region: Region | null = null,
 ): Promise<NotificationPermission> {
   const permission = await Notification.requestPermission()
   if (permission !== 'granted') return permission
@@ -64,17 +75,21 @@ export async function subscribeHomePush(
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(config.public_key),
     }))
-  await postPushSubscribe(toBody(sub, home, prefs))
+  await postPushSubscribe(toBody(sub, home, prefs, region))
   return permission
 }
 
 /** Re-register the existing subscription (home moved / prefs changed / app
  * boot) so the server's copy never goes stale. No-op when the browser holds
  * no subscription. */
-export async function resyncHomePush(home: Home | null, prefs: NotifyPrefs): Promise<void> {
+export async function resyncHomePush(
+  home: Home | null,
+  prefs: NotifyPrefs,
+  region: Region | null = null,
+): Promise<void> {
   const sub = await getBrowserSubscription()
   if (!sub) return
-  await postPushSubscribe(toBody(sub, home, prefs))
+  await postPushSubscribe(toBody(sub, home, prefs, region))
 }
 
 export async function unsubscribeHomePush(): Promise<void> {

@@ -1,19 +1,11 @@
 import L from "leaflet";
 import { useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
-import {
-  Circle,
-  MapContainer,
-  Marker,
-  ScaleControl,
-  TileLayer,
-  Tooltip,
-} from "react-leaflet";
+import { MapContainer, ScaleControl, TileLayer } from "react-leaflet";
 
-import { contactMarkerSvg, homeStyleOf } from "@/lib/contactMarker";
+import { homeStyleOf } from "@/lib/contactMarker";
+import { currentRegion, regionBounds } from "@/lib/regions";
 import { homeDangerFor, raionIdsForZone } from "@/lib/homeDanger";
 import { useRadar } from "@/store";
-import { HOME_DANGER_COLORS } from "@/theme";
 import AlertZoneLayer from "./AlertZoneLayer";
 import AxisLayer from "./AxisLayer";
 import CitywidePulse from "./CitywidePulse";
@@ -27,34 +19,15 @@ import {
 import DistrictLayer from "./DistrictLayer";
 import FriendLayer from "./FriendLayer";
 import HomeCompass from "./HomeCompass";
+import HomeMarker from "./HomeMarker";
 import HomePlacement from "./HomePlacement";
 import MapControls from "./MapControls";
+import RegionLayer from "./RegionLayer";
 import ThreatLayer from "./ThreatLayer";
 import { useMapViewport } from "./useMapViewport";
 import { isVisible } from "./viewportCull";
 
-const HOME_SIZE = 22;
-
-// One icon per (shape, colour) pair; cached so a re-render doesn't rebuild an
-// identical divIcon.
-const homeIconCache = new Map<string, L.DivIcon>();
-function homeIcon(shape: string, color: string, glow: boolean): L.DivIcon {
-  const key = `${shape}|${color}|${glow}`;
-  let icon = homeIconCache.get(key);
-  if (!icon) {
-    icon = L.divIcon({
-      className: "home-marker",
-      html: contactMarkerSvg(shape, color, HOME_SIZE, glow),
-      iconSize: [HOME_SIZE, HOME_SIZE],
-      iconAnchor: [HOME_SIZE / 2, HOME_SIZE / 2],
-    });
-    homeIconCache.set(key, icon);
-  }
-  return icon;
-}
-
 export default function MapView() {
-  const { t } = useTranslation();
   const threats = useRadar((s) => s.threats);
   const boundaries = useRadar((s) => s.boundaries);
   const home = useRadar((s) => s.home);
@@ -63,6 +36,17 @@ export default function MapView() {
   const inspectedThreat = useRadar((s) => s.inspectedThreat);
   const zoneLayerOn = useRadar((s) => s.zoneLayerOn);
   const [map, setMap] = useState<L.Map | null>(null);
+  const regions = useRadar((s) => s.regions);
+  const chosenRegion = useRadar((s) => s.chosenRegion);
+
+  // What the map fits on load: the region the reader is in, or the city box
+  // when the catalogue has not answered yet. Read ONCE per mount on purpose —
+  // `bounds` is Leaflet's initial framing, and re-deriving it mid-session would
+  // yank the view out from under someone who had panned somewhere.
+  const [openingBounds] = useState(
+    () =>
+      regionBounds(regions, currentRegion({ regions, chosenRegion })) ?? KYIV_BOUNDS,
+  );
 
   // A track being inspected might already be live (in `threats`) — in that
   // case the live copy has fresher data, so just highlight it in place rather
@@ -106,17 +90,12 @@ export default function MapView() {
   // is exactly the one worth warning about while the map is looking elsewhere.
   // Culling decides what is drawn, never what is known.
   const danger = home ? homeDangerFor(threats, home, homeRaionIds) : "none";
-  // The user's colour is theirs only while nothing is coming: an approaching
-  // threat repaints the marker orange/red, because that colour is a warning
-  // rather than decoration. The chosen SHAPE always survives — it says which
-  // marker is yours, which matters most when several are close together.
-  const homeCircleColor = danger === "none" ? homeStyle.color : HOME_DANGER_COLORS[danger];
 
   return (
     <div className="relative h-full w-full">
       <MapContainer
         ref={setMap}
-        bounds={KYIV_BOUNDS}
+        bounds={openingBounds}
         boundsOptions={{ padding: [20, 20] }}
         minZoom={MIN_ZOOM}
         // Without these the map is an infinite carousel: Leaflet repeats the
@@ -145,6 +124,10 @@ export default function MapView() {
             <ZoneAutoFit />
           </>
         )}
+        {/* Oblast outlines + the menu that adds a region to the feed. Only
+            drawn zoomed out past the raion layer, and unmounted while home
+            placement is armed so its popup can never eat that click. */}
+        {!placingHome && <RegionLayer />}
         {/* Real OSM raion boundaries with hover name tooltips; clicks bubble
             through to the map (pan / home placement). */}
         <DistrictLayer />
@@ -163,31 +146,7 @@ export default function MapView() {
         {/* Hidden while arming a new position — HomePlacement shows the single
             house being placed (cursor ghost / center pin) instead. */}
         {home && !placingHome && (
-          <>
-            {/* Keyed by danger level: setStyle doesn't re-apply className, so
-                the pulse class only attaches on a fresh mount (same trick as
-                CitywidePulse's color-keyed GeoJSON). */}
-            <Circle
-              key={`home-${danger}`}
-              center={[home.lat, home.lon]}
-              radius={home.radiusKm * 1000}
-              pathOptions={{
-                color: homeCircleColor,
-                fillColor: homeCircleColor,
-                fillOpacity: danger === "none" ? 0.06 : 0.14,
-                weight: danger === "none" ? 1 : 2,
-                className: danger === "danger" ? "home-danger-pulse" : undefined,
-              }}
-            />
-            <Marker
-              position={[home.lat, home.lon]}
-              icon={homeIcon(homeStyle.icon, homeCircleColor, homeStyle.glow)}
-            >
-              <Tooltip direction="top" offset={[0, -18]}>
-                {t("legend.home")} · {home.lat.toFixed(4)}, {home.lon.toFixed(4)}
-              </Tooltip>
-            </Marker>
-          </>
+          <HomeMarker home={home} homeStyle={homeStyle} danger={danger} />
         )}
 
         {/* Shared homes of friends (markers only — no radius, no danger). */}

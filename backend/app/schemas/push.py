@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from ..regions import Region
+
 
 class PushKeysIn(BaseModel):
     """The browser PushSubscription's encryption keys."""
@@ -48,6 +50,10 @@ class PushSubscribeIn(BaseModel):
     subscription: BrowserSubscriptionIn
     home: HomeZoneIn | None = None
     prefs: PushPrefsIn | None = None
+    # Which region this DEVICE wants waking for. Omit to let the server derive
+    # it from the home point (the normal case); send it to override, which is
+    # what "I am in Kharkiv this week" means without moving the home marker.
+    region: Region | None = None
 
 
 class PushUnsubscribeIn(BaseModel):

@@ -5,7 +5,8 @@ import { updateSource, type Source } from '@/api'
 import { useDismissTransition } from '@/lib/useDismissTransition'
 import type { Region } from '@/types'
 
-import { REGION_LABELS } from './sourceFormat'
+import ExtraRegionsPicker from './ExtraRegionsPicker'
+import RegionSelect from './RegionSelect'
 
 /** Edit a source's name / role / region / trust_weight in a modal (mirrors
  * AuthModal's shell). trust_weight is shown only for spotter channels — it's
@@ -23,6 +24,7 @@ export default function SourceEditModal({
   const [name, setName] = useState(source.name)
   const [role, setRole] = useState<Source['role']>(source.role)
   const [region, setRegion] = useState<Region>(source.region)
+  const [extraRegions, setExtraRegions] = useState<Region[]>(source.extra_regions ?? [])
   const [weight, setWeight] = useState(String(source.trust_weight))
   // Empty input = "leave on the server default" — the PATCH omits the field
   // rather than sending a 0, which would mean "never inherit" instead.
@@ -40,6 +42,9 @@ export default function SourceEditModal({
         name: name.trim() || source.name,
         role,
         region,
+        // The primary is always bound; keeping it out of the extras stops the
+        // two from disagreeing after the operator switches the primary.
+        extra_regions: extraRegions.filter((r) => r !== region),
         trust_weight: Number(weight),
         ...(inheritMinutes === '' ? {} : { type_inherit_minutes: Number(inheritMinutes) }),
       })
@@ -86,17 +91,15 @@ export default function SourceEditModal({
             <span className="mb-1 block text-[11px] text-slate-500">
               Регіон — куди йдуть повідомлення без назви району («Відбій», «Чисто»)
             </span>
-            <select
-              className={field}
-              value={region}
-              onChange={(e) => setRegion(e.target.value as Region)}
-            >
-              {Object.entries(REGION_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+            <RegionSelect className={field} value={region} onChange={setRegion} />
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-[11px] text-slate-500">
+              Ще області — куди цей канал МОЖЕ ставити цілі. Назву поза цим
+              списком буде проігноровано, а не поставлено за 300 км.
+            </span>
+            <ExtraRegionsPicker primary={region} value={extraRegions} onChange={setExtraRegions} />
           </label>
 
           {role === 'spotter' && (

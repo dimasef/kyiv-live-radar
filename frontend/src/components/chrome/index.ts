@@ -1,6 +1,7 @@
 export { default as AppShell } from './AppShell'
 export { default as AppStatus } from './AppStatus'
 export { default as DisclaimerModal } from './DisclaimerModal'
+export { default as RegionPickerModal } from './RegionPickerModal'
 export { default as ErrorBoundary } from './ErrorBoundary'
 export { default as FeedToggle } from './FeedToggle'
 export { default as HomeControl, requestGeolocation } from './HomeControl'

@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import re
 
+from ..regions import REGION_SPECS
+
 # --- Target type keywords (checked in priority order) ---
 # Ballistic first: sub-minute flight, and it must beat the generic "ракет" in the
 # same message. A distinct type from cruise because it drives different output —
@@ -781,7 +783,13 @@ _STREET_WORDS = ("проспект", "вулиц", "вул", "провулок",
 # (область elided) is a direction, not a sighting over Чернігів. Kept as an
 # explicit registry rather than a general "-ськ- in the tail" rule, because for
 # most entries the adjective IS the place («Оболонський», «Білоцерківський»).
-_OBLAST_CITY_STEMS = frozenset({"черніг"})
+#
+# Not gated on `RegionSpec.active`: the veto only fires when a gazetteer entry
+# for the city exists, and an inactive region has none — so gating would be dead
+# code carrying a footgun.
+_OBLAST_CITY_STEMS = frozenset(
+    stem for spec in REGION_SPECS for stem in spec.oblast_city_stems
+)
 
 # Gazetteer aliases that must match as WHOLE words with no case tail — the same
 # discipline rules.py::_WHOLE_WORD uses for "каб"/"реб", so a short alias can

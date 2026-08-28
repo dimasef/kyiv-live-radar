@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useDismissTransition } from "@/lib/useDismissTransition";
 import { useRadar } from "@/store";
 
+import CurrentRegionControl from "./CurrentRegionControl";
 import FeedSettings from "./FeedSettings";
 import GamificationControl from "./GamificationControl";
 import HomeControl from "./HomeControl";
@@ -60,6 +61,7 @@ function DrawerBody({ onClose }: { onClose: () => void }) {
             <LanguageSwitcher />
           </div>
           <HomeControl />
+        <CurrentRegionControl />
           <NotifyControl />
           <PrivacyControl />
           <FeedSettings />

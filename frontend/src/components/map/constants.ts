@@ -73,6 +73,12 @@ export const ZONE_FIT_PADDING: [number, number] = [40, 72];
 // to. The fit still only ever zooms OUT — this just stops it short.
 export const ZONE_FIT_MIN_ZOOM = 8;
 
+// Where the oblast layer takes over (RegionLayer). One step below
+// ZONE_FIT_MIN_ZOOM: 8 is documented above as the level where a raion stops
+// being legible, so 7 is the first level where the oblast is the meaningful
+// unit. With MIN_ZOOM at 4 that leaves a comfortable four-level band.
+export const REGION_LAYER_MAX_ZOOM = 7;
+
 /** Raion air-alert outlines (AlertZoneLayer). Drawn UNDER the Kyiv raion
  * outlines and every marker, so the state has to read at a glance while staying
  * quiet enough that a target on top of it is still the loudest thing on the map.

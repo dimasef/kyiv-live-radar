@@ -2,10 +2,13 @@ import { useState } from 'react'
 
 import { fetchSources, type Source } from '@/api'
 import { useAsyncData } from '@/lib/useAsyncData'
+import { useRadar } from '@/store'
 
 import AddSourceForm from './AddSourceForm'
 import AlertRow from './AlertRow'
 import ChannelRow from './ChannelRow'
+import { groupSourcesByRegion } from './sourceFormat'
+import SourceRegionGroup from './SourceRegionGroup'
 import SourceSubTab from './SourceSubTab'
 
 type SubTab = 'channels' | 'alerts'
@@ -16,6 +19,11 @@ type SubTab = 'channels' | 'alerts'
  * subscription — mutations make the listener reconnect. */
 export default function SourcesPanel() {
   const [tab, setTab] = useState<SubTab>('channels')
+  const regions = useRadar((s) => s.regions)
+  const ensureRegions = useRadar((s) => s.ensureRegions)
+  // The admin console can be opened on a route that never bootstraps the map,
+  // so the catalogue the grouping and the add form need may not be here yet.
+  ensureRegions()
   const { data: sources, loaded, setData: setSources } = useAsyncData<Source[]>(
     fetchSources,
     [],
@@ -30,6 +38,7 @@ export default function SourcesPanel() {
   const alerts = sources.filter((s) => s.role === 'alert')
   const role: Source['role'] = tab === 'alerts' ? 'alert' : 'spotter'
   const list = tab === 'alerts' ? alerts : channels
+  const groups = groupSourcesByRegion(list, regions)
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-4">
@@ -55,14 +64,22 @@ export default function SourcesPanel() {
           {tab === 'channels' ? 'Каналів немає.' : 'Каналів тривог немає.'}
         </p>
       )}
-      <ul className="space-y-1.5">
-        {list.map((s) =>
-          tab === 'alerts' ? (
-            <AlertRow key={s.id} source={s} onUpdated={replace} onDeleted={remove} />
-          ) : (
-            <ChannelRow key={s.id} source={s} onUpdated={replace} onDeleted={remove} />
-          ),
-        )}
+      <ul className="space-y-3">
+        {groups.map((group) => (
+          <SourceRegionGroup
+            key={group.region.id}
+            region={group.region}
+            count={group.sources.length}
+          >
+            {group.sources.map((s) =>
+              tab === 'alerts' ? (
+                <AlertRow key={s.id} source={s} onUpdated={replace} onDeleted={remove} />
+              ) : (
+                <ChannelRow key={s.id} source={s} onUpdated={replace} onDeleted={remove} />
+              ),
+            )}
+          </SourceRegionGroup>
+        ))}
       </ul>
     </div>
   )

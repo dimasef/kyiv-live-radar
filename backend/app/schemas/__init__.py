@@ -112,6 +112,10 @@ from .raw import (
     RawParsedOut,
     RawSourceOut,
 )
+from .regions import (
+    RegionAtOut,
+    RegionOut,
+)
 from .situation import (
     AlertOut,
     AxisOut,
@@ -199,6 +203,8 @@ __all__ = [
     "RawParsedOut",
     "RawSourceOut",
     "RefreshIn",
+    "RegionAtOut",
+    "RegionOut",
     "RegisterIn",
     "RawNoticeIn",
     "ReprocessApplyIn",

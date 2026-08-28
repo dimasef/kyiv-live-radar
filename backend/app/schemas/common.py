@@ -68,6 +68,8 @@ class SourceAdminOut(BaseModel):
     subscribe_ref: str | None
     role: SourceRole
     region: Region
+    # Further regions this channel may localize into, beyond `region`.
+    extra_regions: list[Region] = []
     is_active: bool
     trust_weight: float
     # NULL = the global settings default (see Source.type_inherit_minutes).
@@ -85,9 +87,14 @@ class SourceIn(BaseModel):
     subscribe_ref: str = Field(min_length=1, max_length=200)
     name: str | None = Field(default=None, max_length=120)
     role: Literal["spotter", "alert"] = "spotter"
-    # Fallback region for this channel's district-less messages (a «Відбій» has
-    # no place to read a region off) — see models.Source.region.
+    # PRIMARY region: the fallback for this channel's district-less messages (a
+    # «Відбій» has no place to read a region off) and the winner of a homonym
+    # tie — see models.Source.region.
     region: Region = "kyiv"
+    # Further regions this channel may localize into. A source never pins a
+    # place outside its bindings, so a channel that narrates a neighbouring
+    # oblast has to say so here.
+    extra_regions: list[Region] = Field(default_factory=list)
     trust_weight: float = 1.0
 
 
@@ -95,6 +102,7 @@ class SourceUpdateIn(BaseModel):
     name: str | None = Field(default=None, max_length=120)
     role: Literal["spotter", "alert"] | None = None
     region: Region | None = None
+    extra_regions: list[Region] | None = None
     trust_weight: float | None = None
     # 0 disables inheritance for this channel entirely; the upper bound keeps a
     # typo ("300") from typing a whole night off one stale mention.

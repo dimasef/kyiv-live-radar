@@ -1,8 +1,14 @@
 import { Analytics } from "@vercel/analytics/react";
 import { useEffect, useState } from "react";
 
-import { StatusBanner, ZoneLayerNotice } from "@/components/banners";
-import { AppStatus, DisclaimerModal, FeedToggle, MobileSheet } from "@/components/chrome";
+import { RegionLayerHint, StatusBanner, ZoneLayerNotice } from "@/components/banners";
+import {
+  AppStatus,
+  DisclaimerModal,
+  FeedToggle,
+  MobileSheet,
+  RegionPickerModal,
+} from "@/components/chrome";
 import { ThreatLog } from "@/components/feed";
 import { MapView } from "@/components/map";
 import { riseDelay } from "@/lib/motion";
@@ -22,6 +28,12 @@ export default function App() {
     () => safeGet(STORAGE_KEYS.disclaimerHide) !== "1",
   );
   const feedCollapsed = useRadar((s) => s.feedCollapsed);
+  const chosenRegion = useRadar((s) => s.chosenRegion);
+  const regions = useRadar((s) => s.regions);
+  // Only once the catalogue has arrived — an empty picker would ask a question
+  // with no answers on it. The disclaimer goes first: it is the safety notice,
+  // and stacking two modals would bury it.
+  const needsRegion = !showDisclaimer && chosenRegion == null && regions.length > 0;
 
   useEffect(() => {
     bootstrapApp();
@@ -30,6 +42,7 @@ export default function App() {
   return (
     <div className="h-full lg:flex">
       {showDisclaimer && <DisclaimerModal onClose={() => setShowDisclaimer(false)} />}
+      {needsRegion && <RegionPickerModal />}
 
       {/* Map fills the shell slot; on mobile the sheet floats above it. */}
       <div className="absolute inset-0 lg:relative lg:flex-1 lg:min-w-0">
@@ -40,6 +53,7 @@ export default function App() {
         <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex flex-col items-center gap-2 px-3 pt-3">
           <StatusBanner />
           <ZoneLayerNotice />
+          <RegionLayerHint />
         </div>
         {/* Connection status — top-right corner of the map. */}
         <div className="absolute right-3 top-3 z-[1000]">

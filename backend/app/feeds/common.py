@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from sqlalchemy import select
 
 from ..db import SessionLocal
@@ -34,21 +36,53 @@ async def build_matcher(session=None, region: str = HOME_REGION) -> DistrictMatc
 
 
 class RegionMatchers:
-    """One compiled matcher per watched region, off a single district load.
+    """Compiled matchers off a single district load, one per distinct binding.
 
-    Compiling ~200 stem regexes per region is cheap once at startup and saves
-    the live path from choosing between "recompile per message" and "ignore the
-    reporting channel's region" — the latter puts a northern «Лебедівка» on a
-    Kyiv village 60 km away.
+    Compiling ~200 stem regexes is cheap once at startup and saves the live path
+    from choosing between "recompile per message" and "ignore the reporting
+    channel's region" — the latter puts a northern «Лебедівка» on a Kyiv village
+    60 km away.
+
+    Two lookups, and they mean different things:
+
+    - `for_source` is what the live pipeline uses. It restricts the matcher to
+      the regions that source is BOUND to, so a channel never pins a place it
+      does not cover. Built lazily and memoized: the bindings come from the DB,
+      there are a handful of distinct ones, and enumerating every possible
+      subset up front would be 2^N matchers for no reason.
+    - `for_region` keeps the older tie-break-only behaviour (every matcher still
+      knows every place) for the tools that have no single source to read a
+      binding off — admin, coverage, reprocess.
     """
 
     def __init__(self, districts: list[District]):
+        self._districts = districts
         self._by_region = {
             region: DistrictMatcher(districts, prefer_region=region) for region in REGIONS
         }
+        self._by_binding: dict[tuple[str, frozenset[str]], DistrictMatcher] = {}
 
     def for_region(self, region: str | None) -> DistrictMatcher:
         return self._by_region.get(region or HOME_REGION, self._by_region[HOME_REGION])
+
+    def for_source(
+        self, region: str | None, extra_regions: Iterable[str] | None = None
+    ) -> DistrictMatcher:
+        """The matcher for a source bound to `region` (primary) plus `extra_regions`.
+
+        The primary stays the homonym tie-break winner and the district-less
+        fallback; the extras only widen what is matchable at all.
+        """
+        primary = region or HOME_REGION
+        allowed = frozenset({primary, *(extra_regions or ())})
+        key = (primary, allowed)
+        matcher = self._by_binding.get(key)
+        if matcher is None:
+            matcher = DistrictMatcher(
+                self._districts, prefer_region=primary, allowed_regions=allowed
+            )
+            self._by_binding[key] = matcher
+        return matcher
 
     @property
     def default(self) -> DistrictMatcher:

@@ -20,12 +20,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-# Oblast names exactly as the provider spells them. Matching on the name rather
-# than on the provider's numeric key: the key is an implementation detail of one
-# upstream source, the name is what every source and the UI agree on.
-KYIV_CITY = "м. Київ"
-KYIV_OBLAST = "Київська область"
-CHERNIHIV_OBLAST = "Чернігівська область"
+from ..regions import REGION_SPECS, SPEC_BY_ID, Region
+
+# Oblast names exactly as the provider spells them, taken from the region
+# registry. Matching on the name rather than on the provider's numeric key: the
+# key is an implementation detail of one upstream source, the name is what every
+# source and the UI agree on. Unpacked positionally so a registry edit that
+# changes a region's oblast count fails here rather than silently.
+KYIV_OBLAST, KYIV_CITY = SPEC_BY_ID["kyiv"].oblasts
+(CHERNIHIV_OBLAST,) = SPEC_BY_ID["chernihiv"].oblasts
 
 
 @dataclass(frozen=True)
@@ -69,8 +72,24 @@ ZONES: tuple[Zone, ...] = (
          "Новгород-Сіверський район, Чернігівська область"),
 )
 
+# Derived from ZONES and NOT from the region registry, on purpose: a region can
+# be declared before anyone has written its raion roster, and a registry-derived
+# set would then let the provider's entry through only for `parse_skog` to warn
+# once per unknown raion, forever. No Zone rows means the oblast stays invisible,
+# which is exactly what a not-yet-covered region should look like.
 WATCHED_OBLASTS: frozenset[str] = frozenset(z.oblast for z in ZONES)
 ZONE_BY_PLACE: dict[tuple[str, str], Zone] = {(z.oblast, z.name_uk): z for z in ZONES}
+# `Zone.oblast` is the provider's display string and `Region` is the track pool;
+# nothing mapped the two before. Built over every declared region, so a zone
+# added for a region that has no tracks yet still resolves.
+OBLAST_REGION: dict[str, Region] = {
+    oblast: spec.id for spec in REGION_SPECS for oblast in spec.oblasts
+}
+
+
+def region_of(zone: Zone) -> Region:
+    """Which region's map a zone paints on."""
+    return OBLAST_REGION[zone.oblast]
 
 
 @dataclass(frozen=True)

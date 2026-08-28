@@ -84,6 +84,26 @@ async def test_the_limit_is_spent_on_the_region_asked_for(client):
     assert {r["threat"]["region"] for r in rows} == {"kyiv"}
 
 
+async def test_several_regions_can_be_asked_for_at_once(client):
+    """Repeating the param is how a reader watching more than one pool keeps the
+    page worth `limit` rows without falling back to "everything"."""
+    c, s = client
+    await _sighting(s, "kyiv", "Оболонь", 3)
+    await _sighting(s, "chernihiv", "Любеч", 2)
+    rows = (await c.get("/events/recent?region=kyiv&region=chernihiv")).json()
+    assert {r["threat"]["region"] for r in rows} == {"kyiv", "chernihiv"}
+
+
+async def test_a_declared_but_empty_region_returns_an_empty_feed(client):
+    """A region can be declared before it has any coverage. Asking for it is not
+    a client error — 'no data yet' must not read as 'your client is broken'."""
+    c, s = client
+    await _sighting(s, "kyiv", "Оболонь", 3)
+    r = await c.get("/events/recent?region=sumy")
+    assert r.status_code == 200
+    assert r.json() == []
+
+
 async def test_an_unknown_region_is_rejected(client):
     c, _ = client
     assert (await c.get("/events/recent?region=lviv")).status_code == 422

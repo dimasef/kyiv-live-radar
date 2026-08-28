@@ -17,6 +17,17 @@ export const STORAGE_KEYS = {
   sheetHeight: 'klr-sheet-height',
   feedTextSize: 'klr-feed-text',
   feedLimit: 'klr-feed-limit',
+  // The oblast the reader picked (first run, changeable in settings). Distinct
+  // from `home` below: this is WHICH region's data they follow, the home point
+  // is WHERE inside it their alerts are measured from. Per-device on purpose.
+  region: 'klr-region',
+  // Set once the reader has seen the "oblasts are clickable" hint, so it is
+  // raised exactly once ever.
+  regionHint: 'klr-region-hint',
+  // Watched regions OTHER than home that the feed lists, as a JSON id array.
+  feedRegions: 'klr-feed-regions',
+  // Legacy: the boolean this replaced, back when "other regions" could only
+  // mean Чернігівщина. Read once by store/feedRegions.ts and then removed.
   feedOtherRegions: 'klr-feed-other-regions',
   feedShowSource: 'klr-feed-source',
   // Desktop only: the event feed collapsed to give the map the full width.

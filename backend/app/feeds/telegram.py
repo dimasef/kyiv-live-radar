@@ -185,16 +185,18 @@ async def _backoff_wait(seconds: float) -> None:
         pass
 
 
-async def _active_source_specs() -> list[tuple[int, str, str, int | None, str]]:
-    """(source_id, ref, role, known_channel_id, region) for every is_active Source
-    live channel list, now DB-driven (not the env lists). `ref` is what Telethon
-    resolves by: subscribe_ref, or channel_key for legacy rows that never set it.
-    `known_channel_id` is the identity that resolve must produce — see
-    identity_mismatch."""
+async def _active_source_specs() -> list[tuple[int, str, str, int | None, str, list[str]]]:
+    """(source_id, ref, role, known_channel_id, region, extra_regions) for every
+    is_active Source — the live channel list, DB-driven (not the env lists).
+    `ref` is what Telethon resolves by: subscribe_ref, or channel_key for legacy
+    rows that never set it. `known_channel_id` is the identity that resolve must
+    produce — see identity_mismatch. `region` is the PRIMARY binding and
+    `extra_regions` widens what the channel may localize into."""
     async with SessionLocal() as s:
         rows = await s.scalars(select(Source).where(Source.is_active.is_(True)))
         return [
-            (x.id, (x.subscribe_ref or x.channel_key), x.role, x.tg_channel_id, x.region)
+            (x.id, (x.subscribe_ref or x.channel_key), x.role, x.tg_channel_id,
+             x.region, list(x.extra_regions or []))
             for x in rows
         ]
 
@@ -272,7 +274,7 @@ async def _ingest_one(s, *, role: str, text: str, when, source_id, message_id,
     )
 
 
-async def _backfill(client, entities, id_to_source, source_role, source_region, matchers) -> None:
+async def _backfill(client, entities, id_to_source, source_role, source_binding, matchers) -> None:
     """Ingest recent history across ALL channels in true chronological order, so
     cross-channel corroboration and track grouping work the same as live."""
     collected = []
@@ -287,7 +289,7 @@ async def _backfill(client, entities, id_to_source, source_role, source_region, 
     stream = settings.telegram_backfill_broadcast
     for when, src_id, m, text in collected:
         role = source_role.get(src_id, "spotter")
-        matcher = matchers.for_region(source_region.get(src_id))
+        matcher = matchers.for_source(*source_binding.get(src_id, (HOME_REGION, [])))
         fwd, fwd_channel = _fwd_origin(m)
         try:
             async with SessionLocal() as s:
@@ -382,17 +384,20 @@ async def _run_listener_once(backfill: bool, run_state: dict) -> None:
             # fall back to the env lists so the listener still starts. source_id
             # is None here -> _ensure_sources creates/finds the row on resolve.
             specs = (
-                [(None, c, "spotter", None, HOME_REGION)
+                [(None, c, "spotter", None, HOME_REGION, [])
                  for c in settings.telegram_channel_list]
-                + [(None, c, "alert", None, HOME_REGION)
+                + [(None, c, "alert", None, HOME_REGION, [])
                    for c in settings.alert_channel_list]
             )
         entities = []
         entity_roles: dict[int, str] = {}
         id_to_source: dict[int, int] = {}
         source_role: dict[int, str] = {}
-        source_region: dict[int, str] = {}
-        for source_id, ref, role, known_id, region in specs:
+        # source_id -> (primary region, extra regions) — the binding the
+        # matcher is restricted to, so a channel never pins a place it does not
+        # cover. See feeds/common.RegionMatchers.for_source.
+        source_binding: dict[int, tuple[str, list[str]]] = {}
+        for source_id, ref, role, known_id, region, extra_regions in specs:
             try:
                 e = await _resolve_channel(client, ref)
             except Exception as ex:
@@ -418,7 +423,7 @@ async def _run_listener_once(backfill: bool, run_state: dict) -> None:
             id_to_source[e.id] = source_id
             id_to_source[utils.get_peer_id(e)] = source_id  # marked id == event.chat_id
             source_role[source_id] = role
-            source_region[source_id] = region
+            source_binding[source_id] = (region, extra_regions)
             await _mark_source_status(
                 source_id, error=None, title=getattr(e, "title", None), channel_id=e.id
             )
@@ -430,7 +435,7 @@ async def _run_listener_once(backfill: bool, run_state: dict) -> None:
         matchers = await build_region_matchers()
 
         if backfill and settings.telegram_backfill:
-            await _backfill(client, entities, id_to_source, source_role, source_region, matchers)
+            await _backfill(client, entities, id_to_source, source_role, source_binding, matchers)
 
         @client.on(events.NewMessage(chats=entities))
         async def handler(event):  # noqa: ANN001
@@ -443,7 +448,7 @@ async def _run_listener_once(backfill: bool, run_state: dict) -> None:
                 return
             source_id = id_to_source.get(event.chat_id)
             role = source_role.get(source_id, "spotter")
-            matcher = matchers.for_region(source_region.get(source_id))
+            matcher = matchers.for_source(*source_binding.get(source_id, (HOME_REGION, [])))
             # If the post is a forward, capture the ORIGINAL post id (+ origin
             # channel id) for repost dedup — see fusion.py::_origin_keys.
             fwd, fwd_channel = _fwd_origin(event.message)

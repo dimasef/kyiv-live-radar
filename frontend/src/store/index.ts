@@ -15,6 +15,7 @@ import { createNoticesSlice } from './noticesSlice'
 import { createNotifySlice } from './notifySlice'
 import { createPrefsSlice } from './prefsSlice'
 import { createPwaSlice } from './pwaSlice'
+import { createRegionsSlice } from './regionsSlice'
 import { createThreatsSlice } from './threatsSlice'
 import type { RadarState } from './types'
 import { createUiSlice } from './uiSlice'
@@ -23,6 +24,7 @@ import { createZonesSlice } from './zonesSlice'
 
 export const useRadar = create<RadarState>()((...a) => ({
   ...createDistrictsSlice(...a),
+  ...createRegionsSlice(...a),
   ...createSourcesSlice(...a),
   ...createThreatsSlice(...a),
   ...createNoticesSlice(...a),

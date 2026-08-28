@@ -56,18 +56,23 @@ async def recent_events(
     # bootstrap's `.catch(() => {})` swallowed it into a silently empty feed
     # with nothing in the UI to say why. Raise both together or neither.
     limit: int = Query(60, ge=1, le=250),
-    region: Region | None = Query(None),
+    # Repeatable rather than a comma-separated list: `?region=kyiv` still parses
+    # (as a one-item list, so old clients need no branch here), and FastAPI
+    # keeps emitting an enum array, which is what makes the generated frontend
+    # type a `Region[]` union instead of a bare `string`.
+    region: list[Region] | None = Query(None),
     session: AsyncSession = Depends(get_session),
 ):
     """Most recent sightings across ALL tracks (open or closed), newest first —
     hydrates the frontend event feed on page load (it otherwise only grows from
     live WebSocket traffic and empties on every reload).
 
-    `region` narrows the feed to one watched pool. It exists because filtering
-    client-side alone would silently shrink the feed: a busy northern night is
-    mostly Чернігівщина, so a reader who hides it would get a page of 60 events
-    with 20 left to look at. The client still filters what the WebSocket pushes
-    afterwards — this only makes the page it loads worth `limit` rows."""
+    `region` narrows the feed to the watched pools asked for (repeat it once per
+    region). It exists because filtering client-side alone would silently shrink
+    the feed: a busy northern night is mostly Чернігівщина, so a reader who hides
+    it would get a page of 60 events with 20 left to look at. The client still
+    filters what the WebSocket pushes afterwards — this only makes the page it
+    loads worth `limit` rows."""
     stmt = (
         select(ThreatEvent)
         # Hide events of admin-dismissed tracks (is_distinct_from so open tracks,
@@ -90,8 +95,8 @@ async def recent_events(
         # which would scatter a group the frontend expects to find contiguous.
         .order_by(ThreatEvent.event_time.desc(), ThreatEvent.id.desc())
     )
-    if region is not None:
-        stmt = stmt.where(Threat.region == region)
+    if region:
+        stmt = stmt.where(Threat.region.in_(region))
     events = await session.scalars(stmt.limit(limit))
     return [_feed_entry_out(ev) for ev in events]
 

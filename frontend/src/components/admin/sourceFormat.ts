@@ -1,17 +1,36 @@
 import type { Source, SourceStats } from '@/api'
 import { kyivStamp } from '@/lib/kyivTime'
-import type { Region } from '@/types'
+import type { RegionInfo } from '@/types'
 
 /** Pure formatting/derivation helpers for the Sources admin tab (kept out of the
  * JSX so they're trivially testable and the row components stay lean). */
 
 export const pct = (v: number | null): string => (v == null ? '—' : `${Math.round(v * 100)}%`)
 
-/** Region labels for the admin console. This is an operator-facing service
- * tool, so the labels stay Ukrainian-only rather than going through i18n. */
-export const REGION_LABELS: Record<Region, string> = {
-  kyiv: 'Київщина',
-  chernihiv: 'Чернігівщина',
+export interface RegionGroup {
+  region: RegionInfo
+  sources: Source[]
+}
+
+/** Split a role tab's sources into per-region blocks, in catalogue order.
+ *
+ * Empty groups are dropped EXCEPT the home one: five headers over one channel
+ * is a table of contents, not a grouping. Which regions exist is discoverable
+ * from the add form's picker instead.
+ *
+ * Order within a group is preserved — the server already sorts by
+ * (inactive last, name), and re-sorting here would quietly diverge from it.
+ * Falls back to one unlabelled group while the catalogue is still loading, so
+ * the list renders rather than blanking.
+ */
+export function groupSourcesByRegion(
+  sources: Source[],
+  catalogue: RegionInfo[],
+): RegionGroup[] {
+  if (catalogue.length === 0) return []
+  return catalogue
+    .map((region) => ({ region, sources: sources.filter((s) => s.region === region.id) }))
+    .filter((group) => group.region.is_home || group.sources.length > 0)
 }
 
 /** Tailwind text-color band for the 0..100 quality score. */

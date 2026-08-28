@@ -92,6 +92,13 @@ async def push_subscribe(
         )
         if home_moved:
             sub.danger_state = {}
+    # The reader's chosen oblast, sent by the client. Deliberately NOT derived
+    # from the home point: the two are separate settings — the region says WHICH
+    # pool may wake this device, the home point says where inside it the danger
+    # distance is measured from — and inferring one from the other is what made
+    # travelling break the alert radius. Absent leaves NULL = the home region.
+    if body.region is not None:
+        sub.region = body.region
     await session.commit()
     return {"ok": True}
 

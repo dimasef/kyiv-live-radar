@@ -191,8 +191,7 @@
       "lg": "Larger"
     },
     "feedRegions": "Regions in the feed",
-    "feedRegionsAll": "All",
-    "feedRegionsHome": "Kyiv region only",
+    "feedRegionPending": "No data yet — the region is declared, coverage is being prepared",
     "feedSource": "Message source",
     "feedSourceShow": "Show",
     "feedSourceHide": "Hide",
@@ -507,5 +506,24 @@
   "region": {
     "kyiv": "Kyiv · the whole city",
     "chernihiv": "Chernihiv oblast"
+  },
+  "regionMenu": {
+    "home": "Home region — always in the feed",
+    "inFeed": "In the event feed",
+    "outOfFeed": "Not in the event feed",
+    "pending": "No data yet — coverage is being prepared",
+    "add": "Add to the feed",
+    "remove": "Remove from the feed",
+    "hint": "Tap an oblast to add it to your feed"
+  },
+  "currentRegion": {
+    "title": "My oblast",
+    "hint": "Which targets reach the feed, what the map opens on, and what may notify you. Where exactly you live is separate — the home marker above."
+  },
+  "regionPicker": {
+    "title": "Which oblast are you in?",
+    "text": "It decides which targets reach your feed, what the map opens on, and what may notify you. Changeable any time in settings.",
+    "pending": "This oblast was only just added — its data is still being collected, so there will be no notifications yet.",
+    "confirm": "Done"
   }
 }

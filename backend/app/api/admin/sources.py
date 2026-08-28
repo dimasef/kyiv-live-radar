@@ -37,6 +37,7 @@ def _source_admin_out(src: Source, stats: dict[int, SourceStats]) -> SourceAdmin
         subscribe_ref=src.subscribe_ref,
         role=src.role,
         region=src.region,
+        extra_regions=list(src.extra_regions or []),
         is_active=src.is_active,
         trust_weight=src.trust_weight,
         type_inherit_minutes=src.type_inherit_minutes,
@@ -85,6 +86,7 @@ async def admin_add_source(
         name=body.name,
         role=body.role,
         region=body.region,
+        extra_regions=body.extra_regions,
         trust_weight=body.trust_weight,
         user_id=admin.id,
     )
@@ -116,6 +118,8 @@ async def admin_update_source(
         reload_needed = True
     if body.region is not None:
         src.region = body.region
+    if body.extra_regions is not None:
+        src.extra_regions = list(body.extra_regions)
     if body.trust_weight is not None:
         src.trust_weight = body.trust_weight
     if body.type_inherit_minutes is not None:

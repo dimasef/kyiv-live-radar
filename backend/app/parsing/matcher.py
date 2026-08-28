@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 
 from ..gazetteer import CITYWIDE_NAME_EN as _CITYWIDE_NAME_EN
-from ..gazetteer import HOME_REGION as _HOME_REGION
+from ..regions import HOME_REGION as _HOME_REGION
 from .vocab import (
     _ALIAS_NEXT_WORD_VETO,
     _ALIAS_PREV_WORD_REQUIRED,
@@ -190,15 +190,30 @@ def _missing_required_prev(norm_text: str, start: int, end: int) -> bool:
     return False
 
 
-def _visible_to(prefer_region: str | None, region: str | None) -> bool:
-    """Whether an entry of `region` is matchable by a channel from
-    `prefer_region`. The home region (and an unspecified one) sees everything;
-    every other region sees only its own. An entry with no region of its own is
-    home-region by default, which is what makes the whole Kyiv gazetteer
-    invisible to the northern matcher without touching a single row."""
+def _visible_to(
+    prefer_region: str | None, allowed: frozenset[str] | None, region: str | None
+) -> bool:
+    """Whether an entry of `region` is matchable by this matcher.
+
+    With `allowed` given (the regions a SOURCE is bound to), that set is the
+    whole answer and it applies to every source alike, the home region
+    included — a channel never pins a place outside what it was bound to.
+
+    With `allowed` None the older asymmetric rule stands: the home region (and
+    an unspecified one) sees everything, every other region sees only its own.
+    That path is still what the admin, coverage and reprocess tools use, where
+    there is no one source to read a binding off.
+
+    An entry with no region of its own is home-region by default, which is what
+    makes the whole Kyiv gazetteer invisible to a northern matcher without
+    touching a single row.
+    """
+    own = region or _HOME_REGION
+    if allowed is not None:
+        return own in allowed
     if prefer_region is None or prefer_region == _HOME_REGION:
         return True
-    return (region or _HOME_REGION) == prefer_region
+    return own == prefer_region
 
 
 class DistrictMatcher:
@@ -243,7 +258,12 @@ class DistrictMatcher:
     rather than silent.
     """
 
-    def __init__(self, districts, prefer_region: str | None = None):
+    def __init__(
+        self,
+        districts,
+        prefer_region: str | None = None,
+        allowed_regions: frozenset[str] | None = None,
+    ):
         # districts: iterable of objects/dicts with id, name_uk, aliases
         self._patterns: list[tuple[int, str, re.Pattern, bool]] = []
         # (id, name) index — the allowed district set for the LLM fallback.
@@ -252,6 +272,7 @@ class DistrictMatcher:
         # alone can't tell the model which side of the oblast border it is on).
         self.region_by_id: dict[int, str] = {}
         self.prefer_region = prefer_region
+        self.allowed_regions = allowed_regions
         for d in districts:
             did = d["id"] if isinstance(d, dict) else d.id
             name = d["name_uk"] if isinstance(d, dict) else d.name_uk
@@ -273,7 +294,7 @@ class DistrictMatcher:
             # …and OUTSIDE the home region every entry behaves that way: a
             # northern channel is shown northern places only (see the class
             # docstring for the measurement).
-            if not _visible_to(prefer_region, region):
+            if not _visible_to(prefer_region, allowed_regions, region):
                 continue
             self.districts_index.append((did, name))
             if region:

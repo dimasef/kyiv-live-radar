@@ -1,8 +1,11 @@
 import type { StateCreator } from 'zustand'
 
-import { setGamificationPref } from '@/api'
-import { safeGet, safeSet, STORAGE_KEYS } from '@/lib/storage'
+import { fetchRecentEvents, setGamificationPref } from '@/api'
+import { currentRegion } from '@/lib/regions'
+import { safeGet, safeRemove, safeSet, STORAGE_KEYS } from '@/lib/storage'
+import type { Region } from '@/types'
 
+import { migrateFeedRegions, shownRegions } from './feedRegions'
 import type { RadarState } from './types'
 
 /** How far the mobile bottom sheet (event feed) opens — 'low' peeks a short
@@ -38,12 +41,19 @@ function initialFeedLimit(): FeedLimit {
   return (FEED_LIMITS as readonly number[]).includes(saved) ? (saved as FeedLimit) : 60
 }
 
-/** Whether the feed lists sightings from the watched regions OTHER than Kyiv's
- * own pool (today that means Чернігівщина). Defaults to on — the reader has
- * been seeing them, and a filter that hides data by default is a filter nobody
- * knows is there. Affects the FEED ONLY; the map is a separate question. */
-function initialFeedOtherRegions(): boolean {
-  return safeGet(STORAGE_KEYS.feedOtherRegions) !== '0'
+/** Which non-home regions the feed lists. Defaults to every region that existed
+ * when the old boolean was the setting — the reader has been seeing them, and a
+ * filter that hides data by default is a filter nobody knows is there. A region
+ * declared since then starts off, and the map's oblast menu is how it is found.
+ * Affects the FEED ONLY; the map is a separate question. */
+function initialFeedExtraRegions(): Region[] {
+  const extra = migrateFeedRegions(
+    safeGet(STORAGE_KEYS.feedRegions),
+    safeGet(STORAGE_KEYS.feedOtherRegions),
+  )
+  safeSet(STORAGE_KEYS.feedRegions, JSON.stringify(extra))
+  safeRemove(STORAGE_KEYS.feedOtherRegions)
+  return extra
 }
 
 /** Whether a feed card names the channel the message came from. Defaults to on:
@@ -62,10 +72,18 @@ export interface PrefsSlice {
   setFeedTextSize: (s: FeedTextSize) => void
   feedLimit: FeedLimit
   setFeedLimit: (n: FeedLimit) => void
-  /** Show other watched regions' sightings in the event feed (see
-   * `initialFeedOtherRegions`). The map ignores this. */
-  feedOtherRegions: boolean
-  setFeedOtherRegions: (on: boolean) => void
+  /** Watched regions OTHER than home whose sightings the feed lists. The home
+   * region is deliberately absent and can never be turned off — `shownRegions`
+   * adds it back, so no stored state can exist without it. The map ignores this.
+   *
+   * An explicit set rather than an "everything" mode: with several approach
+   * regions, "all" stops being a sensible default — someone who opted into
+   * Чернігівщина has not asked for a newly added one to appear in their feed. */
+  feedExtraRegions: Region[]
+  /** Add/remove a region and refetch the page so it is worth `feedLimit` rows
+   * again — server-side narrowing is the whole reason the filter is not purely
+   * a render concern. */
+  toggleFeedRegion: (id: Region) => void
   /** Name the reporting channel on each feed card (see
    * `initialFeedShowSource`). Display only — nothing is re-fetched. */
   feedShowSource: boolean
@@ -86,7 +104,7 @@ export interface PrefsSlice {
   hydrateGamification: (on: boolean) => void
 }
 
-export const createPrefsSlice: StateCreator<RadarState, [], [], PrefsSlice> = (set) => ({
+export const createPrefsSlice: StateCreator<RadarState, [], [], PrefsSlice> = (set, get) => ({
   sheetHeight: initialSheetHeight(),
   setSheetHeight: (h) => {
     safeSet(STORAGE_KEYS.sheetHeight, h)
@@ -102,10 +120,19 @@ export const createPrefsSlice: StateCreator<RadarState, [], [], PrefsSlice> = (s
     safeSet(STORAGE_KEYS.feedLimit, String(n))
     set({ feedLimit: n })
   },
-  feedOtherRegions: initialFeedOtherRegions(),
-  setFeedOtherRegions: (on) => {
-    safeSet(STORAGE_KEYS.feedOtherRegions, on ? '1' : '0')
-    set({ feedOtherRegions: on })
+  feedExtraRegions: initialFeedExtraRegions(),
+  toggleFeedRegion: (id) => {
+    const s = get()
+    const home = currentRegion(s)
+    if (id === home) return
+    const next = s.feedExtraRegions.includes(id)
+      ? s.feedExtraRegions.filter((r) => r !== id)
+      : [...s.feedExtraRegions, id]
+    safeSet(STORAGE_KEYS.feedRegions, JSON.stringify(next))
+    set({ feedExtraRegions: next })
+    fetchRecentEvents(s.feedLimit, shownRegions(next, home))
+      .then(s.setLog)
+      .catch(() => {})
   },
   feedShowSource: initialFeedShowSource(),
   setFeedShowSource: (on) => {

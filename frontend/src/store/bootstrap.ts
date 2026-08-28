@@ -14,10 +14,12 @@ import {
 } from '@/api'
 import { requestGeolocation } from '@/components/chrome'
 import { resyncHomePush } from '@/lib/push'
+import { currentRegion } from '@/lib/regions'
 import { safeGet, safeSet, STORAGE_KEYS } from '@/lib/storage'
 import { registerLifecycleListeners } from '@/lifecycle'
 import { connectWS } from '@/ws'
 
+import { shownRegions } from './feedRegions'
 import { useRadar } from './index'
 
 /** Re-fetches every active/recent data set (everything EXCEPT the
@@ -73,7 +75,10 @@ async function runHydrate(): Promise<void> {
     fetchActiveAxes().then(apply(store.setAxes)).catch(() => {}),
     fetchRecentAlerts().then(apply(store.setAlerts)).catch(() => {}),
     fetchAlertZones().then(apply(store.setZones)).catch(() => {}),
-    fetchRecentEvents(store.feedLimit, store.feedOtherRegions ? undefined : 'kyiv')
+    fetchRecentEvents(
+      store.feedLimit,
+      shownRegions(store.feedExtraRegions, currentRegion(store)),
+    )
       .then(apply(store.setLog))
       .catch(() => {}),
     fetchRecentNotices().then(apply(store.setNotices)).catch(() => {}),
@@ -113,6 +118,10 @@ export function bootstrapApp() {
 
   fetchDistricts().then(store.setDistricts).catch(() => {})
   fetchBoundaries().then(store.setBoundaries).catch(() => {})
+  // The region catalogue names what the feed filter and the map layer operate
+  // on, so it has to land before either can render a picker. Static — fetched
+  // once per session, never re-hydrated.
+  store.ensureRegions()
   // The alert-layer switch survives reloads, so a session can start with it
   // already on — its polygons are lazy, and without this the button would light
   // up with nothing drawn. No-op when the layer is off.
@@ -149,5 +158,6 @@ export function bootstrapApp() {
   // Notifications opted in: re-register the still-live browser subscription so
   // the server's home copy heals from anything missed offline (home edited in
   // another tab, a wiped backend DB, ...).
-  if (store.notifyStatus === 'on') void resyncHomePush(store.home, store.notifyPrefs).catch(() => {})
+  if (store.notifyStatus === 'on')
+    void resyncHomePush(store.home, store.notifyPrefs, store.chosenRegion).catch(() => {})
 }

@@ -1005,7 +1005,10 @@
             "default": "kyiv",
             "enum": [
               "kyiv",
-              "chernihiv"
+              "chernihiv",
+              "sumy",
+              "kharkiv",
+              "dnipro"
             ],
             "title": "Region",
             "type": "string"
@@ -2079,7 +2082,10 @@
             "default": "kyiv",
             "enum": [
               "kyiv",
-              "chernihiv"
+              "chernihiv",
+              "sumy",
+              "kharkiv",
+              "dnipro"
             ],
             "title": "Region",
             "type": "string"
@@ -2318,6 +2324,24 @@
                 "type": "null"
               }
             ]
+          },
+          "region": {
+            "anyOf": [
+              {
+                "enum": [
+                  "kyiv",
+                  "chernihiv",
+                  "sumy",
+                  "kharkiv",
+                  "dnipro"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
           },
           "subscription": {
             "$ref": "#/components/schemas/BrowserSubscriptionIn"
@@ -3073,6 +3097,85 @@
         "title": "RefreshIn",
         "type": "object"
       },
+      "RegionAtOut": {
+        "description": "Which watched region contains a point (GET /regions/at).",
+        "properties": {
+          "region": {
+            "anyOf": [
+              {
+                "enum": [
+                  "kyiv",
+                  "chernihiv",
+                  "sumy",
+                  "kharkiv",
+                  "dnipro"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          }
+        },
+        "title": "RegionAtOut",
+        "type": "object"
+      },
+      "RegionOut": {
+        "description": "One watched region as the client sees it.",
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Bbox",
+            "type": "array"
+          },
+          "center_lat": {
+            "title": "Center Lat",
+            "type": "number"
+          },
+          "center_lon": {
+            "title": "Center Lon",
+            "type": "number"
+          },
+          "id": {
+            "enum": [
+              "kyiv",
+              "chernihiv",
+              "sumy",
+              "kharkiv",
+              "dnipro"
+            ],
+            "title": "Id",
+            "type": "string"
+          },
+          "is_home": {
+            "title": "Is Home",
+            "type": "boolean"
+          },
+          "name_uk": {
+            "title": "Name Uk",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name_uk",
+          "active",
+          "is_home",
+          "center_lat",
+          "center_lon",
+          "bbox"
+        ],
+        "title": "RegionOut",
+        "type": "object"
+      },
       "RegisterIn": {
         "description": "POST /auth/register — email+password signup.",
         "properties": {
@@ -3327,6 +3430,21 @@
             ],
             "title": "Created At"
           },
+          "extra_regions": {
+            "default": [],
+            "items": {
+              "enum": [
+                "kyiv",
+                "chernihiv",
+                "sumy",
+                "kharkiv",
+                "dnipro"
+              ],
+              "type": "string"
+            },
+            "title": "Extra Regions",
+            "type": "array"
+          },
           "id": {
             "title": "Id",
             "type": "integer"
@@ -3353,7 +3471,10 @@
           "region": {
             "enum": [
               "kyiv",
-              "chernihiv"
+              "chernihiv",
+              "sumy",
+              "kharkiv",
+              "dnipro"
             ],
             "title": "Region",
             "type": "string"
@@ -3455,6 +3576,20 @@
       "SourceIn": {
         "description": "Add (or reactivate) a channel from the admin console.",
         "properties": {
+          "extra_regions": {
+            "items": {
+              "enum": [
+                "kyiv",
+                "chernihiv",
+                "sumy",
+                "kharkiv",
+                "dnipro"
+              ],
+              "type": "string"
+            },
+            "title": "Extra Regions",
+            "type": "array"
+          },
           "name": {
             "anyOf": [
               {
@@ -3471,7 +3606,10 @@
             "default": "kyiv",
             "enum": [
               "kyiv",
-              "chernihiv"
+              "chernihiv",
+              "sumy",
+              "kharkiv",
+              "dnipro"
             ],
             "title": "Region",
             "type": "string"
@@ -3517,7 +3655,10 @@
           "region": {
             "enum": [
               "kyiv",
-              "chernihiv"
+              "chernihiv",
+              "sumy",
+              "kharkiv",
+              "dnipro"
             ],
             "title": "Region",
             "type": "string"
@@ -3651,6 +3792,27 @@
       },
       "SourceUpdateIn": {
         "properties": {
+          "extra_regions": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "kyiv",
+                    "chernihiv",
+                    "sumy",
+                    "kharkiv",
+                    "dnipro"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra Regions"
+          },
           "is_active": {
             "anyOf": [
               {
@@ -3679,7 +3841,10 @@
               {
                 "enum": [
                   "kyiv",
-                  "chernihiv"
+                  "chernihiv",
+                  "sumy",
+                  "kharkiv",
+                  "dnipro"
                 ],
                 "type": "string"
               },
@@ -4243,7 +4408,10 @@
             "default": "kyiv",
             "enum": [
               "kyiv",
-              "chernihiv"
+              "chernihiv",
+              "sumy",
+              "kharkiv",
+              "dnipro"
             ],
             "title": "Region",
             "type": "string"
@@ -6954,7 +7122,7 @@
     },
     "/events/recent": {
       "get": {
-        "description": "Most recent sightings across ALL tracks (open or closed), newest first —\nhydrates the frontend event feed on page load (it otherwise only grows from\nlive WebSocket traffic and empties on every reload).\n\n`region` narrows the feed to one watched pool. It exists because filtering\nclient-side alone would silently shrink the feed: a busy northern night is\nmostly Чернігівщина, so a reader who hides it would get a page of 60 events\nwith 20 left to look at. The client still filters what the WebSocket pushes\nafterwards — this only makes the page it loads worth `limit` rows.",
+        "description": "Most recent sightings across ALL tracks (open or closed), newest first —\nhydrates the frontend event feed on page load (it otherwise only grows from\nlive WebSocket traffic and empties on every reload).\n\n`region` narrows the feed to the watched pools asked for (repeat it once per\nregion). It exists because filtering client-side alone would silently shrink\nthe feed: a busy northern night is mostly Чернігівщина, so a reader who hides\nit would get a page of 60 events with 20 left to look at. The client still\nfilters what the WebSocket pushes afterwards — this only makes the page it\nloads worth `limit` rows.",
         "operationId": "recent_events_events_recent_get",
         "parameters": [
           {
@@ -6976,11 +7144,17 @@
             "schema": {
               "anyOf": [
                 {
-                  "enum": [
-                    "kyiv",
-                    "chernihiv"
-                  ],
-                  "type": "string"
+                  "items": {
+                    "enum": [
+                      "kyiv",
+                      "chernihiv",
+                      "sumy",
+                      "kharkiv",
+                      "dnipro"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
                 },
                 {
                   "type": "null"
@@ -8839,6 +9013,99 @@
           }
         },
         "summary": "Raw Messages Sources"
+      }
+    },
+    "/regions": {
+      "get": {
+        "description": "Every declared region, home first, in roster order.",
+        "operationId": "regions_regions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RegionOut"
+                  },
+                  "title": "Response Regions Regions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Regions"
+      }
+    },
+    "/regions/at": {
+      "get": {
+        "description": "Which watched region a point falls in — how a device turns its home\nlocation into \"the region I am in\" without shipping the polygons and the\nray-casting to every client. Unauthenticated, because an anonymous session\nhas a home too (it lives in localStorage).\n\n`region` is null for a point outside every watched region, which is most of\nthe country and not an error.",
+        "operationId": "region_containing_regions_at_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Lat",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "Lon",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegionAtOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Region Containing"
+      }
+    },
+    "/regions/geometry": {
+      "get": {
+        "description": "The oblast outlines, passed through verbatim — same `response_model`-less\nshape (and reason) as /alert-zones/geometry: GeoJSON geometry OpenAPI can\nonly describe as \"an object\".",
+        "operationId": "region_geometry_regions_geometry_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Region Geometry"
       }
     },
     "/sources": {

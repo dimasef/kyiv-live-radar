@@ -47,6 +47,13 @@ from anthropic import AsyncAnthropic
 from ..config import settings
 from ..domain.origins import ORIGIN_KEYS
 from ..domain.origins import SECTORS as _SECTORS
+from ..regions import (
+    HOME_SPEC,
+    REGION_SPECS,
+    active_count_word,
+    out_of_scope_examples,
+    watched_regions,
+)
 from .matcher import DistrictHit, DistrictMatcher
 from .rules import LlmUsage, ParseResult
 
@@ -77,24 +84,36 @@ def _get_client() -> AsyncAnthropic:
 
 # How each watched region is named to the model — Ukrainian, because every
 # other word in the prompt's examples is.
-_REGION_LABEL = {"kyiv": "Київщина", "chernihiv": "Чернігівщина"}
+_REGION_LABEL = {spec.id: spec.name_uk for spec in REGION_SPECS}
 
+# Only the region-dependent phrases are interpolated. The rest is hand-tuned
+# prose that has been through several eval rounds, so it stays literal rather
+# than being generated from the registry.
+#
+# TODO(activation): "the northern approach corridor toward it" stops being
+# accurate once a region east or south of Kyiv goes active, and the Дніпро
+# sentence keeps naming it out of scope — that one is really about the Kyiv
+# raion «Дніпровський», so it needs rewriting rather than dropping.
 _SYSTEM_BASE = (
     "You extract structured aerial-threat data from short Ukrainian Telegram "
     "messages by volunteer spotters watching drones/missiles over the Kyiv "
-    "region AND over Чернігівщина, the northern approach corridor toward it. "
+    "region AND over {watched}, the northern approach corridor toward it. "
     "Report only what the text states — never guess coordinates or invent "
     "locations.\n"
     "CRITICAL — an out-of-scope city/oblast is NOT a Kyiv place. A target 'на "
     "Дніпро' / 'Дніпропетровщина' is the CITY Dnipro (~300km away), NOT the "
-    "'Дніпровський' district of Kyiv. Likewise Харків, Запоріжжя, Миколаїв, "
-    "Суми, Полтава and any oblast other than the two watched ones are out of "
+    "'Дніпровський' district of Kyiv. Likewise {out_of_scope} and any oblast "
+    "other than the {count} watched ones are out of "
     "scope: a target there is noise, not a sighting.\n"
     "ORIGIN is different from a target location: an INBOUND threat's launch/"
     "approach zone ('з Брянщини', 'з боку Чорного моря', 'курсом з півночі') is "
     "reported via origin_place / origin_sector, NEVER as a target place. Pick "
     "origin_place ONLY from the provided origin list, and ONLY when the text "
     "names it as where the threat is coming FROM; otherwise 'none'."
+).format(
+    watched=", ".join(spec.name_uk for spec in watched_regions()),
+    out_of_scope=", ".join(out_of_scope_examples()),
+    count=active_count_word(),
 )
 
 # Appended only when the gazetteer listing is in the prompt (llm_localize_enabled).
@@ -273,7 +292,7 @@ def _static_prompt(matcher: DistrictMatcher, localize: bool) -> tuple[str, list[
     # Each line carries its region: two watched regions share the enum, and
     # several names exist in both, so the id alone is ambiguous to the model.
     listing = "\n".join(
-        f"{i}: {n} [{_REGION_LABEL.get(matcher.region_by_id.get(i, ''), 'Київщина')}]"
+        f"{i}: {n} [{_REGION_LABEL.get(matcher.region_by_id.get(i, ''), HOME_SPEC.name_uk)}]"
         for i, n in index
     )
     static = _PROMPT_LISTING.format(listing=listing) + _PROMPT.format(

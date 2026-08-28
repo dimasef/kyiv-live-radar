@@ -4,7 +4,7 @@ import { createSource, type Source } from '@/api'
 import type { Region } from '@/types'
 
 import AdminActionButton from './AdminActionButton'
-import { REGION_LABELS } from './sourceFormat'
+import RegionSelect from './RegionSelect'
 
 /** Subscribe to a new channel in the current tab's role. */
 export default function AddSourceForm({ role, onAdded }: { role: Source['role']; onAdded: (s: Source) => void }) {
@@ -19,17 +19,11 @@ export default function AddSourceForm({ role, onAdded }: { role: Source['role'];
         placeholder={role === 'alert' ? '@канал тривог' : '@канал, id або t.me/+посилання'}
         className="min-w-0 flex-1 rounded-md border border-white/15 bg-ink-900 px-2 py-1 text-xs text-slate-200 placeholder:text-slate-600"
       />
-      <select
+      <RegionSelect
         value={region}
-        onChange={(e) => setRegion(e.target.value as Region)}
+        onChange={setRegion}
         className="rounded-md border border-white/15 bg-ink-900 px-2 py-1 text-xs text-slate-200"
-      >
-        {Object.entries(REGION_LABELS).map(([value, label]) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
-        ))}
-      </select>
+      />
       <AdminActionButton
         label="Додати"
         tone="accent"

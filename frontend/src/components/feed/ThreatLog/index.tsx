@@ -1,7 +1,9 @@
 import { Fragment, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { currentRegion } from '@/lib/regions'
 import { useRadar } from '@/store'
+import { shownRegions } from '@/store/feedRegions'
 import { FEED_ZOOM } from '@/store/prefsSlice'
 
 import OnlineBadge from '../OnlineBadge'
@@ -18,17 +20,26 @@ export default function ThreatLog() {
   const notices = useRadar((s) => s.notices)
   const recentIncidents = useRadar((s) => s.recentIncidents)
   const feedTextSize = useRadar((s) => s.feedTextSize)
-  const feedOtherRegions = useRadar((s) => s.feedOtherRegions)
+  const feedExtraRegions = useRadar((s) => s.feedExtraRegions)
+  const regions = useRadar((s) => s.regions)
+  const chosenRegion = useRadar((s) => s.chosenRegion)
+  // The server already narrowed the page it loaded; this narrows what the live
+  // WebSocket keeps pushing on top of it.
+  const shown = useMemo(
+    () =>
+      new Set(shownRegions(feedExtraRegions, currentRegion({ regions, chosenRegion }))),
+    [feedExtraRegions, regions, chosenRegion],
+  )
   // Grouping up to 250 entries plus notices and incidents — pure, and only the
-  // three inputs move it, so it must not re-run on an unrelated re-render.
+  // four inputs move it, so it must not re-run on an unrelated re-render.
   const timeline = useMemo(
     () =>
       buildTimeline(
-        filterFeedRegions(log, feedOtherRegions),
-        filterFeedNotices(notices, feedOtherRegions),
+        filterFeedRegions(log, shown),
+        filterFeedNotices(notices, shown),
         recentIncidents,
       ),
-    [log, feedOtherRegions, notices, recentIncidents],
+    [log, shown, notices, recentIncidents],
   )
 
   const dayKeys = useMemo(

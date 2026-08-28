@@ -54,10 +54,21 @@ export type ThreatAnalysisState = Schemas['ThreatAnalysisStateOut']
 
 export type TargetType = Threat['target_type']
 export type ThreatStatus = Threat['status']
-/** Watched region — 'kyiv' (м. Київ + Київська обл., what the journal, the
- * attack banner and home-danger push are about) or 'chernihiv' (the northern
- * early-warning approach). */
+/** Watched region. 'kyiv' (м. Київ + Київська обл.) is what the journal, the
+ * attack banner and home-danger push are about; the rest are early-warning
+ * approaches. Some are declared but not covered yet — ask GET /regions rather
+ * than assuming a region has data (see RegionInfo.active). */
 export type Region = Threat['region']
+export type RegionInfo = Schemas['RegionOut']
+export type RegionAt = Schemas['RegionAtOut']
+
+/** GET /regions/geometry — `response_model`-less for the same reason as
+ * /alert-zones/geometry. Keyed by region id. */
+export type RegionOutlines = Record<
+  string,
+  { name_uk: string; geojson: GeoJSON.Polygon | GeoJSON.MultiPolygon }
+>
+
 export type ClosedReason = NonNullable<Threat['closed_reason']>
 export type NoticeKind = Notice['kind']
 export type AlertZone = Schemas['AlertZoneOut']

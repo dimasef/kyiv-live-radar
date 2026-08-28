@@ -17,6 +17,9 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
+from .regions import HOME_REGION as HOME_REGION
+from .regions import REGIONS as REGIONS
+from .regions import Region as Region
 
 
 def utcnow() -> datetime:
@@ -84,18 +87,10 @@ THREAT_KINDS: tuple[ThreatKind, ...] = get_args(ThreatKind)
 # ("група БпЛА над Чернігівщиною") that has no settlement to pin.
 ThreatScope = Literal["district", "city", "region"]
 THREAT_SCOPES: tuple[ThreatScope, ...] = get_args(ThreatScope)
-# Watched regions. 'kyiv' = м. Київ + Київська обл. (everything the radar was
-# built for); 'chernihiv' = the northern early-warning approach. A region owns
-# its own track pool: corroboration, an all-clear and stale closure never reach
-# across one, so a northern sighting can't join or close a Kyiv track. Only
-# 'kyiv' feeds incidents, the city alert, the journal and home-danger push.
-Region = Literal["kyiv", "chernihiv"]
-REGIONS: tuple[Region, ...] = get_args(Region)
-# The region the radar is actually ABOUT. It is both the default for anything
-# that doesn't say (every pre-region row is Kyiv, which is what it implicitly
-# was) and the gate for the Kyiv-only layers: incidents, the city alert, the
-# journal/statistics and danger-near-home push.
-HOME_REGION: Region = "kyiv"
+# Watched regions live in `app.regions` alongside the rest of each region's
+# metadata, and are re-exported here because most of the app reaches for them
+# through `models` — the registry has to stay ORM-free so `app.parsing` and
+# `app.gazetteer` can import it too.
 # Explicit reason a track closed, replacing `status='lost'`'s three overloaded
 # meanings (відбій / дорозвідка stand-down / silence timeout). NULL while open.
 ClosedReason = Literal["destroyed", "all_clear", "stand_down", "stale", "dismissed"]
@@ -219,6 +214,17 @@ class Source(Base):
     # northern channel's stand-down must not close Kyiv tracks. A message that
     # DOES name a district always takes the district's region instead.
     region: Mapped[str] = mapped_column(String(20), default="kyiv")
+    # Additional regions this channel is allowed to localize into, beyond
+    # `region` (which stays the PRIMARY: the district-less fallback above, and
+    # the winner of a homonym tie).
+    #
+    # A source only ever puts targets in the regions it is bound to — a village
+    # named outside them is dropped rather than pinned 300 km away. That rule
+    # only works because a channel can be bound to more than one: the Kyiv
+    # channels legitimately narrate the northern approach (68 stored events over
+    # Chernihiv raions), and restricting them to one region would throw those
+    # away. See parsing/matcher.DistrictMatcher(allowed_regions=...).
+    extra_regions: Mapped[list] = mapped_column(JSON, default=list)
     # How long a target type stated on THIS channel keeps typing that channel's
     # later bare-toponym callouts (see ingest/context._note_and_inherit_type).
     # NULL = use settings.type_inherit_window_minutes.
@@ -740,6 +746,12 @@ class PushSubscription(Base):
     # sits in 2-3 raions), resolved at subscribe time
     # (home_danger.raion_ids_for_zone) — the ballistic trigger matches any.
     home_district_ids: Mapped[list] = mapped_column(JSON, default=list)
+    # Which region's tracks this DEVICE wants woken for. Per-subscription, not
+    # per-account, because that is what "where I am" means: a phone taken to
+    # Kharkiv should follow it there while the desktop at home keeps watching
+    # Kyiv. NULL = the deployment's primary region, which is what every row
+    # predating this column implicitly was.
+    region: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow

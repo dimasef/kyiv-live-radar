@@ -65,7 +65,8 @@ function persistHome(get: () => RadarState, h: Home | null) {
   else safeRemove(STORAGE_KEYS.home)
   // The push subscription keeps its OWN copy of the zone — the backend assesses
   // danger against that one. No-op when notifications are off.
-  if (get().notifyStatus === 'on') void resyncHomePush(h, get().notifyPrefs).catch(() => {})
+  if (get().notifyStatus === 'on')
+    void resyncHomePush(h, get().notifyPrefs, get().chosenRegion).catch(() => {})
   // The account copy is saved whether or not the home is shared: sharing is a
   // visibility choice, not a reason to remember where you live.
   if (get().authStatus === 'authed') void resyncHomeShare(h).catch(() => {})

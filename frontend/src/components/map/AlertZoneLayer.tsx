@@ -1,46 +1,15 @@
-import type L from 'leaflet'
 import { useEffect, useState } from 'react'
 import { GeoJSON, Tooltip, useMap } from 'react-leaflet'
 
 import { useRadar } from '@/store'
 
 import { zoneTone } from './alertZones'
+import { tagPath, taggedId } from './tagPath'
 import { ZONE_ALL_CLEAR, ZONE_GLOW, ZONE_LABEL_NUDGE, ZONE_STYLES } from './constants'
 import ZoneGlowDefs from './ZoneGlowDefs'
 import ZoneLabel from './ZoneLabel'
 
-/** Tag a zone's rendered path so it can be focused and identified.
- *
- * Leaflet draws each polygon as a bare <svg:path>, which nothing can focus — so
- * on touch and on the TV remote, where there is no hover at all, a raion's name
- * was unreachable. A tabindex fixes all three input modes at once: it makes the
- * path a tab stop for a keyboard, a focus target for a remote, and (in every
- * browser we target) focused by a tap — without touching the click, which the
- * map already spends on panning and home placement.
- *
- * Idempotent, because an inline ref callback re-runs on every render. It only
- * sets attributes — the focus listener itself is delegated on the map container
- * below, so there is nothing here to attach twice or leak.
- *
- * `setAttribute`, not `dataset`: SVGElement.dataset is missing on the older
- * engines the TV target runs (see lib/observers for the same class of guard),
- * and there it would throw rather than degrade.
- */
 const ZONE_ATTR = 'data-zone'
-
-function tagPath(layer: L.GeoJSON | null, zoneId: string): void {
-  layer?.eachLayer((child) => {
-    const el = (child as L.Path).getElement?.()
-    if (!el) return
-    el.setAttribute('tabindex', '0')
-    el.setAttribute(ZONE_ATTR, zoneId)
-  })
-}
-
-function zoneOf(target: EventTarget | null): string | null {
-  const el = target as Element | null
-  return el?.getAttribute?.(ZONE_ATTR) ?? null
-}
 
 /** Official air-raid state of the raions of Київщина and Чернігівщина, from an
  * external provider (see backend feeds/alert_zones.py). Purely contextual: it
@@ -61,11 +30,11 @@ export default function AlertZoneLayer() {
   useEffect(() => {
     const root = map.getContainer()
     const onIn = (e: FocusEvent) => {
-      const id = zoneOf(e.target)
+      const id = taggedId(e.target, ZONE_ATTR)
       if (id) setNamed(id)
     }
     const onOut = (e: FocusEvent) => {
-      const id = zoneOf(e.target)
+      const id = taggedId(e.target, ZONE_ATTR)
       if (id) setNamed((cur) => (cur === id ? null : cur))
     }
     root.addEventListener('focusin', onIn)
@@ -116,7 +85,7 @@ export default function AlertZoneLayer() {
           // mount (same trick as CitywidePulse).
           <GeoJSON
             key={`${zoneId}-${tone}`}
-            ref={(layer) => tagPath(layer, zoneId)}
+            ref={(layer) => tagPath(layer, ZONE_ATTR, zoneId)}
             data={shape.geojson}
             style={{ ...ZONE_STYLES[tone], className: 'zone-hit zone-enter' }}
             eventHandlers={{

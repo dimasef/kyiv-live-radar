@@ -36,6 +36,7 @@ async def seed_sources() -> int:
                 trust_weight=s.get("trust_weight", 1.0),
                 role=s.get("role", "spotter"),
                 region=s.get("region", HOME_REGION),
+                extra_regions=list(s.get("extra_regions", [])),
             )
             for s in SOURCES
         )

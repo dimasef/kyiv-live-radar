@@ -361,8 +361,11 @@ async def rehydrate_type_context(session) -> int:
     # context is worse than none.
     async with ingest_lock:
         for raw in rows:
-            region = sources[raw.source_id].region
-            parsed = parse_message(raw.text or "", matcher.for_region(region))
+            src = sources[raw.source_id]
+            parsed = parse_message(
+                raw.text or "",
+                matcher.for_source(src.region, src.extra_regions or []),
+            )
             _note_and_inherit_type(parsed, raw.source_id, raw.event_time, windows[raw.source_id])
             # Same order as the live pass: the classifier is the LAST tier, so
             # its verdict only lands where the rules and the channel window

@@ -885,11 +885,12 @@ export interface paths {
          *     hydrates the frontend event feed on page load (it otherwise only grows from
          *     live WebSocket traffic and empties on every reload).
          *
-         *     `region` narrows the feed to one watched pool. It exists because filtering
-         *     client-side alone would silently shrink the feed: a busy northern night is
-         *     mostly Чернігівщина, so a reader who hides it would get a page of 60 events
-         *     with 20 left to look at. The client still filters what the WebSocket pushes
-         *     afterwards — this only makes the page it loads worth `limit` rows.
+         *     `region` narrows the feed to the watched pools asked for (repeat it once per
+         *     region). It exists because filtering client-side alone would silently shrink
+         *     the feed: a busy northern night is mostly Чернігівщина, so a reader who hides
+         *     it would get a page of 60 events with 20 left to look at. The client still
+         *     filters what the WebSocket pushes afterwards — this only makes the page it
+         *     loads worth `limit` rows.
          */
         get: operations["recent_events_events_recent_get"];
         put?: never;
@@ -1474,6 +1475,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/regions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Regions
+         * @description Every declared region, home first, in roster order.
+         */
+        get: operations["regions_regions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/regions/at": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Region Containing
+         * @description Which watched region a point falls in — how a device turns its home
+         *     location into "the region I am in" without shipping the polygons and the
+         *     ray-casting to every client. Unauthenticated, because an anonymous session
+         *     has a home too (it lives in localStorage).
+         *
+         *     `region` is null for a point outside every watched region, which is most of
+         *     the country and not an error.
+         */
+        get: operations["region_containing_regions_at_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/regions/geometry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Region Geometry
+         * @description The oblast outlines, passed through verbatim — same `response_model`-less
+         *     shape (and reason) as /alert-zones/geometry: GeoJSON geometry OpenAPI can
+         *     only describe as "an object".
+         */
+        get: operations["region_geometry_regions_geometry_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sources": {
         parameters: {
             query?: never;
@@ -2019,7 +2088,7 @@ export interface components {
              * @default kyiv
              * @enum {string}
              */
-            region: "kyiv" | "chernihiv";
+            region: "kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro";
         };
         /**
          * DistrictStatOut
@@ -2619,7 +2688,7 @@ export interface components {
              * @default kyiv
              * @enum {string}
              */
-            region: "kyiv" | "chernihiv";
+            region: "kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro";
             /** Source Id */
             source_id?: number | null;
             /** Source Name */
@@ -2734,6 +2803,8 @@ export interface components {
         PushSubscribeIn: {
             home?: components["schemas"]["HomeZoneIn"] | null;
             prefs?: components["schemas"]["PushPrefsIn"] | null;
+            /** Region */
+            region?: ("kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro") | null;
             subscription: components["schemas"]["BrowserSubscriptionIn"];
         };
         /** PushUnsubscribeIn */
@@ -2996,6 +3067,37 @@ export interface components {
             refresh: string;
         };
         /**
+         * RegionAtOut
+         * @description Which watched region contains a point (GET /regions/at).
+         */
+        RegionAtOut: {
+            /** Region */
+            region?: ("kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro") | null;
+        };
+        /**
+         * RegionOut
+         * @description One watched region as the client sees it.
+         */
+        RegionOut: {
+            /** Active */
+            active: boolean;
+            /** Bbox */
+            bbox: number[];
+            /** Center Lat */
+            center_lat: number;
+            /** Center Lon */
+            center_lon: number;
+            /**
+             * Id
+             * @enum {string}
+             */
+            id: "kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro";
+            /** Is Home */
+            is_home: boolean;
+            /** Name Uk */
+            name_uk: string;
+        };
+        /**
          * RegisterIn
          * @description POST /auth/register — email+password signup.
          */
@@ -3118,6 +3220,11 @@ export interface components {
             channel_key: string;
             /** Created At */
             created_at: string | null;
+            /**
+             * Extra Regions
+             * @default []
+             */
+            extra_regions: ("kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro")[];
             /** Id */
             id: number;
             /** Is Active */
@@ -3130,7 +3237,7 @@ export interface components {
              * Region
              * @enum {string}
              */
-            region: "kyiv" | "chernihiv";
+            region: "kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro";
             /**
              * Role
              * @enum {string}
@@ -3167,6 +3274,8 @@ export interface components {
          * @description Add (or reactivate) a channel from the admin console.
          */
         SourceIn: {
+            /** Extra Regions */
+            extra_regions?: ("kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro")[];
             /** Name */
             name?: string | null;
             /**
@@ -3174,7 +3283,7 @@ export interface components {
              * @default kyiv
              * @enum {string}
              */
-            region: "kyiv" | "chernihiv";
+            region: "kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro";
             /**
              * Role
              * @default spotter
@@ -3211,7 +3320,7 @@ export interface components {
              * Region
              * @enum {string}
              */
-            region: "kyiv" | "chernihiv";
+            region: "kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro";
             /**
              * Role
              * @enum {string}
@@ -3248,12 +3357,14 @@ export interface components {
         };
         /** SourceUpdateIn */
         SourceUpdateIn: {
+            /** Extra Regions */
+            extra_regions?: ("kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro")[] | null;
             /** Is Active */
             is_active?: boolean | null;
             /** Name */
             name?: string | null;
             /** Region */
-            region?: ("kyiv" | "chernihiv") | null;
+            region?: ("kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro") | null;
             /** Role */
             role?: ("spotter" | "alert") | null;
             /** Trust Weight */
@@ -3506,7 +3617,7 @@ export interface components {
              * @default kyiv
              * @enum {string}
              */
-            region: "kyiv" | "chernihiv";
+            region: "kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro";
             /**
              * Scope
              * @default district
@@ -5142,7 +5253,7 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
-                region?: ("kyiv" | "chernihiv") | null;
+                region?: ("kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro")[] | null;
             };
             header?: never;
             path?: never;
@@ -6195,6 +6306,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    regions_regions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegionOut"][];
+                };
+            };
+        };
+    };
+    region_containing_regions_at_get: {
+        parameters: {
+            query: {
+                lat: number;
+                lon: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegionAtOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    region_geometry_regions_geometry_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };
