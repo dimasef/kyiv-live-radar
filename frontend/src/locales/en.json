@@ -117,7 +117,9 @@
     "duration": "duration",
     "showRaw": "raw",
     "showMore": "more",
-    "showLess": "less"
+    "showLess": "less",
+    "hide": "Hide the event feed",
+    "show": "Show the event feed"
   },
   "notice": {
     "clear": "All clear",

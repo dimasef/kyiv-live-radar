@@ -32,12 +32,24 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.36.0";
+const LATEST = "0.37.0";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "Мапа на все вікно",
+    date: "2026-08-28",
+    kind: "minor",
+    changes: [
+      "На компʼютері стрічку подій тепер можна сховати — вузька ручка зі стрілкою на межі мапи й стрічки. Мапа розтягується на все вікно, а вибір памʼятається до наступного разу. Ручка лишається на тому самому місці, тож повернути стрічку можна тим самим рухом",
+      "Поки стрічка схована, нічого не губиться: розгорнеш — побачиш усе, що надійшло за той час",
+      "На телефоні без змін — там стрічка й далі висувається знизу",
+      "У картці відбою тривалість тривоги більше не розривається на два рядки",
+    ],
+  },
+  {
+    version: "0.36.0",
     title: "Легша мапа",
     date: "2026-08-27",
     kind: "minor",

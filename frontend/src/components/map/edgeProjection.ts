@@ -14,10 +14,14 @@ export interface EdgeInsets {
 /** The strip of map an edge marker may sit in. The container runs edge to edge
  * and UNDER its overlays, so the sides to stay clear of are spelled out here:
  * the alert banner up top, and on mobile the collapsed feed sheet (3.4rem)
- * plus the attribution line at the bottom. */
+ * plus the attribution line at the bottom.
+ *
+ * The wider right inset on desktop is the feed's collapse handle
+ * (chrome/FeedToggle), which is 20 px of chip at exactly the mid-height an edge
+ * marker likes. It is there in both states — expanded, it rides the seam. */
 export function overlayInsets(): EdgeInsets {
   const desktop = window.matchMedia('(min-width: 1024px)').matches
-  return { top: 64, right: 12, bottom: desktop ? 44 : 76, left: 12 }
+  return { top: 64, right: desktop ? 26 : 12, bottom: desktop ? 44 : 76, left: 12 }
 }
 
 /** The origin counts as visible only once it is clear of those overlays AND a

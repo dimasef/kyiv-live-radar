@@ -70,6 +70,11 @@ export interface PrefsSlice {
    * `initialFeedShowSource`). Display only — nothing is re-fetched. */
   feedShowSource: boolean
   setFeedShowSource: (on: boolean) => void
+  /** Desktop: hide the feed rail and give the map the whole window. Nothing
+   * stops being received — the feed's data lives in the store either way, so
+   * reopening it shows everything that happened while it was away. */
+  feedCollapsed: boolean
+  toggleFeed: () => void
   /** Opt-in "gamification" card-analysis layer (off by default). Account-bound:
    * hydrated from the signed-in user on login (authSlice) and persisted to the
    * server on change, so it syncs across the user's devices. The map, alerts and
@@ -107,6 +112,13 @@ export const createPrefsSlice: StateCreator<RadarState, [], [], PrefsSlice> = (s
     safeSet(STORAGE_KEYS.feedShowSource, on ? '1' : '0')
     set({ feedShowSource: on })
   },
+  feedCollapsed: safeGet(STORAGE_KEYS.feedCollapsed) === '1',
+  toggleFeed: () =>
+    set((s) => {
+      const collapsed = !s.feedCollapsed
+      safeSet(STORAGE_KEYS.feedCollapsed, collapsed ? '1' : '0')
+      return { feedCollapsed: collapsed }
+    }),
   gamification: false,
   setGamification: (on) => {
     set({ gamification: on })

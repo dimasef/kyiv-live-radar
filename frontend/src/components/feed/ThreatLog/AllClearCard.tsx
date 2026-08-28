@@ -115,8 +115,13 @@ export default function AllClearCard({ notices }: { notices: Notice[] }) {
 
       {closed && (
         <div className="relative mt-2.5 flex items-center justify-between gap-2">
+          {/* Never wraps, never shrinks: «тривала 3 год 20 хв» is the one fact
+              this row exists to state, and broken across two lines it turned
+              the chip into a two-storey block. The source chip beside it gives
+              way instead — it already truncates, and a shortened channel name
+              still reads. */}
           <span
-            className="flex items-center gap-1.5 rounded-md px-1.5 py-0.5 font-mono text-[10px]"
+            className="flex flex-none items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-0.5 font-mono text-[10px]"
             style={{ background: mix(12), color: AC }}
           >
             <Clock size={10} className="flex-none" />

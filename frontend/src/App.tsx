@@ -2,12 +2,16 @@ import { Analytics } from "@vercel/analytics/react";
 import { useEffect, useState } from "react";
 
 import { StatusBanner, ZoneLayerNotice } from "@/components/banners";
-import { AppStatus, DisclaimerModal, MobileSheet } from "@/components/chrome";
+import { AppStatus, DisclaimerModal, FeedToggle, MobileSheet } from "@/components/chrome";
 import { ThreatLog } from "@/components/feed";
 import { MapView } from "@/components/map";
 import { riseDelay } from "@/lib/motion";
 import { safeGet, STORAGE_KEYS } from "@/lib/storage";
+import { useRadar } from "@/store";
 import { bootstrapApp } from "@/store/bootstrap";
+
+/** Ties the collapse handle to the rail it controls, for `aria-controls`. */
+const FEED_RAIL_ID = "feed-rail";
 
 /** The radar map view (default route). Renders inside the persistent AppShell,
  * so it owns only the map region: the map itself, its overlay stack (air-alert
@@ -17,6 +21,7 @@ export default function App() {
   const [showDisclaimer, setShowDisclaimer] = useState(
     () => safeGet(STORAGE_KEYS.disclaimerHide) !== "1",
   );
+  const feedCollapsed = useRadar((s) => s.feedCollapsed);
 
   useEffect(() => {
     bootstrapApp();
@@ -40,14 +45,26 @@ export default function App() {
         <div className="absolute right-3 top-3 z-[1000]">
           <AppStatus />
         </div>
+        {/* Lives on the MAP, not in the rail: the rail unmounts when collapsed,
+            so a handle inside it could never bring it back. */}
+        <FeedToggle id={FEED_RAIL_ID} />
       </div>
 
-      {/* Desktop feed sidebar (settings moved to the shell drawer). */}
-      <aside className="hidden lg:flex w-[344px] shrink-0 flex-col gap-3 p-3 min-h-0 border-l border-white/5 bg-ink-900/55 backdrop-blur-xl">
-        <div className="rise flex-1 min-h-0 flex flex-col" style={riseDelay(1)}>
-          <ThreatLog />
-        </div>
-      </aside>
+      {/* Desktop feed sidebar (settings moved to the shell drawer). Unmounted
+          rather than hidden when collapsed — the feed's data lives in the store,
+          so nothing is lost and reopening shows everything that arrived
+          meanwhile. Collapsing changes the map container's width, which
+          ResizeHandler's observer turns into an invalidateSize(). */}
+      {!feedCollapsed && (
+        <aside
+          id={FEED_RAIL_ID}
+          className="hidden lg:flex w-[344px] shrink-0 flex-col gap-3 p-3 min-h-0 border-l border-white/5 bg-ink-900/55 backdrop-blur-xl"
+        >
+          <div className="rise flex-1 min-h-0 flex flex-col" style={riseDelay(1)}>
+            <ThreatLog />
+          </div>
+        </aside>
+      )}
 
       <MobileSheet />
       <Analytics />
