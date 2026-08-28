@@ -23,7 +23,6 @@ Revises: 0033
 Create Date: 2026-08-28T12:00:00
 
 """
-import json
 from typing import Sequence, Union
 
 import sqlalchemy as sa
@@ -64,12 +63,21 @@ def upgrade() -> None:
     # Regions are listed literally rather than imported from app.regions: a
     # migration records what was true when it ran, and must not change meaning
     # the next time that tuple is edited.
-    home = 'kyiv'
-    others = ['chernihiv']
+    #
+    # Written through a typed Core table rather than sa.text(). A raw statement
+    # binds the value as TEXT, which SQLite accepts and Postgres rejects
+    # outright ("column extra_regions is of type json but expression is of type
+    # text") — and with transactional DDL that rolls the whole revision back, so
+    # the deploy crash-loops re-running it. Declaring the column's type here
+    # makes SQLAlchemy emit the `::JSON` cast on Postgres and a plain parameter
+    # on SQLite, with no dialect branching of our own.
+    sources = sa.table(
+        'sources',
+        sa.column('region', sa.String),
+        sa.column('extra_regions', sa.JSON),
+    )
     op.execute(
-        sa.text("UPDATE sources SET extra_regions = :val WHERE region = :home").bindparams(
-            val=json.dumps(others), home=home
-        )
+        sources.update().where(sources.c.region == 'kyiv').values(extra_regions=['chernihiv'])
     )
 
 
