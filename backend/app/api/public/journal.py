@@ -133,7 +133,9 @@ async def journal_stats(
     # The alert feed was added later than the spotter feed: every alert rate is
     # normalized on its own coverage window, not on the whole data range.
     alert_start = await session.scalar(
-        select(func.min(Alert.started_at)).where(Alert.scope == "city")
+        select(func.min(Alert.started_at)).where(
+            Alert.scope == "city", Alert.region == HOME_REGION
+        )
     )
 
     stat = build_analytics(
@@ -197,7 +199,9 @@ async def _first_data_day(session: AsyncSession) -> date | None:
         ),
         await session.scalar(select(func.min(Incident.started_at))),
         await session.scalar(
-            select(func.min(Alert.started_at)).where(Alert.scope == "city")
+            select(func.min(Alert.started_at)).where(
+                Alert.scope == "city", Alert.region == HOME_REGION
+            )
         ),
     ]
     known = [dt for dt in firsts if dt is not None]

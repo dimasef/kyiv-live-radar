@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { fetchRawCount, fetchRawMessages } from '@/api'
 import type { RawMessagesFilter } from '@/api'
-import type { RawMessage, RawOutcomeFilter, Threat } from '@/types'
+import type { RawMessage, RawOutcomeFilter, Region, Threat } from '@/types'
 
 export interface RawMessageFilters {
   q: string
   outcome: RawOutcomeFilter | 'all'
   llm: 'yes' | 'no' | 'all'
   sourceId: number | 'all'
+  region: Region | 'all'
 }
 
 /** UI filter state ('all' sentinels) -> API params (fields simply omitted).
@@ -20,6 +21,7 @@ export function toApiFilter(f: RawMessageFilters): RawMessagesFilter {
     outcome: f.outcome === 'all' ? undefined : f.outcome,
     llm: f.llm === 'all' ? undefined : f.llm,
     sourceId: f.sourceId === 'all' ? undefined : f.sourceId,
+    region: f.region === 'all' ? undefined : f.region,
   }
 }
 
@@ -46,10 +48,10 @@ export function useRawMessages(filters: RawMessageFilters) {
   // would restart the whole query on each one. Rebuilding the object inside
   // also means a newly added filter field fails to compile here rather than
   // silently missing from the dependencies.
-  const { q, outcome, llm, sourceId } = filters
+  const { q, outcome, llm, sourceId, region } = filters
   const apiFilter = useMemo(
-    () => toApiFilter({ q, outcome, llm, sourceId }),
-    [q, outcome, llm, sourceId],
+    () => toApiFilter({ q, outcome, llm, sourceId, region }),
+    [q, outcome, llm, sourceId, region],
   )
 
   const fetchPage = useCallback(

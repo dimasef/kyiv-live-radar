@@ -17,7 +17,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from ..config import settings
-from ..models import Alert, Incident, Threat, ThreatEvent
+from ..models import HOME_REGION, Alert, Incident, Threat, ThreatEvent
 from ..timeutil import naive, within
 from .lifecycle import close_track, reopen_track
 
@@ -103,12 +103,20 @@ def recompute_incident_types(inc: Incident) -> None:
 
 
 
-async def find_active_incident(session, when: datetime) -> Incident | None:
-    """The current open incident, if it saw activity within the gap window."""
+async def find_active_incident(
+    session, when: datetime, region: str = HOME_REGION
+) -> Incident | None:
+    """This REGION's current open incident, if it saw activity within the gap
+    window.
+
+    Scoped by region rather than global: an attack is one region's, and a
+    sighting over Сумщина joining Kyiv's open incident would put it in Kyiv's
+    banner, its rollup card and its journal count.
+    """
     gap = timedelta(minutes=settings.incident_gap_minutes)
     stmt = (
         select(Incident)
-        .where(Incident.ended_at.is_(None))
+        .where(Incident.ended_at.is_(None), Incident.region == region)
         .order_by(Incident.started_at.desc())
     )
     for inc in await session.scalars(stmt):
@@ -131,18 +139,27 @@ async def attach_to_incident(
     new incident links the currently open CITY alert, if any (the reverse
     direction — a ballistic incident that starts BEFORE the siren — is
     handled by alerts.py's adoption on alert start)."""
-    inc = await find_active_incident(session, when)
+    # The track's own region, never the reporting channel's: a Kyiv channel
+    # narrating the northern approach must not file a Chernihiv target under a
+    # Kyiv attack.
+    region = threat.region
+    inc = await find_active_incident(session, when, region)
     if inc is None:
         alert_id = await session.scalar(
-            select(Alert.id).where(Alert.scope == "city", Alert.ended_at.is_(None))
+            select(Alert.id).where(
+                Alert.scope == "city",
+                Alert.region == region,
+                Alert.ended_at.is_(None),
+            )
         )
         inc = Incident(
             started_at=when, last_activity_at=when, target_type=threat.target_type,
-            alert_id=alert_id,
+            region=region, alert_id=alert_id,
         )
         session.add(inc)
         await session.commit()
-        log.info("incident %s started (target_type=%s)", inc.id, inc.target_type)
+        log.info("incident %s started (region=%s, target_type=%s)",
+                 inc.id, inc.region, inc.target_type)
     threat.incident_id = inc.id
     if decoy:
         inc.decoy_mentions += 1
@@ -186,11 +203,20 @@ def restore_incident(inc: Incident) -> None:
     log.info("incident %s restored (admin)", inc.id)
 
 
-async def end_active_incidents(session, when: datetime, ended_reason: str) -> list[Incident]:
-    """End every open incident — used on a full all-clear (`ended_reason=
-    'all_clear'`, spotter "Відбій тривоги") or the official alert ending
-    (`ended_reason='alert_end'`) — see ingest.py's two callers."""
-    incs = list(await session.scalars(select(Incident).where(Incident.ended_at.is_(None))))
+async def end_active_incidents(
+    session, when: datetime, ended_reason: str, region: str = HOME_REGION
+) -> list[Incident]:
+    """End every open incident IN ONE REGION — used on a full all-clear
+    (`ended_reason='all_clear'`, spotter "Відбій тривоги") or the official alert
+    ending (`ended_reason='alert_end'`) — see ingest.py's two callers.
+
+    The region is the clearing signal's own: Kyiv's official відбій speaks for
+    Kyiv, and ending a northern attack on it would be the same mistake as
+    closing a northern track on it (which `close_all_active` already refuses).
+    """
+    incs = list(await session.scalars(
+        select(Incident).where(Incident.ended_at.is_(None), Incident.region == region)
+    ))
     for inc in incs:
         inc.ended_at = when
         inc.ended_reason = ended_reason
@@ -201,7 +227,7 @@ async def end_active_incidents(session, when: datetime, ended_reason: str) -> li
 
 
 async def end_incidents_without_open_tracks(
-    session, when: datetime, ended_reason: str
+    session, when: datetime, ended_reason: str, region: str = HOME_REGION
 ) -> list[Incident]:
     """End active incidents whose member tracks are ALL closed — used after a
     type-scoped clear ("Відбій балістичної загрози") or a "дорозвідка"
@@ -211,7 +237,7 @@ async def end_incidents_without_open_tracks(
     that still has an open track of another type stays active."""
     incs = list(await session.scalars(
         select(Incident)
-        .where(Incident.ended_at.is_(None))
+        .where(Incident.ended_at.is_(None), Incident.region == region)
         .options(selectinload(Incident.threats))
     ))
     ended = []

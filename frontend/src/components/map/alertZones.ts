@@ -1,4 +1,22 @@
-import type { AlertZone, AlertZoneGeometry } from '@/types'
+import type { AlertZone, AlertZoneGeometry, Region } from '@/types'
+
+/** Narrow a zone map — state or geometry — to the regions the reader follows.
+ *
+ * The layer paints four oblasts' raions, of which a reader watches one or two.
+ * Sirens over Харківщина are not context for someone in Сумщина, they are
+ * noise on top of the picture they came for, and the layer's own count badge
+ * would announce raions the map is not showing.
+ *
+ * Everything the layer does goes through this: the polygons, the badge and the
+ * auto-frame. That is the point of it being one function — the three used to
+ * agree only because they all saw everything.
+ */
+export function inShownRegions<T extends { region: Region }>(
+  byId: Record<string, T>,
+  shown: ReadonlySet<Region>,
+): Record<string, T> {
+  return Object.fromEntries(Object.entries(byId).filter(([, v]) => shown.has(v.region)))
+}
 
 /** How a zone should be painted. `stale` is its own tone on purpose: when the
  * provider is unreachable we know nothing, and drawing that as "відбій" would

@@ -435,6 +435,13 @@
       "heaviestDays": "Heaviest days",
       "dayLine": "{{targets}} targets · {{alert}} of alerts",
       "noData": "No data for this period"
+    },
+    "regionGate": {
+      "title": "The journal covers {{region}}",
+      "subtitle": "Figures for {{region}} — not for your region",
+      "body": "You follow a different oblast. The targets, raions and alerts here are {{region}}'s — yours are not in these numbers. The data is real, it is just not about you.",
+      "show": "Show it anyway",
+      "toMap": "Back to the map"
     }
   },
   "banner": {

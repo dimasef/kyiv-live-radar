@@ -24,6 +24,10 @@ class IncidentOut(BaseModel):
     """A coordinated attack with counts aggregated from its member threats."""
 
     id: int
+    # Which region is under this attack. The client filters its feed on it
+    # instead of assuming every attack is the home region's — an assumption
+    # that put Kyiv rollups in a Сумщина reader's timeline.
+    region: Region
     started_at: datetime
     ended_at: datetime | None = None
     # Why it ended — lets the client drop an admin-cancelled false positive
@@ -90,6 +94,9 @@ class AlertOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    # Whose siren. The banner compares it against the region the reader is
+    # actually following, rather than treating every alert as theirs.
+    region: Region
     scope: AlertScope
     alert_type: str
     started_at: datetime

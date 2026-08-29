@@ -75,10 +75,19 @@ export type AlertZone = Schemas['AlertZoneOut']
 
 /** GET /alert-zones/geometry — `response_model`-less for the same reason as
  * /districts/boundaries: the GeoJSON geometry is passed through verbatim, and
- * OpenAPI can only call it "an object". Keyed by zone_id. */
+ * OpenAPI can only call it "an object". Keyed by zone_id.
+ *
+ * `region` is joined on by the endpoint, not stored in the polygon file: the
+ * layer is narrowed to the regions the reader follows, and geometry arrives
+ * before the state does. */
 export type AlertZoneGeometry = Record<
   string,
-  { name_uk: string; oblast: string; geojson: GeoJSON.Polygon | GeoJSON.MultiPolygon }
+  {
+    name_uk: string
+    oblast: string
+    region: Region
+    geojson: GeoJSON.Polygon | GeoJSON.MultiPolygon
+  }
 >
 
 /** Sent on every frame — the server's clock. The map's staleness fade runs

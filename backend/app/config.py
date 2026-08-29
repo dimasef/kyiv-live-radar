@@ -529,6 +529,19 @@ class Settings(BaseSettings):
     # that looks like an all-clear is the one failure mode worth engineering
     # against here.
     alert_zones_stale_after_s: int = 180
+    # How far the ROSTER source may lag the active one before we stop believing
+    # it (see feeds/alert_zones.roster_is_behind). 0 disables the check.
+    #
+    # Half an hour is deliberately far wider than the real signal. Two live
+    # sources see the same transitions within SECONDS, so the normal gap is ~0
+    # — including on a quiet night, when both just report old news. The failure
+    # it caught on 2026-08-29 was sixteen HOURS: the roster source answering
+    # instantly, `cachedat` stamped the current second, and every transition in
+    # it dated that morning, with Kyiv still under a siren that had ended long
+    # before. A wide threshold costs nothing against a gap that size, and buys
+    # immunity to the one thing that could make it misfire — a source that is
+    # merely slow rather than stuck.
+    alert_zones_max_source_lag_s: int = 1800
     # Dev-only: comma-separated zone ids to force ALERT on, so the layer can be
     # looked at without waiting for a real siren (same purpose as
     # SIMULATOR_ENABLED/REPLAY_REAL_DATA for the spotter feed). Empty = fully

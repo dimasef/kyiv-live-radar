@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { RegionInfo } from '@/types'
 
-import { stillCollapsed, watchesHomeRegion } from './status'
+import { inFollowedRegion, stillCollapsed } from './status'
 
 describe('stillCollapsed', () => {
   it('keeps the pill collapsed through a reload of the SAME alert', () => {
@@ -33,7 +33,7 @@ describe('stillCollapsed', () => {
   })
 })
 
-describe('watchesHomeRegion', () => {
+describe('inFollowedRegion', () => {
   // The server catalogue: `is_home` is the deployment's own region, never a
   // hardcoded id here.
   const catalogue = [
@@ -41,23 +41,32 @@ describe('watchesHomeRegion', () => {
     { id: 'sumy', name_uk: 'Сумщина', is_home: false, active: true },
   ] as unknown as RegionInfo[]
 
-  it('hides the banner for a reader following another oblast', () => {
+  const kyivAlert = { id: 1, region: 'kyiv' as const }
+  const sumyAlert = { id: 2, region: 'sumy' as const }
+
+  it('drops another oblast\'s alert for a reader following Сумщина', () => {
     // The 2026-08-29 report: region set to Сумщина, Kyiv's air-raid alert still
     // shown as the reader's own situation.
-    expect(watchesHomeRegion(catalogue, 'sumy')).toBe(false)
+    expect(inFollowedRegion([kyivAlert], catalogue, 'sumy')).toEqual([])
   })
 
-  it('shows it for a reader following the home region', () => {
-    expect(watchesHomeRegion(catalogue, 'kyiv')).toBe(true)
+  it('keeps the followed region\'s own alert', () => {
+    expect(inFollowedRegion([kyivAlert, sumyAlert], catalogue, 'sumy')).toEqual([sumyAlert])
   })
 
-  it('shows it before the picker is answered — that falls back to home', () => {
-    expect(watchesHomeRegion(catalogue, null)).toBe(true)
+  it('falls back to the home region before the picker is answered', () => {
+    expect(inFollowedRegion([kyivAlert, sumyAlert], catalogue, null)).toEqual([kyivAlert])
   })
 
-  it('shows it while the catalogue is still empty', () => {
-    // First paint, before the boot fetch lands. Failing towards showing an
-    // alert is the only safe direction.
-    expect(watchesHomeRegion([], 'sumy')).toBe(true)
+  it('honours an explicit choice even before the catalogue lands', () => {
+    // The choice is the reader's own statement of where they are; it does not
+    // need the catalogue to be trustworthy.
+    expect(inFollowedRegion([kyivAlert], [], 'sumy')).toEqual([])
+  })
+
+  it('narrows nothing when there is no followed region at all', () => {
+    // First paint with no choice made: failing towards showing an alert is the
+    // only safe direction.
+    expect(inFollowedRegion([kyivAlert, sumyAlert], [], null)).toHaveLength(2)
   })
 })

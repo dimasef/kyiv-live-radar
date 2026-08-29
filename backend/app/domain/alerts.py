@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import select
 
 from ..config import settings
-from ..models import Alert, Incident
+from ..models import HOME_REGION, Alert, Incident
 from ..timeutil import within
 
 log = logging.getLogger("alerts")
@@ -25,6 +25,9 @@ class AlertSignal:
     scope: str  # 'city' | 'oblast'
     action: str  # 'start' | 'end'
     when: datetime
+    # Whose siren. Defaults to the deployment's primary region so a caller that
+    # predates regions still means what it always meant.
+    region: str = HOME_REGION
     provider: str = "telegram"
     raw_id: int | None = None
     alert_type: str = "air_raid"
@@ -48,9 +51,18 @@ def restore_alert(alert: Alert) -> None:
     log.info("alert %s restored (admin, scope=%s)", alert.id, alert.scope)
 
 
-async def _find_open(session, scope: str) -> Alert | None:
+async def _find_open(session, scope: str, region: str) -> Alert | None:
+    """The open alert for ONE region's scope.
+
+    Region is part of the key, not a filter on top of it: without it an open
+    Kyiv siren made every other region's `start` look like a repeat and no-op,
+    so a second region could never raise an alert at all while Kyiv's was
+    running.
+    """
     return await session.scalar(
-        select(Alert).where(Alert.scope == scope, Alert.ended_at.is_(None))
+        select(Alert).where(
+            Alert.scope == scope, Alert.region == region, Alert.ended_at.is_(None)
+        )
     )
 
 
@@ -65,10 +77,11 @@ async def apply_alert_signal(session, signal: AlertSignal) -> Alert | None:
     real transition, else None.
     """
     if signal.action == "start":
-        if await _find_open(session, signal.scope) is not None:
+        if await _find_open(session, signal.scope, signal.region) is not None:
             return None
         alert = Alert(
             scope=signal.scope,
+            region=signal.region,
             alert_type=signal.alert_type,
             started_at=signal.when,
             provider=signal.provider,
@@ -76,19 +89,21 @@ async def apply_alert_signal(session, signal: AlertSignal) -> Alert | None:
         )
         session.add(alert)
         await session.commit()
-        log.info("alert %s opened (scope=%s)", alert.id, alert.scope)
+        log.info("alert %s opened (region=%s, scope=%s)",
+                 alert.id, alert.region, alert.scope)
         if signal.scope == "city":
             await _adopt_recent_incident(session, alert, signal.when)
         return alert
 
-    existing = await _find_open(session, signal.scope)
+    existing = await _find_open(session, signal.scope, signal.region)
     if existing is None:
         return None
     existing.ended_at = signal.when
     existing.ended_raw_id = signal.raw_id
     existing.closed_reason = "official"
     await session.commit()
-    log.info("alert %s closed (scope=%s)", existing.id, existing.scope)
+    log.info("alert %s closed (region=%s, scope=%s)",
+             existing.id, existing.region, existing.scope)
     return existing
 
 
@@ -105,7 +120,14 @@ async def _adopt_recent_incident(session, alert: Alert, when: datetime) -> None:
     lookback = timedelta(minutes=settings.alert_adopt_lookback_minutes)
     stmt = (
         select(Incident)
-        .where(Incident.ended_at.is_(None), Incident.alert_id.is_(None))
+        .where(
+            Incident.ended_at.is_(None),
+            Incident.alert_id.is_(None),
+            # Only this region's attack. Adopting across regions would hand a
+            # northern incident to Kyiv's siren and, through `alert_id`, into
+            # Kyiv's journal.
+            Incident.region == alert.region,
+        )
         .order_by(Incident.started_at.desc())
     )
     for inc in await session.scalars(stmt):

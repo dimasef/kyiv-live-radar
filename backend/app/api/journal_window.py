@@ -53,9 +53,15 @@ async def load_journal_window(
 
     The journal is about KYIV. Northern early-warning tracks and the districts
     they pass over are watched to see what is coming, not to be counted as
-    nights this city lived through — so both the threat rows and the district
-    histogram are filtered to HOME_REGION here rather than in build_journal,
-    which stays a pure function over whatever it is handed.
+    nights this city lived through — so every row here is filtered to
+    HOME_REGION rather than in build_journal, which stays a pure function over
+    whatever it is handed.
+
+    Incidents and alerts are filtered on their OWN region now, not left to be
+    Kyiv's by construction. Today that changes nothing (both are only ever
+    opened for the home region), and that is the point: the day another region
+    starts producing them, the journal keeps counting one city's nights instead
+    of silently summing several.
     """
     window_start = datetime.combine(start, time.min) - timedelta(days=1)
     window_end = datetime.combine(end, time.min) + timedelta(days=2)
@@ -72,7 +78,9 @@ async def load_journal_window(
     incidents = list(
         await session.scalars(
             select(Incident).where(
-                Incident.started_at >= window_start, Incident.started_at < window_end
+                Incident.region == HOME_REGION,
+                Incident.started_at >= window_start,
+                Incident.started_at < window_end,
             )
         )
     )
@@ -80,6 +88,7 @@ async def load_journal_window(
         await session.scalars(
             select(Alert).where(
                 Alert.scope == "city",
+                Alert.region == HOME_REGION,
                 Alert.started_at >= window_start,
                 Alert.started_at < window_end,
             )
@@ -109,7 +118,9 @@ async def load_journal_window(
     # (they're already off the map, the feed and the banner). They appear on
     # the next load once the відбій lands.
     alert_open = await session.scalar(
-        select(Alert.id).where(Alert.scope == "city", Alert.ended_at.is_(None))
+        select(Alert.id).where(
+            Alert.scope == "city", Alert.region == HOME_REGION, Alert.ended_at.is_(None)
+        )
     )
     return JournalWindow(
         threats=threats,

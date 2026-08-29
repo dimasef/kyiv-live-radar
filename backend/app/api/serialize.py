@@ -184,6 +184,7 @@ def incident_out(inc: Incident, sentinel_district_id: int | None) -> IncidentOut
 
     return IncidentOut(
         id=inc.id,
+        region=inc.region,
         started_at=inc.started_at,
         ended_at=inc.ended_at,
         ended_reason=inc.ended_reason,

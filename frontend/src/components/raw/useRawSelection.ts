@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { fetchRawExport } from '@/api'
 import type { RawMessagesFilter } from '@/api'
-import type { RawMessage, RawSource } from '@/types'
+import type { RawMessage, RawSource, RegionInfo } from '@/types'
 
 import { downloadRawExport, openRawExport } from './exportRaw'
 import type { RawMessageFilters } from './useRawMessages'
@@ -16,8 +16,9 @@ export function useRawSelection(params: {
   filters: RawMessageFilters
   apiFilter: RawMessagesFilter
   sources: RawSource[]
+  regions: RegionInfo[]
 }) {
-  const { items, filters, apiFilter, sources } = params
+  const { items, filters, apiFilter, sources, regions } = params
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [exporting, setExporting] = useState(false)
 
@@ -55,10 +56,11 @@ export function useRawSelection(params: {
       scope: 'selected',
       filters,
       sources,
+      regions,
       messages: selectedItems,
       truncated: false,
     })
-  }, [filters, sources, selectedItems])
+  }, [filters, sources, regions, selectedItems])
 
   const exportFiltered = useCallback(async () => {
     setExporting(true)
@@ -68,19 +70,27 @@ export function useRawSelection(params: {
         scope: 'filtered',
         filters,
         sources,
+        regions,
         messages: res.messages,
         truncated: res.truncated,
       })
     } finally {
       setExporting(false)
     }
-  }, [apiFilter, filters, sources])
+  }, [apiFilter, filters, sources, regions])
 
   // Open-in-tab variants of the same two exports — no file saved.
   const viewSelected = useCallback(() => {
     if (selectedItems.length === 0) return
-    openRawExport({ scope: 'selected', filters, sources, messages: selectedItems, truncated: false })
-  }, [filters, sources, selectedItems])
+    openRawExport({
+      scope: 'selected',
+      filters,
+      sources,
+      regions,
+      messages: selectedItems,
+      truncated: false,
+    })
+  }, [filters, sources, regions, selectedItems])
 
   const viewFiltered = useCallback(async () => {
     // Open the tab NOW, inside the click gesture — a tab opened after the await
@@ -90,7 +100,14 @@ export function useRawSelection(params: {
     try {
       const res = await fetchRawExport(apiFilter)
       openRawExport(
-        { scope: 'filtered', filters, sources, messages: res.messages, truncated: res.truncated },
+        {
+          scope: 'filtered',
+          filters,
+          sources,
+          regions,
+          messages: res.messages,
+          truncated: res.truncated,
+        },
         tab,
       )
     } catch (err) {
@@ -99,7 +116,7 @@ export function useRawSelection(params: {
     } finally {
       setExporting(false)
     }
-  }, [apiFilter, filters, sources])
+  }, [apiFilter, filters, sources, regions])
 
   return {
     selectedIds,

@@ -1,24 +1,35 @@
 import { describe, expect, it } from 'vitest'
 
 import { durationLabel } from '@/lib/duration'
-import type { Alert, Notice, TargetType } from '@/types'
+import type { Alert, Notice, Region, TargetType } from '@/types'
 
 import { CLEAR_TAILS, alertForClear, clearTailKey } from './allClear'
 
-function notice(at: string, targetType: TargetType = 'unknown'): Notice {
+function notice(
+  at: string,
+  targetType: TargetType = 'unknown',
+  region: Region = 'kyiv',
+): Notice {
   return {
     id: 1,
     kind: 'clear',
     text: 'Відбій тривоги',
     target_type: targetType,
+    region,
     event_time: at,
   } as unknown as Notice
 }
 
-function alert(id: number, startedAt: string, endedAt: string | null): Alert {
+function alert(
+  id: number,
+  startedAt: string,
+  endedAt: string | null,
+  region: Region = 'kyiv',
+): Alert {
   return {
     id,
     scope: 'city',
+    region,
     alert_type: 'air',
     started_at: startedAt,
     ended_at: endedAt,
@@ -30,6 +41,14 @@ describe('matching an all-clear to the alert it closed', () => {
   it('finds the alert that ended alongside it', () => {
     const a = alert(1, '2026-08-23T00:27:00Z', '2026-08-23T02:14:00Z')
     expect(alertForClear([a], notice('2026-08-23T02:15:00Z'))).toBe(a)
+  })
+
+  it("ignores another region's alert that ended at the same moment", () => {
+    // Unreachable while Kyiv is the only region with an alert channel — which
+    // is why it would have gone unnoticed. A northern «Відбій» must never be
+    // stamped with the duration of a siren that never covered the reader.
+    const kyiv = alert(1, '2026-08-23T00:27:00Z', '2026-08-23T02:14:00Z')
+    expect(alertForClear([kyiv], notice('2026-08-23T02:15:00Z', 'unknown', 'sumy'))).toBeNull()
   })
 
   it('ignores an alert that ended hours away', () => {

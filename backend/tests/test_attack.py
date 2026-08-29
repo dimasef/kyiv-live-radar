@@ -315,3 +315,77 @@ async def test_stand_down_ends_incident(ctx):
     inc = (await s.scalars(select(Incident))).one()
     assert inc.ended_at is not None and inc.ended_reason == "all_clear"
     assert any(b.type == "attack" for b in results)
+
+
+# --- regions on the incident (migration 0036) ---
+
+async def test_a_track_starts_an_incident_in_its_own_region(ctx):
+    """The incident takes the TRACK's region, never the reporting channel's: a
+    Kyiv channel narrating the northern approach must not file a Chernihiv
+    target under a Kyiv attack."""
+    s, _m, _src = ctx
+    from app.domain.incidents import attach_to_incident
+
+    t = Threat(target_type="shahed", status="tracking", region="chernihiv")
+    s.add(t)
+    await s.commit()
+    inc = await attach_to_incident(s, t, BASE)
+    assert inc.region == "chernihiv"
+
+
+async def test_two_regions_do_not_share_one_attack(ctx):
+    """The grouping window is per region. Globally, a Сумщина sighting joined
+    Kyiv's open incident and landed in Kyiv's banner, rollup card and journal
+    count."""
+    s, _m, _src = ctx
+    from app.domain.incidents import attach_to_incident
+
+    kyiv_track = Threat(target_type="shahed", status="tracking", region="kyiv")
+    sumy_track = Threat(target_type="shahed", status="tracking", region="sumy")
+    s.add_all([kyiv_track, sumy_track])
+    await s.commit()
+
+    kyiv_inc = await attach_to_incident(s, kyiv_track, BASE)
+    sumy_inc = await attach_to_incident(s, sumy_track, BASE + timedelta(minutes=1))
+    assert kyiv_inc.id != sumy_inc.id
+    assert {kyiv_inc.region, sumy_inc.region} == {"kyiv", "sumy"}
+
+
+async def test_a_clear_ends_only_its_own_regions_attack(ctx):
+    """Kyiv's official відбій speaks for Kyiv. Ending a northern attack on it
+    would be the same mistake as closing a northern track on it."""
+    s, _m, _src = ctx
+    from app.domain.incidents import attach_to_incident, end_active_incidents
+
+    for region in ("kyiv", "sumy"):
+        t = Threat(target_type="shahed", status="tracking", region=region)
+        s.add(t)
+        await s.commit()
+        await attach_to_incident(s, t, BASE)
+
+    ended = await end_active_incidents(s, BASE + timedelta(minutes=5), "alert_end",
+                                       region="kyiv")
+    assert [i.region for i in ended] == ["kyiv"]
+    still_open = list(await s.scalars(select(Incident).where(Incident.ended_at.is_(None))))
+    assert [i.region for i in still_open] == ["sumy"]
+
+
+async def test_an_alert_adopts_only_its_own_regions_incident(ctx):
+    """The ballistic adoption on alert start. Reaching across regions would
+    hand a northern incident to Kyiv's siren and, through `alert_id`, into
+    Kyiv's journal."""
+    s, _m, _src = ctx
+    from app.domain.alerts import AlertSignal, apply_alert_signal
+    from app.domain.incidents import attach_to_incident
+
+    t = Threat(target_type="ballistic", status="tracking", region="sumy")
+    s.add(t)
+    await s.commit()
+    sumy_inc = await attach_to_incident(s, t, BASE)
+
+    alert = await apply_alert_signal(
+        s, AlertSignal(scope="city", action="start", when=BASE + timedelta(minutes=1),
+                       region="kyiv"))
+    assert alert is not None
+    await s.refresh(sumy_inc)
+    assert sumy_inc.alert_id is None

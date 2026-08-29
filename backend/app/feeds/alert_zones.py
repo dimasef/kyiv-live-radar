@@ -28,6 +28,7 @@ import httpx
 from ..api.ws import manager
 from ..config import settings
 from ..domain.alert_zones import (
+    OBLAST_REGION,
     WATCHED_OBLASTS,
     ZONE_BY_PLACE,
     ZONES,
@@ -132,6 +133,67 @@ def parse_aiu(payload: dict) -> dict[str, ZoneState]:
     return states
 
 
+def latest_transition(payload: dict) -> datetime | None:
+    """The most recent state change the ROSTER payload reports — anywhere in
+    the country, not just in the watched oblasts.
+
+    Nationwide on purpose: this is a liveness probe for the source, and our four
+    oblasts can legitimately be quiet for hours while the rest of the country is
+    not. Sentinel rows (the 2022 dates the provider carries for the occupied
+    oblasts) lose the max and need no special case.
+    """
+    newest: datetime | None = None
+    for entry in (payload.get("raw") or {}).values():
+        rows = [entry, *(entry.get("districts") or [])]
+        for row in rows:
+            when = _parse_skog_time(row.get("changed"))
+            if when is not None and (newest is None or when > newest):
+                newest = when
+    return newest
+
+
+def latest_active_start(payload: dict) -> datetime | None:
+    """The most recent air-raid START the ACTIVE payload reports, anywhere."""
+    newest: datetime | None = None
+    for row in payload.get("raw") or []:
+        if row.get("alert_type") != "air_raid":
+            continue
+        started = row.get("started_at")
+        try:
+            when = datetime.fromisoformat(started.replace("Z", "+00:00")) if started else None
+        except (AttributeError, ValueError):
+            when = None
+        if when is not None and (newest is None or when > newest):
+            newest = when
+    return newest
+
+
+def roster_is_behind(roster_newest: datetime | None,
+                     active_newest: datetime | None) -> bool:
+    """Whether the roster source is demonstrably serving stale state.
+
+    The failure this exists for, live on 2026-08-29: the roster source answered
+    in milliseconds, with `cachedat` stamped the current second, and every
+    transition in it dated 07:55 or earlier — a sixteen-hour-old snapshot in
+    which Kyiv was still under a siren that had long ended. `is_stale()` cannot
+    catch that; it measures when WE last polled, and we polled successfully
+    every 20 seconds throughout.
+
+    The signal is the two sources' own timestamps. While both are live they see
+    the same transitions within seconds, so this gap is ~0 — including on a
+    quiet night, when both simply report old news. It only opens when one stops
+    receiving updates, and then it opens by hours.
+
+    Deliberately one-directional: an ACTIVE source cannot tell us a zone went
+    quiet (it lists only what is on), so it can never be judged behind this way,
+    and this can never conclude "the roster is fine, the other one is stuck".
+    """
+    lag = settings.alert_zones_max_source_lag_s
+    if lag <= 0 or roster_newest is None or active_newest is None:
+        return False
+    return (active_newest - roster_newest).total_seconds() > lag
+
+
 def apply_demo(states: dict[str, ZoneState], previous: dict[str, ZoneState],
                now: datetime | None = None) -> dict[str, ZoneState]:
     """Force `alert_zones_demo` zones to ALERT (dev only; no-op when unset).
@@ -177,6 +239,7 @@ def current_states() -> list[ZoneState]:
 def _zone_out(state: ZoneState, stale: bool) -> AlertZoneOut:
     return AlertZoneOut(
         zone_id=state.zone_id, name_uk=state.name_uk, oblast=state.oblast,
+        region=OBLAST_REGION[state.oblast],
         alert=state.alert, changed_at=state.changed_at, stale=stale,
     )
 
@@ -227,17 +290,37 @@ async def poll_once(*, roster_only: bool = False) -> list[ZoneState]:
     global _states, _last_ok
     roster: dict[str, ZoneState] = {}
     active: dict[str, ZoneState] | None = None
+    roster_newest: datetime | None = None
+    active_newest: datetime | None = None
     errors = []
     try:
-        roster = parse_skog(await _fetch(settings.alert_zones_source))
+        payload = await _fetch(settings.alert_zones_source)
+        roster = parse_skog(payload)
+        roster_newest = latest_transition(payload)
     except Exception as ex:
         errors.append(f"{settings.alert_zones_source}: {ex}")
     if not roster_only:
         await asyncio.sleep(settings.alert_zones_source_gap_s)
         try:
-            active = parse_aiu(await _fetch(settings.alert_zones_confirm_source))
+            payload = await _fetch(settings.alert_zones_confirm_source)
+            active = parse_aiu(payload)
+            active_newest = latest_active_start(payload)
         except Exception as ex:
             errors.append(f"{settings.alert_zones_confirm_source}: {ex}")
+
+    if roster and roster_is_behind(roster_newest, active_newest):
+        # Discarded rather than merged. Merging would keep every siren it is
+        # stuck on, because the merge can only ADD alerts — nothing downstream
+        # can cancel one, so a stale roster's alerts would stand forever.
+        # Dropping it falls through to the active-only branch below, which is
+        # already the "roster unusable" path.
+        log.warning(
+            "alert zones: roster source is %.0f min behind the active one "
+            "(newest transition %s vs %s) — dropping its state this tick",
+            (active_newest - roster_newest).total_seconds() / 60,
+            roster_newest, active_newest,
+        )
+        roster = {}
 
     if roster:
         parsed = merge_states(roster, active or {})

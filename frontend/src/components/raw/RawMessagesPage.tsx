@@ -4,7 +4,8 @@ import { fetchRawSources } from "@/api";
 import AdminGate from "@/components/admin/AdminGate";
 import { observeVisible } from "@/lib/observers";
 import { STORAGE_KEYS, safeGet, safeSet } from "@/lib/storage";
-import type { RawOutcomeFilter, RawSource } from "@/types";
+import { useRadar } from "@/store";
+import type { RawOutcomeFilter, RawSource, Region } from "@/types";
 
 import ControlsToggle from "./ControlsToggle";
 import LlmStatsStrip from "./LlmStatsStrip";
@@ -36,6 +37,13 @@ export function RawMessagesView() {
   const [outcome, setOutcome] = useState<RawOutcomeFilter | "all">("all");
   const [llm, setLlm] = useState<"all" | "yes" | "no">("all");
   const [sourceId, setSourceId] = useState<number | "all">("all");
+  const [region, setRegion] = useState<Region | "all">("all");
+  const regions = useRadar((s) => s.regions);
+  const ensureRegions = useRadar((s) => s.ensureRegions);
+  // The admin console is reachable on a route that never bootstraps the map, so
+  // the catalogue the region filter offers may not be here yet (same call, and
+  // same reason, as SourcesPanel).
+  ensureRegions();
   const [sources, setSources] = useState<RawSource[]>([]);
   // Read once at mount rather than through an effect: this is a value that
   // exists before the first render, not something to synchronise afterwards.
@@ -61,8 +69,8 @@ export function RawMessagesView() {
   }, []);
 
   const filters = useMemo(
-    () => ({ q, outcome, llm, sourceId }),
-    [q, outcome, llm, sourceId],
+    () => ({ q, outcome, llm, sourceId, region }),
+    [q, outcome, llm, sourceId, region],
   );
   const {
     items,
@@ -76,7 +84,7 @@ export function RawMessagesView() {
     moveEventToTrack,
     applyTrack,
   } = useRawMessages(filters);
-  const selection = useRawSelection({ items, filters, apiFilter, sources });
+  const selection = useRawSelection({ items, filters, apiFilter, sources, regions });
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -119,6 +127,8 @@ export function RawMessagesView() {
                 sources={sources}
                 sourceId={sourceId}
                 onSourceIdChange={setSourceId}
+                region={region}
+                onRegionChange={setRegion}
               />
 
               <RawToolbar

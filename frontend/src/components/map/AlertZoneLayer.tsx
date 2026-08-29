@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { GeoJSON, Tooltip, useMap } from 'react-leaflet'
 
 import { useRadar } from '@/store'
+import { useShownRegions } from '@/store/useShownRegions'
 
-import { zoneTone } from './alertZones'
+import { inShownRegions, zoneTone } from './alertZones'
 import { tagPath, taggedId } from './tagPath'
 import { ZONE_ALL_CLEAR, ZONE_GLOW, ZONE_LABEL_NUDGE, ZONE_STYLES } from './constants'
 import ZoneGlowDefs from './ZoneGlowDefs'
@@ -15,11 +16,19 @@ const ZONE_ATTR = 'data-zone'
  * external provider (see backend feeds/alert_zones.py). Purely contextual: it
  * says where sirens are sounding, never where a target is. Rendered below the
  * Kyiv raion outlines so it reads as background, and only while the operator
- * has the layer switched on — the polygons are fetched lazily on that switch. */
+ * has the layer switched on — the polygons are fetched lazily on that switch.
+ *
+ * Only the regions the reader follows are painted (see `inShownRegions`), so
+ * the layer answers the same question as their feed does. */
 export default function AlertZoneLayer() {
   const zones = useRadar((s) => s.zones)
-  const geometry = useRadar((s) => s.zoneGeometry)
+  const allGeometry = useRadar((s) => s.zoneGeometry)
   const allClear = useRadar((s) => s.zoneAllClear)
+  const shown = useShownRegions()
+  // Narrowed to the reader's own regions. The roster covers four oblasts and a
+  // reader watches one or two; the rest is not context, it is another oblast's
+  // sirens drawn over the map they came for.
+  const geometry = inShownRegions(allGeometry, shown)
   const map = useMap()
   /** Zone whose name is currently revealed — hovered, or focused. */
   const [named, setNamed] = useState<string | null>(null)

@@ -28,6 +28,7 @@ def _threat(*, scope="district", kind="track", status="tracking", target_count=1
 def _incident(threats):
     return SimpleNamespace(
         id=1,
+        region="kyiv",
         started_at=datetime(2026, 8, 18, 18, 0),
         ended_at=None,
         ended_reason=None,

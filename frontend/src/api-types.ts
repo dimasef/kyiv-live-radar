@@ -1654,6 +1654,11 @@ export interface components {
             /** Provider */
             provider: string;
             /**
+             * Region
+             * @enum {string}
+             */
+            region: "kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro";
+            /**
              * Scope
              * @enum {string}
              */
@@ -1677,6 +1682,11 @@ export interface components {
             name_uk: string;
             /** Oblast */
             oblast: string;
+            /**
+             * Region
+             * @enum {string}
+             */
+            region: "kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro";
             /**
              * Stale
              * @default false
@@ -2406,6 +2416,11 @@ export interface components {
              * @default false
              */
             notable: boolean;
+            /**
+             * Region
+             * @enum {string}
+             */
+            region: "kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro";
             /**
              * Started At
              * Format: date-time
@@ -6153,6 +6168,8 @@ export interface operations {
                 llm?: string | null;
                 /** @description Filter to one monitored channel */
                 source_id?: number | null;
+                /** @description Filter to one watched region: messages that produced a sighting there, plus ones that produced nothing and came from that region's channel */
+                region?: ("kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro") | null;
             };
             header?: {
                 authorization?: string | null;
@@ -6189,6 +6206,7 @@ export interface operations {
                 outcome?: string | null;
                 llm?: string | null;
                 source_id?: number | null;
+                region?: ("kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro") | null;
             };
             header?: {
                 authorization?: string | null;
@@ -6225,6 +6243,7 @@ export interface operations {
                 outcome?: string | null;
                 llm?: string | null;
                 source_id?: number | null;
+                region?: ("kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro") | null;
             };
             header?: {
                 authorization?: string | null;

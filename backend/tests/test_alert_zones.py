@@ -42,6 +42,14 @@ def _aiu() -> dict:
     return json.loads((DATA / "alert_zones_aiu.json").read_text("utf-8"))
 
 
+def _skog_frozen() -> dict:
+    return json.loads((DATA / "alert_zones_skog_frozen.json").read_text("utf-8"))
+
+
+def _aiu_live() -> dict:
+    return json.loads((DATA / "alert_zones_aiu_live.json").read_text("utf-8"))
+
+
 @pytest.fixture(autouse=True)
 def _clean_state():
     az.reset_state()
@@ -232,4 +240,85 @@ def _stub_fetch(payload: dict):
     async def _fetch(source: str) -> dict:
         return payload
 
+    return _fetch
+
+
+# --- a roster source that answers instantly with yesterday's state ---
+#
+# The `_frozen`/`_live` fixtures are the REAL 2026-08-29 23:50 incident: the
+# roster source served a 07:55 snapshot in which Kyiv was still under a siren
+# that had ended hours earlier, while answering in milliseconds with `cachedat`
+# stamped the current second. Two other sources (alerts.in.ua and the official
+# UkraineAlarm API) both had Kyiv clear.
+
+def test_the_incident_payload_still_has_kyiv_under_alert():
+    """Anchors what the fixture IS — if this ever stops holding, the tests
+    below are measuring something else."""
+    assert az.parse_skog(_skog_frozen())["kyiv-city"].alert is True
+
+
+def test_a_frozen_roster_is_detected_by_the_gap_to_the_other_source():
+    roster_newest = az.latest_transition(_skog_frozen())
+    active_newest = az.latest_active_start(_aiu_live())
+    assert roster_newest is not None and active_newest is not None
+    # Sixteen hours, not minutes — the threshold has an enormous margin.
+    assert (active_newest - roster_newest).total_seconds() > 12 * 3600
+    assert az.roster_is_behind(roster_newest, active_newest) is True
+
+
+def test_two_live_sources_are_never_judged_behind():
+    """The normal case, and the one this must not break: both see the same
+    transitions within seconds, so the gap is ~0 — including on a quiet night,
+    when both simply report old news."""
+    assert az.roster_is_behind(_dt("2026-08-29T07:55:00Z"), _dt("2026-08-29T07:55:04Z")) is False
+    # A quiet night: nothing has changed anywhere for hours, in EITHER source.
+    assert az.roster_is_behind(_dt("2026-08-28T02:00:00Z"), _dt("2026-08-28T02:00:00Z")) is False
+
+
+def test_a_missing_source_is_never_judged():
+    """An outage is not evidence about the other one."""
+    assert az.roster_is_behind(None, _dt("2026-08-29T20:48:00Z")) is False
+    assert az.roster_is_behind(_dt("2026-08-29T07:55:00Z"), None) is False
+
+
+def test_the_check_can_be_switched_off(monkeypatch):
+    monkeypatch.setattr(settings, "alert_zones_max_source_lag_s", 0)
+    assert az.roster_is_behind(_dt("2026-08-29T07:55:00Z"), _dt("2026-08-29T20:48:00Z")) is False
+
+
+async def test_a_frozen_roster_stops_holding_kyiv_under_a_siren(monkeypatch):
+    """End to end on the real payloads: the whole point of the fix.
+
+    The stuck alert cannot be merged away — the merge only ever ADDS — so the
+    roster has to be dropped for the zone to go quiet at all."""
+    monkeypatch.setattr(settings, "alert_zones_source_gap_s", 0)
+    monkeypatch.setattr(az, "_fetch", _stub_two(_skog_frozen(), _aiu_live()))
+
+    await az.poll_once()
+    out = {z.zone_id: z for z in az.zones_out()}
+    assert out["kyiv-city"].alert is False
+    # …and the zones the live source DOES report are still lit.
+    assert out["kyiv-obl-brovarskyi"].alert is True
+    # The clear is undated, not back-dated: an active-only source cannot say
+    # when a zone went quiet, and inventing an instant would be a lie.
+    assert out["kyiv-city"].changed_at is None
+
+
+async def test_a_fresh_roster_is_still_trusted_for_its_clears(monkeypatch):
+    """The check must not cost us dated відбій on a normal night."""
+    monkeypatch.setattr(settings, "alert_zones_source_gap_s", 0)
+    monkeypatch.setattr(az, "_fetch", _stub_two(_skog(), _aiu()))
+
+    await az.poll_once()
+    out = {z.zone_id: z for z in az.zones_out()}
+    assert out["kyiv-obl-vyshhorodskyi"].changed_at is not None
+
+
+def _dt(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def _stub_two(roster_payload: dict, active_payload: dict):
+    async def _fetch(source: str) -> dict:
+        return roster_payload if source == settings.alert_zones_source else active_payload
     return _fetch

@@ -119,7 +119,8 @@ async def _inherit_window_for(session, source_id: int | None) -> int | None:
     return src.type_inherit_minutes if src is not None else None
 
 
-async def _infer_incident_type(session, parsed: ParseResult, when: datetime) -> bool:
+async def _infer_incident_type(session, parsed: ParseResult, when: datetime,
+                               source_id: int | None) -> bool:
     """Second-tier type fallback: a still-untyped sighting during a live attack
     takes the open incident's dominant type. The per-channel window
     (_note_and_inherit_type) is only 5 min and channel-scoped — during the 07-18
@@ -130,7 +131,12 @@ async def _infer_incident_type(session, parsed: ParseResult, when: datetime) -> 
     event that disagrees still surfaces as a fusion conflict."""
     if parsed.target_type != "unknown" or not (parsed.districts or parsed.citywide):
         return False
-    inc = await find_active_incident(session, when)
+    # This message's own region, so a northern sighting reads the northern
+    # attack's type and not Kyiv's — the same rule that decides which track pool
+    # it acts on. Resolved here rather than taken from IngestContext because the
+    # type tiers run before the context is built.
+    region = await resolve_region(session, [h.district_id for h in parsed.districts], source_id)
+    inc = await find_active_incident(session, when, region)
     prior = await incident_type_prior(session, inc, when) if inc is not None else None
     if prior is not None:
         parsed.target_type = prior
@@ -309,7 +315,7 @@ async def process_parsed(
         # fallback below is the second tier when the per-channel window has lapsed.
         inherit_window = await _inherit_window_for(session, source_id)
         inherited_inferred = _note_and_inherit_type(parsed, source_id, when, inherit_window)
-        type_from_incident = await _infer_incident_type(session, parsed, when)
+        type_from_incident = await _infer_incident_type(session, parsed, when, source_id)
         # Fourth tier — the LLM reads the type off the last two hours of the
         # whole feed. Last on purpose: it must never overrule a type the rules,
         # the channel or the live incident already established.

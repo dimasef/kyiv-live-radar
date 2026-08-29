@@ -8,6 +8,7 @@ const zone = (over: Partial<AlertZone> = {}): AlertZone => ({
   zone_id: 'kyiv-obl-vyshhorodskyi',
   name_uk: 'Вишгородський район',
   oblast: 'Київська область',
+  region: 'kyiv',
   alert: false,
   changed_at: null,
   stale: false,

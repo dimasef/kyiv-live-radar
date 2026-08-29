@@ -8,6 +8,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, field_validator
 
+from ..models import Region
 from .base import _as_utc
 
 
@@ -17,6 +18,11 @@ class AlertZoneOut(BaseModel):
     zone_id: str
     name_uk: str
     oblast: str
+    # Which watched region's map this raion paints on. `oblast` is the
+    # provider's display string; this is the id the rest of the app filters by,
+    # so the client narrows the layer to the regions the reader follows without
+    # keeping its own copy of the oblast→region table.
+    region: Region
     alert: bool
     # When this state began, per the provider. NULL when it never reported a
     # change for this zone — the UI then shows the state without a duration.

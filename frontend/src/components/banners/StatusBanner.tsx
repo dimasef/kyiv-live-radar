@@ -18,9 +18,9 @@ import {
   mostRecentlyEnded,
   notableIncident,
   primaryAlert,
+  inFollowedRegion,
   stillCollapsed,
   useNow,
-  watchesHomeRegion,
 } from './status'
 
 function loadCollapsedFor(): CollapsedFor | null {
@@ -40,11 +40,12 @@ export default function StatusBanner() {
   const regions = useRadar((s) => s.regions)
   const chosenRegion = useRadar((s) => s.chosenRegion)
 
-  const watchesHome = watchesHomeRegion(regions, chosenRegion)
-
-  const alert = watchesHome ? primaryAlert(alerts) : null
-  const incident = watchesHome ? notableIncident(incidents) : null
-  const ended = watchesHome ? mostRecentlyEnded(alerts) : null
+  // Narrowed before anything is picked, so the banner can only ever speak
+  // about the region this reader follows.
+  const mine = inFollowedRegion(alerts, regions, chosenRegion)
+  const alert = primaryAlert(mine)
+  const incident = notableIncident(inFollowedRegion(incidents, regions, chosenRegion))
+  const ended = mostRecentlyEnded(mine)
 
   const [collapsedFor, setCollapsedFor] = useState(loadCollapsedFor)
   const collapsed = stillCollapsed(collapsedFor, alert?.id ?? null, incident?.id ?? null)

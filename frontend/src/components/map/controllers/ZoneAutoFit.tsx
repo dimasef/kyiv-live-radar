@@ -3,8 +3,9 @@ import { useEffect, useRef } from "react";
 import { useMap } from "react-leaflet";
 
 import { useRadar } from "@/store";
+import { useShownRegions } from "@/store/useShownRegions";
 
-import { zoneFitBounds } from "../alertZones";
+import { inShownRegions, zoneFitBounds } from "../alertZones";
 import { ZONE_FIT_MIN_ZOOM, ZONE_FIT_PADDING } from "../constants";
 
 /** Widens the view to take in every raion the alert layer lights up, once per
@@ -27,13 +28,18 @@ import { ZONE_FIT_MIN_ZOOM, ZONE_FIT_PADDING } from "../constants";
 export default function ZoneAutoFit() {
   const map = useMap();
   const token = useRadar((s) => s.zoneFitToken);
-  const geometry = useRadar((s) => s.zoneGeometry);
+  const allGeometry = useRadar((s) => s.zoneGeometry);
+  const shown = useShownRegions();
   const answered = useRef(0);
 
   useEffect(() => {
     if (token === 0 || answered.current === token) return;
     // Read rather than subscribe: the siren state is polled every 20 s, and
     // this component has no reason to re-render on a frame it will ignore.
+    // The same narrowing the layer draws with: framing the view onto a siren
+    // in an oblast this reader does not follow would pan the map away from
+    // their own.
+    const geometry = inShownRegions(allGeometry, shown);
     const bounds = zoneFitBounds(geometry, useRadar.getState().zones);
     if (!bounds) return;
     answered.current = token;
@@ -51,7 +57,7 @@ export default function ZoneAutoFit() {
     } else {
       map.flyTo(target.getCenter(), ZONE_FIT_MIN_ZOOM);
     }
-  }, [map, token, geometry]);
+  }, [map, token, allGeometry, shown]);
 
   return null;
 }

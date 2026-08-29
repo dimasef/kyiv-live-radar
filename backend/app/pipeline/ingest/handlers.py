@@ -144,9 +144,10 @@ async def _handle_clear(ctx: IngestContext) -> list[Broadcast]:
     # nothing else flying, a still-"active" attack (banner + raion highlight)
     # reads as a bug; an open track of another type keeps it active.
     if parsed.clear_scope is None:
-        ended = await end_active_incidents(session, when, "all_clear")
+        ended = await end_active_incidents(session, when, "all_clear", region=ctx.region)
     else:
-        ended = await end_incidents_without_open_tracks(session, when, "all_clear")
+        ended = await end_incidents_without_open_tracks(session, when, "all_clear",
+                                                        region=ctx.region)
     # Surface the all-clear itself in the feed (a status-only broadcast is
     # invisible there) as a notice — the operator wants to SEE "відбій".
     notice = await _make_notice(session, "clear", parsed, ctx.source_id, when, ctx.message_id)
@@ -562,9 +563,20 @@ def _ingest_outcome(broadcasts: list[Broadcast]) -> str:
 
 
 async def _city_alert_open(session) -> bool:
-    """Whether the OFFICIAL city air-raid alert is currently running."""
+    """Whether the OFFICIAL city air-raid alert is currently running.
+
+    HOME_REGION explicitly, not "any open city alert": the only thing this
+    guards is opening a city-wide track, and those are the home city's by
+    construction (`_new_track(..., scope="city", region=HOME_REGION)`). The two
+    were the same thing while only one region could have an alert at all —
+    naming it keeps them the same thing now that more than one can.
+    """
     return await session.scalar(
-        select(Alert.id).where(Alert.scope == "city", Alert.ended_at.is_(None))
+        select(Alert.id).where(
+            Alert.scope == "city",
+            Alert.region == HOME_REGION,
+            Alert.ended_at.is_(None),
+        )
     ) is not None
 
 

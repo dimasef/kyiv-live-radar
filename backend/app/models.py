@@ -292,10 +292,19 @@ class Alert(Base):
     """
 
     __tablename__ = "alerts"
-    # Alerts are always narrowed to a scope first, then ordered by start time.
-    __table_args__ = (Index("ix_alerts_scope_started_at", "scope", "started_at"),)
+    # Alerts are narrowed to one region's scope first, then ordered by start
+    # time — `region` leads because every lookup asks about one region's siren.
+    __table_args__ = (
+        Index("ix_alerts_region_scope_started_at", "region", "scope", "started_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    # Whose siren this is. An alert used to be Kyiv's by construction, which
+    # left everything downstream (the banner, the journal's alert duration)
+    # speaking about Kyiv while claiming to speak generally. Taken from the
+    # reporting channel's `Source.region`, since an alert names no district to
+    # read a region off.
+    region: Mapped[str] = mapped_column(String(20), default=HOME_REGION)
     scope: Mapped[str] = mapped_column(String(10))  # 'city' | 'oblast'
     alert_type: Mapped[str] = mapped_column(String(20), default="air_raid")
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -490,6 +499,13 @@ class Incident(Base):
     __tablename__ = "incidents"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    # Which region is under this attack. Set from the member track's region, so
+    # a northern sighting can never join a Kyiv attack — the grouping window is
+    # per region, not global. Today only the home region opens incidents at all
+    # (see pipeline/ingest/handlers._incident_broadcast), so every row is 'kyiv';
+    # the column is what lets that gate be lifted without a second audit of
+    # everything that reads an incident.
+    region: Mapped[str] = mapped_column(String(20), default=HOME_REGION)
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, index=True
     )

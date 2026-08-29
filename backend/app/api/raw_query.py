@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from sqlalchemy import exists, or_, select, tuple_
 
 from ..feeds.common import build_region_matchers
-from ..models import District, Notice, RawMessage, Threat, ThreatEvent
+from ..models import District, Notice, RawMessage, Source, Threat, ThreatEvent
 from ..parsing import ParseResult
 from ..parsing.alert_parser import parse_alert_message
 from ..schemas import RawEventLinkOut, RawMessageOut, RawParsedOut
@@ -113,10 +113,11 @@ def apply_raw_filters(
     outcome: str | None = None,
     llm: str | None = None,
     source_id: int | None = None,
+    region: str | None = None,
 ):
     """Apply the /raw_messages filter set (channel, text/code search, outcome,
-    LLM) to a select over RawMessage — pagination (before_id/limit) is the
-    caller's concern, not a filter, so it stays out of here."""
+    LLM, region) to a select over RawMessage — pagination (before_id/limit) is
+    the caller's concern, not a filter, so it stays out of here."""
     # A raw message "became a sighting"/"became a notice" iff a ThreatEvent/
     # Notice recorded the same (source_id, source_message_id) pair — the same
     # EXISTS drives both the outcome filter here and the per-row labeling in
@@ -134,6 +135,31 @@ def apply_raw_filters(
 
     if source_id is not None:
         stmt = stmt.where(RawMessage.source_id == source_id)
+
+    if region is not None:
+        # WHERE the message landed, not who reported it — the same rule ingest
+        # itself used (domain/districts.resolve_region): the region of what it
+        # named, falling back to the reporting channel's own only when it named
+        # nothing. Filtering purely by channel would have been a coarser copy of
+        # the `source_id` filter one line above, and would file a Kyiv channel's
+        # narration of the northern approach under Kyiv — the 68 stored events
+        # over Chernihiv raions that `sources.extra_regions` exists to keep.
+        #
+        # The fallback branch is what keeps SUPPRESSED messages reachable, and
+        # they are half of what this page is for: a message the parser dropped
+        # has no district, no track and therefore no region of its own, but the
+        # question "what did we miss over Сумщина last night" is exactly a
+        # question about those rows.
+        landed_here = exists().where(
+            ThreatEvent.source_id == RawMessage.source_id,
+            ThreatEvent.source_message_id == RawMessage.message_id,
+            ThreatEvent.threat_id == Threat.id,
+            Threat.region == region,
+        )
+        reported_by_this_regions_channel = exists().where(
+            Source.id == RawMessage.source_id, Source.region == region
+        )
+        stmt = stmt.where(landed_here | (~became_event & reported_by_this_regions_channel))
 
     codes = parse_codes(q) if q else []
     if codes:

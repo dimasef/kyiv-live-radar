@@ -201,6 +201,7 @@ export interface RawMessagesFilter {
   outcome?: RawOutcomeFilter
   llm?: 'yes' | 'no'
   sourceId?: number
+  region?: Region
 }
 export interface RawMessagesQuery extends RawMessagesFilter {
   beforeId?: number
@@ -213,6 +214,7 @@ function rawFilterParams(f: RawMessagesFilter): URLSearchParams {
   if (f.outcome) params.set('outcome', f.outcome)
   if (f.llm) params.set('llm', f.llm)
   if (f.sourceId != null) params.set('source_id', String(f.sourceId))
+  if (f.region) params.set('region', f.region)
   return params
 }
 

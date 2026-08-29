@@ -12,7 +12,7 @@ import pytest_asyncio
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.api.raw_query import serialize_raw_rows
+from app.api.raw_query import apply_raw_filters, serialize_raw_rows
 from app.db import Base
 from app.models import District, RawMessage, Source, Threat, ThreatEvent
 
@@ -139,3 +139,79 @@ async def test_event_chip_carries_both_the_event_and_the_track_type(session):
     chip = (await _serialize(session, [raw]))[raw.id].events[0]
     assert chip.target_type == "unknown"
     assert chip.threat_target_type == "ballistic"
+
+
+# --- the region filter (apply_raw_filters(region=...)) ---
+#
+# Its semantics are the non-obvious part: a raw message has no region column,
+# so "which region is this message about" has to be answered the way ingest
+# answered it — by what the message produced, falling back to the channel.
+
+async def _matching(session, region: str) -> set[int]:
+    stmt = apply_raw_filters(select(RawMessage), region=region)
+    return {r.id for r in await session.scalars(stmt)}
+
+
+async def _landed(session, src, raw, region: str) -> None:
+    """Give a raw message a sighting in `region`, the way ingest would."""
+    threat = Threat(target_type="shahed", status="tracking", region=region)
+    session.add(threat)
+    await session.commit()
+    session.add(ThreatEvent(threat_id=threat.id, source_id=src.id,
+                            source_message_id=raw.message_id, district_id=1,
+                            event_time=raw.event_time))
+    await session.commit()
+
+
+async def test_a_message_is_filed_where_it_landed_not_where_it_came_from(session):
+    """The case the filter exists for: a Kyiv channel narrating the northern
+    approach. Filing it by channel would bury those messages under Kyiv — and
+    they are the 68 stored events over Chernihiv raions that `extra_regions`
+    exists to keep."""
+    kyiv_channel = Source(name="Київ", channel_key="k", role="spotter", region="kyiv")
+    session.add(kyiv_channel)
+    await session.commit()
+
+    north = await _raw(session, kyiv_channel, "БпЛА над Ніжином", message_id=1)
+    await _landed(session, kyiv_channel, north, "chernihiv")
+
+    assert north.id in await _matching(session, "chernihiv")
+    assert north.id not in await _matching(session, "kyiv")
+
+
+async def test_a_suppressed_message_falls_back_to_its_channels_region(session):
+    """Half of what this page is for. A message the parser dropped has no
+    district, no track and so no region of its own — but "what did we miss over
+    Сумщина last night" is exactly a question about those rows."""
+    sumy_channel = Source(name="Суми", channel_key="s", role="spotter", region="sumy")
+    session.add(sumy_channel)
+    await session.commit()
+    dropped = await _raw(session, sumy_channel, "Ціль!", message_id=1)
+
+    assert dropped.id in await _matching(session, "sumy")
+    assert dropped.id not in await _matching(session, "kyiv")
+
+
+async def test_a_landed_message_does_not_also_match_its_channels_region(session):
+    """The fallback is a fallback, not an addition: once a message HAS a
+    region, the channel's own says nothing extra about it."""
+    kyiv_channel = Source(name="Київ", channel_key="k2", role="spotter", region="kyiv")
+    session.add(kyiv_channel)
+    await session.commit()
+    local = await _raw(session, kyiv_channel, "Шахед над Оболонню", message_id=1)
+    await _landed(session, kyiv_channel, local, "kyiv")
+
+    assert await _matching(session, "kyiv") == {local.id}
+    assert await _matching(session, "chernihiv") == set()
+
+
+async def test_a_cross_border_message_matches_both_regions(session):
+    """One message can legitimately name places on both sides of a border, and
+    each sighting is real — so it belongs in both filters, not in a winner."""
+    src = await _spotter(session)
+    crossing = await _raw(session, src, "Козелець → Вишгород", message_id=1)
+    await _landed(session, src, crossing, "chernihiv")
+    await _landed(session, src, crossing, "kyiv")
+
+    assert crossing.id in await _matching(session, "chernihiv")
+    assert crossing.id in await _matching(session, "kyiv")

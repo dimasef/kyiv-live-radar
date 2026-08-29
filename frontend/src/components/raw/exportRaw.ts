@@ -1,4 +1,4 @@
-import type { RawMessage, RawSource } from '@/types'
+import type { RawMessage, RawSource, RegionInfo } from '@/types'
 
 import type { RawMessageFilters } from './useRawMessages'
 
@@ -10,6 +10,7 @@ export interface RawExportEnvelope {
   filters: {
     search: string | null
     channel: string
+    region: string
     outcome: string
     llm: string
   }
@@ -26,14 +27,26 @@ const OUTCOME_LABEL: Record<string, string> = {
 }
 const LLM_LABEL: Record<string, string> = { all: 'усі', yes: 'так', no: 'ні' }
 
-function describeFilters(filters: RawMessageFilters, sources: RawSource[]) {
+function describeFilters(
+  filters: RawMessageFilters,
+  sources: RawSource[],
+  regions: RegionInfo[],
+) {
   const channel =
     filters.sourceId === 'all'
       ? 'усі канали'
       : (sources.find((s) => s.id === filters.sourceId)?.name ?? `#${filters.sourceId}`)
+  // Named in the envelope for the same reason as the channel: an export of one
+  // oblast's night is a different document from an export of everything, and a
+  // file that doesn't say which it is gets read as the other one months later.
+  const region =
+    filters.region === 'all'
+      ? 'усі області'
+      : (regions.find((r) => r.id === filters.region)?.name_uk ?? filters.region)
   return {
     search: filters.q.trim() || null,
     channel,
+    region,
     outcome: OUTCOME_LABEL[filters.outcome] ?? filters.outcome,
     llm: LLM_LABEL[filters.llm] ?? filters.llm,
   }
@@ -43,6 +56,7 @@ interface ExportParams {
   scope: 'filtered' | 'selected'
   filters: RawMessageFilters
   sources: RawSource[]
+  regions: RegionInfo[]
   messages: RawMessage[]
   truncated: boolean
 }
@@ -54,7 +68,7 @@ function exportBlobUrl(params: ExportParams): { url: string; envelope: RawExport
   const envelope: RawExportEnvelope = {
     scope: params.scope,
     exported_at: new Date().toISOString(),
-    filters: describeFilters(params.filters, params.sources),
+    filters: describeFilters(params.filters, params.sources, params.regions),
     count: params.messages.length,
     truncated: params.truncated,
     messages: params.messages,

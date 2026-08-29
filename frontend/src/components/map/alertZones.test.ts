@@ -1,13 +1,21 @@
 import { describe, expect, it } from 'vitest'
 
-import type { AlertZone } from '@/types'
+import type { AlertZone, Region } from '@/types'
 
-import { alertedZones, compactSinceLabel, sinceParts, zoneFitBounds, zoneTone } from './alertZones'
+import {
+  alertedZones,
+  compactSinceLabel,
+  inShownRegions,
+  sinceParts,
+  zoneFitBounds,
+  zoneTone,
+} from './alertZones'
 
 const zone = (over: Partial<AlertZone> = {}): AlertZone => ({
   zone_id: 'kyiv-obl-vyshhorodskyi',
   name_uk: 'Вишгородський район',
   oblast: 'Київська область',
+  region: 'kyiv',
   alert: false,
   changed_at: null,
   stale: false,
@@ -83,8 +91,14 @@ describe('zoneFitBounds', () => {
   const square = (
     lat: number,
     lon: number,
-  ): { name_uk: string; oblast: string; geojson: GeoJSON.Polygon } => ({
+  ): {
+    name_uk: string
+    oblast: string
+    region: Region
+    geojson: GeoJSON.Polygon
+  } => ({
     name_uk: 'x',
+    region: 'kyiv',
     oblast: 'y',
     geojson: {
       type: 'Polygon',
@@ -141,6 +155,7 @@ describe('zoneFitBounds', () => {
       m: {
         name_uk: 'x',
         oblast: 'y',
+        region: 'kyiv' as Region,
         geojson: {
           type: 'MultiPolygon' as const,
           coordinates: [square(50, 30).geojson.coordinates, square(52, 32).geojson.coordinates],
@@ -155,5 +170,33 @@ describe('zoneFitBounds', () => {
 
   it('says nothing when the polygons have not loaded yet', () => {
     expect(zoneFitBounds({}, {})).toBeNull()
+  })
+})
+
+
+describe('inShownRegions', () => {
+  const shown = new Set<Region>(['sumy'])
+
+  it("drops another oblast's raions", () => {
+    const zones = {
+      a: zone({ zone_id: 'a', region: 'kyiv' }),
+      b: zone({ zone_id: 'b', region: 'sumy' }),
+    }
+    expect(Object.keys(inShownRegions(zones, shown))).toEqual(['b'])
+  })
+
+  it('keeps every followed region, not just the primary one', () => {
+    const zones = {
+      a: zone({ zone_id: 'a', region: 'kyiv' }),
+      b: zone({ zone_id: 'b', region: 'sumy' }),
+    }
+    const both = new Set<Region>(['sumy', 'kyiv'])
+    expect(Object.keys(inShownRegions(zones, both)).sort()).toEqual(['a', 'b'])
+  })
+
+  it('shows nothing rather than everything when no region is followed', () => {
+    // The layer paints four oblasts; an empty set must not fall back to "all",
+    // or the narrowing would silently stop applying.
+    expect(inShownRegions({ a: zone({ zone_id: 'a' }) }, new Set<Region>())).toEqual({})
   })
 })

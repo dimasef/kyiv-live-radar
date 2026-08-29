@@ -63,6 +63,17 @@
             "title": "Provider",
             "type": "string"
           },
+          "region": {
+            "enum": [
+              "kyiv",
+              "chernihiv",
+              "sumy",
+              "kharkiv",
+              "dnipro"
+            ],
+            "title": "Region",
+            "type": "string"
+          },
           "scope": {
             "enum": [
               "city",
@@ -79,6 +90,7 @@
         },
         "required": [
           "id",
+          "region",
           "scope",
           "alert_type",
           "started_at",
@@ -114,6 +126,17 @@
             "title": "Oblast",
             "type": "string"
           },
+          "region": {
+            "enum": [
+              "kyiv",
+              "chernihiv",
+              "sumy",
+              "kharkiv",
+              "dnipro"
+            ],
+            "title": "Region",
+            "type": "string"
+          },
           "stale": {
             "default": false,
             "title": "Stale",
@@ -128,6 +151,7 @@
           "zone_id",
           "name_uk",
           "oblast",
+          "region",
           "alert"
         ],
         "title": "AlertZoneOut",
@@ -1620,6 +1644,17 @@
             "title": "Notable",
             "type": "boolean"
           },
+          "region": {
+            "enum": [
+              "kyiv",
+              "chernihiv",
+              "sumy",
+              "kharkiv",
+              "dnipro"
+            ],
+            "title": "Region",
+            "type": "string"
+          },
           "started_at": {
             "format": "date-time",
             "title": "Started At",
@@ -1655,6 +1690,7 @@
         },
         "required": [
           "id",
+          "region",
           "started_at",
           "target_type",
           "status"
@@ -8680,6 +8716,31 @@
             }
           },
           {
+            "description": "Filter to one watched region: messages that produced a sighting there, plus ones that produced nothing and came from that region's channel",
+            "in": "query",
+            "name": "region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "kyiv",
+                    "chernihiv",
+                    "sumy",
+                    "kharkiv",
+                    "dnipro"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter to one watched region: messages that produced a sighting there, plus ones that produced nothing and came from that region's channel",
+              "title": "Region"
+            }
+          },
+          {
             "in": "header",
             "name": "authorization",
             "required": false,
@@ -8791,6 +8852,29 @@
             }
           },
           {
+            "in": "query",
+            "name": "region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "kyiv",
+                    "chernihiv",
+                    "sumy",
+                    "kharkiv",
+                    "dnipro"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Region"
+            }
+          },
+          {
             "in": "header",
             "name": "authorization",
             "required": false,
@@ -8899,6 +8983,29 @@
                 }
               ],
               "title": "Source Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "kyiv",
+                    "chernihiv",
+                    "sumy",
+                    "kharkiv",
+                    "dnipro"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Region"
             }
           },
           {

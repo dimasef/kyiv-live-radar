@@ -32,12 +32,23 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.40.0";
+const LATEST = "0.41.0";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "тривоги тільки ваші",
+    date: "2026-08-30",
+    kind: "minor",
+    changes: [
+      "Шар тривог показує сирени лише тих областей, за якими ви стежите. Раніше він малював усі чотири області одразу, а значок із лічильником рахував райони, яких на вашій мапі не було",
+      "Шар тривог більше не тримає сирену, яка вже скінчилась. Якщо джерело даних завмирає й починає віддавати вчорашній стан, ми це помічаємо і беремо картину з іншого — раніше Київ міг годинами світитися тривогою після відбою",
+      "Журнал тепер прямо каже, чиї це дані. Він веде статистику по одній області, тож якщо ви стежите за іншою — попереджає про це на вході й пропонує повернутись на мапу",
+    ],
+  },
+  {
+    version: "0.40.0",
     title: "КАБ і своя тривога",
     date: "2026-08-29",
     kind: "minor",

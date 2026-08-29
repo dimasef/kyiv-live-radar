@@ -1,4 +1,5 @@
-import type { RawOutcomeFilter, RawSource } from '@/types'
+import { useRadar } from '@/store'
+import type { RawOutcomeFilter, RawSource, Region } from '@/types'
 
 import FilterSelect from './FilterSelect'
 
@@ -24,6 +25,8 @@ export default function RawFilterBar({
   sources,
   sourceId,
   onSourceIdChange,
+  region,
+  onRegionChange,
 }: {
   search: string
   onSearchChange: (v: string) => void
@@ -34,10 +37,20 @@ export default function RawFilterBar({
   sources: RawSource[]
   sourceId: number | 'all'
   onSourceIdChange: (v: number | 'all') => void
+  region: Region | 'all'
+  onRegionChange: (v: Region | 'all') => void
 }) {
+  // From the server catalogue, so a newly declared region is filterable the day
+  // it exists — and one with no coverage yet is still offered, because "did
+  // anything reach us from there" is a fair question to ask of an empty region.
+  const regions = useRadar((s) => s.regions)
   const sourceOptions: { value: string; label: string }[] = [
     { value: 'all', label: 'Усі канали' },
     ...sources.map((s) => ({ value: String(s.id), label: s.name })),
+  ]
+  const regionOptions: { value: string; label: string }[] = [
+    { value: 'all', label: 'Усі області' },
+    ...regions.map((r) => ({ value: r.id, label: r.name_uk })),
   ]
 
   return (
@@ -52,6 +65,11 @@ export default function RawFilterBar({
         options={sourceOptions}
         value={sourceId === 'all' ? 'all' : String(sourceId)}
         onChange={(v) => onSourceIdChange(v === 'all' ? 'all' : Number(v))}
+      />
+      <FilterSelect
+        options={regionOptions}
+        value={region}
+        onChange={(v) => onRegionChange(v as Region | 'all')}
       />
       <FilterSelect options={OUTCOME_OPTIONS} value={outcome} onChange={onOutcomeChange} />
       <FilterSelect options={LLM_OPTIONS} value={llm} onChange={onLlmChange} />

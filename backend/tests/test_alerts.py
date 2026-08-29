@@ -165,3 +165,50 @@ async def test_duplicate_message_id_is_ignored(session):
     assert out2 == []
     assert await _count(session, RawMessage) == 1
     assert await _count(session, Alert) == 1
+
+
+# --- regions (migration 0036) ---
+#
+# An alert used to be Kyiv's by construction, and everything downstream — the
+# banner, the journal's alert duration, the incident it adopts — inherited that
+# assumption silently. These pin the behaviour the column exists for.
+
+async def test_two_regions_can_be_under_alert_at_once(session):
+    """The bug the column fixes at its root: `_find_open` keyed on scope alone,
+    so an open Kyiv siren made every other region's start look like a repeat and
+    no-op — a second region could never raise an alert while Kyiv's ran."""
+    kyiv = await apply_alert_signal(
+        session, AlertSignal(scope="city", action="start", when=BASE, region="kyiv"))
+    sumy = await apply_alert_signal(
+        session, AlertSignal(scope="city", action="start", when=BASE, region="sumy"))
+    assert kyiv is not None and sumy is not None
+    assert kyiv.id != sumy.id
+    assert await _count(session, Alert) == 2
+
+
+async def test_an_end_closes_only_its_own_region(session):
+    await apply_alert_signal(
+        session, AlertSignal(scope="city", action="start", when=BASE, region="kyiv"))
+    await apply_alert_signal(
+        session, AlertSignal(scope="city", action="start", when=BASE, region="sumy"))
+
+    ended = await apply_alert_signal(
+        session, AlertSignal(scope="city", action="end", when=BASE + timedelta(hours=1),
+                             region="sumy"))
+    assert ended is not None and ended.region == "sumy"
+    still_open = list(await session.scalars(select(Alert).where(Alert.ended_at.is_(None))))
+    assert [a.region for a in still_open] == ["kyiv"]
+
+
+async def test_an_end_for_a_region_with_nothing_open_is_a_noop(session):
+    await apply_alert_signal(
+        session, AlertSignal(scope="city", action="start", when=BASE, region="kyiv"))
+    assert await apply_alert_signal(
+        session, AlertSignal(scope="city", action="end", when=BASE, region="sumy")) is None
+    assert await _count(session, Alert) == 1
+
+
+async def test_an_alert_defaults_to_the_home_region(session):
+    """Every caller that predates regions still means what it always meant."""
+    a = await apply_alert_signal(session, AlertSignal(scope="city", action="start", when=BASE))
+    assert a is not None and a.region == "kyiv"

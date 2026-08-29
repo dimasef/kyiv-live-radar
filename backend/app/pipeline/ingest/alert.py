@@ -12,9 +12,10 @@ from datetime import datetime
 from sqlalchemy import select
 
 from ...domain.alerts import AlertSignal, apply_alert_signal
+from ...domain.districts import resolve_region
 from ...domain.incidents import end_active_incidents
 from ...domain.tracking import close_all_active
-from ...models import HOME_REGION, Notice, RawMessage
+from ...models import Notice, RawMessage
 from ...parsing.alert_parser import parse_alert_message
 from ..lock import ingest_lock
 from ..results import Broadcast
@@ -100,8 +101,12 @@ async def process_parsed_alert(
         await session.commit()
         return []
 
+    # An alert names no district, so its region can only come from the channel
+    # that announced it (`sources.region`) — the same fallback a district-less
+    # spotter message uses.
+    region = await resolve_region(session, [], source_id)
     signal = AlertSignal(
-        scope=parsed.scope, action=parsed.action, when=when,
+        scope=parsed.scope, action=parsed.action, when=when, region=region,
         provider="telegram", raw_id=raw.id,
     )
     alert = await apply_alert_signal(session, signal)
@@ -119,11 +124,14 @@ async def process_parsed_alert(
     # nothing is open — so an official + spotter відбій seconds apart dedupe
     # instead of double-firing.
     if parsed.action == "end" and parsed.scope == "city":
-        # The official city siren speaks for Kyiv only — a northern track it
-        # never covered stays open until its own region clears it.
-        closed_tracks = await close_all_active(session, when, "all_clear", region=HOME_REGION)
+        # The siren speaks for ITS OWN region only — a track in another one it
+        # never covered stays open until that region clears it. Read off the
+        # alert rather than assumed, which is the whole point of `Alert.region`.
+        closed_tracks = await close_all_active(session, when, "all_clear",
+                                               region=alert.region)
         broadcasts += [Broadcast("status", t) for t in closed_tracks]
-        ended_incidents = await end_active_incidents(session, when, "alert_end")
+        ended_incidents = await end_active_incidents(session, when, "alert_end",
+                                                     region=alert.region)
         broadcasts += [Broadcast("attack", incident=inc) for inc in ended_incidents]
         # Surface the all-clear in the feed too (the banner alone is invisible
         # in the Стрічка подій). This "Відбій" card used to be raised by the

@@ -1,4 +1,4 @@
-import type { Alert, Notice } from "@/types";
+import type { Alert, Notice, Region } from "@/types";
 
 /** How far an all-clear notice may sit from an official alert's end and still
  * be talking about it. A spotter types «Відбій» when they see the sirens stop,
@@ -12,16 +12,29 @@ const MATCH_TOLERANCE_MS = 10 * 60_000;
  * with the alert's duration would tell the reader the тривога is over when it
  * is not, which is the one thing this card must never do.
  *
+ * Only the SAME region's alert, too. Matching on time alone would let a
+ * northern spotter's «Відбій», typed within the tolerance below of Kyiv's
+ * siren ending, be stamped with Kyiv's duration — an alert that never covered
+ * the reader, presented as the one that just ended over them. Unreachable
+ * while Kyiv is the only region with an alert channel, which is exactly why it
+ * would have gone unnoticed; the region column (backend migration 0036) is
+ * what lets it be closed before it is reachable rather than after.
+ *
  * Nearest end wins, not newest: on a night with two alerts an hour apart, the
  * notice belongs to whichever one it sits beside.
  */
-export function alertForClear(alerts: Alert[], notice: Notice): Alert | null {
+export function alertForClear(
+  alerts: Alert[],
+  notice: Notice,
+  home: Region = "kyiv",
+): Alert | null {
   if (notice.target_type !== "unknown") return null;
+  const region = notice.region ?? home;
   const at = new Date(notice.event_time).getTime();
   let best: Alert | null = null;
   let bestGap = Infinity;
   for (const a of alerts) {
-    if (a.scope !== "city" || !a.ended_at) continue;
+    if (a.scope !== "city" || a.region !== region || !a.ended_at) continue;
     const gap = Math.abs(new Date(a.ended_at).getTime() - at);
     if (gap <= MATCH_TOLERANCE_MS && gap < bestGap) {
       best = a;

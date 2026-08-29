@@ -108,11 +108,14 @@ describe('regions in the feed — notices', () => {
 
 // An incident has no region of its own: it is a Kyiv attack by construction
 // (ingest/handlers._incident_broadcast returns None outside the home region),
-// so the only question is whether the reader shows Kyiv at all.
-function incident(): Incident {
+// but it now SAYS so on the wire instead of leaving the client to assume it —
+// so the filter tests the incident's own region, and a non-Kyiv one is
+// expressible here the day that gate lifts.
+function incident(region: Region = 'kyiv'): Incident {
   const id = nextId++
   return {
     id,
+    region,
     started_at: '2026-08-29T17:35:00Z',
     ended_at: '2026-08-29T17:47:00Z',
     ended_reason: 'all_clear',
@@ -133,6 +136,14 @@ describe('regions in the feed — attack summaries', () => {
   it('keeps them for a reader who is', () => {
     expect(filterFeedIncidents([incident()], HOME)).toHaveLength(1)
     expect(filterFeedIncidents([incident()], HOME_AND_NORTH)).toHaveLength(1)
+  })
+
+  it('keeps another region\'s attack for a reader watching that region', () => {
+    // Not reachable today (only the home region opens incidents), and the
+    // point of testing it: this is what the column buys — the gate can lift
+    // without a second pass over everything that reads an incident.
+    expect(filterFeedIncidents([incident('sumy')], SUMY_ONLY)).toHaveLength(1)
+    expect(filterFeedIncidents([incident('sumy')], HOME)).toEqual([])
   })
 
   it('reaches the rendered timeline', () => {
