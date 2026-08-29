@@ -173,10 +173,11 @@ endpoint to the module that owns its area, not to `routes.py`.
 
 ### Gazetteer (`app/gazetteer.py`)
 
-~440 entries: 10 administrative raions + in-city micro-neighborhoods/landmarks
-+ approach-corridor villages across Київщина and Чернігівщина, each with a
-stem + aliases the spotters actually use. Grown reactively from real feed
-gaps — coverage is the primary lever for both rule and LLM accuracy.
+~580 entries (146 Київщина / 296 Чернігівщина / 139 Сумщина): 10 administrative
+raions + in-city micro-neighborhoods/landmarks + approach-corridor villages
+across all three covered oblasts, each with a stem + aliases the spotters
+actually use. Grown reactively from real feed gaps — coverage is the primary
+lever for both rule and LLM accuracy.
 
 **Read `GAZETTEER.md` (repo root) before touching an entry.** The module keeps
 only per-line notes; the doc holds the rest: how the stemmer shapes a name (and

@@ -16,9 +16,9 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.config import settings
 from app.db import Base
-from app.models import District, PushSubscription, Threat, ThreatEvent
+from app.models import District, Notice, PushSubscription, Source, Threat, ThreatEvent
 from app.pipeline import home_push
-from app.pipeline.home_push import evaluate_home_danger
+from app.pipeline.home_push import evaluate_home_danger, evaluate_regional_ballistic
 
 BASE = datetime(2026, 7, 18, 12, 0, tzinfo=UTC)
 KM_PER_DEG_LAT = math.pi / 180 * 6371.0
@@ -350,3 +350,161 @@ async def test_gone_endpoint_deletes_subscription(ctx, monkeypatch):
     await evaluate_home_danger(s, await _load_threat(s, t.id))
     remaining = list(await s.scalars(select(PushSubscription)))
     assert remaining == []
+
+
+# --- Oblast-wide ballistic (evaluate_regional_ballistic) --------------------
+#
+# The northern channels never name a raion for ballistics, so those messages
+# never become a track — they arrive as a threat-level NOTICE and the raion
+# escalation has nothing to fire on. These cover the replacement path and, just
+# as importantly, that it stays OFF for the homes the raion path already serves.
+
+async def _mk_source(s, region: str) -> Source:
+    src = Source(channel_key=f"ch_{region}", name=region, region=region)
+    s.add(src)
+    await s.commit()
+    return src
+
+
+async def _mk_notice(s, source: Source, *, kind="forecast", text="Загроза балістики",
+                     target_type="ballistic", origin=None) -> Notice:
+    n = Notice(kind=kind, text=text, target_type=target_type, origin=origin,
+               source_id=source.id, event_time=BASE)
+    s.add(n)
+    await s.commit()
+    await s.refresh(n, ["source"])
+    return n
+
+
+async def test_oblast_ballistic_warns_a_home_the_raion_path_cannot_serve(ctx, sent):
+    s, sub = ctx
+    sub.region = "sumy"
+    await s.commit()
+    n = await _mk_notice(s, await _mk_source(s, "sumy"), origin="kursk")
+
+    await evaluate_regional_ballistic(s, n)
+
+    assert len(sent) == 1
+    assert sent[0]["level"] == "warning"
+    assert sent[0]["kind"] == "regional-ballistic"
+    # Both names nominative — see _regional_ballistic_payload.
+    assert "Сумщина." in sent[0]["body"]
+    assert "Курщина" in sent[0]["body"]
+
+
+async def test_a_kyiv_city_home_is_not_woken_twice(ctx, sent):
+    """The gate that keeps Kyiv exactly as it is: a home that resolved to raion
+    ids already has the (sharper) raion escalation, so the oblast one skips it."""
+    s, sub = ctx
+    sub.home_district_ids = [1, 2]
+    await s.commit()
+
+    await evaluate_regional_ballistic(s, await _mk_notice(s, await _mk_source(s, "kyiv")))
+
+    assert sent == []
+
+
+async def test_a_kyiv_oblast_home_outside_the_city_does_get_it(ctx, sent):
+    """boundaries.json covers the 10 city raions only, so a home in Бровари
+    resolves to no raion at all — the gap this path exists for."""
+    s, sub = ctx
+    sub.home_district_ids = []
+    await s.commit()
+
+    await evaluate_regional_ballistic(s, await _mk_notice(s, await _mk_source(s, "kyiv")))
+
+    assert len(sent) == 1
+
+
+async def test_a_device_following_another_region_stays_asleep(ctx, sent):
+    s, sub = ctx
+    sub.region = "chernihiv"
+    await s.commit()
+
+    await evaluate_regional_ballistic(s, await _mk_notice(s, await _mk_source(s, "sumy")))
+
+    assert sent == []
+
+
+@pytest.mark.parametrize("text", [
+    "Найближчим часом можлива повторна хвиля балістики",
+    "Поки ще діє балістична загроза",
+])
+async def test_a_wave_that_is_not_in_the_sky_does_not_push(ctx, sent, text):
+    """Same distinction ingest/context.py draws: what MIGHT come, and what is
+    already ongoing, are both not a new escalation."""
+    s, sub = ctx
+    sub.region = "sumy"
+    await s.commit()
+
+    await evaluate_regional_ballistic(s, await _mk_notice(s, await _mk_source(s, "sumy"), text=text))
+
+    assert sent == []
+
+
+@pytest.mark.parametrize("kind,target_type", [
+    ("summary", "ballistic"),   # retrospective tally
+    ("status", "ballistic"),    # "по балістиці тихо"
+    ("forecast", "shahed"),     # the oblast path is ballistic-only
+])
+async def test_only_a_ballistic_threat_bulletin_pushes(ctx, sent, kind, target_type):
+    s, sub = ctx
+    sub.region = "sumy"
+    await s.commit()
+    n = await _mk_notice(s, await _mk_source(s, "sumy"), kind=kind, target_type=target_type)
+
+    await evaluate_regional_ballistic(s, n)
+
+    assert sent == []
+
+
+async def test_the_episode_pushes_once_and_a_vidbii_reopens_it(ctx, sent):
+    s, sub = ctx
+    sub.region = "sumy"
+    await s.commit()
+    src = await _mk_source(s, "sumy")
+
+    await evaluate_regional_ballistic(s, await _mk_notice(s, src))
+    await evaluate_regional_ballistic(s, await _mk_notice(s, src))
+    assert len(sent) == 1, "a second bulletin in the same episode is not a new escalation"
+
+    await evaluate_regional_ballistic(
+        s, await _mk_notice(s, src, kind="clear", text="Відбій загрози балістики"))
+    await evaluate_regional_ballistic(s, await _mk_notice(s, src))
+    assert len(sent) == 2, "after відбій the next threat is a new episode"
+
+
+async def test_danger_only_floor_opts_out_of_the_oblast_warning(ctx, sent):
+    s, sub = ctx
+    sub.region = "sumy"
+    sub.prefs = {"min_level": "danger"}
+    await s.commit()
+
+    await evaluate_regional_ballistic(s, await _mk_notice(s, await _mk_source(s, "sumy")))
+
+    assert sent == []
+
+
+async def test_type_filter_opts_out_of_the_oblast_warning(ctx, sent):
+    s, sub = ctx
+    sub.region = "sumy"
+    sub.prefs = {"types": ["shahed"]}
+    await s.commit()
+
+    await evaluate_regional_ballistic(s, await _mk_notice(s, await _mk_source(s, "sumy")))
+
+    assert sent == []
+
+
+async def test_a_homeless_subscription_gets_nothing(ctx, sent):
+    """Consistent with the rest of the subsystem: only `citywide` reaches a
+    device with no home zone."""
+    s, sub = ctx
+    sub.region = "sumy"
+    sub.home_lat = None
+    sub.home_lon = None
+    await s.commit()
+
+    await evaluate_regional_ballistic(s, await _mk_notice(s, await _mk_source(s, "sumy")))
+
+    assert sent == []

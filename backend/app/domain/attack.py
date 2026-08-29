@@ -14,6 +14,7 @@ from dataclasses import dataclass
 _FAMILIES: dict[str, set[str]] = {
     "drone": {"shahed", "jet_drone", "fpv"},
     "cruise_missile": {"missile"},
+    "kab": {"kab"},
     "ballistic": {"ballistic"},
 }
 _TYPE_TO_FAMILY = {t: fam for fam, types in _FAMILIES.items() for t in types}

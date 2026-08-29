@@ -144,7 +144,8 @@ export function rarityBreakdown(
   return out
 }
 
-const ANALYSABLE_TYPES = new Set(['shahed', 'jet_drone', 'fpv', 'missile', 'ballistic'])
+const ANALYSABLE_TYPES = new Set(
+  ['shahed', 'jet_drone', 'fpv', 'kab', 'missile', 'ballistic'])
 
 /** A target older than this since last seen is stale — no longer analysable.
  * Mirrors backend app/domain/cards.STALE_AFTER (12h). */

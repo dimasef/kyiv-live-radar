@@ -148,10 +148,11 @@ describe('TYPE_ORDER exhaustiveness', () => {
   // TYPE_ORDER is a TargetType[], so TypeScript checks that every MEMBER is a
   // valid type but not that every type is a member — a new one added to the
   // union silently vanishes from every mix bar instead of failing the build.
-  // `fpv` was added on 2026-08-28 and this is what would have caught missing it.
+  // `fpv` was added on 2026-08-28 and this is what would have caught missing it;
+  // `kab` on 2026-08-29, and this is what did.
   it('lists every target type exactly once', () => {
     const all: TargetType[] = [
-      'shahed', 'jet_drone', 'fpv', 'missile', 'ballistic', 'unknown',
+      'shahed', 'jet_drone', 'fpv', 'kab', 'missile', 'ballistic', 'unknown',
     ]
     expect([...TYPE_ORDER].sort()).toEqual([...all].sort())
   })

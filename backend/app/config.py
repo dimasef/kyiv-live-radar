@@ -67,6 +67,10 @@ class Settings(BaseSettings):
     stale_minutes_tracked: dict[str, int] = {
         "ballistic": 5,   # a barrage lulls between waves; scope='city' also lands here
         "missile": 6,
+        # Copied from `missile`, not chosen: measured on the Сумщина feed, KAB
+        # callouts sit 0.7 min apart at the median and 3.2 at p90, which is what
+        # these two numbers already were. A new type does not oblige new windows.
+        "kab": 6,
         "jet_drone": 10,
         # Measured on 3760 Сумщина messages: within one FPV run the callouts
         # sit 3.0 min apart at the median and 8.6 at p90. It is also the
@@ -87,6 +91,7 @@ class Settings(BaseSettings):
     stale_minutes_orphan: dict[str, int] = {
         "ballistic": 2,
         "missile": 3,
+        "kab": 3,        # p90 of the measured gaps, exactly like missile
         # Above the measured p90 on purpose. A reactive drone crossing the city
         # is the callout an operator most often goes back to re-read, and at 3
         # minutes it was gone before they could — the dot being slightly stale

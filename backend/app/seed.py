@@ -91,6 +91,7 @@ async def seed_districts() -> int:
         for d in DISTRICTS:
             region = d.get("region", HOME_REGION)
             region_only = bool(d.get("region_only", False))
+            match_context = d.get("match_context")
             if d["name_en"] in have:
                 row = have[d["name_en"]]
                 if (row.aliases or []) != d.get("aliases", []):
@@ -99,6 +100,8 @@ async def seed_districts() -> int:
                     row.region = region
                 if row.region_only != region_only:
                     row.region_only = region_only
+                if row.match_context != match_context:
+                    row.match_context = match_context
                 continue
             geom = boundaries.get(d["name_en"])
             lat, lon = d["lat"], d["lon"]
@@ -113,6 +116,7 @@ async def seed_districts() -> int:
                 boundary=geom,
                 region=region,
                 region_only=region_only,
+                match_context=match_context,
             ))
         session.add_all(rows)
         await session.commit()

@@ -48,6 +48,30 @@ export function filterFeedNotices(
   return notices.filter((n) => shown.has(n.region ?? home))
 }
 
+/** …and the same for the attack-summary cards, the third input that had no
+ * filter at all.
+ *
+ * An incident has no region of its own to test — it does not need one, because
+ * it is a KYIV attack by construction: `ingest/handlers._incident_broadcast`
+ * returns None for any track outside the home region, so a northern or eastern
+ * target never opens or joins one. The question is therefore not which region
+ * the incident belongs to but whether the reader is showing the home region at
+ * all.
+ *
+ * Without this, a reader following Сумщина with Kyiv switched off still got
+ * every Kyiv attack rollup — three of them in a row on 2026-08-29, reading as
+ * «атаку завершено» for attacks that were never in their feed. The feed has no
+ * attack-START card (see buildTimeline's three item kinds), so they arrived
+ * unpaired, which is how it was noticed.
+ */
+export function filterFeedIncidents(
+  incidents: Incident[],
+  shown: ReadonlySet<Region>,
+  home: Region = 'kyiv',
+): Incident[] {
+  return shown.has(home) ? incidents : []
+}
+
 // One real message can close several tracks at once (e.g. an untyped
 // "Дорозвідка" stand-down) — each gets its own ThreatEvent so it shows up in
 // ITS OWN track's inspect view, but that means the SAME raw text would

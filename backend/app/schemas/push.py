@@ -37,8 +37,8 @@ class PushPrefsIn(BaseModel):
     behavior (warning floor, every type) plus the citywide push on."""
 
     min_level: Literal["warning", "danger"] = "warning"
-    types: list[Literal["ballistic", "missile", "shahed", "jet_drone", "fpv"]] = [
-        "ballistic", "missile", "shahed", "jet_drone", "fpv",
+    types: list[Literal["ballistic", "missile", "kab", "shahed", "jet_drone", "fpv"]] = [
+        "ballistic", "missile", "kab", "shahed", "jet_drone", "fpv",
     ]
     citywide: bool = True
 

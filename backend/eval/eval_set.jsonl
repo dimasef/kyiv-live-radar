@@ -26,7 +26,7 @@
 {"text": "🔴 Ракета над Дніпровським районом", "target_type": "missile", "status": "active", "is_new_target": false, "districts": ["Dniprovskyi"]}
 {"text": "Кинджал на столицю", "target_type": "ballistic", "status": "active", "is_new_target": false, "districts": []}
 {"text": "Балістика! БпЛА теж у небі над Позняками", "target_type": "ballistic", "status": "active", "is_new_target": false, "districts": ["Pozniaky"]}
-{"text": "КАБ на Харківський напрямок", "target_type": "missile", "status": "active", "is_new_target": false, "districts": []}
+{"text": "КАБ на Харківський напрямок", "target_type": "kab", "status": "active", "is_new_target": false, "districts": []}
 {"text": "Реактивний БпЛА на високій швидкості, Позняки", "target_type": "jet_drone", "status": "active", "is_new_target": false, "districts": ["Pozniaky"]}
 {"text": "Швидкісна ціль курс на Оболонь", "target_type": "jet_drone", "status": "active", "is_new_target": false, "districts": ["Obolon"]}
 {"text": "Реактивний дрон над Дарницьким районом", "target_type": "jet_drone", "status": "active", "is_new_target": false, "districts": ["Darnytskyi"]}

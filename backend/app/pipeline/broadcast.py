@@ -16,7 +16,7 @@ from ..api.ws import manager
 from ..domain.districts import citywide_district_id
 from ..models import Incident, Notice, Threat, ThreatEvent
 from ..schemas import WSMessage
-from .home_push import evaluate_home_danger
+from .home_push import evaluate_home_danger, evaluate_regional_ballistic
 from .results import Broadcast
 
 log = logging.getLogger("broadcast")
@@ -59,6 +59,12 @@ async def broadcast_results(session, results: list[Broadcast]) -> None:
             )
             if n is not None:
                 await manager.broadcast(WSMessage(type="notice", notice=notice_out(n)))
+                try:
+                    await evaluate_regional_ballistic(session, n)
+                except Exception:
+                    # Same rule as the track branch: push is supplementary and
+                    # must never break WS fan-out.
+                    log.exception("regional ballistic evaluation failed for notice %s", n.id)
             continue
         if b.type == "alert" and b.alert is not None:
             await manager.broadcast(WSMessage(type="alert", alert=alert_out(b.alert)))

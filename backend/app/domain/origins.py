@@ -21,7 +21,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from ..regions import watched_regions
+from ..regions import HOME_REGION, REGION_SPECS, watched_regions
 
 # Compass sector -> representative bearing (deg, 0=N, 90=E), the wedge direction
 # the frontend draws when only a sector is known (no specific origin toponym).
@@ -59,6 +59,12 @@ ORIGINS: tuple[Origin, ...] = (
     Origin("voronezh", "Воронежчина", "E", 72, ("воронеж", "воронєж", "воронезьк"), 51.66, 39.20),
     Origin("millerovo", "Міллерово", "SE", 105, ("міллеров", "мілеров"), 48.92, 40.40),
     Origin("rostov", "Ростовщина", "SE", 115, ("ростов", "ростовщин"), 47.24, 39.71),
+    # 15 corpus mentions, 11 of them already in FROM-position («Загроза балістики
+    # з Таганрогу», «…з Брянщини, Курщини, Воронежа, Таганрогу та Криму») — the
+    # extractor was matching the shape and had nothing to map it to, so every one
+    # of them lost its direction. All ballistic. Sits beside Ростовщина, as the
+    # bearing says.
+    Origin("taganrog", "Таганрог", "SE", 117, ("таганрог",), 47.24, 38.90),
     Origin("engels", "Енгельс", "E", 85, ("енгельс",), 51.48, 46.12),
     Origin("caspian", "Каспій", "E", 95, ("каспійськ", "каспій"), 42.00, 50.00),
     Origin("black_sea", "Чорне море", "S", 185, ("чорного мор", "чорне мор", "чорному мор"), 44.00, 32.00),
@@ -94,13 +100,88 @@ _ORIGIN_RES: tuple[tuple[str, re.Pattern], ...] = tuple(
 )
 
 
-def match_origin(norm: str) -> Origin | None:
-    """The origin named in FROM-position in `norm`, if any (first by text order,
-    then by stem specificity when two match at the same spot). `norm` must be
-    matcher.normalize()-d text. Returns None when no curated origin is named as
-    an inbound direction — the common case."""
+# The terse genitive the northern channels use for a launch region — «Загроза
+# балістики Курська», «Балістика курська», «Курська балістична» — carries no
+# preposition, so `_FROM_PREFIX` cannot see it and all five such corpus messages
+# lost their direction.
+#
+# Relaxing the preposition GENERALLY would be wrong, and measurably so: of the 11
+# corpus messages that put a threat word beside a bare origin name, the other six
+# are «На Чернігівщині ракети», «Сумщина балістика!», «Балістика Чернігівська!» —
+# targets over a region we WATCH, which must never become an inbound axis. The
+# split is clean because it is not a coincidence: the names that win are foreign
+# launch regions that are never a target, and the names that lose are our own
+# oblasts that are never a launch site.
+#
+# So the bare form is allowed only for an origin whose name does not ALSO name a
+# watched region, and only touching a threat word — never on a bare mention
+# («працює ППО в Брянську», «Ту-95 в Енгельсі», «Відбій по Таганрогу»).
+_THREAT_WORD = r"(?:загроз\w*|балістик\w*|балістичн\w*|ракетн\w*|ракет\w*|швидкісн\w*)"
+
+
+def _also_names_a_watched_region(origin: Origin) -> bool:
+    """True when this origin's name also names a region we watch as a TARGET
+    area, i.e. a bare mention is as likely to be «ракети на Чернігівщині» as an
+    inbound direction. Derived from the region registry rather than listed, so a
+    region going active reclassifies its origin automatically."""
+    watched = {
+        stem
+        for spec in watched_regions()
+        for stem in (*spec.threat_stems, *spec.oblast_city_stems)
+    }
+    return any(
+        own.startswith(other) or other.startswith(own)
+        for own in origin.stems
+        for other in watched
+    )
+
+
+# Minimum stem length for the BARE form. A stem short enough to be the head of
+# an ordinary word is safe behind a preposition and lethal without one: «курс»
+# (Курщина's third stem) sits inside «курсом», the single commonest word in this
+# feed, and turned «Ракети курсом на Дніпро, Кременчук» into an inbound axis from
+# Kursk on the first corpus sweep. Same failure class GAZETTEER.md records for
+# the district stems, where four letters is likewise where it starts to bite.
+# The from-position patterns keep every stem — there the preposition is the guard.
+_BARE_MIN_STEM = 5
+
+
+def _bare_re(origin: Origin) -> re.Pattern | None:
+    """Threat word touching the origin name, in either order. None when the
+    origin has no stem long enough to be read without a preposition."""
+    stems = [s for s in origin.stems if len(s) >= _BARE_MIN_STEM]
+    if not stems:
+        return None
+    name = (
+        r"(?:" + "|".join(sorted(map(re.escape, stems), key=len, reverse=True))
+        + r")[а-яіїєґ]*"
+    )
+    return re.compile(
+        r"(?<![а-яіїєґ])(?:"
+        + _THREAT_WORD + r"\s+" + name
+        + r"|" + name + r"\s+" + _THREAT_WORD
+        + r")"
+    )
+
+
+def _bare_origin_res() -> tuple[tuple[str, re.Pattern], ...]:
+    out = []
+    for o in ORIGINS:
+        if _also_names_a_watched_region(o):
+            continue
+        pat = _bare_re(o)
+        if pat is not None:
+            out.append((o.key, pat))
+    return tuple(out)
+
+
+_BARE_ORIGIN_RES: tuple[tuple[str, re.Pattern], ...] = _bare_origin_res()
+
+
+def _first_match(res, norm: str) -> Origin | None:
+    """First origin by text order, then by stem specificity at the same spot."""
     best: tuple[int, int, Origin] | None = None  # (start, -stem_specificity, origin)
-    for key, pat in _ORIGIN_RES:
+    for key, pat in res:
         m = pat.search(norm)
         if m is None:
             continue
@@ -110,6 +191,17 @@ def match_origin(norm: str) -> Origin | None:
         if best is None or cand[:2] < best[:2]:
             best = cand
     return best[2] if best is not None else None
+
+
+def match_origin(norm: str) -> Origin | None:
+    """The origin named as an inbound direction in `norm`, if any. `norm` must be
+    matcher.normalize()-d text. Returns None when no curated origin is named that
+    way — the common case.
+
+    FROM-position wins outright; the bare genitive above is consulted only when
+    nothing was in from-position, so this can add a direction where there was
+    none but can never change one that already resolved."""
+    return _first_match(_ORIGIN_RES, norm) or _first_match(_BARE_ORIGIN_RES, norm)
 
 
 # --- Target-elsewhere detection (shared by parsing.rules and pipeline.ingest) ---
@@ -151,7 +243,7 @@ def match_origin(norm: str) -> Origin | None:
 # corpus evidence recorded beside it.
 _OTHER_OBLAST_RAW = ("брянщин", "курщин", "ростов", "воронеж", "воронєж",
                      "дніпропетровщин", "дніпро", "запоріжж", "миколаївщин", "сумщин",
-                     "полтавщин", "харківщин", "харков", "білорус", "крим",
+                     "полтавщин", "харківщин", "харков", "харків", "білорус", "крим",
                      "житомирщин", "вінницьк", "вінниччин", "вінничин",
                      "черкащин", "одещин", "херсонщин",
                      "черкас", "полтав", "суми", "сумах", "житомирську обл",
@@ -263,13 +355,56 @@ _KYIV_DESTINATION_RE = re.compile(
 )
 
 
-def target_elsewhere(norm: str) -> bool:
+# Oblast stem -> the region it names. Only OUR regions are here: a stem for a
+# foreign launch area («брянщин») can never collide with a gazetteer entry,
+# because the gazetteer holds no place there.
+_STEM_REGION: dict[str, str] = {
+    stem: spec.id
+    for spec in REGION_SPECS
+    for stem in (*spec.threat_stems, *spec.oblast_city_stems)
+}
+
+
+def _blank_lookalike_places(norm: str, districts) -> str:
+    """Blank the spans where the source's own gazetteer matched a PLACE whose
+    letters also open an oblast name — of a DIFFERENT region than the place.
+
+    Everything else in the pipeline knows who is speaking: `DistrictMatcher` is
+    built per source binding, so a Sumy channel simply cannot see a Kyiv entry.
+    These two functions are the exception — plain text in, no source — and that
+    asymmetry is what lets an oblast word list overrule a place the gazetteer
+    already identified. «Харківська» is a street in Суми; without this, adding
+    «харків» to the list below would read a real Sumy callout naming it as a
+    target over Kharkiv oblast and drop it.
+
+    The comparison is place-region against STEM-region, never against the
+    source's: a hit whose own region is the one the stem names is the signal,
+    not the noise. That distinction is the whole guard — blanking every matched
+    place instead cost 157 corpus messages, because Ніжин and Прилуки are
+    Чернігівщина's gazetteer entries AND its `threat_stems`, so erasing them let
+    a northern target corroborate the Kyiv city alert.
+    """
+    out: list[str] | None = None
+    for hit in districts:
+        word = norm[hit.position:hit.end]
+        own = hit.region or HOME_REGION
+        for stem, named in _STEM_REGION.items():
+            if word.startswith(stem) and named != own:
+                if out is None:
+                    out = list(norm)
+                for i in range(hit.position, min(hit.end, len(out))):
+                    out[i] = " "
+                break
+    return norm if out is None else "".join(out)
+
+
+def target_elsewhere(norm: str, districts=()) -> bool:
     """True if the message names another oblast as a target LOCATION (not merely
     an inbound target's origin) — then the threat genuinely isn't ours: no Kyiv
     district to localize AND no Kyiv-relevant axis to raise. An origin-only
     mention ("з Чернігівщини", heading to us) returns False. Conservative when
     unclear: a non-origin oblast mention suppresses."""
-    norm = _ROAD_USE_RE.sub(" ", norm)
+    norm = _ROAD_USE_RE.sub(" ", _blank_lookalike_places(norm, districts))
     if _KYIV_DESTINATION_RE.search(norm):
         # The message states US as the destination ("зі Сумщини пішли в район
         # Ніжин, далі ймовірно на Київщину") — whatever else it names on the way,
@@ -278,13 +413,13 @@ def target_elsewhere(norm: str) -> bool:
     return _targets_a_region(norm, _OBLAST_ANY_RE, _OBLAST_ORIGIN_RE)
 
 
-def target_not_kyiv(norm: str) -> bool:
+def target_not_kyiv(norm: str, districts=()) -> bool:
     """Like `target_elsewhere`, but the WATCHED regions count as elsewhere too.
 
     For anything scoped to the Kyiv city alert specifically — a terse pulse
     corroborating it, a threat-level bulletin about it — «Чернігівщина» is not
     Kyiv, even though it is now a region we track."""
-    norm = _ROAD_USE_RE.sub(" ", norm)
+    norm = _ROAD_USE_RE.sub(" ", _blank_lookalike_places(norm, districts))
     if _KYIV_DESTINATION_RE.search(norm):
         return False
     return _targets_a_region(norm, _NON_KYIV_ANY_RE, _NON_KYIV_ORIGIN_RE)

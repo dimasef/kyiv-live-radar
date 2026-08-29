@@ -11,7 +11,6 @@ from .vocab import (
     _ALIAS_NEXT_WORD_REQUIRED,
     _ALIAS_NEXT_WORD_VETO,
     _ALIAS_PREV_WORD_REQUIRED,
-    _ALIAS_PREV_WORD_VETO,
     _APOSTROPHES,
     _OBLAST_CITY_STEMS,
     _STREET_WORDS,
@@ -47,6 +46,10 @@ class DistrictHit:
     # (a plant's number, part of the name) — `position + stem_len` cannot: the
     # stem is only the part of the word the entry explained.
     end: int = 0
+    # The matched entry's own region. Carried on the hit so a caller with no
+    # matcher can still tell a place from an oblast NAME that happens to share
+    # its letters — see origins._blank_lookalike_places.
+    region: str | None = None
 
 
 # Punctuation to skip when looking at the word next to a match. The quote marks
@@ -195,6 +198,28 @@ def _is_oblast_form(norm_text: str, start: int, end: int, stem: str) -> bool:
     return next_word.startswith(_OBLAST_NEXT)
 
 
+# A word boundary for the neighbour helpers: whitespace OR a list break. The
+# break matters because the eastern and northern channels write callouts as
+# slash pairs — «Слобожанське/Верхня Орілька», «Вовчанськ/Білий Колодязь». Split
+# on spaces alone, the word before «Орілька» comes out as
+# «слобожанське/верхня», which starts with neither the qualifier a rule requires
+# nor the one it vetoes, so every context rule silently failed on exactly the
+# phrasing these entries exist for.
+_WORD_SPLIT = re.compile(r"[\s" + re.escape(_LIST_BREAK) + r"]+")
+
+
+def _prev_word(norm_text: str, start: int) -> str:
+    """The word immediately before a match, punctuation and list breaks skipped."""
+    before = norm_text[:start].rstrip(_EDGE)
+    return _WORD_SPLIT.split(before)[-1] if before else ""
+
+
+def _next_word(norm_text: str, end: int) -> str:
+    """The word immediately after a match, punctuation and list breaks skipped."""
+    after = norm_text[end:].lstrip(_EDGE)
+    return _WORD_SPLIT.split(after)[0] if after else ""
+
+
 def _is_proper_name(norm_text: str, start: int, end: int) -> bool:
     """True if the match at [start:end) is part of a proper name that merely
     contains a toponym alias ("Голос Києва", a channel) — see
@@ -202,9 +227,7 @@ def _is_proper_name(norm_text: str, start: int, end: int) -> bool:
     veto = _ALIAS_NEXT_WORD_VETO.get(norm_text[start:end])
     if not veto:
         return False
-    after = norm_text[end:].lstrip(_EDGE)
-    next_word = after.split(" ", 1)[0] if after else ""
-    return next_word.startswith(veto)
+    return _next_word(norm_text, end).startswith(veto)
 
 
 def _missing_required_next(norm_text: str, start: int, end: int) -> bool:
@@ -215,22 +238,7 @@ def _missing_required_next(norm_text: str, start: int, end: int) -> bool:
     for alias, required in _ALIAS_NEXT_WORD_REQUIRED.items():
         if not matched.startswith(alias):
             continue
-        after = norm_text[end:].lstrip(_EDGE)
-        next_word = after.split(" ", 1)[0] if after else ""
-        return not next_word.startswith(required)
-    return False
-
-
-def _has_vetoed_prev(norm_text: str, start: int, end: int) -> bool:
-    """True if the match at [start:end) is disqualified by the word before it
-    («Велика Писарівка» is not Писарівка) — see vocab._ALIAS_PREV_WORD_VETO."""
-    matched = norm_text[start:end]
-    for alias, veto in _ALIAS_PREV_WORD_VETO.items():
-        if not matched.startswith(alias):
-            continue
-        before = norm_text[:start].rstrip(_EDGE)
-        prev_word = before.rsplit(" ", 1)[-1] if before else ""
-        return prev_word.startswith(veto)
+        return not _next_word(norm_text, end).startswith(required)
     return False
 
 
@@ -242,10 +250,98 @@ def _missing_required_prev(norm_text: str, start: int, end: int) -> bool:
     for alias, required in _ALIAS_PREV_WORD_REQUIRED.items():
         if not matched.startswith(alias):
             continue
-        before = norm_text[:start].rstrip(_EDGE)
-        prev_word = before.rsplit(" ", 1)[-1] if before else ""
-        return not prev_word.startswith(required)
+        return not _prev_word(norm_text, start).startswith(required)
     return False
+
+
+@dataclass(frozen=True)
+class MatchContext:
+    """One ENTRY's own neighbouring-word rules, keyed by the alias they govern.
+
+    The four `vocab._ALIAS_*` dicts above express the same four conditions, but
+    they are keyed by the MATCHED TEXT and so fire for every entry that matched
+    it. That is enough while one entry owns the word, and it is what «церкв»,
+    «перемоги», «старе» and «Голос Києва» still use.
+
+    It is not enough when TWO entries share their only matchable word, because
+    the rule that saves one is exactly the rule that must not apply to the other:
+
+    - Писарівка (Хотінська громада) and Велика Писарівка sit 80 km apart and
+      share «писарівк». A global «not after Велик…» veto keeps the bare village
+      honest and silences the qualified one; here each entry states its own half,
+      so both localize.
+    - Верхня and Нижня Сироватка, 9 km apart, share «сироватк». Only Верхня had
+      the alias, so every Нижня callout landed on Верхня — a wrong pin, not a
+      gap. Both now require their qualifier, and an unqualified «Сироватка»
+      (which the corpus has never yet produced) matches neither and surfaces in
+      the coverage queue rather than guessing.
+    - Деснянське (a village) and the Деснянський raion of Chernihiv, 126 km
+      apart, share «деснянськ». The raion is the one that needs a following
+      «район»/«р-н»; the village is the one that must not have it.
+
+    Each value maps an alias to the word prefixes that decide it. `*_required`
+    disqualifies the match when the neighbour is absent, `*_veto` when it is
+    present.
+    """
+
+    prev_required: dict[str, tuple[str, ...]]
+    prev_veto: dict[str, tuple[str, ...]]
+    next_required: dict[str, tuple[str, ...]]
+    next_veto: dict[str, tuple[str, ...]]
+
+
+def _read_context(raw) -> MatchContext | None:
+    """Build a MatchContext from an entry's `match_context` mapping (a dict from
+    the gazetteer or a JSON column), or None when the entry declares none."""
+    if not raw:
+        return None
+    def rule(key: str) -> dict[str, tuple[str, ...]]:
+        return {alias: tuple(words) for alias, words in (raw.get(key) or {}).items()}
+    return MatchContext(
+        prev_required=rule("prev_required"),
+        prev_veto=rule("prev_veto"),
+        next_required=rule("next_required"),
+        next_veto=rule("next_veto"),
+    )
+
+
+def _context_blocks(
+    ctx: MatchContext | None, norm_text: str, start: int, end: int
+) -> bool:
+    """True if THIS entry's own context rules disqualify the match at
+    [start:end). Alias keys are matched as prefixes of the whole match, the same
+    way the global dicts are, so an entry's unambiguous aliases are untouched by
+    a rule written for its ambiguous one."""
+    if ctx is None:
+        return False
+    matched = norm_text[start:end]
+    prev = _prev_word(norm_text, start)
+    nxt = _next_word(norm_text, end)
+    for alias, words in ctx.prev_required.items():
+        if matched.startswith(alias) and not prev.startswith(words):
+            return True
+    for alias, words in ctx.prev_veto.items():
+        if matched.startswith(alias) and prev.startswith(words):
+            return True
+    for alias, words in ctx.next_required.items():
+        if matched.startswith(alias) and not nxt.startswith(words):
+            return True
+    for alias, words in ctx.next_veto.items():
+        if matched.startswith(alias) and nxt.startswith(words):
+            return True
+    return False
+
+
+@dataclass(frozen=True)
+class _Pattern:
+    """One compiled gazetteer entry, everything `find` needs to judge a match."""
+
+    district_id: int
+    name: str
+    regex: re.Pattern
+    preferred: bool  # entry's region == the reporting channel's (homonym tie-break)
+    is_street_name: bool
+    context: MatchContext | None
 
 
 def _visible_to(
@@ -323,7 +419,7 @@ class DistrictMatcher:
         allowed_regions: frozenset[str] | None = None,
     ):
         # districts: iterable of objects/dicts with id, name_uk, aliases
-        self._patterns: list[tuple[int, str, re.Pattern, bool, bool]] = []
+        self._patterns: list[_Pattern] = []
         # (id, name) index — the allowed district set for the LLM fallback.
         self.districts_index: list[tuple[int, str]] = []
         # id -> region, so the LLM prompt can label each allowed place (a name
@@ -386,15 +482,21 @@ class DistrictMatcher:
             # An entry that IS a street or a square is exempt from the street
             # veto — see _is_street_reference.
             is_street_name = any(w in normalize(name) for w in _STREET_WORDS)
-            self._patterns.append((did, name, pat, preferred, is_street_name))
+            raw_ctx = (
+                d.get("match_context") if isinstance(d, dict)
+                else getattr(d, "match_context", None)
+            )
+            self._patterns.append(
+                _Pattern(did, name, pat, preferred, is_street_name, _read_context(raw_ctx))
+            )
 
     def find(self, norm_text: str) -> list[DistrictHit]:
         hits: dict[int, tuple[DistrictHit, bool]] = {}
-        for did, name, pat, preferred, is_street_name in self._patterns:
-            for m in pat.finditer(norm_text):
+        for p in self._patterns:
+            for m in p.regex.finditer(norm_text):
                 groups = m.groupdict()
                 matched = groups.get("stem") or groups.get("word") or m.group(0)
-                if _is_street_reference(norm_text, m.start(), m.end(), is_street_name):
+                if _is_street_reference(norm_text, m.start(), m.end(), p.is_street_name):
                     continue
                 if _is_foreign_sea(norm_text, m.start(), m.end()):
                     continue
@@ -406,12 +508,15 @@ class DistrictMatcher:
                     continue
                 if _missing_required_prev(norm_text, m.start(), m.end()):
                     continue
-                if _has_vetoed_prev(norm_text, m.start(), m.end()):
-                    continue
                 if _missing_required_next(norm_text, m.start(), m.end()):
                     continue
-                hits[did] = (
-                    DistrictHit(did, name, m.start(), len(matched), m.end()), preferred)
+                if _context_blocks(p.context, norm_text, m.start(), m.end()):
+                    continue
+                hits[p.district_id] = (
+                    DistrictHit(p.district_id, p.name, m.start(), len(matched), m.end(),
+                                self.region_by_id.get(p.district_id)),
+                    p.preferred,
+                )
                 break
         # Resolve prefix overlaps (e.g. Оболонь vs Оболонський matching the same
         # word): among hits at the same start offset, keep the most specific

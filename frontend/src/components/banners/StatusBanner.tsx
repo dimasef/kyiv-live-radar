@@ -20,6 +20,7 @@ import {
   primaryAlert,
   stillCollapsed,
   useNow,
+  watchesHomeRegion,
 } from './status'
 
 function loadCollapsedFor(): CollapsedFor | null {
@@ -36,10 +37,14 @@ export default function StatusBanner() {
   const { t } = useTranslation()
   const alerts = useRadar((s) => s.alerts)
   const incidents = useRadar((s) => s.incidents)
+  const regions = useRadar((s) => s.regions)
+  const chosenRegion = useRadar((s) => s.chosenRegion)
 
-  const alert = primaryAlert(alerts)
-  const incident = notableIncident(incidents)
-  const ended = mostRecentlyEnded(alerts)
+  const watchesHome = watchesHomeRegion(regions, chosenRegion)
+
+  const alert = watchesHome ? primaryAlert(alerts) : null
+  const incident = watchesHome ? notableIncident(incidents) : null
+  const ended = watchesHome ? mostRecentlyEnded(alerts) : null
 
   const [collapsedFor, setCollapsedFor] = useState(loadCollapsedFor)
   const collapsed = stillCollapsed(collapsedFor, alert?.id ?? null, incident?.id ?? null)

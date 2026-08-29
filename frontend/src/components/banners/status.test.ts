@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { stillCollapsed } from './status'
+import type { RegionInfo } from '@/types'
+
+import { stillCollapsed, watchesHomeRegion } from './status'
 
 describe('stillCollapsed', () => {
   it('keeps the pill collapsed through a reload of the SAME alert', () => {
@@ -28,5 +30,34 @@ describe('stillCollapsed', () => {
 
   it('does not carry a collapse from an alert into the alert-free clear banner', () => {
     expect(stillCollapsed({ alert: 42, incident: null }, null, null)).toBe(false)
+  })
+})
+
+describe('watchesHomeRegion', () => {
+  // The server catalogue: `is_home` is the deployment's own region, never a
+  // hardcoded id here.
+  const catalogue = [
+    { id: 'kyiv', name_uk: 'Київщина', is_home: true, active: true },
+    { id: 'sumy', name_uk: 'Сумщина', is_home: false, active: true },
+  ] as unknown as RegionInfo[]
+
+  it('hides the banner for a reader following another oblast', () => {
+    // The 2026-08-29 report: region set to Сумщина, Kyiv's air-raid alert still
+    // shown as the reader's own situation.
+    expect(watchesHomeRegion(catalogue, 'sumy')).toBe(false)
+  })
+
+  it('shows it for a reader following the home region', () => {
+    expect(watchesHomeRegion(catalogue, 'kyiv')).toBe(true)
+  })
+
+  it('shows it before the picker is answered — that falls back to home', () => {
+    expect(watchesHomeRegion(catalogue, null)).toBe(true)
+  })
+
+  it('shows it while the catalogue is still empty', () => {
+    // First paint, before the boot fetch lands. Failing towards showing an
+    // alert is the only safe direction.
+    expect(watchesHomeRegion([], 'sumy')).toBe(true)
   })
 })

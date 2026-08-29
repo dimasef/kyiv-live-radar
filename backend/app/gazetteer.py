@@ -905,8 +905,16 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Хатилова Гута", "name_en": "Khatylova-Huta", "lat": 51.3072, "lon": 30.6924,
      "region": "chernihiv", "aliases": ["хатилова"]},
 
+    # This village and the Деснянський raion of the city of Chernihiv are 126 km
+    # apart and share «деснянськ». The village had the word to itself, so «На
+    # Деснянський р-н» pinned the raion onto it; the raion is `region_only`
+    # because Kyiv has a Деснянський of its own.
     {"name_uk": "Деснянське", "name_en": "Desnianske CH", "lat": 51.7941, "lon": 33.0583,
-     "region": "chernihiv", "aliases": []},
+     "region": "chernihiv", "aliases": [],
+     "match_context": {"next_veto": {"деснянськ": ["район", "р-н"]}}},
+    {"name_uk": "Деснянський район", "name_en": "Desnianskyi CH", "lat": 51.5003, "lon": 31.3165,
+     "region": "chernihiv", "region_only": True, "aliases": ["деснянськ"],
+     "match_context": {"next_required": {"деснянськ": ["район", "р-н"]}}},
     {"name_uk": "Мезин", "name_en": "Mezyn", "lat": 51.8235, "lon": 33.0719,
      "region": "chernihiv", "aliases": []},
     # region_only, and the one case `prefer_region` cannot fix: "оболонн" explains
@@ -1064,8 +1072,11 @@ DISTRICTS: list[dict] = [
      "region": "sumy", "aliases": []},
     {"name_uk": "Кириківка", "name_en": "Kyrykivka", "lat": 50.3485, "lon": 35.1304,
      "region": "sumy", "aliases": []},
+    # The hromada adjective is unambiguous and needs no context; the shared
+    # «писарівк» counts only behind its qualifier (the mirror of Писарівка's veto).
     {"name_uk": "Велика Писарівка", "name_en": "Velyka Pysarivka", "lat": 50.4253, "lon": 35.4839,
-     "region": "sumy", "aliases": ["великописарівськ"]},
+     "region": "sumy", "aliases": ["великописарівськ", "писарівк"],
+     "match_context": {"prev_required": {"писарівк": ["велик"]}}},
     {"name_uk": "Боромля", "name_en": "Boromlia", "lat": 50.6195, "lon": 34.9671,
      "region": "sumy", "aliases": []},
     {"name_uk": "Улянівка", "name_en": "Ulianivka SM", "lat": 50.9748, "lon": 34.2938,
@@ -1093,8 +1104,12 @@ DISTRICTS: list[dict] = [
      "region": "sumy", "aliases": ["храпівщін"]},
     {"name_uk": "Мар'їне", "name_en": "Mariine", "lat": 51.0747, "lon": 34.9857,
      "region": "sumy", "aliases": []},
+    # «писарівк» is the only word this village and Велика Писарівка (80 km
+    # south-west) share; each states its own half of the qualifier so both
+    # localize. See matcher.MatchContext.
     {"name_uk": "Писарівка", "name_en": "Pysarivka SM", "lat": 51.0799, "lon": 34.8342,
-     "region": "sumy", "region_only": True, "aliases": []},
+     "region": "sumy", "region_only": True, "aliases": [],
+     "match_context": {"prev_veto": {"писарівк": ["велик"]}}},
     # Whole-word (see vocab): the stem "річк" also fires on «річка», which cost a
     # pin on the Kyiv feed's «річка "Либідь" пофарбувалася». The hromada
     # adjective «Річківської» is a separate, longer alias and needs no guard.
@@ -1207,8 +1222,16 @@ DISTRICTS: list[dict] = [
      "region": "sumy", "aliases": []},
     {"name_uk": "Велика Чернеччина", "name_en": "Velyka Chernechchyna", "lat": 50.9545, "lon": 34.9256,
      "region": "sumy", "aliases": ["чернеччин", "великочернеччин"]},
+    # The two Сироватки are 9 km apart and «сироватк» is the only word either
+    # has, so the alias sat on Верхня alone and every Нижня callout landed on
+    # Верхня. Both require their qualifier now; a bare «Сироватка» (not yet seen
+    # in the corpus) matches neither and reaches the coverage queue.
     {"name_uk": "Верхня Сироватка", "name_en": "Verkhnia Syrovatka", "lat": 50.8312, "lon": 34.9421,
-     "region": "sumy", "aliases": ["сироватк"]},
+     "region": "sumy", "aliases": ["сироватк"],
+     "match_context": {"prev_required": {"сироватк": ["верхн"]}}},
+    {"name_uk": "Нижня Сироватка", "name_en": "Nyzhnia Syrovatka", "lat": 50.7843, "lon": 34.8294,
+     "region": "sumy", "aliases": ["сироватк"],
+     "match_context": {"prev_required": {"сироватк": ["нижн"]}}},
     {"name_uk": "Токарі", "name_en": "Tokari SM", "lat": 50.92, "lon": 34.902,
      "region": "sumy", "aliases": []},
     {"name_uk": "Вири", "name_en": "Vyry", "lat": 51.0338, "lon": 34.4135,
@@ -1290,6 +1313,22 @@ DISTRICTS: list[dict] = [
      "region": "sumy", "region_only": True, "aliases": ["перемоги"]},
     {"name_uk": "Героїв Крут", "name_en": "Heroiv Krut Sumy", "lat": 50.9168, "lon": 34.8339,
      "region": "sumy", "region_only": True, "aliases": ["крут"]},
+    # A Суми street, 2.1 km from Героїв Крут — which is how the geocode was
+    # settled: Nominatim offered three «вулиця Харківська» in the oblast and the
+    # callout that named it («Харківська, Хіммістечко, Героїв Крут реактивний
+    # італмас») names its neighbour. `region_only` because Kyiv has a Харківський
+    # масив of its own.
+    #
+    # This entry is what makes «харків» safe in origins._OTHER_OBLAST_RAW: the
+    # oblast word list would otherwise read this callout as a target over
+    # Kharkiv oblast and drop a real Sumy sighting. The entry alone is not
+    # enough either — origins._blank_lookalike_places is the other half.
+    {"name_uk": "Харківська", "name_en": "Kharkivska SM", "lat": 50.8991, "lon": 34.8231,
+     "region": "sumy", "region_only": True, "aliases": [],
+     # Preventive: «харківський напрямок» is the military-direction register, not
+     # this street. The corpus has it from a Kyiv channel only (which cannot see
+     # this entry), but Суми borders Харківщина and writes the same phrase.
+     "match_context": {"next_veto": {"харківськ": ["напрям"]}}},
     {"name_uk": "Лушпи", "name_en": "Lushpy Ave", "lat": 50.9152, "lon": 34.83,
      "region": "sumy", "region_only": True, "aliases": []},
     {"name_uk": "Металургів", "name_en": "Metalurhiv St", "lat": 50.9262, "lon": 34.79,
@@ -1305,6 +1344,194 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Ковпаківський", "name_en": "Kovpakivskyi Sumy", "lat": 50.9764, "lon": 34.8685,
      "region": "sumy", "region_only": True, "aliases": []},
 
+
+    # --- Харківщина -----------------------------------------------------
+    # Mined 2026-08-29 from 983 messages of the two Kharkiv spotter channels
+    # (Karkivw, monitor1654) — 973 of which localized to nothing, the region
+    # having no entries at all. Geocoded against the oblast bbox declared in
+    # regions.py, so a name that resolved elsewhere was reported, never
+    # silently accepted: that is how Кириківка and Есмань were caught being
+    # Сумщина's, already in the list above.
+    #
+    # The region is still `active=False`. These entries do nothing until it
+    # flips — no channel outside Харківщина can see them (`region_only` where
+    # the name is shared, region binding everywhere else).
+    #
+    # Deliberately NOT added, each rejected on the mandatory corpus sweep:
+    #   «Нове»     — 7 of its 13 corpus hits are the adjective («нове життя»,
+    #                «нове загострення»). The village is always written
+    #                «Нове/Питомник», and Питомник carries those callouts.
+    #   «Перемога» — 6 of 8 are elsewhere: a Kyiv village, the donation slogan
+    #                «крок до перемоги», and Суми's Проспект Перемоги. Its
+    #                callouts pair with Шестакове, which is here.
+    #   «Елітне»   — Nominatim answered with Зернове, a different village. A
+    #                wrong pin is worse than a gap; re-add when geocoded right.
+    {"name_uk": "Харків", "name_en": "Kharkiv City", "lat": 49.9923, "lon": 36.2310,
+     "region": "kharkiv", "aliases": []},
+    # Лозова and Руська Лозова share «лозов» and nothing else — the Писарівка
+    # class, so each states its own half (see matcher.MatchContext).
+    {"name_uk": "Лозова", "name_en": "Lozova", "lat": 48.8842, "lon": 36.3160,
+     "region": "kharkiv", "aliases": ["лозовой"],
+     "match_context": {"prev_veto": {"лозов": ["руськ"]}}},
+    {"name_uk": "Руська Лозова", "name_en": "Ruska Lozova", "lat": 50.1417, "lon": 36.2863,
+     "region": "kharkiv", "aliases": ["лозов"],
+     "match_context": {"prev_required": {"лозов": ["руськ"]}}},
+    # …and so do Орілька and Верхня Орілька.
+    {"name_uk": "Орілька", "name_en": "Orilka", "lat": 48.9756, "lon": 36.0160,
+     "region": "kharkiv", "aliases": [],
+     "match_context": {"prev_veto": {"орільк": ["верхн"]}}},
+    {"name_uk": "Верхня Орілька", "name_en": "Verkhnia Orilka", "lat": 49.2979, "lon": 36.0614,
+     "region": "kharkiv", "aliases": ["орільк"],
+     "match_context": {"prev_required": {"орільк": ["верхн"]}}},
+    # «салтів» also opens Салтівка, a Kharkiv city district 30 km away, so the
+    # qualifier is required here and Салтівка carries its own entry below.
+    {"name_uk": "Старий Салтів", "name_en": "Staryi Saltiv", "lat": 50.0719, "lon": 36.7861,
+     "region": "kharkiv", "aliases": ["салтів"],
+     "match_context": {"prev_required": {"салтів": ["стар"]}}},
+    {"name_uk": "Верхня Самара", "name_en": "Verkhnia Samara", "lat": 48.6488, "lon": 36.6391,
+     "region": "kharkiv", "aliases": ["самар"],
+     "match_context": {"prev_required": {"самар": ["верхн"]}}},
+    # Renamed towns: the old name is still what the spotters type, and both
+    # geocode to the same point — an alias, not a second entry.
+    {"name_uk": "Берестин", "name_en": "Berestyn", "lat": 49.3741, "lon": 35.4494,
+     "region": "kharkiv", "aliases": ["красноград"]},
+    {"name_uk": "Златопіль", "name_en": "Zlatopil KH", "lat": 49.3896, "lon": 36.2127,
+     "region": "kharkiv", "aliases": ["первомайськ"]},
+    # Spaced names: `_stem` strips spaces, so each rides on its distinctive half.
+    {"name_uk": "Великий Бурлук", "name_en": "Velykyi Burluk", "lat": 50.0597, "lon": 37.3855,
+     "region": "kharkiv", "aliases": ["бурлук"]},
+    {"name_uk": "Старий Мерчик", "name_en": "Staryi Merchyk", "lat": 49.9780, "lon": 35.7689,
+     "region": "kharkiv", "aliases": ["мерчик"]},
+    {"name_uk": "Нова Водолага", "name_en": "Nova Vodolaha", "lat": 49.7181, "lon": 35.8602,
+     "region": "kharkiv", "aliases": ["водолаг"]},
+    {"name_uk": "Білий Колодязь", "name_en": "Bilyi Kolodiaz", "lat": 50.2049, "lon": 37.1145,
+     "region": "kharkiv", "aliases": ["колодяз"]},
+    {"name_uk": "Козача Лопань", "name_en": "Kozacha Lopan", "lat": 50.3296, "lon": 36.1921,
+     "region": "kharkiv", "aliases": ["лопан"]},
+    {"name_uk": "Кам'яна Яруга", "name_en": "Kamiana Yaruha", "lat": 49.8928, "lon": 36.5979,
+     "region": "kharkiv", "aliases": ["яруг"]},
+    {"name_uk": "Мала Рогань", "name_en": "Mala Rohan", "lat": 49.9371, "lon": 36.4876,
+     "region": "kharkiv", "aliases": ["рогань"]},
+    # Towns and villages whose stem is distinctive on the sweep.
+    {"name_uk": "Барвінкове", "name_en": "Barvinkove", "lat": 48.9030, "lon": 37.0246,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Близнюки", "name_en": "Blyzniuky", "lat": 48.8531, "lon": 36.5519,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Слатине", "name_en": "Slatyne", "lat": 50.2091, "lon": 36.1572,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Балаклія", "name_en": "Balakliia", "lat": 49.4521, "lon": 36.8398,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Ізюм", "name_en": "Izium", "lat": 49.1913, "lon": 37.2784,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Краснокутськ", "name_en": "Krasnokutsk", "lat": 50.0626, "lon": 35.1648,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Дергачі", "name_en": "Derhachi", "lat": 50.1071, "lon": 36.1206,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Слобожанське", "name_en": "Slobozhanske", "lat": 49.5990, "lon": 36.5242,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Приколотне", "name_en": "Prykolotne", "lat": 50.1606, "lon": 37.3499,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Зміїв", "name_en": "Zmiiv", "lat": 49.7019, "lon": 36.3633,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Липці", "name_en": "Lyptsi", "lat": 50.2037, "lon": 36.4244,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Чугуїв", "name_en": "Chuhuiv", "lat": 49.8366, "lon": 36.6899,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Золочів", "name_en": "Zolochiv KH", "lat": 50.2791, "lon": 35.9824,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Мерефа", "name_en": "Merefa", "lat": 49.8183, "lon": 36.0629,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Савинці", "name_en": "Savyntsi KH", "lat": 49.3960, "lon": 37.0502,
+     "region": "kharkiv", "aliases": ["савінц"]},
+    {"name_uk": "Богодухів", "name_en": "Bohodukhiv", "lat": 50.1602, "lon": 35.5221,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Прудянка", "name_en": "Prudianka", "lat": 50.2413, "lon": 36.1696,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Коломак", "name_en": "Kolomak", "lat": 49.8436, "lon": 35.3135,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Печеніги", "name_en": "Pechenihy", "lat": 49.8655, "lon": 36.9398,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Пролісне", "name_en": "Prolisne KH", "lat": 49.7155, "lon": 36.9323,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Краснопавлівка", "name_en": "Krasnopavlivka", "lat": 49.1380, "lon": 36.3206,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Сахновщина", "name_en": "Sakhnovshchyna", "lat": 49.1517, "lon": 35.8753,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Шестакове", "name_en": "Shestakove", "lat": 50.0726, "lon": 36.6254,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Слобідське", "name_en": "Slobidske KH", "lat": 50.0190, "lon": 36.4482,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "П'ятихатки", "name_en": "Piatykhatky KH", "lat": 50.0895, "lon": 36.2551,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Безруки", "name_en": "Bezruky", "lat": 50.1714, "lon": 36.1206,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Куп'янськ", "name_en": "Kupiansk", "lat": 49.7133, "lon": 37.6142,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Лиманівка", "name_en": "Lymanivka", "lat": 48.9357, "lon": 36.2779,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Кегичівка", "name_en": "Kehychivka", "lat": 49.2891, "lon": 35.7626,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Вовчанськ", "name_en": "Vovchansk", "lat": 50.2929, "lon": 36.9370,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Циркуни", "name_en": "Tsyrkuny", "lat": 50.0820, "lon": 36.3871,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Васищеве", "name_en": "Vasyshcheve", "lat": 49.8354, "lon": 36.3312,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Таранівка", "name_en": "Taranivka", "lat": 49.6167, "lon": 36.1512,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Кочеток", "name_en": "Kochetok", "lat": 49.8720, "lon": 36.7255,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Люботин", "name_en": "Liubotyn", "lat": 49.9436, "lon": 35.9185,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Хорошеве", "name_en": "Khorosheve", "lat": 49.8534, "lon": 36.2240,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Дворічна", "name_en": "Dvorichna", "lat": 49.8509, "lon": 37.6826,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Хотімля", "name_en": "Khotimlia", "lat": 50.0214, "lon": 36.8756,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Домаха", "name_en": "Domakha", "lat": 48.8616, "lon": 36.2973,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Цупівка", "name_en": "Tsupivka", "lat": 50.2707, "lon": 36.1727,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Питомник", "name_en": "Pytomnyk", "lat": 50.1730, "lon": 36.2612,
+     "region": "kharkiv", "aliases": []},
+    # Kharkiv city districts/landmarks, `region_only` like every other city's.
+    {"name_uk": "Салтівка", "name_en": "Saltivka", "lat": 50.0170, "lon": 36.3455,
+     "region": "kharkiv", "region_only": True, "aliases": []},
+    {"name_uk": "Лісопарк", "name_en": "Lisopark KH", "lat": 50.0579, "lon": 36.2406,
+     "region": "kharkiv", "region_only": True, "aliases": []},
+    {"name_uk": "Помірки", "name_en": "Pomirky", "lat": 50.0512, "lon": 36.2645,
+     "region": "kharkiv", "region_only": True, "aliases": []},
+    # `region_only`: the name (or its stem) is one another region already owns —
+    # Андріївка/Валки/Вільшана are Сумщина's, «лісн» opens Kyiv's Лісники and
+    # «боров» Чернігівщина's Боровики/Боровичі. Hidden from every other region's
+    # matcher, exactly as GAZETTEER.md prescribes for a shared name.
+    {"name_uk": "Андріївка", "name_en": "Andriivka KH", "lat": 49.5456, "lon": 36.6116,
+     "region": "kharkiv", "region_only": True, "aliases": []},
+    {"name_uk": "Валки", "name_en": "Valky KH", "lat": 49.8306, "lon": 35.6088,
+     "region": "kharkiv", "region_only": True, "aliases": []},
+    {"name_uk": "Вільшани", "name_en": "Vilshany KH", "lat": 50.0514, "lon": 35.8839,
+     "region": "kharkiv", "region_only": True, "aliases": []},
+    {"name_uk": "Лісне", "name_en": "Lisne KH", "lat": 49.7403, "lon": 36.5424,
+     "region": "kharkiv", "region_only": True, "aliases": []},
+    {"name_uk": "Борова", "name_en": "Borova KH", "lat": 49.3799, "lon": 37.6253,
+     "region": "kharkiv", "region_only": True, "aliases": []},
+    {"name_uk": "Прилісне", "name_en": "Prylisne KH", "lat": 50.0245, "lon": 36.4522,
+     "region": "kharkiv", "region_only": True, "aliases": []},
+    {"name_uk": "Тернова", "name_en": "Ternova KH", "lat": 50.1849, "lon": 36.6757,
+     "region": "kharkiv", "region_only": True, "aliases": []},
+    {"name_uk": "Тишки", "name_en": "Tyshky", "lat": 50.1253, "lon": 36.4169,
+     "region": "kharkiv", "region_only": True, "aliases": []},
+    {"name_uk": "Байрак", "name_en": "Bairak KH", "lat": 50.0438, "lon": 36.4373,
+     "region": "kharkiv", "region_only": True, "aliases": []},
+    {"name_uk": "Данилівка", "name_en": "Danylivka KH", "lat": 48.9431, "lon": 36.8850,
+     "region": "kharkiv", "region_only": True, "aliases": []},
+    {"name_uk": "Вільхівка", "name_en": "Vilkhivka KH", "lat": 49.9875, "lon": 36.5137,
+     "region": "kharkiv", "region_only": True, "aliases": []},
+    {"name_uk": "Шарівка", "name_en": "Sharivka KH", "lat": 50.0187, "lon": 35.4416,
+     "region": "kharkiv", "region_only": True, "aliases": []},
+    {"name_uk": "Шевченкове", "name_en": "Shevchenkove KH", "lat": 49.6950, "lon": 37.1753,
+     "region": "kharkiv", "region_only": True, "aliases": []},
 
     # Sentinel for CITY-WIDE threats («ціль на місто»), NOT a matchable place:
     # DistrictMatcher skips it and the LLM never sees it. It exists only so a

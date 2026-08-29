@@ -1765,7 +1765,7 @@ export interface components {
              * Target Type
              * @enum {string}
              */
-            target_type: "shahed" | "jet_drone" | "fpv" | "missile" | "ballistic" | "unknown";
+            target_type: "shahed" | "jet_drone" | "fpv" | "kab" | "missile" | "ballistic" | "unknown";
         };
         /**
          * BrowserSubscriptionIn
@@ -2035,7 +2035,7 @@ export interface components {
              * Detected Target Type
              * @enum {string}
              */
-            detected_target_type: "shahed" | "jet_drone" | "fpv" | "missile" | "ballistic" | "unknown";
+            detected_target_type: "shahed" | "jet_drone" | "fpv" | "kab" | "missile" | "ballistic" | "unknown";
             /**
              * Event Time
              * Format: date-time
@@ -2422,7 +2422,7 @@ export interface components {
              * Target Type
              * @enum {string}
              */
-            target_type: "shahed" | "jet_drone" | "fpv" | "missile" | "ballistic" | "unknown";
+            target_type: "shahed" | "jet_drone" | "fpv" | "kab" | "missile" | "ballistic" | "unknown";
             /**
              * Track Count
              * @default 0
@@ -2701,7 +2701,7 @@ export interface components {
              * Target Type
              * @enum {string}
              */
-            target_type: "shahed" | "jet_drone" | "fpv" | "missile" | "ballistic" | "unknown";
+            target_type: "shahed" | "jet_drone" | "fpv" | "kab" | "missile" | "ballistic" | "unknown";
             /** Text */
             text: string;
         };
@@ -2780,12 +2780,13 @@ export interface components {
              * @default [
              *       "ballistic",
              *       "missile",
+             *       "kab",
              *       "shahed",
              *       "jet_drone",
              *       "fpv"
              *     ]
              */
-            types: ("ballistic" | "missile" | "shahed" | "jet_drone" | "fpv")[];
+            types: ("ballistic" | "missile" | "kab" | "shahed" | "jet_drone" | "fpv")[];
         };
         /**
          * PushPrefsOut
@@ -2848,7 +2849,7 @@ export interface components {
             /** Incident Id */
             incident_id?: number | null;
             /** Target Type */
-            target_type?: ("shahed" | "jet_drone" | "fpv" | "missile" | "ballistic" | "unknown") | null;
+            target_type?: ("shahed" | "jet_drone" | "fpv" | "kab" | "missile" | "ballistic" | "unknown") | null;
             /** Threat Closed Reason */
             threat_closed_reason?: string | null;
             /** Threat Id */
@@ -2856,7 +2857,7 @@ export interface components {
             /** Threat Status */
             threat_status?: string | null;
             /** Threat Target Type */
-            threat_target_type?: ("shahed" | "jet_drone" | "fpv" | "missile" | "ballistic" | "unknown") | null;
+            threat_target_type?: ("shahed" | "jet_drone" | "fpv" | "kab" | "missile" | "ballistic" | "unknown") | null;
         };
         /**
          * RawExportOut
@@ -2934,7 +2935,7 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             /** Llm Type */
-            llm_type?: ("shahed" | "jet_drone" | "fpv" | "missile" | "ballistic" | "unknown") | null;
+            llm_type?: ("shahed" | "jet_drone" | "fpv" | "kab" | "missile" | "ballistic" | "unknown") | null;
             /** Llm Type Confidence */
             llm_type_confidence?: number | null;
             /** Llm Type Evidence */
@@ -3051,7 +3052,7 @@ export interface components {
              * Target Type
              * @enum {string}
              */
-            target_type: "shahed" | "jet_drone" | "fpv" | "missile" | "ballistic" | "unknown";
+            target_type: "shahed" | "jet_drone" | "fpv" | "kab" | "missile" | "ballistic" | "unknown";
         };
         /**
          * RawSourceOut
@@ -3540,7 +3541,7 @@ export interface components {
             /** Event Target Count */
             event_target_count?: number | null;
             /** Event Target Type */
-            event_target_type?: ("shahed" | "jet_drone" | "fpv" | "missile" | "ballistic" | "unknown") | null;
+            event_target_type?: ("shahed" | "jet_drone" | "fpv" | "kab" | "missile" | "ballistic" | "unknown") | null;
             /**
              * Event Time
              * Format: date-time
@@ -3645,7 +3646,7 @@ export interface components {
              * Target Type
              * @enum {string}
              */
-            target_type: "shahed" | "jet_drone" | "fpv" | "missile" | "ballistic" | "unknown";
+            target_type: "shahed" | "jet_drone" | "fpv" | "kab" | "missile" | "ballistic" | "unknown";
         };
         /**
          * ThreatTypeIn
@@ -3656,7 +3657,7 @@ export interface components {
              * Target Type
              * @enum {string}
              */
-            target_type: "shahed" | "jet_drone" | "fpv" | "missile" | "ballistic" | "unknown";
+            target_type: "shahed" | "jet_drone" | "fpv" | "kab" | "missile" | "ballistic" | "unknown";
         };
         /**
          * TokenPairOut

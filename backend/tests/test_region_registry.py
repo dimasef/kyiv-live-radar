@@ -29,7 +29,7 @@ from app.regions import (
 FROZEN_OTHER_OBLAST = (
     "брянщин", "курщин", "ростов", "воронеж", "воронєж",
     "дніпропетровщин", "дніпро", "запоріжж", "миколаївщин",
-    "полтавщин", "харківщин", "харков", "білорус", "крим",
+    "полтавщин", "харківщин", "харков", "харків", "білорус", "крим",
     "житомирщин", "вінницьк", "вінниччин", "вінничин",
     "черкащин", "одещин", "херсонщин",
     "черкас", "полтав", "житомирську обл",
@@ -100,7 +100,11 @@ def test_a_stem_a_watched_region_never_had_still_ends_up_watched():
 
 
 def test_the_oblast_city_stems_come_from_the_registry():
-    assert vocab._OBLAST_CITY_STEMS == frozenset({"черніг"})
+    # Both are a city whose stem swallows its own oblast adjective: `_stem` cuts
+    # Чернігів to «черніг» and Харків to «харк», and each then matches
+    # «…щина»/«…ська область» too. Харків joined on 2026-08-29, when the city
+    # became a gazetteer entry and the collision started to matter.
+    assert vocab._OBLAST_CITY_STEMS == frozenset({"черніг", "харк"})
     assert vocab._OBLAST_CITY_STEMS == frozenset(
         s for spec in REGION_SPECS for s in spec.oblast_city_stems
     )
@@ -176,7 +180,10 @@ def test_the_type_family_rule_covers_every_type():
     from app.domain.target_types import family
     from app.models import TARGET_TYPES
 
-    assert {family(t) for t in TARGET_TYPES} == {"drone", "missile", "unknown"}
+    # `kab` is its own family on purpose: unlike ballistic under missile, it is
+    # not a more specific reading of «ракета» — a cruise missile and a glide bomb
+    # over the same district are two things, and fusion should flag the conflict.
+    assert {family(t) for t in TARGET_TYPES} == {"drone", "missile", "kab", "unknown"}
 
 
 def test_the_push_label_matches_what_the_type_means():

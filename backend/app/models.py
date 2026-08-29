@@ -53,6 +53,14 @@ class District(Base):
     # own — «ТЕЦ», «вокзал», «летовище» — where the name says nothing about
     # which city is meant and only the reporting channel can.
     region_only: Mapped[bool] = mapped_column(default=False)
+    # This entry's own neighbouring-word rules, scoped to it alone (see
+    # matcher.MatchContext). For two entries that share their only matchable
+    # word — Писарівка/Велика Писарівка, the two Сироватки, Деснянське and
+    # Chernihiv's Деснянський район — where a rule keyed by the word would apply
+    # to both. Re-synced onto existing rows by seed_districts.
+    match_context: Mapped[dict | None] = mapped_column(
+        JSON(none_as_null=True), nullable=True
+    )
     # Real OSM boundary (GeoJSON Polygon/MultiPolygon geometry) for the 10
     # administrative raions; SQL NULL for microdistricts/approach towns (points
     # only). none_as_null keeps Python None as SQL NULL so IS NOT NULL filters work.
@@ -70,7 +78,19 @@ class District(Base):
 # ~20 km of range against 1000+, rooftop height, stale within minutes. Every
 # per-type table below — staleness, severity, push prefs, speed, icon — gives
 # it a different answer than a Shahed, which is what having a type is for.
-TargetType = Literal["shahed", "jet_drone", "fpv", "missile", "ballistic", "unknown"]
+#
+# `kab` is separate for a DIFFERENT reason, and it is worth being honest about
+# which (added 2026-08-29): the staleness argument that carried `fpv` is not
+# here. Measured on the Сумщина feed, KAB callouts sit 0.7 min apart at the
+# median and 3.2 at p90 — which is what `missile`'s 6/3 windows already say, so
+# it inherits them unchanged rather than inventing numbers. What was wrong was
+# the LABEL. All 35 corpus KAB messages typed `missile` and read «Ракета» on the
+# map, in the feed and in a push, and a further 38 untyped callouts inherited
+# that type through the channel window — ~73 messages of a Сумщина night calling
+# a glide bomb a missile. For a border oblast that is a different threat: an
+# aircraft across the border, near-border only, minutes of flight, against a
+# cruise missile that could have come from anywhere.
+TargetType = Literal["shahed", "jet_drone", "fpv", "kab", "missile", "ballistic", "unknown"]
 TARGET_TYPES: tuple[TargetType, ...] = get_args(TargetType)
 # Where the LLM type classifier got its answer (app/parsing/type_llm.py).
 TypeEvidence = Literal["text", "context", "none"]

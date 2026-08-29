@@ -97,6 +97,7 @@
       "shahed": "UAV shot down",
       "jet_drone": "Jet UAV shot down",
       "fpv": "FPV shot down",
+      "kab": "KAB shot down",
       "missile": "Missile shot down",
       "ballistic": "Ballistic shot down",
       "unknown": "Unknown closed"
@@ -154,6 +155,7 @@
     "shahed": "UAV",
     "jet_drone": "Jet UAV",
     "fpv": "FPV",
+    "kab": "KAB",
     "missile": "Missile",
     "ballistic": "Ballistic",
     "unknown": "Unknown"
@@ -252,6 +254,7 @@
       "type": {
         "ballistic": "Ballistic",
         "missile": "Missiles",
+        "kab": "KABs",
         "drone": "Drones"
       },
       "citywide": "City-wide threat",

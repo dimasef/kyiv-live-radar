@@ -7,6 +7,11 @@ level escalation — none->warning, none->danger, warning->danger — deduped pe
 (subscription, track) via PushSubscription.danger_state, with a cooldown so an
 oscillating level can't machine-gun re-pushes.
 
+`evaluate_regional_ballistic` is the fourth path, off the NOTICE branch of the
+same fan-out: a ballistic threat stated for a whole oblast never becomes a track,
+so nothing above can see it. See its own comment for why that is the shape
+outside Kyiv.
+
 Policy (see .claude/plans/home-danger.md): the wording is SUPPLEMENTARY —
 «Допоміжно:» prefix, never «Повітряна тривога», always framed as volunteer
 data. TTL is short so a stale danger push dies in transit instead of arriving
@@ -25,7 +30,11 @@ from sqlalchemy.orm.attributes import flag_modified
 from ..config import settings
 from ..domain.geometry import haversine_km
 from ..domain.home_danger import DangerLevel, HomeZone, assess
-from ..models import HOME_REGION, PushSubscription, Threat, utcnow
+from ..domain.origins import ORIGIN_BY_KEY
+from ..models import HOME_REGION, Notice, PushSubscription, Threat, utcnow
+from ..parsing.matcher import normalize
+from ..parsing.vocab import _LEVEL_AHEAD_RE
+from ..regions import label as region_label
 from ..timeutil import naive
 from .webpush import send_push
 
@@ -41,6 +50,7 @@ _TYPE_LABEL = {
     "shahed": "БпЛА",
     "jet_drone": "Реактивний БпЛА",
     "fpv": "FPV",
+    "kab": "КАБ",
     "missile": "Ракета",
     "ballistic": "Балістика",
     "unknown": "Ціль",
@@ -55,7 +65,9 @@ def _sub_prefs(sub: PushSubscription) -> tuple[DangerLevel, set[str], bool]:
     the one mistake this feature must not make."""
     prefs = sub.prefs or {}
     min_level = DangerLevel.DANGER if prefs.get("min_level") == "danger" else DangerLevel.WARNING
-    types = set(prefs.get("types") or ("ballistic", "missile", "shahed", "jet_drone", "fpv"))
+    types = set(
+        prefs.get("types") or ("ballistic", "missile", "kab", "shahed", "jet_drone", "fpv")
+    )
     types.add("unknown")
     return min_level, types, bool(prefs.get("citywide", True))
 
@@ -255,6 +267,133 @@ async def _evaluate_citywide(session, threat: Threat) -> None:
             state["city_last_push"] = utcnow().isoformat()
             changed = True
         if changed:
+            flag_modified(sub, "danger_state")
+            any_changed = True
+    if any_changed:
+        await session.commit()
+
+
+# Ballistic threat stated for a whole oblast, with no place in it to put on the
+# map. Kyiv is the only region whose ballistic callouts name a RAION — 14 of its
+# 500 stored ballistic messages do («🚀 Балістика по Подільському району!»), and
+# that is the shape HomeZone.raion_district_ids and assess() were built for.
+# The northern channels never do: all 28 stored ballistic messages from Sumy and
+# Chernihiv are an oblast-wide threat naming a launch ORIGIN («Загроза балістики
+# з Курська») and, later, «Відбій загрози балістики». Naming no place, they never
+# reach the tracking layer at all — they surface as a forecast/directional
+# NOTICE, so the raion escalation has nothing to fire on and silently never runs.
+#
+# Outside the raion-mapped area, then, the oblast is the zone. This is the same
+# escalation one administrative level up, and it deliberately fires ONLY where
+# the raion one cannot: a home that resolved to raion ids (i.e. inside Kyiv city,
+# the only place `boundaries.json` covers) keeps exactly today's behaviour and is
+# never woken by this. A home with no zone at all gets nothing either — the whole
+# subsystem is home-based, and `citywide` is the one opt-in path that isn't.
+#
+# Level is WARNING, not DANGER: the statement is true of the entire oblast, so
+# «поруч із домом» would be a lie. It respects the subscription's floor, which
+# makes "тільки небезпека" the natural opt-out.
+_REGIONAL_BALLISTIC_KINDS = ("directional", "forecast")
+
+# How long one oblast-level threat stays "the same episode" without an explicit
+# відбій. The Sumy channels do send one (5 clears against 2 opens in the corpus);
+# the Chernihiv one never has (0 against 6), so without an expiry its key would
+# pin the state forever and swallow the next night's threat.
+_REGIONAL_BALLISTIC_TTL = timedelta(hours=3)
+
+
+async def evaluate_regional_ballistic(session, notice: Notice) -> None:
+    """Push an oblast-wide ballistic warning off a threat-level notice.
+
+    Hooked into broadcast_results' notice branch. Unlike `assess`, this has no
+    frontend twin: there is no geometry to draw, and the notice itself already
+    appears in the feed.
+    """
+    if not (settings.home_danger_enabled and settings.push_configured):
+        return
+    if notice.target_type != "ballistic":
+        return
+    region = (notice.source.region if notice.source else None) or HOME_REGION
+    if notice.kind == "clear":
+        await _clear_regional_ballistic(session, region)
+        return
+    if notice.kind not in _REGIONAL_BALLISTIC_KINDS:
+        return
+    # «Найближчим часом можлива повторна хвиля балістики» is about what MIGHT
+    # come, not what is in the sky — the same distinction ingest/context.py draws
+    # before it lets a message set a channel's type context. It also covers the
+    # continuation phrasing («поки ще діє балістична загроза»), which must not
+    # re-push a threat that already did.
+    if _LEVEL_AHEAD_RE.search(normalize(notice.text)):
+        return
+
+    key = f"balreg:{region}"
+    subs = list(
+        await session.scalars(
+            select(PushSubscription).where(
+                PushSubscription.home_lat.is_not(None),
+                PushSubscription.home_lon.is_not(None),
+                _follows_region(region),
+            )
+        )
+    )
+    any_changed = False
+    for sub in subs:
+        # The gate that keeps Kyiv exactly as it is: a home the raion escalation
+        # can serve is not served twice.
+        if sub.home_district_ids:
+            continue
+        min_level, allowed_types, _ = _sub_prefs(sub)
+        if "ballistic" not in allowed_types or min_level > DangerLevel.WARNING:
+            continue
+        state = _danger_state(sub)
+        if not _episode_over(state.get(key)):
+            continue
+        await send_push(session, sub, _regional_ballistic_payload(region, notice))
+        sub.last_push_at = utcnow()
+        state[key] = {"pushed_at": utcnow().isoformat()}
+        flag_modified(sub, "danger_state")
+        any_changed = True
+    if any_changed:
+        await session.commit()
+
+
+def _episode_over(entry: dict | None) -> bool:
+    """True when nothing was pushed for this oblast recently enough to still be
+    the same threat — i.e. a new push is a new escalation, not a repeat."""
+    if not entry or not entry.get("pushed_at"):
+        return True
+    return utcnow() - datetime.fromisoformat(entry["pushed_at"]) > _REGIONAL_BALLISTIC_TTL
+
+
+def _regional_ballistic_payload(region: str, notice: Notice) -> dict:
+    """Both names are stated in the NOMINATIVE after a full stop rather than
+    inflected into the sentence. «по Сумщині» and «з Курщини» would each need a
+    different case, and deriving one from a display string is a trap the first
+    region not ending in «-щина» springs."""
+    origin = ORIGIN_BY_KEY.get(notice.origin or "")
+    whence = f" Напрямок пуску: {origin.name_uk}." if origin else ""
+    return {
+        "kind": "regional-ballistic",
+        "level": "warning",
+        "tag": f"klr-balreg-{region}",
+        "title": "⚠️ Балістика — загроза по області",
+        "body": f"{region_label(region)}.{whence} "
+                "Волонтерські дані — не офіційна тривога.",
+        "url": "/",
+    }
+
+
+async def _clear_regional_ballistic(session, region: str) -> None:
+    """«Відбій загрози балістики» ends the episode, so the next threat over the
+    same oblast pushes again instead of being deduped against a stale key."""
+    key = f"balreg:{region}"
+    subs = list(await session.scalars(select(PushSubscription).where(_follows_region(region))))
+    any_changed = False
+    for sub in subs:
+        state = _danger_state(sub)
+        if key in state:
+            del state[key]
             flag_modified(sub, "danger_state")
             any_changed = True
     if any_changed:

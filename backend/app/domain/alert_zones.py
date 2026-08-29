@@ -2,7 +2,7 @@
 
 This is a DIFFERENT layer from `Alert` (the official Kyiv city/oblast siren the
 radar itself tracks, still fed by Telegram). It is read-only situational
-context: an external provider tells us which raions of Київщина and Чернігівщина
+context: an external provider tells us which raions of the covered oblasts
 are currently under alert, and the map colours them. Nothing here opens or
 closes a track, an incident or an `Alert` row — if the provider dies, this layer
 goes stale and everything else carries on.
@@ -30,6 +30,7 @@ from ..regions import REGION_SPECS, SPEC_BY_ID, Region
 KYIV_OBLAST, KYIV_CITY = SPEC_BY_ID["kyiv"].oblasts
 (CHERNIHIV_OBLAST,) = SPEC_BY_ID["chernihiv"].oblasts
 (SUMY_OBLAST,) = SPEC_BY_ID["sumy"].oblasts
+(KHARKIV_OBLAST,) = SPEC_BY_ID["kharkiv"].oblasts
 
 
 @dataclass(frozen=True)
@@ -82,6 +83,38 @@ ZONES: tuple[Zone, ...] = (
          "Роменський район, Сумська область"),
     Zone("sumy-obl-shostkynskyi", "Шосткинський район", SUMY_OBLAST,
          "Шосткинський район, Сумська область"),
+    # Харківська область — 7 raions.
+    #
+    # The provider lists EIGHT, because it carries both names of the raion
+    # renamed in 2024: «Красноградський» and «Берестинський». They are one
+    # place, reported as two rows that disagree — on 2026-08-29 19:37 one said
+    # alert, the other відбій. The dead one is identifiable and it is not the
+    # one the name suggests: «Берестинський» stamps `changed` as the unix epoch
+    # (which `_parse_skog_time` already reads as "never observed"), while
+    # «Красноградський» had moved forty minutes earlier. So the OLD name is the
+    # live row, and it is the one declared here — `name_uk` is a match key
+    # first and a label second.
+    #
+    # If the provider ever switches, «Красноградський» stops arriving and
+    # «Берестинський» starts: the zone would go stale and `_note_unknown` logs
+    # the newcomer once. That warning is the intended signal — swap the two
+    # lines when it appears. (The gazetteer has the opposite convention for the
+    # TOWN, where nothing external constrains us: Берестин is the entry and
+    # Красноград its alias.)
+    Zone("kharkiv-obl-kharkivskyi", "Харківський район", KHARKIV_OBLAST,
+         "Харківський район, Харківська область"),
+    Zone("kharkiv-obl-chuhuivskyi", "Чугуївський район", KHARKIV_OBLAST,
+         "Чугуївський район, Харківська область"),
+    Zone("kharkiv-obl-lozivskyi", "Лозівський район", KHARKIV_OBLAST,
+         "Лозівський район, Харківська область"),
+    Zone("kharkiv-obl-izyumskyi", "Ізюмський район", KHARKIV_OBLAST,
+         "Ізюмський район, Харківська область"),
+    Zone("kharkiv-obl-kupianskyi", "Куп'янський район", KHARKIV_OBLAST,
+         "Куп'янський район, Харківська область"),
+    Zone("kharkiv-obl-bohodukhivskyi", "Богодухівський район", KHARKIV_OBLAST,
+         "Богодухівський район, Харківська область"),
+    Zone("kharkiv-obl-krasnohradskyi", "Красноградський район", KHARKIV_OBLAST,
+         "Берестинський район, Харківська область"),
 )
 
 # Derived from ZONES and NOT from the region registry, on purpose: a region can

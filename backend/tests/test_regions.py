@@ -192,8 +192,11 @@ def test_a_northern_channel_cannot_reach_a_kyiv_place_at_all():
     # the coverage-gap queue, which is visible rather than a phantom Kyiv dot.
     assert north.find(normalize("Троєщина 🔴")) == []
     # And where the stem has a northern counterpart, that is what it resolves to
-    # — «Деснянський» reaches Деснянське, never the Kyiv raion.
-    assert [h.name for h in north.find(normalize("Деснянський район"))] == ["Деснянське"]
+    # — «Деснянський» never reaches the Kyiv raion. It used to land on Деснянське,
+    # a village 126 km from the raion actually being named; both entries now carry
+    # the «район»/«р-н» rule that tells them apart (see matcher.MatchContext).
+    assert [h.name for h in north.find(normalize("Деснянський район"))] == ["Деснянський район"]
+    assert [h.name for h in north.find(normalize("Мезин, деснянське"))] == ["Мезин", "Деснянське"]
 
 
 def test_the_kyiv_channel_still_watches_the_north():

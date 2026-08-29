@@ -414,17 +414,41 @@ def test_sumy_stems_that_are_also_ordinary_words(text, expected):
 def test_velyka_pysarivka_never_becomes_the_border_village():
     """80 km apart, and «писарівк» is the only word either of them has.
 
-    The bare village carries the traffic (41 corpus callouts against 24), so it
-    keeps the alias and the qualified form vetoes it — see
-    vocab._ALIAS_PREV_WORD_VETO. Велика Писарівка still answers to its hromada
-    adjective; its spaced mentions stay unlocalized, which is where they were.
+    A veto keyed by the WORD could only protect one of them, so the qualified
+    form was left unlocalized (24 corpus callouts against the bare village's 41).
+    Each entry now states its own half of the qualifier as `match_context`, so
+    both localize and neither can become the other.
     """
     m = _region_matcher("sumy")
     assert [h.name for h in m.find(normalize("Болото > Писарівка реактивний шах"))] \
         == ["Писарівка"]
-    assert m.find(normalize("1 реактивний з Харківщини, курсом на Велику Писарівку")) == []
+    assert [h.name for h in
+            m.find(normalize("1 реактивний з Харківщини, курсом на Велику Писарівку"))] \
+        == ["Велика Писарівка"]
     assert [h.name for h in m.find(normalize("Обстріл у Великописарівській громаді"))] \
         == ["Велика Писарівка"]
+
+
+def test_the_two_syrovatky_need_their_qualifier():
+    """9 km apart, sharing «сироватк». The alias sat on Верхня alone, so every
+    Нижня callout silently landed on Верхня — a wrong pin rather than a gap.
+    An unqualified «Сироватка» now matches neither and reaches the coverage
+    queue, which is the trade GAZETTEER.md prescribes."""
+    m = _region_matcher("sumy")
+    assert [h.name for h in m.find(normalize("на Верхню Сироватку"))] == ["Верхня Сироватка"]
+    assert [h.name for h in m.find(normalize("ціль на нижню сироватку"))] == ["Нижня Сироватка"]
+    assert m.find(normalize("Сироватка")) == []
+
+
+def test_chernihiv_raion_is_not_the_village_126_km_away():
+    """«Деснянський район» is the left-bank raion of the city of Chernihiv;
+    Деснянське is a village near Novhorod-Siverskyi. They share «деснянськ», and
+    the village had it to itself. The raion is `region_only` because Kyiv has a
+    Деснянський of its own — see the Kyiv assertion in test_regions."""
+    m = _region_matcher("chernihiv")
+    assert [h.name for h in m.find(normalize("На Деснянський р-н"))] == ["Деснянський район"]
+    assert [h.name for h in m.find(normalize("Деснянський район єППО"))] == ["Деснянський район"]
+    assert [h.name for h in m.find(normalize("Мезин, деснянське"))] == ["Мезин", "Деснянське"]
 
 
 @pytest.mark.parametrize("text", ["Ціль на Суми.", "Маневр по трасі Київ-Суми.",

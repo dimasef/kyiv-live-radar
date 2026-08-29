@@ -71,6 +71,13 @@ export const TYPE_COLORS: Record<TargetType, string> = {
   // and the `unseen` chip). Its quadcopter glyph carries most of the load anyway
   // — no other type is four blobs in a square.
   fpv: '#2dd4bf',
+  // Rose. Continues the warm severity ramp past jet_drone's orange, where a KAB
+  // sits (heavier than any drone, but it lands near the border). Deliberately
+  // deeper than STATUS_COLORS.confirmed #ef4444, which lives on feed chips and
+  // never on a map glyph. Measured, not eyeballed: nearest neighbour is
+  // jet_drone at ΔE00 33.7 normal / 31.9 deutan / 39.9 protan — the palette's
+  // own worst existing pair is 9.6 deutan.
+  kab: '#e11d48',
   missile: '#f1f5f9', // white (cruise)
   ballistic: '#a855f7', // violet
   unknown: '#94a3b8', // neutral slate

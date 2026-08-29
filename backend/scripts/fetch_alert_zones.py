@@ -1,5 +1,5 @@
 """One-off: fetch OSM boundary polygons for the alert zones the map paints (the
-raions of Київщина + Чернігівщина, plus Kyiv city) and write the committed data
+raions of every covered oblast, plus Kyiv city) and write the committed data
 file the API serves. Same shape and rationale as fetch_boundaries.py — the
 output is checked in, so the app has zero runtime dependency on Nominatim.
 

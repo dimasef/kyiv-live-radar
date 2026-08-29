@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import type { FeedEntry, Notice, Region } from '@/types'
+import type { FeedEntry, Incident, Notice, Region } from '@/types'
 
-import { buildTimeline, filterFeedNotices, filterFeedRegions } from './timeline'
+import {
+  buildTimeline,
+  filterFeedIncidents,
+  filterFeedNotices,
+  filterFeedRegions,
+} from './timeline'
 
 // The reader's chosen set. HOME is what `shownRegions` guarantees is always in
 // it — no stored state can produce a set without the home region.
@@ -97,5 +102,51 @@ describe('regions in the feed — notices', () => {
     // consecutive Чернігівщина «напрямок загрози» cards.
     const shown = buildTimeline([], filterFeedNotices([notice('chernihiv')], HOME), [])
     expect(shown).toHaveLength(0)
+  })
+})
+
+
+// An incident has no region of its own: it is a Kyiv attack by construction
+// (ingest/handlers._incident_broadcast returns None outside the home region),
+// so the only question is whether the reader shows Kyiv at all.
+function incident(): Incident {
+  const id = nextId++
+  return {
+    id,
+    started_at: '2026-08-29T17:35:00Z',
+    ended_at: '2026-08-29T17:47:00Z',
+    ended_reason: 'all_clear',
+    classification: 'drone',
+    track_count: 1,
+    target_count: 1,
+    district_count: 1,
+  } as unknown as Incident
+}
+
+const SUMY_ONLY = new Set<Region>(['sumy'])
+
+describe('regions in the feed — attack summaries', () => {
+  it('drops the Kyiv rollups for a reader who is not watching Kyiv', () => {
+    expect(filterFeedIncidents([incident(), incident()], SUMY_ONLY)).toEqual([])
+  })
+
+  it('keeps them for a reader who is', () => {
+    expect(filterFeedIncidents([incident()], HOME)).toHaveLength(1)
+    expect(filterFeedIncidents([incident()], HOME_AND_NORTH)).toHaveLength(1)
+  })
+
+  it('reaches the rendered timeline', () => {
+    // The 2026-08-29 screenshot: a Сумщина-only feed showing three «АТАКУ
+    // ЗАВЕРШЕНО» cards. They read as unpaired because the feed has no
+    // attack-START card at all — buildTimeline only ever emits 'incidentEnd'.
+    const shown = buildTimeline([], [], filterFeedIncidents(
+      [incident(), incident(), incident()], SUMY_ONLY))
+    expect(shown).toHaveLength(0)
+  })
+
+  it('still renders them when Kyiv is on, so the filter is not a blanket mute', () => {
+    const shown = buildTimeline([], [], filterFeedIncidents([incident()], HOME))
+    expect(shown).toHaveLength(1)
+    expect(shown[0].kind).toBe('incidentEnd')
   })
 })

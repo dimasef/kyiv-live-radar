@@ -47,7 +47,15 @@ self.addEventListener('message', (e) => {
 // («Допоміжно:» wording per the notification policy); one tag per track +
 // renotify so an escalation REPLACES the earlier warning notification
 // instead of stacking.
-const PUSH_KINDS = ['home-danger', 'citywide', 'contact-invite', 'contact-accepted']
+// An unlisted kind is dropped silently, so a new server-side push is invisible
+// until its name is added here.
+const PUSH_KINDS = [
+  'home-danger',
+  'citywide',
+  'regional-ballistic',
+  'contact-invite',
+  'contact-accepted',
+]
 self.addEventListener('push', (e) => {
   const data = e.data?.json()
   if (!data || !PUSH_KINDS.includes(data.kind)) return

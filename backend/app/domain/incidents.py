@@ -26,13 +26,15 @@ log = logging.getLogger("incidents")
 # Target-type severity — an incident is labelled by its most dangerous member.
 # `fpv` sits BELOW shahed: it is the least consequential thing on this list per
 # target — one quadcopter, one building — even though it is the most frequent.
+# `kab` sits between the drones and the cruise missile: a heavier warhead than
+# any drone, but it lands near the border and never crosses the country.
 _SEVERITY = {"unknown": 0, "fpv": 1, "shahed": 2, "jet_drone": 3,
-             "missile": 4, "ballistic": 5}
+             "kab": 4, "missile": 5, "ballistic": 6}
 
 # Types that mean "the same kind of thing is flying" for inference purposes.
 # missile/ballistic is already treated as one family by target_types.upgrade_type.
 _FAMILY = {"shahed": "drone", "jet_drone": "drone", "fpv": "drone",
-           "missile": "missile", "ballistic": "missile"}
+           "missile": "missile", "ballistic": "missile", "kab": "kab"}
 
 
 async def incident_type_prior(session, inc: Incident, when: datetime) -> str | None:

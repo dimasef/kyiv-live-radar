@@ -11,6 +11,7 @@ import Switch from './Switch'
 const TYPES = [
   { key: 'ballistic', glyph: 'ballistic' },
   { key: 'missile', glyph: 'missile' },
+  { key: 'kab', glyph: 'kab' },
   { key: 'drone', glyph: 'shahed' },
 ] as const
 

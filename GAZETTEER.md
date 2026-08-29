@@ -35,6 +35,7 @@ editing a specific line. Read this before adding, changing or removing an entry.
 | `aliases` | Spelling variants, abbreviations and inflections the spotters actually type. Matched case-insensitively after normalization. |
 | `region` | Optional, defaults to `kyiv`. Decides which **track pool** a sighting joins and which region the event feed files it under, so it must follow real geography — not "which channel usually reports it". Славутич is administratively Kyiv oblast but sits 150 km north, so it is `chernihiv`. |
 | `region_only` | Optional. Makes the entry matchable **only** by a channel reporting from its own region — `DistrictMatcher` drops it from every other region's index entirely. |
+| `match_context` | Optional. This entry's OWN neighbouring-word rules, for a word it shares with another entry. See "Two entries, one word" below. |
 
 An entry that is itself a street or a square (its `name_uk` contains one of
 `vocab._STREET_WORDS`) is exempt from `_is_street_reference`. Without that,
@@ -123,20 +124,51 @@ ordinary word: «центр» (⊂ центральний, укргідроме�
 - `vocab._ALIAS_PREV_WORD_REQUIRED` — «церкв» matches Біла Церква only after a
   «Біл…» word, or «приліт у церкву» would pin a strike 80 km out of town.
   «перемоги» matches Суми's Проспект Перемоги only after «просп…».
-- `vocab._ALIAS_PREV_WORD_VETO` — the mirror, added 2026-08-28: «писарівк» stops
-  counting after a «Велик…» word, because Писарівка and Велика Писарівка are
-  80 km apart and share their only matchable word. The bare village keeps the
-  alias (41 corpus callouts against 24); the qualified form is left unmatched
-  rather than pinned wrong.
-- `vocab._ALIAS_NEXT_WORD_REQUIRED` — the fourth of the set: «зелений»,
+- `vocab._ALIAS_NEXT_WORD_REQUIRED` — the third of the set: «зелений»,
   «блакитні» and «старе» count only before «гай», «озер…» and «сел…». This is
   what makes a spaced name shippable when the DISTINCTIVE half is the first word
   and the second is generic — the case that would otherwise be the Красна Гірка
   rejection below.
 
-The four are keyed by the MATCHED TEXT and so apply to every entry that matched
-it, not to one entry. That is why Велика Писарівка cannot simply "require"
-«велик» — the requirement would veto the bare village too.
+The three are keyed by the MATCHED TEXT and so apply to every entry that matched
+it, not to one entry. That is enough while one entry owns the word.
+
+### Two entries, one word — `match_context`
+
+When TWO entries share their only matchable word, a rule keyed by the word
+cannot help: the rule that saves one is exactly the rule that must not apply to
+the other. `match_context` puts the rule on the ENTRY instead, keyed by the alias
+it governs, so each side states its own half:
+
+```python
+{"name_uk": "Велика Писарівка", …, "aliases": ["великописарівськ", "писарівк"],
+ "match_context": {"prev_required": {"писарівк": ["велик"]}}},
+{"name_uk": "Писарівка", …, "aliases": [],
+ "match_context": {"prev_veto": {"писарівк": ["велик"]}}},
+```
+
+Four keys, mirroring the global set: `prev_required`, `prev_veto`,
+`next_required`, `next_veto`. `*_required` drops the match when the neighbouring
+word is absent, `*_veto` when it is present. Alias keys match as prefixes of the
+whole match, so a rule written for an entry's ambiguous alias leaves its
+unambiguous ones alone («великописарівськ» above needs no qualifier).
+
+The three cases in the list, all measured on the stored corpus:
+
+| Pair | Apart | Was |
+|---|---|---|
+| Писарівка / Велика Писарівка | 80 km | a global veto kept the bare village's 41 callouts and silenced the other's 24 |
+| Верхня / Нижня Сироватка | 9 km | only Верхня had «сироватк», so every Нижня callout landed on Верхня — a wrong pin, not a gap |
+| Деснянське / Деснянський район (Чернігів) | 126 km | the village had «деснянськ» to itself, so «На Деснянський р-н» pinned the raion onto it |
+
+An unqualified form now matches **neither** side and reaches the coverage queue —
+«Сироватка» alone is the live example, and the corpus has never produced one.
+This is the usual trade: unmatched is where it already was, a wrong pin is a new
+lie. `districts.match_context` is a JSON column (migration 0035) and is re-synced
+from the gazetteer on every boot, like `aliases` and `region`.
+
+There is deliberately no global `PREV_WORD_VETO` any more: its only case was
+«писарівк», and that case is precisely the shape a global dict states wrongly.
 
 ---
 

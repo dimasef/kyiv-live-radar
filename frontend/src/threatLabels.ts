@@ -36,6 +36,7 @@ export const DOWN_LABEL_KEY: Record<TargetType, string> = {
   shahed: 'legend.down.shahed',
   jet_drone: 'legend.down.jet_drone',
   fpv: 'legend.down.fpv',
+  kab: 'legend.down.kab',
   missile: 'legend.down.missile',
   ballistic: 'legend.down.ballistic',
   unknown: 'legend.down.unknown',

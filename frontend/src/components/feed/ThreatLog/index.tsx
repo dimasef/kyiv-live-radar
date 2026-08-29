@@ -12,7 +12,13 @@ import ClosedGroupCard from './ClosedGroupCard'
 import DaySeparator from './DaySeparator'
 import NoticeCard from './NoticeCard'
 import ThreatCard from './ThreatCard'
-import { buildTimeline, filterFeedNotices, filterFeedRegions, kyivDayKey } from './timeline'
+import {
+  buildTimeline,
+  filterFeedIncidents,
+  filterFeedNotices,
+  filterFeedRegions,
+  kyivDayKey,
+} from './timeline'
 
 export default function ThreatLog() {
   const { t } = useTranslation()
@@ -37,7 +43,7 @@ export default function ThreatLog() {
       buildTimeline(
         filterFeedRegions(log, shown),
         filterFeedNotices(notices, shown),
-        recentIncidents,
+        filterFeedIncidents(recentIncidents, shown),
       ),
     [log, shown, notices, recentIncidents],
   )

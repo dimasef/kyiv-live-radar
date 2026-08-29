@@ -130,12 +130,25 @@ REGION_SPECS: tuple[RegionSpec, ...] = (
         outline_queries=("Харківська область, Україна",),
         center=(49.99, 36.23),
         bbox=(48.53, 34.79, 50.45, 38.10),
-        # Note what is NOT here: the Ukrainian "харків". It is absent from the
-        # curated list too, so «Ціль на Харків» is not suppressed today — a
-        # live gap to close when this region is worked on, not by adding the
-        # stem here (that would suppress it for one deploy and then unsuppress
-        # it again on activation).
-        threat_stems=("харківщин", "харков"),
+        # The bare Ukrainian "харків" is here, and it took two other changes to
+        # make it safe (2026-08-29). Before them «Ціль на Харків» was simply not
+        # suppressed: the list carried «харківщин» and the Russian «харков» (which
+        # catches the genitive «Харкова») but not the nominative anyone actually
+        # writes. Adding it alone was the trap — the stem also opens «Харківська»,
+        # a Суми street a northern channel really did call a target over, and the
+        # word list would have dropped that sighting. What made it safe was the
+        # gazetteer entry for that street plus `origins._blank_lookalike_places`,
+        # which stops an oblast word from overruling a place the source's own
+        # gazetteer already identified. Listing it here rather than only in
+        # `_OTHER_OBLAST_RAW` is what makes activation move it to `_WATCHED_OBLAST`
+        # by itself.
+        threat_stems=("харківщин", "харков", "харків"),
+        # Харків/Харківщина is the Чернігів case: `_stem` cuts the city to
+        # «харк», which then swallows «Харківщина» and «Харківська область»
+        # too. Declaring it here is what lets matcher._is_oblast_form tell the
+        # oblast form from the city — needed the moment the city became a
+        # gazetteer entry.
+        oblast_city_stems=("харк",),
         prompt_names=("Харків",),
     ),
     RegionSpec(

@@ -27,6 +27,11 @@ def family(target_type: str) -> str:
         return "missile"
     if target_type in ("shahed", "jet_drone", "fpv"):
         return "drone"
+    # `kab` is its OWN family, unlike the pairs above. It is not a specificity
+    # step below «ракета» the way ballistic is: a cruise missile over Сумщина and
+    # a glide bomb over Сумщина are two different things happening, and a feed
+    # that says both about one target is disagreeing, not refining. Fusion should
+    # surface that.
     return target_type
 
 

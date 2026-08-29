@@ -3,7 +3,7 @@
 // Директивні типи (shahed/jet_drone/missile) намальовані носом вгору (азимут 0°)
 // і повертаються через rotate. ballistic/unknown — симетричні, не обертаються.
 // КОЛІР = ТИП (див. theme.ts TYPE_COLORS): жовтий shahed, помаранч jet_drone,
-// білий missile, фіолетовий ballistic, бірюзовий fpv. Збита/пропала → сіра
+// білий missile, фіолетовий ballistic, бірюзовий fpv, рожевий kab. Збита/пропала → сіра
 // (передається ззовні).
 
 import L from 'leaflet'
@@ -44,6 +44,13 @@ export const THREAT_PATHS: Record<TargetType, string> = {
     + 'M15.2 18 A2.8 2.8 0 1 0 20.8 18 A2.8 2.8 0 1 0 15.2 18 Z '
     + 'M9.4 10.2 Q9.4 9.4 10.2 9.4 L13.8 9.4 Q14.6 9.4 14.6 10.2 L14.6 13.8 '
     + 'Q14.6 14.6 13.8 14.6 L10.2 14.6 Q9.4 14.6 9.4 13.8 Z',
+  // Корпус авіабомби з широким крилом планерного модуля посередині і хвостовим
+  // оперенням — силует читається як бомба, а не як ракета: тупіший ніс, крило
+  // ширше за все інше в наборі.
+  kab:
+    'M12 1.4 C13.4 3 14.2 5 14.2 7.2 L14.2 17.4 L9.8 17.4 L9.8 7.2 C9.8 5 10.6 3 12 1.4 Z '
+    + 'M2.6 10.3 L21.4 10.3 L21.4 12.5 L2.6 12.5 Z '
+    + 'M7.4 17.4 L16.6 17.4 L15.2 22.2 L8.8 22.2 Z',
   // Нейтральний порожній ромб (fill-rule="evenodd")
   unknown: 'M12 3 L21 12 L12 21 L3 12 Z M12 7.6 L16.4 12 L12 16.4 L7.6 12 Z',
 }
@@ -57,6 +64,8 @@ export const DIRECTIONAL: Record<TargetType, boolean> = {
   // A quadcopter seen from above is four-fold symmetric — rotating it changes
   // nothing on screen, so the rotation would only ever read as jitter.
   fpv: false,
+  // It glides on a course like anything else with wings.
+  kab: true,
   missile: true,
   ballistic: false,
   unknown: false,
@@ -71,6 +80,10 @@ export const DOT_UNTIL_MOVING: Record<TargetType, boolean> = {
   shahed: false,
   jet_drone: false,
   fpv: false,
+  // Unlike a cruise missile, a KAB is usually called in ONCE («Есмань КАБ») and
+  // never moves again — 60% of its corpus callouts localize, few chain. A dot
+  // until moving would mean the glyph almost never shows.
+  kab: false,
   missile: true,
   ballistic: false,
   unknown: false,

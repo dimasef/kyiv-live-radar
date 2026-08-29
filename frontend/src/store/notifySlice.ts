@@ -25,6 +25,7 @@ export interface NotifyPrefs {
   minLevel: 'warning' | 'danger'
   ballistic: boolean
   missile: boolean
+  kab: boolean
   drone: boolean
   citywide: boolean
 }
@@ -33,6 +34,7 @@ export const DEFAULT_NOTIFY_PREFS: NotifyPrefs = {
   minLevel: 'warning',
   ballistic: true,
   missile: true,
+  kab: true,
   drone: true,
   citywide: true,
 }
@@ -59,6 +61,7 @@ function fromWirePrefs(wire: {
     minLevel: wire.min_level === 'danger' ? 'danger' : 'warning',
     ballistic: types.includes('ballistic'),
     missile: types.includes('missile'),
+    kab: types.includes('kab'),
     drone:
       types.includes('shahed') || types.includes('jet_drone') || types.includes('fpv'),
     citywide: wire.citywide ?? true,

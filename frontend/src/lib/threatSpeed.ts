@@ -24,6 +24,9 @@ export const TYPE_SPEED_KMH: Record<TargetType, SpeedRange | null> = {
   // An operator flies it by video link; cruise speed is what the airframe and
   // the link allow, not what a warhead needs.
   fpv: { min: 100, max: 150 },
+  // Released from an aircraft and gliding: fast when it separates, slowing all
+  // the way down. Slower than a cruise missile, faster than any drone.
+  kab: { min: 400, max: 700 },
   missile: { min: 700, max: 900 },
   ballistic: { min: 1500, max: 3000 },
   unknown: null,

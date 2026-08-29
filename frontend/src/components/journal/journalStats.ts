@@ -14,11 +14,17 @@ import type { JournalDay, TargetType } from '@/types'
  * FAIL at normal-vision ΔE 14.8. Placed here the worst adjacent pair is
  * teal↔white at ΔE 22.5 normal / 14.1 protan, i.e. better than the five-colour
  * palette was. Verified with the dataviz palette validator, not by eye: by eye
- * the failing arrangement looked fine. */
+ * the failing arrangement looked fine.
+ *
+ * `kab` (rose) sits between `missile` and `fpv` so its neighbours are white and
+ * teal. It had room anywhere — its nearest neighbour in the whole palette is
+ * jet_drone at ΔE00 33.7 normal / 31.9 deutan — but this keeps every existing
+ * adjacency untouched. */
 export const TYPE_ORDER: TargetType[] = [
   'ballistic',
   'jet_drone',
   'missile',
+  'kab',
   'fpv',
   'shahed',
   'unknown',

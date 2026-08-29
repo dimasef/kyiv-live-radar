@@ -22,6 +22,7 @@ const TYPE_LABEL: Record<TargetType, string> = {
   shahed: 'БПЛА',
   jet_drone: 'реактивний',
   fpv: 'FPV',
+  kab: 'КАБ',
   missile: 'ракета',
   ballistic: 'балістика',
   unknown: '—',

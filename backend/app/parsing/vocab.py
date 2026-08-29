@@ -31,15 +31,23 @@ _BALLISTIC = ("баліст", "іскандер", "кинджал", "кн-23", "
 # correct a channel's ballistic type context — see
 # ingest/context.py::_note_and_inherit_type.
 _MISSILE_NAMED = ("крилат", "калібр", "х-101", "х-59", "х-22")
+# Guided glide bombs, their own target type since 2026-08-29 — a KAB is not a
+# missile. It is dropped by an aircraft across the border, glides for minutes and
+# lands near the border; a cruise missile crosses the country. Everything they
+# share is the word «ракета» a spotter occasionally reaches for.
+#
 # «каб» is whole-word (see rules._WHOLE_WORD) because it is the head of
 # «кабінет»/«кабіна»/«Кабмін» — which meant its Ukrainian plural and oblique
 # forms never typed at all. Over the whole corpus that is 81 messages against 10
-# colliders, and it only showed up once Сумщина arrived: КАБи are the border
-# oblast's routine weapon and reach Kyiv about never (of the 81, two are Kyiv).
-# Listed as explicit forms rather than relaxed to a stem, so the colliders stay
-# unreachable.
-_MISSILE_WEAPON = ("ракет", *_MISSILE_NAMED, "каб", "каби", "кабів", "кабам",
-                   "кабами", "авіабомб", "керован авіа")
+# colliders. Listed as explicit forms rather than relaxed to a stem, so the
+# colliders stay unreachable.
+#
+# 💣 is `sumyregion`'s own marker for the same weapon: 9 corpus messages carry
+# it, 7 of which never say the word at all («💣Підлітають до ДКУ курс Юнаківка»)
+# and typed `unknown`. One channel's convention, so it lives beside the word
+# rather than replacing it.
+_KAB = ("каб", "каби", "кабів", "кабам", "кабами", "авіабомб", "керован авіа", "💣")
+_MISSILE_WEAPON = ("ракет", *_MISSILE_NAMED)
 # Strategic aviation IS the cruise-missile threat, and the spotters name the
 # CARRIER instead of the weapon: "пуски зі стратегічної авіації", "пуски ракет
 # із ТУшок", "виліт групи Ту-95МС", "в повітрі: 7 Ту-95, 2 Ту-160". Those
@@ -765,6 +773,15 @@ _LINK_MARKERS = ("http", "t.me/")
 # guarantee. On 07-18 these slipped past _LINK_MARKERS and their "до останнього
 # Шахеда та ракети" sign-off kept re-typing the channel context.
 _CARD_NUMBER_RE = re.compile(r"(?<!\d)\d{16}(?!\d)")
+# A phone number — the link-less, card-less ad variant. «Green Room Lounge Bar
+# на Масельського… ☎️+380661004659» carried neither a URL nor a card, so it
+# reached the parser as an ordinary sighting; once Харківщина had a gazetteer it
+# resolved to Харків and would have drawn a live target over the city. Corpus
+# guarantee, same standard as the two above: 5 messages in 11 885 carry a phone
+# number and not one is a sighting (three are Укргідрометцентр storm warnings,
+# two are this ad). The country code is required — a bare ten-digit run is not
+# rare enough to suppress on.
+_PHONE_RE = re.compile(r"\+?38[\s\-]?0\d{2}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}(?!\d)")
 # The link-less channel ad: a subscribe post listing localities ("❗️Вишневе
 # тепер в Telegram… ▪️Вишневе ▪️Софіївська Борщагівка…" — raw 1038 raised 5
 # raion tracks). Corpus: "тепер в telegram"/"якщо ти живеш у" hit only this ad;
@@ -974,23 +991,15 @@ _ALIAS_PREV_WORD_REQUIRED: dict[str, tuple[str, ...]] = {
     "перемоги": ("просп", "пропесп"),
 }
 
-# The third of the set: an alias that STOPS counting when the preceding word
-# starts with one of these — the mirror of _ALIAS_NEXT_WORD_VETO.
-#
-# It exists for one shape the other two cannot express: two places in the same
-# oblast whose only matchable word is identical, where one of them is a spaced
-# name qualified by the other's absence. Писарівка (Хотінська громада, on the
-# border, 41 corpus callouts) and Велика Писарівка (Охтирський район, 80 km
-# south-west, 24) share «писарівк» exactly. `_ALIAS_PREV_WORD_REQUIRED` is
-# keyed by the matched text and so applies to EVERY entry that matched it —
-# using it here would veto the bare village too. This veto keeps the bare
-# entry's 41 correct and leaves the 24 qualified ones unlocalized (Велика
-# Писарівка still matches its own «великописарівськ…» hromada form), which is
-# the trade GAZETTEER.md prescribes: unmatched is where they already were, a
-# pin 80 km out is a new lie.
-_ALIAS_PREV_WORD_VETO: dict[str, tuple[str, ...]] = {"писарівк": ("велик",)}
+# There is no global PREV_WORD_VETO. It existed for exactly one case — «писарівк»
+# after a «Велик…» word — and that case is the shape a global dict cannot state:
+# two entries sharing their only matchable word, where the rule that saves one
+# must not touch the other. Being keyed by matched text, the veto silenced Велика
+# Писарівка's 24 callouts to keep the bare village's 41 honest. Both now carry
+# their own half as `match_context` on the entry (see matcher.MatchContext), and
+# both localize. Write a new one there, not here.
 
-# The fourth of the set, and the mirror of _ALIAS_PREV_WORD_REQUIRED: an alias
+# The third of the set, and the mirror of _ALIAS_PREV_WORD_REQUIRED: an alias
 # that counts only when the word AFTER it starts with one of these.
 #
 # It is what makes a spaced name shippable when the DISTINCTIVE half is the

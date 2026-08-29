@@ -1,12 +1,18 @@
 """Alert-zone layer: parsing both providers, diffing, and failing honestly.
 
 The fixtures in tests/data/ are REAL captured provider payloads (2026-08-19,
-Сумська область appended from a 2026-08-28 capture), trimmed to the watched
-oblasts plus one unwatched, with a handful of states flipped to true so the
-alerted path is covered — the shape, key names and timestamp formats are
-untouched, which is the part that would silently break. Сумщина's rows are all
-quiet on purpose: the alerted-path assertions name specific Kyiv/Chernihiv
-zones, and a new oblast must not be able to satisfy them by accident.
+Сумська область appended from a 2026-08-28 capture and Харківська from a
+2026-08-29 one), trimmed to the watched oblasts plus one unwatched, with a
+handful of states flipped to true so the alerted path is covered — the shape,
+key names and timestamp formats are untouched, which is the part that would
+silently break. Сумщина's and Харківщина's rows are all quiet on purpose: the
+alerted-path assertions name specific Kyiv/Chernihiv zones, and a new oblast
+must not be able to satisfy them by accident.
+
+Харківщина's capture keeps EIGHT district rows for seven raions — the provider
+carries both names of the one renamed in 2024. That is not tidied up: the dead
+«Берестинський» row is what exercises the unknown-zone path, and the day it
+becomes the live one is the day this fixture stops matching the roster.
 
 Nothing here touches the network: every test feeds a payload straight to the
 pure parsers, or stubs the fetch.

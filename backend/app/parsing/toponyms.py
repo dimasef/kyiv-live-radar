@@ -60,9 +60,15 @@ _OBLAST_STEMS = (
     # Дніпровське (a village on both sides of the border). The city itself
     # reaches us almost only as «Ціль на Дніпро», one candidate row's worth of
     # noise — cheaper than losing the next Дніпров- settlement.
-    "дніпропетровськ", "харків", "одес", "херсон", "запоріж", "полтав",
+    "дніпропетровськ", "одес", "херсон", "запоріж", "полтав",
     "черкас", "кропивницьк", "житомир", "вінниц", "львів", "рівне",
     "луцьк", "ужгород", "тернопіл", "хмельницьк", "чернівц", "кременчук",
+    # NOT "харків" any more either: it left on 2026-08-29, the same day the
+    # first Харківщина channels started filling the corpus and «Харківська» (a
+    # Суми street) became a gazetteer entry. Prefix-based muting meant the queue
+    # could not have proposed that entry, nor Харків itself once its own batch
+    # lands — the exact failure the three below record.
+    #
     # NOT "суми"/"шостк"/"конотоп" any more, and NOT bare "миколаїв". The first
     # three left this list when Сумщина got a gazetteer (2026-08-28): they name
     # OUR places now, and muting them here would have kept the coverage-gap

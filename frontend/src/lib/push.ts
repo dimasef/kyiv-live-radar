@@ -32,6 +32,7 @@ function wirePrefs(prefs: NotifyPrefs) {
   const types: string[] = []
   if (prefs.ballistic) types.push('ballistic')
   if (prefs.missile) types.push('missile')
+  if (prefs.kab) types.push('kab')
   if (prefs.drone) types.push('shahed', 'jet_drone', 'fpv')
   return { min_level: prefs.minLevel, types, citywide: prefs.citywide }
 }

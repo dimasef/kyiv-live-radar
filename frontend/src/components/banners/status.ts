@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
-import type { Alert, Incident, TargetType } from '@/types'
+import { effectiveRegion, homeRegion } from '@/lib/regions'
+import type { Alert, Incident, Region, RegionInfo, TargetType } from '@/types'
 
 export const CLEAR_LINGER_MS = 20000
 
@@ -8,6 +9,31 @@ const DRONE_FAMILY = new Set<TargetType>(['shahed', 'jet_drone', 'fpv'])
 const SEVERITY: Record<string, number> = { ballistic: 3, missile: 2, drone: 1 }
 
 const severity = (type: TargetType) => SEVERITY[DRONE_FAMILY.has(type) ? 'drone' : type] ?? 0
+
+/** Whether this reader's banner may speak about an alert or an attack at all.
+ *
+ * Both an `Alert` and an `Incident` are about the HOME region by construction —
+ * neither carries a region of its own, and the server only ever opens them for
+ * it (backend regions.py: "Only 'kyiv' feeds incidents, the city alert, the
+ * journal and home-danger push"). Without this a reader following Сумщина was
+ * shown Kyiv's air-raid siren as their own situation, in the loudest element on
+ * the screen.
+ *
+ * Asked of the FOLLOWED region, not of the feed's region set: a Сумщина reader
+ * who adds Київщина as a secondary feed region wants Kyiv sightings in their
+ * timeline, not a Kyiv siren banner over their own oblast. Home comes from the
+ * server catalogue rather than a hardcoded id, so an empty catalogue (the first
+ * paint, before the boot fetch lands) shows the banner rather than hiding it —
+ * failing towards showing an alert is the only safe direction here.
+ */
+export function watchesHomeRegion(
+  catalogue: RegionInfo[],
+  chosen: Region | null,
+): boolean {
+  const home = homeRegion(catalogue)
+  return home === null || effectiveRegion(catalogue, chosen) === home
+}
+
 
 export function notableIncident(incidents: Incident[]): Incident | null {
   const notable = incidents.filter((i) => i.notable)

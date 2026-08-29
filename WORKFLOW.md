@@ -552,8 +552,8 @@ lost_signal/clear (ті лише закривають). «Одна тривог�
 тривогою (`alert_id`, якщо міська тривога вже відкрита — розділ 7).
 
 **Класифікація** (`domain/attack.py::classify`) — derived, НЕ зберігається:
-сім'ї `drone`={shahed,jet_drone,fpv}, `cruise_missile`={missile}, `ballistic`=
-{ballistic}; **`combined`**, якщо в `attack_types` ≥2 різних сімей;
+сім'ї `drone`={shahed,jet_drone,fpv}, `cruise_missile`={missile}, `kab`={kab},
+`ballistic`={ballistic}; **`combined`**, якщо в `attack_types` ≥2 різних сімей;
 `decoy_suspected` і `has_hypersonic` — модифікатори-boolean, не окремі
 лейбли (атака може бути одночасно combined І частково імітаційна).
 Обчислюється при кожній серіалізації, не при записі.

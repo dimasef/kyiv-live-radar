@@ -451,13 +451,33 @@ def test_bilohorodka_matches():
         assert BY_EN["Bilohorodka"] in {h.district_id for h in r.districts}, txt
 
 
-def test_kab_is_missile():
-    assert parse_message("КАБ на Харківський напрямок", M).target_type == "missile"
+def test_kab_is_its_own_type_not_a_missile():
+    """A KAB is a glide bomb, not a missile: an aircraft drops it across the
+    border, it flies for minutes and lands near the border. It typed `missile`
+    until 2026-08-29 and read «Ракета» on every surface."""
+    assert parse_message("КАБ на Харківський напрямок", M).target_type == "kab"
+
+
+def test_kab_beats_the_generic_missile_word():
+    # «КАБ» names the weapon, «ракета» is what a spotter reaches for when they
+    # don't — the same precedence a named jet model has over the missile list.
+    assert parse_message("Ракети, схоже КАБ, по Есмані", M).target_type == "kab"
+
+
+def test_ballistic_still_beats_kab():
+    assert parse_message("Балістика, не КАБ", M).target_type == "ballistic"
 
 
 def test_kab_no_false_positive_on_kabel():
     # "каб" must not match inside "кабель" (a downed power line, not a bomb).
-    assert parse_message("Пошкоджено кабель, немає світла", M).target_type != "missile"
+    assert parse_message("Пошкоджено кабель, немає світла", M).target_type == "unknown"
+
+
+def test_the_bomb_emoji_types_a_kab():
+    """`sumyregion` marks KAB callouts with 💣 and often never says the word —
+    7 such corpus messages typed `unknown` and only got a type by inheriting the
+    channel context."""
+    assert parse_message("💣Підлітають до ДКУ курс Юнаківка, Храпівщина", M).target_type == "kab"
 
 
 def test_localized_strike_is_an_impact_not_suppressed():
@@ -1709,10 +1729,10 @@ def test_fpv_is_its_own_type_not_a_shahed():
 @pytest.mark.parametrize(
     "text,expected",
     [
-        # Priority: the FPV list sits BELOW the missile and jet lists and ABOVE
-        # the generic drone one. Of 198 corpus messages naming an FPV only 21
-        # name another type at all, so this only decides those.
-        ("Каби курсом на Зелений Гай, далі fpv", "missile"),
+        # Priority: the FPV list sits BELOW the KAB, missile and jet lists and
+        # ABOVE the generic drone one. Of 198 corpus messages naming an FPV only
+        # 21 name another type at all, so this only decides those.
+        ("Каби курсом на Зелений Гай, далі fpv", "kab"),
         ("Реактивний шах, також fpv по місту", "jet_drone"),
         ("fpv, невідомий БпЛа над Рибцями", "fpv"),
         # Model names the Сумщина feed uses and Kyiv's does not.
@@ -1729,11 +1749,11 @@ def test_sumy_weapon_vocabulary(text, expected):
 @pytest.mark.parametrize(
     "text,expected",
     [
-        ("КАБ по Сумському району", "missile"),
-        ("Каби курсом на Зелений Гай", "missile"),   # the plural never typed
-        ("Прилетіло 3 кабів", "missile"),
-        ("Пуски КАБам по громаді", "missile"),
-        ("Удар кабами по Есмані", "missile"),
+        ("КАБ по Сумському району", "kab"),
+        ("Каби курсом на Зелений Гай", "kab"),   # the plural never typed
+        ("Прилетіло 3 кабів", "kab"),
+        ("Пуски КАБам по громаді", "kab"),
+        ("Удар кабами по Есмані", "kab"),
         # ...and the words the whole-word restriction exists for stay out.
         ("Засідання Кабміну перенесли", "unknown"),
         ("Пожежа у кабінеті", "unknown"),

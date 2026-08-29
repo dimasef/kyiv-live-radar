@@ -53,6 +53,7 @@ from .vocab import (
     _IMPACT,
     _JET,
     _JET_MODEL,
+    _KAB,
     _LEVEL_AHEAD_RE,
     _LEVEL_LAUNCH_RE,
     _LEVEL_OBLAST,
@@ -73,6 +74,7 @@ from .vocab import (
     _PATH_CONNECTIVE,
     _PATH_COUNT_BREAK,
     _PATH_FILLER,
+    _PHONE_RE,
     _POWER_OUTAGE,
     _PREPOSITION_BEFORE_DISTRICT,
     _PULSE_PREP_KNOWN,
@@ -144,7 +146,7 @@ def _has_conditional_hedge(norm: str) -> bool:
 
 @dataclass
 class ParseResult:
-    target_type: str  # 'shahed' | 'jet_drone' | 'fpv' | 'missile' | 'ballistic' | 'unknown'
+    target_type: str  # see models.TargetType
     status: str       # 'confirmed' | 'sighting' | 'unconfirmed' | 'destroyed' | 'clear'
     is_new_target: bool
     districts: list[DistrictHit]
@@ -272,6 +274,7 @@ def _kw_regex(words) -> re.Pattern:
 
 _BALLISTIC_RE = _kw_regex(_BALLISTIC)
 _MISSILE_RE = _kw_regex(_MISSILE)
+_KAB_RE = _kw_regex(_KAB)
 _JET_MODEL_RE = _kw_regex(_JET_MODEL)
 _JET_RE = _kw_regex(_JET)
 _FPV_RE = _kw_regex(_FPV)
@@ -287,7 +290,8 @@ _HYPERSONIC_RE = _kw_regex(_HYPERSONIC)
 # не притаманна для «Іскандер-М»") still talks about that type for real.
 _NEGATED_TYPE_RE = re.compile(
     r"(?<![а-яіїєґ])не\s+(?:"
-    + "|".join(re.escape(w) for w in (*_BALLISTIC, *_MISSILE, *_JET_MODEL, *_JET, *_FPV, *_UAV))
+    + "|".join(re.escape(w)
+               for w in (*_BALLISTIC, *_MISSILE, *_KAB, *_JET_MODEL, *_JET, *_FPV, *_UAV))
     + r")[а-яіїєґ]*"
 )
 
@@ -301,6 +305,11 @@ def _target_type(norm: str) -> str:
     # statement. Mirrors why ballistic is checked first.
     if _JET_MODEL_RE.search(norm):
         return "jet_drone"
+    # Above the generic missile list for the same reason a named jet model is:
+    # «КАБ» identifies the weapon, «ракета» is what a spotter reaches for when
+    # they don't. Below ballistic, which is both explicit and more severe.
+    if _KAB_RE.search(norm):
+        return "kab"
     if _MISSILE_RE.search(norm):
         return "missile"
     if _JET_RE.search(norm):
@@ -560,7 +569,7 @@ def _lost_signal(norm: str, districts, status: str) -> bool:
         return True
     # "Чисто!" — same stand-down in spotter shorthand, but only when the
     # message isn't scoped to another oblast ("По Житомирщині чисто поки").
-    return bool(_STANDDOWN_CLEAN_RE.search(norm)) and not target_elsewhere(norm)
+    return bool(_STANDDOWN_CLEAN_RE.search(norm)) and not target_elsewhere(norm, districts)
 
 
 def _summary(norm: str, target_type: str, has_district: bool) -> bool:
@@ -581,8 +590,8 @@ def _summary(norm: str, target_type: str, has_district: bool) -> bool:
 
 
 def _promo(norm: str, status: str, impact: bool) -> bool:
-    """A message carrying a URL, a bare payment-card number, a link-less
-    channel-recruitment phrase (_AD_RECRUIT) or a donation/engagement frame
+    """A message carrying a URL, a bare payment-card number, a phone number, a
+    link-less channel-recruitment phrase (_AD_RECRUIT) or a donation/engagement frame
     (_ENGAGEMENT) is promo / donation / channel-boost / ad / meta, never a live
     target callout — a spotter's sighting never links out or advertises
     (validated against the real corpus: zero such sightings). Suppress it like
@@ -590,6 +599,7 @@ def _promo(norm: str, status: str, impact: bool) -> bool:
     message still wins."""
     return (
         (any(m in norm for m in _LINK_MARKERS) or bool(_CARD_NUMBER_RE.search(norm))
+         or bool(_PHONE_RE.search(norm))
          or any(m in norm for m in _AD_RECRUIT) or any(m in norm for m in _ENGAGEMENT))
         and status not in ("clear", "destroyed")
         and not impact
@@ -716,7 +726,7 @@ def _level_notice(target_type: str, districts, citywide: bool, directional: bool
     # bulletin about Kyiv, which is what this feed card claims to be. Unless the
     # message claims our scope outright, in which case the foreign oblast is the
     # contrast half of "quiet here, busy there" — see _OWN_SCOPE_RE.
-    if target_not_kyiv(norm) and not _OWN_SCOPE_RE.search(norm):
+    if target_not_kyiv(norm, districts) and not _OWN_SCOPE_RE.search(norm):
         return None
     if any(p in norm for p in _LEVEL_RAISED):
         return "forecast"
@@ -828,7 +838,7 @@ def _target_pulse(districts, citywide: bool, status: str, norm: str,
         # A pulse corroborates the KYIV city-wide alert, so anything scoped to
         # another region — watched or not — must not pulse (live 2026-08-01:
         # "Ціль на Сумщині" pushed a Kyiv card's confidence to 0.7).
-        and not target_not_kyiv(norm)
+        and not target_not_kyiv(norm, districts)
         and not _pulse_names_unknown_place(words)
         and not _pulse_type_denied(words)
     )
@@ -950,6 +960,7 @@ def _movement_path(districts, norm: str) -> bool:
 
 
 def _origin_present(origin: Origin | None, status: str, target_type: str, norm: str,
+                    districts,
                     sup: Suppressors) -> bool:
     """A curated inbound origin named in FROM-position ("з Брянщини", "з боку
     Чорного моря") on a threat-flavoured, non-suppressed message. Set whether or
@@ -960,7 +971,7 @@ def _origin_present(origin: Origin | None, status: str, target_type: str, norm: 
         origin is not None
         and status not in ("clear", "destroyed")
         and (target_type != "unknown" or any(w in norm for w in _THREAT_CONTEXT))
-        and not target_elsewhere(norm)  # "з Чернігівщини курсом на Дніпро" -> not ours
+        and not target_elsewhere(norm, districts)  # "з Чернігівщини курсом на Дніпро" -> not ours
         and not sup.blocks_surface
     )
 
@@ -1022,7 +1033,7 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
     citywide = _citywide(districts, status, norm, sup)
     target_pulse = _target_pulse(districts, citywide, status, norm, sup)
     origin = match_origin(norm)
-    origin_present = _origin_present(origin, status, target_type, norm, sup)
+    origin_present = _origin_present(origin, status, target_type, norm, districts, sup)
     # Standalone directional: an origin with nothing else to localize on — the
     # primary "загроза з Брянська" class. When a raion/citywide IS also present,
     # origin still feeds a secondary axis but that branch handles the track/alert.
