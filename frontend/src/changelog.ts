@@ -32,12 +32,24 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.41.0";
+const LATEST = "0.42.0";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "більше півночі на мапі",
+    date: "2026-08-30",
+    kind: "minor",
+    changes: [
+      "Двадцять одне нове місце на Чернігівщині — Виблі, Халявин, Пакуль, Товстоліс, Ковчин, Лукашівка, Черниш, Солонівка, Салтикова Дівиця, Нові й Старі Боровичі, Петрики, Скитьки, Кузничі, Минаївщина та інші. Виклики про них тепер стають цілями на мапі, а маршрут із двох сіл малюється від початку до кінця",
+      "КАБ і FPV — зброя короткого радіуса, вона дістає лише прикордонні райони. Тепер ціль над Київщиною чи Чернігівщиною отримує такий тип тільки тоді, коли спостерігач назвав його прямо",
+      "Обводка областей на мапі стала фосфорною, як решта акцентів радара. Область, яку можна додати у свою стрічку, тепер підсвічується під курсором",
+      "Харківщина більше не позначена як область без покриття — місця й райони для неї вже є",
+    ],
+  },
+  {
+    version: "0.41.0",
     title: "тривоги тільки ваші",
     date: "2026-08-30",
     kind: "minor",

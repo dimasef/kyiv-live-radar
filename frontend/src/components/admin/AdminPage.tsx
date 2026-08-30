@@ -2,6 +2,7 @@ import { RawMessagesView } from '@/components/raw'
 import { adminTabFromPath, adminTabPath, navigate, useRoute } from '@/router'
 
 import AdminGate from './AdminGate'
+import { ADMIN_WIDTH } from './adminLayout'
 import BugReportsPanel from './BugReportsPanel'
 import CorrectionsPanel from './CorrectionsPanel'
 import CoverageGapList from './CoverageGapList'
@@ -19,7 +20,7 @@ export default function AdminPage() {
     <AdminGate prompt="Увійдіть як адміністратор, щоб відкрити адмінку.">
       <div className="flex h-full flex-col bg-ink-950 text-slate-200">
       <div className="shrink-0 border-b border-white/[0.06] px-4 pt-6 pb-0">
-        <div className="mx-auto max-w-3xl">
+        <div className={ADMIN_WIDTH}>
           <h1 className="font-display text-lg font-bold text-slate-100">Адмінка</h1>
           <div className="mt-3 flex flex-wrap gap-1">
             <TabButton active={tab === 'manage'} onClick={() => navigate(adminTabPath('manage'))}>

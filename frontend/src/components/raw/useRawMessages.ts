@@ -8,20 +8,22 @@ export interface RawMessageFilters {
   q: string
   outcome: RawOutcomeFilter | 'all'
   llm: 'yes' | 'no' | 'all'
-  sourceId: number | 'all'
-  region: Region | 'all'
+  /** Empty = every source. Several = their union (see apply_raw_filters). */
+  sourceIds: number[]
+  /** Empty = every region. Several = their union. */
+  regions: Region[]
 }
 
-/** UI filter state ('all' sentinels) -> API params (fields simply omitted).
- * Shared by the list, the count, and the export so all three query the same
- * slice of data. */
+/** UI filter state ('all' sentinels, empty sets) -> API params (fields simply
+ * omitted). Shared by the list, the count, and the export so all three query
+ * the same slice of data. */
 export function toApiFilter(f: RawMessageFilters): RawMessagesFilter {
   return {
     q: f.q || undefined,
     outcome: f.outcome === 'all' ? undefined : f.outcome,
     llm: f.llm === 'all' ? undefined : f.llm,
-    sourceId: f.sourceId === 'all' ? undefined : f.sourceId,
-    region: f.region === 'all' ? undefined : f.region,
+    sourceIds: f.sourceIds.length ? f.sourceIds : undefined,
+    regions: f.regions.length ? f.regions : undefined,
   }
 }
 
@@ -48,10 +50,15 @@ export function useRawMessages(filters: RawMessageFilters) {
   // would restart the whole query on each one. Rebuilding the object inside
   // also means a newly added filter field fails to compile here rather than
   // silently missing from the dependencies.
-  const { q, outcome, llm, sourceId, region } = filters
+  //
+  // The two SETS are depended on by identity, which is safe because they come
+  // straight from the page's state: a filter array keeps its identity until the
+  // reader actually changes that filter (see RawFilterBar, which only calls a
+  // setter when the value differs).
+  const { q, outcome, llm, sourceIds, regions } = filters
   const apiFilter = useMemo(
-    () => toApiFilter({ q, outcome, llm, sourceId, region }),
-    [q, outcome, llm, sourceId, region],
+    () => toApiFilter({ q, outcome, llm, sourceIds, regions }),
+    [q, outcome, llm, sourceIds, regions],
   )
 
   const fetchPage = useCallback(

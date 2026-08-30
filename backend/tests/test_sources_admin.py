@@ -130,6 +130,25 @@ async def test_patch_role_reloads_but_weight_does_not(client):
     assert reloads["count"] == 1
 
 
+async def test_patch_llm_switch(client):
+    """A new channel goes through the LLM step like every other one; turning it
+    off is per-channel and steers nothing about the subscription, so no reload."""
+    c, Session, reloads = client
+    headers = await _admin_headers(Session)
+    sid = (await c.post("/admin/sources", json={"subscribe_ref": "d"}, headers=headers)).json()["id"]
+    reloads["count"] = 0
+    assert (await c.get("/admin/sources", headers=headers)).json()[0]["llm_enabled"] is True
+
+    off = await c.patch(f"/admin/sources/{sid}", json={"llm_enabled": False}, headers=headers)
+    assert off.json()["llm_enabled"] is False
+    assert reloads["count"] == 0
+    async with Session() as s:
+        assert (await s.get(Source, sid)).llm_enabled is False
+
+    on = await c.patch(f"/admin/sources/{sid}", json={"llm_enabled": True}, headers=headers)
+    assert on.json()["llm_enabled"] is True
+
+
 async def test_delete_wipes_channel_data_and_empty_track(client):
     c, Session, _ = client
     headers = await _admin_headers(Session)

@@ -10,6 +10,7 @@ import {
 
 import ReprocessDiff from './ReprocessDiff'
 import ReprocessScope, { DEFAULT_LAST } from './ReprocessScope'
+import { ADMIN_WIDTH } from './adminLayout'
 
 const SCOPE_DEBOUNCE_MS = 300
 
@@ -65,7 +66,7 @@ export default function ReprocessPanel() {
   }
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-4">
+    <div className={`${ADMIN_WIDTH} flex flex-col gap-4 px-4 py-4`}>
       <p className="text-xs text-slate-500">
         Прогонить усі збережені повідомлення через поточний парсер і перебудовує треки — щоб
         застосувати свіжі виправлення парсера до історії, без зміни змінних середовища та

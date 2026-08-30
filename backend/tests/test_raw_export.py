@@ -141,14 +141,14 @@ async def test_event_chip_carries_both_the_event_and_the_track_type(session):
     assert chip.threat_target_type == "ballistic"
 
 
-# --- the region filter (apply_raw_filters(region=...)) ---
+# --- the region filter (apply_raw_filters(regions=[...])) ---
 #
 # Its semantics are the non-obvious part: a raw message has no region column,
 # so "which region is this message about" has to be answered the way ingest
 # answered it — by what the message produced, falling back to the channel.
 
-async def _matching(session, region: str) -> set[int]:
-    stmt = apply_raw_filters(select(RawMessage), region=region)
+async def _matching(session, *regions: str) -> set[int]:
+    stmt = apply_raw_filters(select(RawMessage), regions=list(regions))
     return {r.id for r in await session.scalars(stmt)}
 
 
@@ -215,3 +215,66 @@ async def test_a_cross_border_message_matches_both_regions(session):
 
     assert crossing.id in await _matching(session, "chernihiv")
     assert crossing.id in await _matching(session, "kyiv")
+
+
+# --- multi-select: several regions / several sources at once ---
+
+
+async def test_several_regions_are_a_union(session):
+    """Members of one filter OR together — «Сумщина + Чернігівщина» is one
+    question about the northern approach, not two pages to read in turn."""
+    sumy = Source(name="Суми", channel_key="ms", role="spotter", region="sumy")
+    chern = Source(name="Чернігів", channel_key="mc", role="spotter", region="chernihiv")
+    kyiv = Source(name="Київ", channel_key="mk", role="spotter", region="kyiv")
+    session.add_all([sumy, chern, kyiv])
+    await session.commit()
+    s_msg = await _raw(session, sumy, "Ціль!", message_id=1)
+    c_msg = await _raw(session, chern, "Ціль!", message_id=2)
+    k_msg = await _raw(session, kyiv, "Ціль!", message_id=3)
+
+    assert await _matching(session, "sumy", "chernihiv") == {s_msg.id, c_msg.id}
+    assert k_msg.id in await _matching(session, "kyiv", "sumy")
+
+
+async def test_no_regions_selected_means_no_restriction(session):
+    """The empty set is "all", not "none" — the filter's own off position."""
+    src = await _spotter(session)
+    raw = await _raw(session, src, "Ціль!", message_id=1)
+    assert await _matching(session) == {raw.id}
+
+
+async def test_sources_and_regions_narrow_each_other(session):
+    """The two sets AND: «ці джерела над цими областями». A source's message
+    that landed elsewhere drops out, and so does another source's message in the
+    chosen region."""
+    kyiv = Source(name="Київ", channel_key="ak", role="spotter", region="kyiv")
+    north = Source(name="Північ", channel_key="an", role="spotter", region="chernihiv")
+    session.add_all([kyiv, north])
+    await session.commit()
+    kyiv_here = await _raw(session, kyiv, "Шахед над Оболонню", message_id=1)
+    await _landed(session, kyiv, kyiv_here, "kyiv")
+    kyiv_north = await _raw(session, kyiv, "БпЛА над Ніжином", message_id=2)
+    await _landed(session, kyiv, kyiv_north, "chernihiv")
+    north_msg = await _raw(session, north, "Ціль!", message_id=3)
+
+    stmt = apply_raw_filters(select(RawMessage), source_ids=[kyiv.id], regions=["chernihiv"])
+    matched = {r.id for r in await session.scalars(stmt)}
+    # Only the Kyiv channel's NORTHERN message: its own local one fails the
+    # region half, and the northern channel's fails the source half even though
+    # it matches the region.
+    assert matched == {kyiv_north.id}
+    assert kyiv_here.id not in matched and north_msg.id not in matched
+
+
+async def test_several_sources_are_a_union(session):
+    a = Source(name="A", channel_key="ua", role="spotter")
+    b = Source(name="B", channel_key="ub", role="spotter")
+    c = Source(name="C", channel_key="uc", role="spotter")
+    session.add_all([a, b, c])
+    await session.commit()
+    a_msg = await _raw(session, a, "Ціль!", message_id=1)
+    b_msg = await _raw(session, b, "Ціль!", message_id=2)
+    await _raw(session, c, "Ціль!", message_id=3)
+
+    stmt = apply_raw_filters(select(RawMessage), source_ids=[a.id, b.id])
+    assert {r.id for r in await session.scalars(stmt)} == {a_msg.id, b_msg.id}

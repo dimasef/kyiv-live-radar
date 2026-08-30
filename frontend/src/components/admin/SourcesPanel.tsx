@@ -4,6 +4,7 @@ import { fetchSources, type Source } from '@/api'
 import { useAsyncData } from '@/lib/useAsyncData'
 import { useRadar } from '@/store'
 
+import { ADMIN_WIDTH } from './adminLayout'
 import AddSourceForm from './AddSourceForm'
 import AlertRow from './AlertRow'
 import ChannelRow from './ChannelRow'
@@ -41,7 +42,7 @@ export default function SourcesPanel() {
   const groups = groupSourcesByRegion(list, regions)
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-4">
+    <div className={`${ADMIN_WIDTH} flex flex-col gap-3 px-4 py-4`}>
       <div className="flex gap-1">
         <SourceSubTab active={tab === 'channels'} onClick={() => setTab('channels')}>
           Канали ({channels.length})

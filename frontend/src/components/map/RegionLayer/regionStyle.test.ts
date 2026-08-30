@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { regionStyle } from './regionStyle'
+import { regionHoverStyle, regionStyle } from './regionStyle'
 
 const home = regionStyle({ isHome: true, inFeed: true, active: true })
 const inFeed = regionStyle({ isHome: false, inFeed: true, active: true })
@@ -36,5 +36,34 @@ describe('oblast outline styling', () => {
   it('gives home and a chosen region the same hue, distinct from the rest', () => {
     expect(inFeed.color).toBe(home.color)
     expect(outOfFeed.color).not.toBe(home.color)
+  })
+
+  it('paints a followed region in the app accent', () => {
+    // --phosphor in index.css. Leaflet paints SVG attributes, so the value is
+    // duplicated in regionStyle and this is what keeps the two in step.
+    expect(home.color).toBe('#22d3ee')
+  })
+})
+
+describe('oblast hover', () => {
+  const hover = regionHoverStyle()
+
+  it('previews the accent an added region would get', () => {
+    expect(hover.color).toBe(home.color)
+  })
+
+  it('stays below a region that is already in the feed', () => {
+    // Otherwise pointing at a region would look louder than actually adding it.
+    expect(hover.opacity).toBeLessThan(inFeed.opacity!)
+  })
+
+  it('lifts an out-of-feed region without shouting', () => {
+    expect(hover.opacity).toBeGreaterThan(outOfFeed.opacity!)
+  })
+
+  it('leaves the dashed edge of a pending region alone', () => {
+    // setStyle MERGES — an undefined dashArray here keeps "no coverage yet"
+    // readable while the region is hovered.
+    expect(hover.dashArray).toBeUndefined()
   })
 })

@@ -15,6 +15,7 @@ from pathlib import Path
 from fastapi import APIRouter, Query
 
 from ...domain.region_lookup import region_at
+from ...gazetteer import covered_regions
 from ...regions import HOME_REGION, REGION_SPECS
 from ...schemas import RegionAtOut, RegionOut
 
@@ -33,11 +34,16 @@ def _outlines() -> dict:
 @router.get("/regions", response_model=list[RegionOut])
 async def regions():
     """Every declared region, home first, in roster order."""
+    covered = covered_regions()
     return [
         RegionOut(
             id=spec.id,
             name_uk=spec.name_uk,
-            active=spec.active,
+            # Coverage, NOT `spec.active` — see RegionOut.active and
+            # gazetteer.covered_regions. The client asks "is there anything to
+            # see here"; the flag answers a parser question, and the two part
+            # ways for as long as a region is localizing but not yet activated.
+            active=spec.id in covered,
             is_home=spec.id == HOME_REGION,
             center_lat=spec.center[0],
             center_lon=spec.center[1],

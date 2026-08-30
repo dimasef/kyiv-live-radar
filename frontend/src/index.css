@@ -901,6 +901,22 @@ body::after {
 .zone-hit {
   cursor: grab;
 }
+/* An oblast outline lights up under the cursor (regionHoverStyle). Leaflet
+   writes the new stroke as SVG attributes, which animate from CSS just like a
+   property would — without this the change is a hard flick on mouse-in and
+   mouse-out. */
+.region-hit {
+  transition:
+    stroke 160ms ease-out,
+    stroke-opacity 160ms ease-out,
+    stroke-width 160ms ease-out,
+    fill-opacity 160ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .region-hit {
+    transition: none;
+  }
+}
 /* An alerted raion is a lit edge, not a red wash — the filter replaces the
    polygon's fill with a band of glow hugging the inside of its border (see
    ZoneGlowDefs). Non-interactive: the outline path below it owns the cursor and

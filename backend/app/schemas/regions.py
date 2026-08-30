@@ -26,9 +26,13 @@ class RegionOut(BaseModel):
 
     id: Region
     name_uk: str
-    # False while the region is declared but not yet covered — no gazetteer
-    # entries and no siren zones. The client may still show it and let the
-    # reader add it to the feed; it just has nothing to show yet.
+    # False while the region is declared but has no gazetteer entries, i.e.
+    # nothing said about it can be put on the map. The client may still show it
+    # and let the reader add it to the feed; it just has nothing to show yet.
+    #
+    # Coverage, not `RegionSpec.active` — a region localizes (and accumulates
+    # tracks) from the moment its entries land, while that flag waits out the
+    # break-in period. `gazetteer.covered_regions` documents why they diverge.
     active: bool
     # The region the radar is about. Its sightings are never filtered out.
     is_home: bool

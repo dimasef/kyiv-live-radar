@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 
 import { updateSource, type Source } from '@/api'
+import Switch from '@/components/common/Switch'
 import { useDismissTransition } from '@/lib/useDismissTransition'
 import type { Region } from '@/types'
 
@@ -31,6 +32,7 @@ export default function SourceEditModal({
   const [inheritMinutes, setInheritMinutes] = useState(
     source.type_inherit_minutes === null ? '' : String(source.type_inherit_minutes),
   )
+  const [llmEnabled, setLlmEnabled] = useState(source.llm_enabled)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
 
@@ -46,6 +48,7 @@ export default function SourceEditModal({
         // two from disagreeing after the operator switches the primary.
         extra_regions: extraRegions.filter((r) => r !== region),
         trust_weight: Number(weight),
+        llm_enabled: llmEnabled,
         ...(inheritMinutes === '' ? {} : { type_inherit_minutes: Number(inheritMinutes) }),
       })
       onSaved(updated)
@@ -130,6 +133,20 @@ export default function SourceEditModal({
                   onChange={(e) => setInheritMinutes(e.target.value)}
                 />
               </label>
+
+              <div className="flex items-start gap-3">
+                <Switch
+                  checked={llmEnabled}
+                  label="LLM-крок для цього каналу"
+                  onChange={() => setLlmEnabled((v) => !v)}
+                />
+                <span className="text-[11px] text-slate-500">
+                  LLM-крок — визначення типу цілі з контексту стрічки, тріаж
+                  придушених повідомлень і локалізація. Вимкнено — канал іде
+                  тільки через правила, і перебудова не поверне його старі
+                  вердикти.
+                </span>
+              </div>
             </>
           )}
         </div>

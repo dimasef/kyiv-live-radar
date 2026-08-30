@@ -410,9 +410,9 @@ export interface paths {
         /**
          * Admin Update Source
          * @description Edit a source's name / role / region / trust_weight / type-inheritance
-         *     window / active flag. Only a change that affects what's watched (role or
-         *     is_active) triggers a listener reload — the rest only steer already-arriving
-         *     messages.
+         *     window / LLM switch / active flag. Only a change that affects what's watched
+         *     (role or is_active) triggers a listener reload — the rest only steer
+         *     already-arriving messages.
          */
         patch: operations["admin_update_source_admin_sources__source_id__patch"];
         trace?: never;
@@ -3071,13 +3071,15 @@ export interface components {
         };
         /**
          * RawSourceOut
-         * @description One monitored channel, for the /raw channel filter dropdown.
+         * @description One monitored channel, for the /raw source filter.
          */
         RawSourceOut: {
             /** Id */
             id: number;
             /** Name */
             name: string;
+            /** Regions */
+            regions: ("kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro")[];
         };
         /**
          * RefreshIn
@@ -3252,6 +3254,8 @@ export interface components {
             is_active: boolean;
             /** Last Listener Error */
             last_listener_error: string | null;
+            /** Llm Enabled */
+            llm_enabled: boolean;
             /** Name */
             name: string;
             /**
@@ -3382,6 +3386,8 @@ export interface components {
             extra_regions?: ("kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro")[] | null;
             /** Is Active */
             is_active?: boolean | null;
+            /** Llm Enabled */
+            llm_enabled?: boolean | null;
             /** Name */
             name?: string | null;
             /** Region */
@@ -6166,10 +6172,10 @@ export interface operations {
                 outcome?: string | null;
                 /** @description 'yes'|'no' — whether the LLM fallback was called (NULL rows excluded) */
                 llm?: string | null;
-                /** @description Filter to one monitored channel */
-                source_id?: number | null;
-                /** @description Filter to one watched region: messages that produced a sighting there, plus ones that produced nothing and came from that region's channel */
-                region?: ("kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro") | null;
+                /** @description Filter to these monitored channels (repeat the param; empty = all) */
+                source_id?: number[] | null;
+                /** @description Filter to these watched regions (repeat the param; empty = all): messages that produced a sighting in one of them, plus ones that produced nothing and came from one of their channels */
+                region?: ("kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro")[] | null;
             };
             header?: {
                 authorization?: string | null;
@@ -6205,8 +6211,8 @@ export interface operations {
                 q?: string | null;
                 outcome?: string | null;
                 llm?: string | null;
-                source_id?: number | null;
-                region?: ("kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro") | null;
+                source_id?: number[] | null;
+                region?: ("kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro")[] | null;
             };
             header?: {
                 authorization?: string | null;
@@ -6242,8 +6248,8 @@ export interface operations {
                 q?: string | null;
                 outcome?: string | null;
                 llm?: string | null;
-                source_id?: number | null;
-                region?: ("kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro") | null;
+                source_id?: number[] | null;
+                region?: ("kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro")[] | null;
             };
             header?: {
                 authorization?: string | null;

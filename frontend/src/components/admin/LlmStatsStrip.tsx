@@ -35,10 +35,15 @@ function BudgetBar({ label, spend, cap }: { label: string; spend: number; cap: n
   )
 }
 
-/** Overall LLM fallback spend across ALL raw messages — unaffected by the
- * page's current search/filter, so it always reads as total spend — plus
- * today's/this month's spend against the running budget caps that gate the
- * live fallback (see `pipeline.triage.llm_spend_ok`). */
+/** Overall LLM spend across ALL raw messages, plus today's/this month's spend
+ * against the running budget caps that gate the live fallback (see
+ * `pipeline.triage.llm_spend_ok`).
+ *
+ * Lives on «Керування» rather than over the «Весь Фід» filter bar, where it
+ * used to sit: the numbers are whole-corpus totals that never respond to that
+ * page's filters, so above a filter bar they read as "spend in the current
+ * view" and are not. Here they sit next to the other whole-deployment state,
+ * and next to the per-source switch that is the lever on them. */
 export default function LlmStatsStrip() {
   const [stats, setStats] = useState<RawLlmStats | null>(null)
 

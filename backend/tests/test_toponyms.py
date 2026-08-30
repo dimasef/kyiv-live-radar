@@ -467,3 +467,72 @@ def test_the_stoplist_would_still_have_proposed_the_sumy_batch(name):
     «пост», «ворож» as prefixes of ordinary words. The queue that is supposed to
     surface a missing village could not have surfaced any of these."""
     assert any(not is_known_word(w) for w in normalize(name).split() if len(w) >= 4)
+
+
+# --- T (2026-08-30): the pass mined from the whole stored corpus -------------
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        # The message that started the pass: it produced nothing while the same
+        # channel's next three callouts became tracks.
+        ("Петрики , Скитьки 3", ["Петрики", "Скитьки"]),
+        # Vectors whose BOTH ends now resolve — the expensive class, since an
+        # unlocalized end costs a whole route rather than a pin.
+        ("Минаївщина на Ріпки 1", ["Минаївщина", "Ріпки"]),
+        ("Кузничі на Городню 1", ["Городня", "Кузничі"]),
+        ("Підгірне/Єньків", ["Єньків", "Підгірне"]),
+        ("Петрушин на Черниш", ["Петрушин", "Черниш"]),
+        ("Солонівка , мощенка", ["Мощенка", "Солонівка"]),
+        # A spaced name matching on its distinctive half, bare form included —
+        # the channel writes «Салтикова» alone in 1 of its 3 callouts.
+        ("Салтикова дівиця", ["Салтикова Дівиця"]),
+        ("Салтикова", ["Салтикова Дівиця"]),
+        # A vowel inside the root the stemmer cannot bridge, so it rides on an
+        # alias.
+        ("На Сновсок йде", ["Сновськ"]),
+    ],
+)
+def test_the_2026_08_30_batch_localizes(text, expected):
+    hits = _region_matcher("chernihiv").find(normalize(text))
+    assert sorted({h.name for h in hits}) == sorted(expected), text
+
+
+def test_the_two_borovychi_need_their_qualifier():
+    """6.5 km apart, sharing «боровичі» — the Писарівка pattern. All 9 corpus
+    callouts carry the qualifier, so each entry REQUIRES its own; a bare
+    «Боровичі» matches neither and reaches the coverage queue rather than
+    landing on a coin flip."""
+    m = _region_matcher("chernihiv")
+    assert [h.name for h in m.find(normalize("Реактивний нові боровичі на єліне"))] \
+        == ["Нові Боровичі"]
+    assert [h.name for h in m.find(normalize("Старі боровичі другий"))] == ["Старі Боровичі"]
+    assert m.find(normalize("Боровичі")) == []
+
+
+def test_borovychi_does_not_reach_borovyky():
+    """«боровик» and «борович» diverge at the 7th character, and Боровики sits
+    100 km west near Славутич — a pin on it would be the wrong side of the
+    oblast."""
+    m = _region_matcher("chernihiv")
+    assert [h.name for h in m.find(normalize("Боровики"))] == ["Боровики"]
+
+
+@pytest.mark.parametrize("text", ["Кошівка", "На Підгірне"])
+def test_the_shared_names_are_invisible_to_a_kyiv_channel(text):
+    """Both have a Kyiv-oblast namesake (Кошівка in Тетіївська громада 130 km
+    south; «Підгірне» on the Обухів industrial road), so they are `region_only`
+    — a Kyiv channel writing either must not draw a northern target."""
+    assert _region_matcher("kyiv").find(normalize(text)) == []
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["Виблі", "Халявин", "Солонівка", "Черниш", "Пакуль", "Товстоліс", "Жовідь",
+     "Скитьки", "Кузничі", "Минаївщина"],
+)
+def test_the_stoplist_would_still_have_proposed_the_batch(name):
+    """Same guard the Сумщина batch needed: a stop word that is a prefix of a
+    real name silently costs the next such village."""
+    assert any(not is_known_word(w) for w in normalize(name).split() if len(w) >= 4)

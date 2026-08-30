@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { fetchRawSources } from "@/api";
+import { ADMIN_WIDTH } from "@/components/admin/adminLayout";
 import AdminGate from "@/components/admin/AdminGate";
 import { observeVisible } from "@/lib/observers";
 import { STORAGE_KEYS, safeGet, safeSet } from "@/lib/storage";
@@ -8,7 +9,6 @@ import { useRadar } from "@/store";
 import type { RawOutcomeFilter, RawSource, Region } from "@/types";
 
 import ControlsToggle from "./ControlsToggle";
-import LlmStatsStrip from "./LlmStatsStrip";
 import RawFilterBar from "./RawFilterBar";
 import RawMessageRow from "./RawMessageRow";
 import RawToolbar from "./RawToolbar";
@@ -36,9 +36,12 @@ export function RawMessagesView() {
   const [q, setQ] = useState("");
   const [outcome, setOutcome] = useState<RawOutcomeFilter | "all">("all");
   const [llm, setLlm] = useState<"all" | "yes" | "no">("all");
-  const [sourceId, setSourceId] = useState<number | "all">("all");
-  const [region, setRegion] = useState<Region | "all">("all");
-  const regions = useRadar((s) => s.regions);
+  // Both are SETS: empty means "no restriction", which is the filter's own off
+  // position — so there is no "all" entry that could be picked alongside a
+  // named value.
+  const [sourceIds, setSourceIds] = useState<number[]>([]);
+  const [regions, setRegions] = useState<Region[]>([]);
+  const regionCatalogue = useRadar((s) => s.regions);
   const ensureRegions = useRadar((s) => s.ensureRegions);
   // The admin console is reachable on a route that never bootstraps the map, so
   // the catalogue the region filter offers may not be here yet (same call, and
@@ -69,8 +72,8 @@ export function RawMessagesView() {
   }, []);
 
   const filters = useMemo(
-    () => ({ q, outcome, llm, sourceId, region }),
-    [q, outcome, llm, sourceId, region],
+    () => ({ q, outcome, llm, sourceIds, regions }),
+    [q, outcome, llm, sourceIds, regions],
   );
   const {
     items,
@@ -84,7 +87,9 @@ export function RawMessagesView() {
     moveEventToTrack,
     applyTrack,
   } = useRawMessages(filters);
-  const selection = useRawSelection({ items, filters, apiFilter, sources, regions });
+  const selection = useRawSelection({
+    items, filters, apiFilter, sources, regions: regionCatalogue,
+  });
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -99,7 +104,7 @@ export function RawMessagesView() {
           the message list below scrolls — and fold away on demand, because on a
           laptop they ate a third of the viewport of a list read by scrolling. */}
       <div className="shrink-0 border-b border-white/[0.06] px-4 pt-4 pb-3">
-        <div className="mx-auto max-w-3xl">
+        <div className={ADMIN_WIDTH}>
           <ControlsToggle
             open={controlsOpen}
             onToggle={toggleControls}
@@ -115,8 +120,6 @@ export function RawMessagesView() {
                 Стрічку подій.
               </p>
 
-              <LlmStatsStrip />
-
               <RawFilterBar
                 search={searchInput}
                 onSearchChange={setSearchInput}
@@ -125,10 +128,10 @@ export function RawMessagesView() {
                 llm={llm}
                 onLlmChange={setLlm}
                 sources={sources}
-                sourceId={sourceId}
-                onSourceIdChange={setSourceId}
-                region={region}
-                onRegionChange={setRegion}
+                sourceIds={sourceIds}
+                onSourceIdsChange={setSourceIds}
+                regions={regions}
+                onRegionsChange={setRegions}
               />
 
               <RawToolbar
@@ -150,7 +153,7 @@ export function RawMessagesView() {
       </div>
 
       <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
-        <div className="mx-auto max-w-3xl">
+        <div className={ADMIN_WIDTH}>
           <ul className="space-y-2">
             {items.map((item) => (
               <RawMessageRow

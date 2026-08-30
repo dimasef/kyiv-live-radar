@@ -37,8 +37,13 @@ def test_an_unknown_village_in_a_watched_region_still_reaches_the_llm():
     """The counterpart of the rule above: a place we simply don't have in the
     gazetteer yet names no oblast, so it is exactly the case the LLM enum
     exists for — suppressing it would freeze northern coverage at whatever the
-    gazetteer happened to contain."""
-    assert should_fallback(parse_message("Реактивний на Пакуль", M))
+    gazetteer happened to contain.
+
+    «Хорівля» rather than the «Пакуль» this used to say: Пакуль was added on
+    2026-08-30, which broke the test in the good direction. Хорівля is on
+    GAZETTEER.md's deliberately-NOT-added list (Nominatim has no point for it),
+    so it stays a stable stand-in for "a village we don't have"."""
+    assert should_fallback(parse_message("Реактивний на Хорівлю", M))
 
 
 def test_inbound_from_another_oblast_is_a_directional_axis():
@@ -351,3 +356,23 @@ def test_level_bulletin_does_not_pay_for_an_llm_call():
         r = parse_message(txt, M)
         assert r.notice_kind and not should_fallback(r), txt
 
+
+
+def test_a_reach_limited_type_is_not_inherited_across_a_border():
+    """A channel bound to two oblasts can state «КАБ по Сумщині» and shout a
+    bare Чернігівщина toponym seconds later. The second message is not about a
+    glide bomb — inheritance is per-CHANNEL, and only the region check knows
+    that (domain.target_types)."""
+    from app.pipeline.ingest.context import reset_type_context
+
+    reset_type_context()
+    _feed("Заходять на пуски КАБ по Шосткинському району", source_id=9, when=T0)
+    north = parse_message("Хоробичі", M)
+    _note_and_inherit_type(north, 9, T0 + timedelta(minutes=1), 30, region="chernihiv")
+    assert north.target_type == "unknown"
+
+    # …and the same context still types a Сумщина callout, which is what it is
+    # for: the gate removes an impossible inheritance, not the tier.
+    south = parse_message("Ромни", M)
+    _note_and_inherit_type(south, 9, T0 + timedelta(minutes=1), 30, region="sumy")
+    assert south.target_type == "kab"

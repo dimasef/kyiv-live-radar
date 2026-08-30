@@ -10,7 +10,7 @@ import { REGION_LAYER_MAX_ZOOM } from '../constants'
 import { tagPath } from '../tagPath'
 import { useMapZoom } from '../useMapZoom'
 import RegionMenu from './RegionMenu'
-import { regionStyle } from './regionStyle'
+import { regionHoverStyle, regionStyle } from './regionStyle'
 
 const REGION_ATTR = 'data-region'
 
@@ -62,6 +62,7 @@ export default function RegionLayer() {
         if (!shape) return null
         const inFeed = isInFeed(region.id, feedExtraRegions, followed)
         const pinned = isPinnedRegion(region.id, followed)
+        const base = regionStyle({ isHome: pinned, inFeed, active: region.active })
         return (
           <GeoJSON
             // Remount on a state change so the new style is applied — Leaflet
@@ -69,8 +70,18 @@ export default function RegionLayer() {
             key={`${region.id}-${inFeed}-${pinned}`}
             data={shape.geojson}
             ref={(layer) => tagPath(layer, REGION_ATTR, region.id)}
-            style={regionStyle({ isHome: pinned, inFeed, active: region.active })}
-            eventHandlers={{ click: (e) => L.DomEvent.stopPropagation(e) }}
+            style={{ ...base, className: 'region-hit' }}
+            eventHandlers={{
+              click: (e) => L.DomEvent.stopPropagation(e),
+              // setStyle rather than a keyed remount: rekeying on hover would
+              // tear down the path under the cursor together with its popup.
+              mouseover: (e) => {
+                if (!inFeed) e.target.setStyle(regionHoverStyle())
+              },
+              mouseout: (e) => {
+                if (!inFeed) e.target.setStyle(base)
+              },
+            }}
           >
             <Popup>
               <RegionMenu region={region} />

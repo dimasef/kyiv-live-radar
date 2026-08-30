@@ -3121,7 +3121,7 @@
         "type": "object"
       },
       "RawSourceOut": {
-        "description": "One monitored channel, for the /raw channel filter dropdown.",
+        "description": "One monitored channel, for the /raw source filter.",
         "properties": {
           "id": {
             "title": "Id",
@@ -3130,11 +3130,26 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "regions": {
+            "items": {
+              "enum": [
+                "kyiv",
+                "chernihiv",
+                "sumy",
+                "kharkiv",
+                "dnipro"
+              ],
+              "type": "string"
+            },
+            "title": "Regions",
+            "type": "array"
           }
         },
         "required": [
           "id",
-          "name"
+          "name",
+          "regions"
         ],
         "title": "RawSourceOut",
         "type": "object"
@@ -3520,6 +3535,10 @@
             ],
             "title": "Last Listener Error"
           },
+          "llm_enabled": {
+            "title": "Llm Enabled",
+            "type": "boolean"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -3583,6 +3602,7 @@
           "is_active",
           "trust_weight",
           "type_inherit_minutes",
+          "llm_enabled",
           "last_listener_error",
           "created_at",
           "stats"
@@ -3879,6 +3899,17 @@
               }
             ],
             "title": "Is Active"
+          },
+          "llm_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Enabled"
           },
           "name": {
             "anyOf": [
@@ -5994,7 +6025,7 @@
         "summary": "Admin Delete Source"
       },
       "patch": {
-        "description": "Edit a source's name / role / region / trust_weight / type-inheritance\nwindow / active flag. Only a change that affects what's watched (role or\nis_active) triggers a listener reload — the rest only steer already-arriving\nmessages.",
+        "description": "Edit a source's name / role / region / trust_weight / type-inheritance\nwindow / LLM switch / active flag. Only a change that affects what's watched\n(role or is_active) triggers a listener reload — the rest only steer\nalready-arriving messages.",
         "operationId": "admin_update_source_admin_sources__source_id__patch",
         "parameters": [
           {
@@ -8698,45 +8729,51 @@
             }
           },
           {
-            "description": "Filter to one monitored channel",
+            "description": "Filter to these monitored channels (repeat the param; empty = all)",
             "in": "query",
             "name": "source_id",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "type": "integer"
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "description": "Filter to one monitored channel",
+              "description": "Filter to these monitored channels (repeat the param; empty = all)",
               "title": "Source Id"
             }
           },
           {
-            "description": "Filter to one watched region: messages that produced a sighting there, plus ones that produced nothing and came from that region's channel",
+            "description": "Filter to these watched regions (repeat the param; empty = all): messages that produced a sighting in one of them, plus ones that produced nothing and came from one of their channels",
             "in": "query",
             "name": "region",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "enum": [
-                    "kyiv",
-                    "chernihiv",
-                    "sumy",
-                    "kharkiv",
-                    "dnipro"
-                  ],
-                  "type": "string"
+                  "items": {
+                    "enum": [
+                      "kyiv",
+                      "chernihiv",
+                      "sumy",
+                      "kharkiv",
+                      "dnipro"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "description": "Filter to one watched region: messages that produced a sighting there, plus ones that produced nothing and came from that region's channel",
+              "description": "Filter to these watched regions (repeat the param; empty = all): messages that produced a sighting in one of them, plus ones that produced nothing and came from one of their channels",
               "title": "Region"
             }
           },
@@ -8842,7 +8879,10 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "integer"
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
                 },
                 {
                   "type": "null"
@@ -8858,14 +8898,17 @@
             "schema": {
               "anyOf": [
                 {
-                  "enum": [
-                    "kyiv",
-                    "chernihiv",
-                    "sumy",
-                    "kharkiv",
-                    "dnipro"
-                  ],
-                  "type": "string"
+                  "items": {
+                    "enum": [
+                      "kyiv",
+                      "chernihiv",
+                      "sumy",
+                      "kharkiv",
+                      "dnipro"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
                 },
                 {
                   "type": "null"
@@ -8976,7 +9019,10 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "integer"
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
                 },
                 {
                   "type": "null"
@@ -8992,14 +9038,17 @@
             "schema": {
               "anyOf": [
                 {
-                  "enum": [
-                    "kyiv",
-                    "chernihiv",
-                    "sumy",
-                    "kharkiv",
-                    "dnipro"
-                  ],
-                  "type": "string"
+                  "items": {
+                    "enum": [
+                      "kyiv",
+                      "chernihiv",
+                      "sumy",
+                      "kharkiv",
+                      "dnipro"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
                 },
                 {
                   "type": "null"

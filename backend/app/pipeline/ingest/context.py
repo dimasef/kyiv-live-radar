@@ -10,7 +10,7 @@ from typing import NamedTuple
 
 from ...config import settings
 from ...domain.lifecycle import promote_track
-from ...domain.target_types import upgrade_type
+from ...domain.target_types import type_plausible_in, upgrade_type
 from ...feeds.common import build_region_matchers
 from ...models import HOME_REGION, RawMessage, Threat, utcnow
 from ...parsing import ParseResult, normalize
@@ -106,6 +106,7 @@ def _note_and_inherit_type(
     source_id: int | None,
     when: datetime,
     window_minutes: int | None = None,
+    region: str | None = None,
 ) -> bool:
     """Record this message's stated type, or inherit a recent one onto a
     district-bearing message that stated none. Mutates `parsed.target_type`.
@@ -117,7 +118,14 @@ def _note_and_inherit_type(
     `window_minutes` is the reporting channel's own window (Source.
     type_inherit_minutes); None falls back to the global default. Passed in
     rather than looked up here so this stays a pure function — the caller owns
-    the DB."""
+    the DB.
+
+    `region` is where THIS message is, and gates what may be inherited: a
+    channel bound to two oblasts can state «КАБ по Сумщині» and then shout a
+    bare toponym over Чернігівщина seconds later, and the second message is not
+    about a glide bomb (domain.target_types.type_plausible_in). Recording is
+    NOT gated — the channel's context is about the channel, and the stated
+    message keeps its own type either way."""
     if source_id is None:  # no channel identity (e.g. simulator) — no context
         return False
     # Conversational/meta chatter mentions types without being about a live
@@ -183,6 +191,8 @@ def _note_and_inherit_type(
     if recent is None:
         return False
     if not _within_inherit_window(when, recent.when, window_minutes):
+        return False
+    if not type_plausible_in(recent.target_type, region):
         return False
     parsed.target_type = recent.target_type
     return recent.inferred

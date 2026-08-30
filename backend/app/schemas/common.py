@@ -74,6 +74,9 @@ class SourceAdminOut(BaseModel):
     trust_weight: float
     # NULL = the global settings default (see Source.type_inherit_minutes).
     type_inherit_minutes: int | None
+    # Whether this channel's messages go through the LLM step at all — all three
+    # consumers at once (see Source.llm_enabled).
+    llm_enabled: bool
     last_listener_error: str | None
     created_at: datetime | None
     stats: SourceStatsOut
@@ -107,6 +110,9 @@ class SourceUpdateIn(BaseModel):
     # 0 disables inheritance for this channel entirely; the upper bound keeps a
     # typo ("300") from typing a whole night off one stale mention.
     type_inherit_minutes: int | None = Field(default=None, ge=0, le=120)
+    # False takes this channel off the LLM step entirely (localization, target
+    # type, triage) — the per-channel counterpart to the global llm_* settings.
+    llm_enabled: bool | None = None
     is_active: bool | None = None
 
 

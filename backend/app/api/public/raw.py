@@ -46,11 +46,14 @@ async def raw_messages(
     llm: str | None = Query(
         None, description="'yes'|'no' — whether the LLM fallback was called (NULL rows excluded)"
     ),
-    source_id: int | None = Query(None, description="Filter to one monitored channel"),
-    region: Region | None = Query(
+    source_id: list[int] | None = Query(
+        None, description="Filter to these monitored channels (repeat the param; empty = all)"
+    ),
+    region: list[Region] | None = Query(
         None,
-        description="Filter to one watched region: messages that produced a sighting "
-        "there, plus ones that produced nothing and came from that region's channel",
+        description="Filter to these watched regions (repeat the param; empty = all): "
+        "messages that produced a sighting in one of them, plus ones that produced "
+        "nothing and came from one of their channels",
     ),
     session: AsyncSession = Depends(get_session),
     _admin: User = Depends(require_admin),
@@ -69,7 +72,7 @@ async def raw_messages(
     if before_id is not None:
         stmt = stmt.where(RawMessage.id < before_id)
     stmt = apply_raw_filters(stmt, q=q, outcome=outcome, llm=llm,
-                             source_id=source_id, region=region)
+                             source_ids=source_id, regions=region)
     rows = list(await session.scalars(stmt))
     items = await serialize_raw_rows(session, rows)
     next_before_id = rows[-1].id if len(rows) == limit else None
@@ -81,8 +84,8 @@ async def raw_messages_count(
     q: str | None = Query(None),
     outcome: str | None = Query(None),
     llm: str | None = Query(None),
-    source_id: int | None = Query(None),
-    region: Region | None = Query(None),
+    source_id: list[int] | None = Query(None),
+    region: list[Region] | None = Query(None),
     session: AsyncSession = Depends(get_session),
     _admin: User = Depends(require_admin),
 ):
@@ -90,7 +93,7 @@ async def raw_messages_count(
     "показано N з M" counter on /raw without paging through everything."""
     stmt = apply_raw_filters(
         select(func.count()).select_from(RawMessage),
-        q=q, outcome=outcome, llm=llm, source_id=source_id, region=region,
+        q=q, outcome=outcome, llm=llm, source_ids=source_id, regions=region,
     )
     total = await session.scalar(stmt)
     return RawCountOut(count=total or 0)
@@ -107,8 +110,8 @@ async def raw_messages_export(
     q: str | None = Query(None),
     outcome: str | None = Query(None),
     llm: str | None = Query(None),
-    source_id: int | None = Query(None),
-    region: Region | None = Query(None),
+    source_id: list[int] | None = Query(None),
+    region: list[Region] | None = Query(None),
     session: AsyncSession = Depends(get_session),
     _admin: User = Depends(require_admin),
 ):
@@ -123,7 +126,7 @@ async def raw_messages_export(
         .limit(_RAW_EXPORT_CAP)
     )
     stmt = apply_raw_filters(stmt, q=q, outcome=outcome, llm=llm,
-                             source_id=source_id, region=region)
+                             source_ids=source_id, regions=region)
     rows = list(await session.scalars(stmt))
     truncated = len(rows) == _RAW_EXPORT_CAP
     rows.reverse()  # newest-first fetch (so truncation keeps recent) -> chronological output
@@ -144,7 +147,14 @@ async def raw_messages_sources(
     rows = await session.scalars(
         select(Source).where(Source.id.in_(with_messages)).order_by(Source.name)
     )
-    return [RawSourceOut(id=s.id, name=s.name) for s in rows]
+    return [
+        RawSourceOut(
+            id=s.id,
+            name=s.name,
+            regions=[s.region, *(r for r in (s.extra_regions or []) if r != s.region)],
+        )
+        for s in rows
+    ]
 
 
 @router.get("/raw_messages/llm_stats", response_model=RawLlmStatsOut)

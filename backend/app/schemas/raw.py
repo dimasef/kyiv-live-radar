@@ -6,7 +6,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, field_validator
 
-from ..models import TargetType, TriageAction, TriageState, TypeEvidence
+from ..models import Region, TargetType, TriageAction, TriageState, TypeEvidence
 from .base import _as_utc
 
 
@@ -150,10 +150,17 @@ class RawMessagesPage(BaseModel):
 
 
 class RawSourceOut(BaseModel):
-    """One monitored channel, for the /raw channel filter dropdown."""
+    """One monitored channel, for the /raw source filter."""
 
     id: int
     name: str
+    # Every region this channel may report in — its primary first, then its
+    # extras. The source filter narrows to the regions picked next to it, and
+    # BINDINGS are what makes that narrowing right: a channel bound to a region
+    # is one whose messages can land there, which is the question being asked.
+    # (Not the same as the region filter itself, which files a MESSAGE by where
+    # it landed — see apply_raw_filters.)
+    regions: list[Region]
 
 
 class RawCountOut(BaseModel):

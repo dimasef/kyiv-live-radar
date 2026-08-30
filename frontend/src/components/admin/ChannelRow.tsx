@@ -40,7 +40,18 @@ export default function ChannelRow({
         <span title="частка повідомлень каналу, які вдалось прив'язати до карти">
           покриття {pct(st.coverage_rate)}
         </span>
-        <span title="частка викликів LLM-фолбеку">LLM {pct(st.llm_fallback_rate)}</span>
+        {source.llm_enabled ? (
+          <span title="частка викликів LLM-фолбеку">LLM {pct(st.llm_fallback_rate)}</span>
+        ) : (
+          // The rate stays visible in history, but showing it alone would read
+          // as "this channel is using the LLM at that rate" — it no longer is.
+          <span
+            className="text-slate-500"
+            title="LLM-крок вимкнено для цього каналу — тільки правила"
+          >
+            LLM вимкнено
+          </span>
+        )}
         <span title="частка виправлень парсера">помилки {pct(st.correction_rate)}</span>
         <span title="частка подій у конфліктних треках">конфл. {pct(st.conflict_share)}</span>
       </div>

@@ -10,6 +10,7 @@ import {
 
 import { useAsyncData } from '@/lib/useAsyncData'
 
+import { ADMIN_WIDTH } from './adminLayout'
 import BugReportRow from './BugReportRow'
 
 const FILTERS: { key: BugReportStatus | 'all'; label: string }[] = [
@@ -50,7 +51,7 @@ export default function BugReportsPanel() {
   }
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-4">
+    <div className={`${ADMIN_WIDTH} flex flex-col gap-3 px-4 py-4`}>
       <div className="flex flex-wrap gap-1.5">
         {FILTERS.map((f) => (
           <button

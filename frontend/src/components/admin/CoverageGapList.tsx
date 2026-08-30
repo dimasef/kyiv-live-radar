@@ -6,6 +6,7 @@ import { useAsyncData } from '@/lib/useAsyncData'
 import AdminActionButton from './AdminActionButton'
 import CoverageCandidates from './CoverageCandidates'
 import { downloadGapExport, openGapExport } from './exportGaps'
+import { ADMIN_WIDTH } from './adminLayout'
 
 /** How many recent raw messages an export re-parses. The on-screen list stays
  * on the server default (a cheap recent window); an export is a deliberate
@@ -22,7 +23,7 @@ export default function CoverageGapList() {
   const { data: gaps, loaded } = useAsyncData<CoverageGap[]>(fetchCoverageGaps, [], [])
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-4">
+    <div className={`${ADMIN_WIDTH} flex flex-col gap-3 px-4 py-4`}>
       <CoverageCandidates />
       <p className="text-xs text-slate-500">
         Повідомлення, які парсер не зміг привʼязати до району, хоч у них є слово, схоже на назву

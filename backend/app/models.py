@@ -261,6 +261,24 @@ class Source(Base):
     # vectors («Хрінівка на Добрянка»), so 84% of its untyped events had no
     # stated type within 5 minutes but 58% had one within 30.
     type_inherit_minutes: Mapped[int | None] = mapped_column(nullable=True)
+    # Whether this channel's messages may go through the LLM step at all — all
+    # three consumers at once (inline localization, the target-type classifier,
+    # the async triage pass). True for every channel until an operator says
+    # otherwise, which is what the pipeline did unconditionally before this
+    # column existed.
+    #
+    # Per-source because the LLM's value is per-source: the classifier reads a
+    # type off the whole feed for a channel that writes bare toponyms, and buys
+    # nothing on a channel that states the type in every post — while the spend
+    # is charged the same either way. Turning it off is also the surgical answer
+    # to one channel whose phrasing the model keeps reading wrong, where the
+    # alternative is switching the classifier off for everyone.
+    #
+    # It gates REPLAY of a stored verdict too, not just new calls: a rebuild of
+    # a night must not resurrect the very verdicts the operator turned off. That
+    # is the one place where a reprocess deliberately does NOT reproduce
+    # history — see pipeline/ingest/core._maybe_llm_type.
+    llm_enabled: Mapped[bool] = mapped_column(default=True)
     # Raw string the listener resolves this channel by (username without @, a
     # numeric id, or a t.me/+ invite link). NULL -> resolve by channel_key.
     subscribe_ref: Mapped[str | None] = mapped_column(String(200), nullable=True)

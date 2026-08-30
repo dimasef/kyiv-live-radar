@@ -9,8 +9,10 @@ export interface RawExportEnvelope {
   exported_at: string
   filters: {
     search: string | null
-    channel: string
-    region: string
+    /** Comma-separated names, or «усі джерела» — several can be picked. */
+    sources: string
+    /** Comma-separated oblasts, or «усі області». */
+    regions: string
     outcome: string
     llm: string
   }
@@ -32,21 +34,19 @@ function describeFilters(
   sources: RawSource[],
   regions: RegionInfo[],
 ) {
-  const channel =
-    filters.sourceId === 'all'
-      ? 'усі канали'
-      : (sources.find((s) => s.id === filters.sourceId)?.name ?? `#${filters.sourceId}`)
-  // Named in the envelope for the same reason as the channel: an export of one
-  // oblast's night is a different document from an export of everything, and a
-  // file that doesn't say which it is gets read as the other one months later.
-  const region =
-    filters.region === 'all'
-      ? 'усі області'
-      : (regions.find((r) => r.id === filters.region)?.name_uk ?? filters.region)
+  // Every picked value is spelled out, not counted: an export of one oblast's
+  // night is a different document from an export of everything, and a file that
+  // says «2 області» gets read as the wrong one of the two months later.
+  const pickedSources = filters.sourceIds.length
+    ? filters.sourceIds.map((id) => sources.find((s) => s.id === id)?.name ?? `#${id}`).join(', ')
+    : 'усі джерела'
+  const pickedRegions = filters.regions.length
+    ? filters.regions.map((id) => regions.find((r) => r.id === id)?.name_uk ?? id).join(', ')
+    : 'усі області'
   return {
     search: filters.q.trim() || null,
-    channel,
-    region,
+    sources: pickedSources,
+    regions: pickedRegions,
     outcome: OUTCOME_LABEL[filters.outcome] ?? filters.outcome,
     llm: LLM_LABEL[filters.llm] ?? filters.llm,
   }

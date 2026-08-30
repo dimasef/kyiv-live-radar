@@ -130,6 +130,11 @@ fuse → broadcast**.
      can only fill an `unknown` — never overrule the rules. `llm_type_mode='live'`;
      `eval/type_eval.py` scores it (coverage 40.9% -> 65.1%, family accuracy
      93.7% -> 95.5%), and `'shadow'` re-audits a night without touching the map.
+     Every INFERRED type (this tier, the incident prior, an inherited one) is
+     region-gated by `domain/target_types.py::type_plausible_in` — `kab`/`fpv`
+     are 28%/9% of Сумщина's stated types and 0 of 195 in Чернігівщина, so they
+     are not even in the enum the model may answer with over the north. A type
+     the rules read out of the message's own words is never gated.
    - `app/pipeline/triage.py` — the async second pass (notices, axes, rescue).
    - `app/parsing/llm.py` localization — **off by default**
      (`llm_localize_enabled`): the gazetteer enum was 81% of the prompt's
@@ -173,10 +178,10 @@ endpoint to the module that owns its area, not to `routes.py`.
 
 ### Gazetteer (`app/gazetteer.py`)
 
-~580 entries (146 Київщина / 296 Чернігівщина / 139 Сумщина): 10 administrative
-raions + in-city micro-neighborhoods/landmarks + approach-corridor villages
-across all three covered oblasts, each with a stem + aliases the spotters
-actually use. Grown reactively from real feed gaps — coverage is the primary
+~676 entries (146 Київщина / 317 Чернігівщина / 140 Сумщина / 73 Харківщина —
+the last still `active=False`): 10 administrative raions + in-city
+micro-neighborhoods/landmarks + approach-corridor villages across the covered
+oblasts, each with a stem + aliases the spotters actually use. Grown reactively from real feed gaps — coverage is the primary
 lever for both rule and LLM accuracy.
 
 **Read `GAZETTEER.md` (repo root) before touching an entry.** The module keeps

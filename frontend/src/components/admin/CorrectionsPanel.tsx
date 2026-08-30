@@ -2,6 +2,7 @@ import { CheckCircle2, Circle } from 'lucide-react'
 
 import { fetchCorrections, type Correction } from '@/api'
 import { useAsyncData } from '@/lib/useAsyncData'
+import { ADMIN_WIDTH } from './adminLayout'
 
 const KIND_LABEL: Record<Correction['kind'], string> = {
   false_positive: 'хибна ціль',
@@ -18,7 +19,7 @@ export default function CorrectionsPanel() {
   const resolved = items.filter((c) => c.resolved).length
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-4">
+    <div className={`${ADMIN_WIDTH} flex flex-col gap-3 px-4 py-4`}>
       <p className="text-xs text-slate-500">
         Виправлення, зібрані з дій в адмінці. Зелена позначка — поточний парсер уже обробляє
         повідомлення правильно; сіра — ще відтворює стару помилку.

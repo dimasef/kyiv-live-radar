@@ -112,12 +112,17 @@ def apply_raw_filters(
     q: str | None = None,
     outcome: str | None = None,
     llm: str | None = None,
-    source_id: int | None = None,
-    region: str | None = None,
+    source_ids: list[int] | None = None,
+    regions: list[str] | None = None,
 ):
-    """Apply the /raw_messages filter set (channel, text/code search, outcome,
-    LLM, region) to a select over RawMessage — pagination (before_id/limit) is
-    the caller's concern, not a filter, so it stays out of here."""
+    """Apply the /raw_messages filter set (sources, text/code search, outcome,
+    LLM, regions) to a select over RawMessage — pagination (before_id/limit) is
+    the caller's concern, not a filter, so it stays out of here.
+
+    `source_ids` and `regions` are SETS, each empty/None meaning "no
+    restriction". Members of one set are OR-ed (three regions = messages from
+    any of the three); the two sets AND with each other and with everything
+    else, which is what "джерела X, Y над областями A, B" reads as."""
     # A raw message "became a sighting"/"became a notice" iff a ThreatEvent/
     # Notice recorded the same (source_id, source_message_id) pair — the same
     # EXISTS drives both the outcome filter here and the per-row labeling in
@@ -133,10 +138,10 @@ def apply_raw_filters(
         Notice.source_message_id == RawMessage.message_id,
     )
 
-    if source_id is not None:
-        stmt = stmt.where(RawMessage.source_id == source_id)
+    if source_ids:
+        stmt = stmt.where(RawMessage.source_id.in_(source_ids))
 
-    if region is not None:
+    if regions:
         # WHERE the message landed, not who reported it — the same rule ingest
         # itself used (domain/districts.resolve_region): the region of what it
         # named, falling back to the reporting channel's own only when it named
@@ -154,12 +159,12 @@ def apply_raw_filters(
             ThreatEvent.source_id == RawMessage.source_id,
             ThreatEvent.source_message_id == RawMessage.message_id,
             ThreatEvent.threat_id == Threat.id,
-            Threat.region == region,
+            Threat.region.in_(regions),
         )
-        reported_by_this_regions_channel = exists().where(
-            Source.id == RawMessage.source_id, Source.region == region
+        reported_by_these_regions_channels = exists().where(
+            Source.id == RawMessage.source_id, Source.region.in_(regions)
         )
-        stmt = stmt.where(landed_here | (~became_event & reported_by_this_regions_channel))
+        stmt = stmt.where(landed_here | (~became_event & reported_by_these_regions_channels))
 
     codes = parse_codes(q) if q else []
     if codes:

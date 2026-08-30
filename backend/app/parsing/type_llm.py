@@ -16,7 +16,9 @@ minutes typed 3 of 25; given 25 messages of ALL channels over 2 hours it typed
 cheaper version of this feature — it's a version that doesn't work.
 
 Safety rails:
-  * Output is enum-railed by structured output: five known types, nothing else.
+  * Output is enum-railed by structured output: the known types, nothing else —
+    and narrowed per REGION, so a weapon that cannot reach the oblast in
+    question is not among the words the model may answer with (see `_schema`).
   * It is a FOURTH tier — it only ever runs when the text, the channel context
     and the incident prior all said `unknown`, so it can never overrule a type
     the rules read out of the message.
@@ -34,6 +36,7 @@ import logging
 from dataclasses import dataclass
 
 from ..config import settings
+from ..domain.target_types import type_plausible_in
 from ..models import TARGET_TYPES
 from ..regions import HOME_SPEC, watched_regions
 from .llm import _get_client, _usage_from
@@ -89,16 +92,27 @@ _PROMPT = (
     "Цільове повідомлення ({source}):\n{text}"
 )
 
-_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "target_type": {"type": "string", "enum": list(TYPES)},
-        "evidence": {"type": "string", "enum": list(EVIDENCE)},
-        "confidence": {"type": "number"},
-    },
-    "required": ["target_type", "evidence", "confidence"],
-    "additionalProperties": False,
-}
+
+def _schema(allowed_types: tuple[str, ...] = TYPES) -> dict:
+    """The output rail, narrowed to the types that can be over THIS region.
+
+    A model cannot return a value the enum does not contain, so the region check
+    (domain.target_types.type_plausible_in) is applied here as well as on the
+    answer: over Київщина/Чернігівщина the words `kab` and `fpv` are simply not
+    offered. Without it the model reads a Сумщина КАБ callout in its
+    cross-channel context and types a northern drone with it — which is exactly
+    what happened over Ріпки on 2026-08-30.
+    """
+    return {
+        "type": "object",
+        "properties": {
+            "target_type": {"type": "string", "enum": list(allowed_types)},
+            "evidence": {"type": "string", "enum": list(EVIDENCE)},
+            "confidence": {"type": "number"},
+        },
+        "required": ["target_type", "evidence", "confidence"],
+        "additionalProperties": False,
+    }
 
 
 @dataclass(frozen=True)
@@ -133,15 +147,20 @@ class TypeVerdict:
 
 
 async def llm_target_type(
-    text: str, context: str, source_label: str
+    text: str, context: str, source_label: str, region: str | None = None
 ) -> tuple[TypeVerdict | None, LlmUsage | None]:
     """Classify one message against the recent feed. Returns (verdict, usage);
     verdict is None when the call never completed or returned nothing usable —
     the caller then simply stays `unknown`.
 
     `usage` is set whenever the API responded (tokens were spent even if the
-    body was unusable), so the daily/monthly budget guard sees every call."""
+    body was unusable), so the daily/monthly budget guard sees every call.
+
+    `region` narrows the enum to what can be over that region (see `_schema`);
+    None keeps every type, for the eval harnesses that score a message with no
+    region resolved."""
     prompt = _PROMPT.format(context=context or "(порожньо)", source=source_label, text=text)
+    allowed = tuple(t for t in TYPES if type_plausible_in(t, region))
     try:
         resp = await asyncio.wait_for(
             _get_client().messages.create(
@@ -149,7 +168,8 @@ async def llm_target_type(
                 max_tokens=100,
                 system=_SYSTEM,
                 messages=[{"role": "user", "content": prompt}],
-                output_config={"format": {"type": "json_schema", "schema": _SCHEMA}},
+                output_config={"format": {"type": "json_schema",
+                                          "schema": _schema(allowed)}},
             ),
             timeout=settings.llm_type_timeout_s,
         )
@@ -165,14 +185,19 @@ async def llm_target_type(
         data = json.loads(block.text)
     except (ValueError, TypeError):
         return None, usage
-    return normalize_type_verdict(data), usage
+    return normalize_type_verdict(data, allowed), usage
 
 
-def normalize_type_verdict(data: dict) -> TypeVerdict:
+def normalize_type_verdict(data: dict, allowed: tuple[str, ...] = TYPES) -> TypeVerdict:
     """Enum-validate the raw JSON — defense in depth behind the schema, and the
-    single place a STORED verdict is re-read from on reprocess."""
+    single place a STORED verdict is re-read from on reprocess.
+
+    `allowed` is the region-narrowed set (see `_schema`). It is checked here as
+    well because a stored verdict is replayed through this function too: a `kab`
+    recorded over Чернігівщина before the rail existed must not come back to
+    life on the next rebuild."""
     target_type = data.get("target_type", "unknown")
-    if target_type not in TYPES:
+    if target_type not in allowed:
         target_type = "unknown"
     evidence = data.get("evidence", "none")
     if evidence not in EVIDENCE:

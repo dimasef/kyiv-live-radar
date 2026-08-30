@@ -36,10 +36,23 @@ async def test_reports_which_regions_are_not_covered_yet(client):
     assert body["chernihiv"]["active"] is True
     assert body["sumy"]["active"] is True  # activated 2026-08-28
     assert body["sumy"]["name_uk"] == "Сумщина"
-    # Харківщина and Дніпропетровщина are still declared-but-empty: the picker
-    # has to be able to say «готується» for them.
-    assert body["kharkiv"]["active"] is False
+    # Дніпропетровщина is still declared-but-empty: the picker has to be able to
+    # say «готується» for it.
     assert body["dnipro"]["active"] is False
+
+
+@pytest.mark.asyncio
+async def test_a_localizing_region_reads_as_covered_before_it_is_activated(client):
+    """Харківщина has had gazetteer entries (and live tracks) since 2026-08-29
+    while `RegionSpec.active` waits out its break-in period. The client asks
+    "is there anything to see here", so it must hear yes — the map drew the
+    oblast dashed as «поки без даних» over an oblast that was accumulating
+    tracks."""
+    from app.regions import SPEC_BY_ID
+
+    body = {r["id"]: r for r in (await client.get("/regions")).json()}
+    assert SPEC_BY_ID["kharkiv"].active is False
+    assert body["kharkiv"]["active"] is True
 
 
 @pytest.mark.asyncio

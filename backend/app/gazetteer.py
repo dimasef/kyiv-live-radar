@@ -499,8 +499,10 @@ DISTRICTS: list[dict] = [
      "region": "chernihiv", "aliases": ["коцюбинське"]},
     {"name_uk": "Чернігів", "name_en": "Chernihiv", "lat": 51.4941, "lon": 31.2943,
      "region": "chernihiv", "aliases": []},
+    # «сновсок» is the channel's own spelling in 2 of its callouts — a vowel
+    # inside the root, which the stemmer cannot bridge (GAZETTEER.md).
     {"name_uk": "Сновськ", "name_en": "Snovsk", "lat": 51.8188, "lon": 31.9449,
-     "region": "chernihiv", "aliases": []},
+     "region": "chernihiv", "aliases": ["сновсок"]},
     {"name_uk": "Корюківка", "name_en": "Koriukivka", "lat": 51.7745, "lon": 32.2513,
      "region": "chernihiv", "aliases": []},
     # Four letters, so the stemmer refuses to strip the ending and the stem stays
@@ -727,6 +729,87 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Холми", "name_en": "Kholmy", "lat": 51.8726, "lon": 32.5956,
      "region": "chernihiv", "aliases": []},
     {"name_uk": "Яблунівка", "name_en": "Yablunivka", "lat": 50.4592, "lon": 32.1845,
+     "region": "chernihiv", "aliases": []},
+
+    # --- T (2026-08-30): the names still dead in the whole stored corpus ------
+    # Mined from all 13.9k stored messages (not a recent window): every
+    # unlocalized spotter message re-parsed with the CURRENT gazetteer, unknown
+    # words ranked by frequency. All 21 come from the same northern channel and
+    # every one is a bare callout — the class that costs a whole track, since an
+    # unlocalized message is dropped before reply-threading even runs.
+    #
+    # Sweep (mandatory, GAZETTEER.md step 2): each stem fires ONLY on its own
+    # place name across the whole corpus — zero ordinary words, in any form.
+    # Before/after diff: 93 messages change, 82 of them gain a first match, and
+    # **no existing match moves**.
+    #
+    # Two clusters carry most of it, and each cluster's members confirm the
+    # others' coordinates (step 1, "let the neighbouring callouts decide"):
+    # Іванівська громада — «Підгірне/Єньків» is one message and the two sit 3 km
+    # apart — and Городнянська, where «Кузничі на Городню» and «Минаївщина на
+    # Ріпки» are vectors whose both ends now resolve.
+    {"name_uk": "Виблі", "name_en": "Vybli", "lat": 51.4599, "lon": 31.4969,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Халявин", "name_en": "Khaliavyn", "lat": 51.5887, "lon": 31.2928,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Солонівка", "name_en": "Solonivka", "lat": 51.9890, "lon": 31.6520,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Черниш", "name_en": "Chernysh", "lat": 51.6141, "lon": 31.5157,
+     "region": "chernihiv", "aliases": []},
+    # HOMONYM: a second Кошівка sits in Тетіївська громада, Київщина, 130 km
+    # south — `region_only` so only a northern channel can reach this one.
+    {"name_uk": "Кошівка", "name_en": "Koshivka", "lat": 51.5509, "lon": 31.1813,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    # Same precaution for a name generic enough that Kyiv oblast has its own
+    # («Підгірне» is a stop on the Обухів industrial road).
+    {"name_uk": "Підгірне", "name_en": "Pidhirne", "lat": 51.4709, "lon": 31.4078,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    {"name_uk": "Лукашівка", "name_en": "Lukashivka", "lat": 51.3858, "lon": 31.3938,
+     "region": "chernihiv", "aliases": []},
+    # The village `resolve.should_fallback` names in its own comment as the
+    # example of one we simply don't have. Now we do.
+    {"name_uk": "Пакуль", "name_en": "Pakul", "lat": 51.4062, "lon": 30.8075,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Ковчин", "name_en": "Kovchyn", "lat": 51.4400, "lon": 31.6862,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Єньків", "name_en": "Yenkiv", "lat": 51.4781, "lon": 31.3719,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Жовідь", "name_en": "Zhovid", "lat": 51.9690, "lon": 31.8367,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Товстоліс", "name_en": "Tovstolis", "lat": 51.5798, "lon": 31.3522,
+     "region": "chernihiv", "aliases": []},
+    # Two words, so the stem «салтиковадівиц» never appears in text — it matches
+    # on «салтиков», which the channel writes bare («Салтикова» alone, 1 of 3
+    # callouts). NOT «дівиц»: Мала Дівиця is a different village 90 km south.
+    {"name_uk": "Салтикова Дівиця", "name_en": "Saltykova Divytsia",
+     "lat": 51.3954, "lon": 31.7996, "region": "chernihiv", "aliases": ["салтиков"]},
+    # The Писарівка pattern (GAZETTEER.md, «Two entries, one word»): 6.5 km
+    # apart, sharing their only matchable word. All 9 corpus callouts carry the
+    # qualifier, so each side REQUIRES its own — and a bare «боровичі», which
+    # the corpus has never produced, matches neither and reaches the coverage
+    # queue instead of landing on a coin flip. «борович» is also safe against
+    # Боровики 100 km west: that entry's stem is «боровик».
+    {"name_uk": "Нові Боровичі", "name_en": "Novi Borovychi", "lat": 51.9390, "lon": 31.8680,
+     "region": "chernihiv", "aliases": ["борович"],
+     "match_context": {"prev_required": {"борович": ["нов"]}}},
+    {"name_uk": "Старі Боровичі", "name_en": "Stari Borovychi", "lat": 51.8817, "lon": 31.8555,
+     "region": "chernihiv", "aliases": ["борович"],
+     "match_context": {"prev_required": {"борович": ["стар"]}}},
+    {"name_uk": "Корчев'я", "name_en": "Korchevia", "lat": 51.8665, "lon": 30.7727,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Загороднє", "name_en": "Zahorodnie", "lat": 51.9279, "lon": 31.6004,
+     "region": "chernihiv", "aliases": []},
+    # The pair from raw 13578 «Петрики , Скитьки 3» — the message that produced
+    # nothing while the channel's next three callouts became tracks. Both are
+    # Любецька громада, 7 km apart and 6 km from Любеч, which the same window
+    # was full of.
+    {"name_uk": "Петрики", "name_en": "Petryky", "lat": 51.7216, "lon": 30.8234,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Скитьки", "name_en": "Skytky", "lat": 51.6660, "lon": 30.7700,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Кузничі", "name_en": "Kuznychi", "lat": 51.9719, "lon": 31.5672,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Минаївщина", "name_en": "Mynaivshchyna", "lat": 51.8991, "lon": 31.3722,
      "region": "chernihiv", "aliases": []},
 
 
@@ -1540,6 +1623,22 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Київ", "name_en": CITYWIDE_NAME_EN,
      "lat": KYIV_CENTER["lat"], "lon": KYIV_CENTER["lon"], "aliases": []},
 ]
+
+
+def covered_regions() -> frozenset[str]:
+    """Regions the parser can actually put on the map — the ones with gazetteer
+    entries of their own.
+
+    NOT the same question as `RegionSpec.active`, and the difference is the
+    whole point of this function. That flag gates the parser's own-vs-elsewhere
+    split and the LLM prompt roster, and it stays False through a region's
+    break-in period *after* its entries land: Харківщина has had 73 of them
+    (and a siren roster) since 2026-08-29, and its targets have been becoming
+    tracks ever since, while the flag waits on a night of observation. Reading
+    the flag as "has data" is what told the reader an oblast full of live tracks
+    was empty.
+    """
+    return frozenset(d.get("region", HOME_REGION) for d in DISTRICTS)
 
 
 # Seed set of monitored sources. `channel_key` is the Telegram handle we'd

@@ -12,6 +12,7 @@ from sqlalchemy import select
 from ...config import settings
 from ...domain.districts import district_regions, resolve_region
 from ...domain.incidents import find_active_incident, incident_type_prior
+from ...domain.target_types import type_plausible_in
 from ...models import RawMessage, Source
 from ...observability import ingest_span, metrics
 from ...parsing import DistrictHit, DistrictMatcher, LlmUsage, ParseResult
@@ -105,22 +106,29 @@ def _apply_llm_to_raw(raw: RawMessage, attempted: bool, usage: LlmUsage | None,
         raw.llm_response = response
 
 
-async def _inherit_window_for(session, source_id: int | None) -> int | None:
-    """This channel's type-inheritance window, or None for the global default.
+async def _source_settings(session, source_id: int | None) -> tuple[bool, int | None]:
+    """This channel's per-source pipeline knobs: (may it use the LLM step, its
+    type-inheritance window — None for the global default).
 
     A primary-key get per message, which is free enough here: ingestion is
     serialized behind one lock, so there is no concurrency to amortize over, and
     reading it live means an operator's change in /admin takes effect on the
     next message instead of at the next restart. SQLAlchemy's identity map
-    usually answers it from the session anyway."""
+    usually answers it from the session anyway.
+
+    A message with no source row (the simulator, a test) keeps the LLM: the
+    switch is something an operator turns OFF for a named channel, never a
+    default that an absent row could silently apply."""
     if source_id is None:
-        return None
+        return True, None
     src = await session.get(Source, source_id)
-    return src.type_inherit_minutes if src is not None else None
+    if src is None:
+        return True, None
+    return src.llm_enabled, src.type_inherit_minutes
 
 
 async def _infer_incident_type(session, parsed: ParseResult, when: datetime,
-                               source_id: int | None) -> bool:
+                               region: str) -> bool:
     """Second-tier type fallback: a still-untyped sighting during a live attack
     takes the open incident's dominant type. The per-channel window
     (_note_and_inherit_type) is only 5 min and channel-scoped — during the 07-18
@@ -131,21 +139,21 @@ async def _infer_incident_type(session, parsed: ParseResult, when: datetime,
     event that disagrees still surfaces as a fusion conflict."""
     if parsed.target_type != "unknown" or not (parsed.districts or parsed.citywide):
         return False
-    # This message's own region, so a northern sighting reads the northern
+    # `region` is this message's own, so a northern sighting reads the northern
     # attack's type and not Kyiv's — the same rule that decides which track pool
-    # it acts on. Resolved here rather than taken from IngestContext because the
-    # type tiers run before the context is built.
-    region = await resolve_region(session, [h.district_id for h in parsed.districts], source_id)
+    # it acts on. Resolved by the caller: the type tiers run before the context
+    # is built, and all three of them need it.
     inc = await find_active_incident(session, when, region)
     prior = await incident_type_prior(session, inc, when) if inc is not None else None
-    if prior is not None:
+    if prior is not None and type_plausible_in(prior, region):
         parsed.target_type = prior
         return True
     return False
 
 
 async def _maybe_llm_type(session, raw: RawMessage, parsed: ParseResult, when: datetime,
-                          *, allow_llm: bool, window_minutes: int | None = None) -> str | None:
+                          *, allow_llm: bool, region: str, source_llm_enabled: bool = True,
+                          window_minutes: int | None = None) -> str | None:
     """Fourth and last type tier: ask the LLM what is in the sky right now.
 
     Reached only when the message names a place, produced something to record,
@@ -157,8 +165,15 @@ async def _maybe_llm_type(session, raw: RawMessage, parsed: ParseResult, when: d
     A STORED verdict is replayed rather than re-queried: that is what makes an
     admin reprocess of a whole night free, and it mirrors how the triage engine
     replays `llm_response`.
+
+    `source_llm_enabled` (Source.llm_enabled) is the operator's per-channel
+    switch and comes FIRST, ahead of the replay branch: a channel the operator
+    took off the LLM must not have last week's stored verdicts re-applied to it
+    by the next rebuild. `allow_llm` is the narrower spend gate — it stops a new
+    call while leaving an already-paid-for verdict replayable.
     """
-    if settings.llm_type_mode == "off" or not wants_llm_type(parsed):
+    if (settings.llm_type_mode == "off" or not source_llm_enabled
+            or not wants_llm_type(parsed)):
         return None
     # Lazy like every other parsing.llm import: it pulls the anthropic client,
     # which the eval/reprocess tooling has no reason to load.
@@ -203,7 +218,8 @@ async def _maybe_llm_type(session, raw: RawMessage, parsed: ParseResult, when: d
         # "we tried", which is exactly the thing /raw needs to show.
         raw.llm_attempted = True
         verdict, usage = await llm_target_type(
-            parsed.raw_text, context, source.name if source is not None else "канал"
+            parsed.raw_text, context, source.name if source is not None else "канал",
+            region,
         )
         if usage is not None:
             # ACCUMULATE: the budget guard sums this column, and a message can
@@ -221,12 +237,16 @@ async def _maybe_llm_type(session, raw: RawMessage, parsed: ParseResult, when: d
         return None
     if settings.llm_type_mode != "live" or not verdict.usable:
         return None
+    # The rail is applied to the ANSWER as well as to the schema, because a
+    # STORED verdict takes the branch above without ever seeing the schema.
+    if not type_plausible_in(verdict.target_type, region):
+        return None
     parsed.target_type = verdict.target_type
     return verdict.target_type
 
 
 async def _maybe_triage(ctx: IngestContext, triage: str, matcher: DistrictMatcher,
-                        allow_llm: bool = True) -> list[Broadcast]:
+                        allow_llm: bool = True, source_llm_enabled: bool = True) -> list[Broadcast]:
     """Hand this message to the second-pass triage engine. 'live' enqueues a
     qualifying district-less/suppressed-but-threat-flavored message (reusing any
     inline LLM verdict — no second API call); 'replay' routes the STORED verdict
@@ -237,6 +257,10 @@ async def _maybe_triage(ctx: IngestContext, triage: str, matcher: DistrictMatche
     enqueues to triage; triage's rescue calls back into process_rescued), so this
     direction stays in-function to keep the package importable without a cycle."""
     raw = ctx.raw
+    # The operator's per-channel switch, same reach as in _maybe_llm_type: no
+    # new job, and no replay of a stored verdict either.
+    if not source_llm_enabled:
+        return []
     if triage == "live":
         from ..triage import TriageJob, enqueue_job, should_triage
 
@@ -301,11 +325,26 @@ async def process_parsed(
     # from the LLM" by attribute filter, not log-text parsing. Dormant (no-op)
     # until observability is set up, so reprocess/eval/tests are unaffected.
     with ingest_span("ingest_message") as span:
-        allow_llm = not await in_promo_thread(session, source_id, reply_to_message_id, matcher)
+        # Both per-source knobs in one PK get. `source_llm_enabled` is the
+        # operator's switch for the whole LLM step; `allow_llm` narrows it by
+        # the promo-thread veto, which is about THIS message rather than the
+        # channel.
+        source_llm_enabled, inherit_window = await _source_settings(session, source_id)
+        allow_llm = source_llm_enabled and not await in_promo_thread(
+            session, source_id, reply_to_message_id, matcher
+        )
         parsed, decision_source, llm_attempted, llm_usage, llm_response = await _resolve(
             text, matcher, allow_llm=allow_llm
         )
         _apply_llm_to_raw(raw, llm_attempted, llm_usage, llm_response)
+
+        # WHERE this message is about, resolved once: all three inference tiers
+        # need it (each is region-gated, see domain.target_types) and so does
+        # IngestContext below. It used to be computed twice, in the incident
+        # tier and again for the context.
+        region = await resolve_region(
+            session, [h.district_id for h in parsed.districts], source_id
+        )
 
         # Cross-message type inheritance: record this message's stated type, or
         # inherit a recent one from the same channel onto a bare-toponym sighting
@@ -313,13 +352,15 @@ async def process_parsed(
         # branch below so a typed post updates the context even when it produces no
         # event of its own (e.g. a district-less "Балістика!"). The incident-level
         # fallback below is the second tier when the per-channel window has lapsed.
-        inherit_window = await _inherit_window_for(session, source_id)
-        inherited_inferred = _note_and_inherit_type(parsed, source_id, when, inherit_window)
-        type_from_incident = await _infer_incident_type(session, parsed, when, source_id)
+        inherited_inferred = _note_and_inherit_type(parsed, source_id, when, inherit_window,
+                                                    region=region)
+        type_from_incident = await _infer_incident_type(session, parsed, when, region)
         # Fourth tier — the LLM reads the type off the last two hours of the
         # whole feed. Last on purpose: it must never overrule a type the rules,
         # the channel or the live incident already established.
         type_from_llm = await _maybe_llm_type(session, raw, parsed, when, allow_llm=allow_llm,
+                                              region=region,
+                                              source_llm_enabled=source_llm_enabled,
                                               window_minutes=inherit_window)
         # …and its answer becomes this channel's context, so the next bare
         # toponym inherits it for free instead of re-asking (see
@@ -346,14 +387,12 @@ async def process_parsed(
             type_inferred=(type_from_incident or type_from_llm is not None
                            or inherited_inferred),
             enforce_age=enforce_age,
-            region=await resolve_region(
-                session, [h.district_id for h in parsed.districts], source_id
-            ),
+            region=region,
             region_by_id=await district_regions(session),
         )
         span.set_attribute("region", ctx.region)
 
-        triage_extra = await _maybe_triage(ctx, triage, matcher, allow_llm)
+        triage_extra = await _maybe_triage(ctx, triage, matcher, allow_llm, source_llm_enabled)
 
         result = await _dispatch(ctx)
         broadcasts = result + triage_extra

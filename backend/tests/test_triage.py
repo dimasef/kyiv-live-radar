@@ -11,6 +11,7 @@ from app.db import Base
 from app.gazetteer import DISTRICTS, SOURCES
 from app.models import District, Notice, RawMessage, Source, ThreatAxis, ThreatEvent, utcnow
 from app.parsing import DistrictMatcher, parse_message
+from app.pipeline import triage as triage_module
 from app.pipeline.triage import TriageJob, route_verdict, should_triage
 from tests.conftest import district_rows, make_verdict
 
@@ -173,6 +174,57 @@ async def test_reprocess_replay_routes_stored_verdict(ctx):
     assert any(b.type == "axis" for b in out)
     assert await session.scalar(select(func.count()).select_from(ThreatAxis)) == 1
     assert raw.triage_action == "axis"
+
+
+async def test_a_channel_with_the_llm_switch_off_is_never_enqueued(ctx, monkeypatch):
+    """Source.llm_enabled reaches the triage engine too. This is where most of
+    the spend actually happens (it picks up the suppressed-but-threat-flavored
+    classes the inline tiers never see), so a switch that only stopped the
+    inline call would leave the channel billing almost exactly as before."""
+    from app.pipeline.ingest import process_parsed
+
+    session, matcher = ctx
+    monkeypatch.setattr(settings, "triage_enabled", True)
+    src = await session.get(Source, 1)
+    src.llm_enabled = False
+    # Aftermath-suppressed but names a weapon — the exact class the engine is
+    # for, and one that IS enqueued from a channel with the switch left on.
+    raw = RawMessage(source_id=1, message_id=201,
+                     text="Постраждала багатоповерхівка від удару шахеда в Дарниці",
+                     event_time=utcnow())
+    session.add(raw)
+    await session.commit()
+    await process_parsed(
+        session, raw=raw, text=raw.text, matcher=matcher, when=raw.event_time,
+        source_id=1, message_id=201, forwarded_from_id=None,
+        forwarded_from_channel_id=None, reply_to_message_id=None, triage="live",
+    )
+    assert raw.triage_state is None  # not even queued
+    assert triage_module.get_queue().empty()
+
+
+async def test_the_switch_also_blocks_replay_of_a_stored_triage_verdict(ctx):
+    """Same rule as the type classifier's: a rebuild must not re-apply verdicts
+    the operator turned the channel off because of."""
+    from app.models import ThreatAxis
+    from app.pipeline.ingest import process_parsed
+
+    session, matcher = ctx
+    src = await session.get(Source, 1)
+    src.llm_enabled = False
+    raw = RawMessage(source_id=1, message_id=202, text="щось незрозуміле з брянська",
+                     event_time=utcnow())
+    raw.llm_response = make_verdict(category="directional", surface=True, origin_place="bryansk",
+                                    target_type="ballistic", summary="Балістика з Брянщини")
+    session.add(raw)
+    await session.commit()
+    out = await process_parsed(
+        session, raw=raw, text=raw.text, matcher=matcher, when=raw.event_time,
+        source_id=1, message_id=202, forwarded_from_id=None,
+        forwarded_from_channel_id=None, reply_to_message_id=None, triage="replay",
+    )
+    assert out == []
+    assert await session.scalar(select(func.count()).select_from(ThreatAxis)) == 0
 
 
 async def test_budget_counts_when_we_paid_not_when_the_message_was_posted(monkeypatch):

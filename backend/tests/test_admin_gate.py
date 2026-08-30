@@ -1,6 +1,8 @@
 """Admin gating of /raw_messages + role resolution from the env allowlist."""
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -84,3 +86,45 @@ def test_role_for_allowlist(monkeypatch):
     # Neither → user.
     assert role_for("stranger@x.com", [1, 2]) == "user"
     assert role_for(None, []) == "user"
+
+
+async def test_raw_filters_bind_as_lists_over_http(client):
+    """The multi-select filters ride as REPEATED query params
+    (`?region=kyiv&region=sumy`). Worth an HTTP-level test rather than only the
+    query-builder ones in test_raw_export: a single-valued signature would still
+    answer 200 here while silently keeping just the last value."""
+    from app.models import RawMessage, Source
+
+    c, s = client
+    admin = await _seed(s, role="admin")
+    headers = {"Authorization": f"Bearer {admin}"}
+    kyiv = Source(name="Київ", channel_key="k", role="spotter", region="kyiv")
+    sumy = Source(name="Суми", channel_key="s", role="spotter", region="sumy")
+    chern = Source(name="Чернігів", channel_key="c", role="spotter", region="chernihiv")
+    s.add_all([kyiv, sumy, chern])
+    await s.commit()
+    for i, src in enumerate((kyiv, sumy, chern)):
+        s.add(RawMessage(source_id=src.id, message_id=i + 1, text="Ціль!",
+                         event_time=datetime.now(UTC).replace(tzinfo=None)))
+    await s.commit()
+
+    r = await c.get("/raw_messages?region=kyiv&region=sumy", headers=headers)
+    assert r.status_code == 200
+    assert {m["source_name"] for m in r.json()["items"]} == {"Київ", "Суми"}
+
+    r = await c.get(f"/raw_messages?source_id={kyiv.id}&source_id={chern.id}", headers=headers)
+    assert {m["source_name"] for m in r.json()["items"]} == {"Київ", "Чернігів"}
+
+    # The two AND: the Kyiv channel is in the source set but not in the region.
+    r = await c.get(f"/raw_messages?source_id={kyiv.id}&region=sumy", headers=headers)
+    assert r.json()["items"] == []
+
+    # Neither given = no restriction.
+    r = await c.get("/raw_messages", headers=headers)
+    assert len(r.json()["items"]) == 3
+
+    # And the source list carries the bindings the UI narrows on.
+    r = await c.get("/raw_messages/sources", headers=headers)
+    assert {row["name"]: row["regions"] for row in r.json()} == {
+        "Київ": ["kyiv"], "Суми": ["sumy"], "Чернігів": ["chernihiv"],
+    }

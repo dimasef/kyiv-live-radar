@@ -41,6 +41,7 @@ def _source_admin_out(src: Source, stats: dict[int, SourceStats]) -> SourceAdmin
         is_active=src.is_active,
         trust_weight=src.trust_weight,
         type_inherit_minutes=src.type_inherit_minutes,
+        llm_enabled=src.llm_enabled,
         last_listener_error=src.last_listener_error,
         created_at=src.created_at,
         stats=SourceStatsOut(
@@ -104,9 +105,9 @@ async def admin_update_source(
     _admin: User = Depends(require_admin),
 ):
     """Edit a source's name / role / region / trust_weight / type-inheritance
-    window / active flag. Only a change that affects what's watched (role or
-    is_active) triggers a listener reload — the rest only steer already-arriving
-    messages."""
+    window / LLM switch / active flag. Only a change that affects what's watched
+    (role or is_active) triggers a listener reload — the rest only steer
+    already-arriving messages."""
     src = await session.get(Source, source_id)
     if src is None:
         raise HTTPException(status_code=404, detail="source not found")
@@ -124,6 +125,8 @@ async def admin_update_source(
         src.trust_weight = body.trust_weight
     if body.type_inherit_minutes is not None:
         src.type_inherit_minutes = body.type_inherit_minutes
+    if body.llm_enabled is not None:
+        src.llm_enabled = body.llm_enabled
     if body.is_active is not None and body.is_active != src.is_active:
         src.is_active = body.is_active
         reload_needed = True

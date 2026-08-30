@@ -50,7 +50,7 @@ def stub_type(monkeypatch):
     calls: list[tuple[str, str]] = []
     box = {"verdict": TypeVerdict("shahed", "context", 0.9)}
 
-    async def _fake(text, context, source_label):
+    async def _fake(text, context, source_label, region=None):
         calls.append((text, context))
         return box["verdict"], LlmUsage(700, 20, 0.0008)
 
@@ -226,6 +226,69 @@ async def test_no_llm_reprocess_does_not_start_new_calls(db, stub_type, monkeypa
     assert calls == []
     track = (await session.scalars(select(Threat))).one()
     assert track.target_type == "unknown"
+
+
+# --- the per-source switch (Source.llm_enabled) ------------------------------
+
+
+async def test_a_channel_with_the_llm_switch_off_is_never_classified(db, stub_type, monkeypatch):
+    session, matcher = db
+    calls, _ = stub_type
+    monkeypatch.setattr(settings, "llm_type_mode", "live")
+    src = await session.get(Source, 1)
+    src.llm_enabled = False
+    await session.commit()
+    await _ingest(session, matcher, "Троєщина 🔴", message_id=1)
+    assert calls == []
+    track = (await session.scalars(select(Threat))).one()
+    # The sighting still becomes a track — the switch removes the LLM tier, not
+    # the channel.
+    assert track.target_type == "unknown"
+
+
+async def test_the_switch_is_per_channel_and_not_global(db, stub_type, monkeypatch):
+    """The whole point of the column: silencing one channel used to mean
+    switching the classifier off for everyone (`llm_type_mode`)."""
+    session, matcher = db
+    calls, _ = stub_type
+    monkeypatch.setattr(settings, "llm_type_mode", "live")
+    off = await session.get(Source, 1)
+    off.llm_enabled = False
+    await session.commit()
+    await ingest_message(session, text="Троєщина 🔴", matcher=matcher, when=utcnow(),
+                         source_id=2, message_id=1)
+    assert len(calls) == 1
+    track = (await session.scalars(select(Threat))).one()
+    assert track.target_type == "shahed"
+
+
+async def test_the_switch_also_blocks_replay_of_a_stored_verdict(db, stub_type, monkeypatch):
+    """Deliberately NOT the reprocess-is-deterministic rule
+    (test_a_stored_verdict_is_replayed_without_a_new_call): a channel the
+    operator took off the LLM must not have last week's verdicts re-applied to
+    it by the next rebuild — that would make the switch un-actionable on the
+    history it was flipped because of."""
+    from app.pipeline.ingest import process_parsed
+
+    session, matcher = db
+    calls, _ = stub_type
+    monkeypatch.setattr(settings, "llm_type_mode", "live")
+    src = await session.get(Source, 1)
+    src.llm_enabled = False
+    when = utcnow()
+    raw = RawMessage(source_id=1, message_id=7, text="Троєщина 🔴", event_time=when,
+                     llm_type="ballistic", llm_type_confidence=0.9,
+                     llm_type_evidence="context")
+    session.add(raw)
+    await session.commit()
+    await process_parsed(session, raw=raw, text=raw.text, matcher=matcher, when=when,
+                         source_id=1, message_id=7, forwarded_from_id=None,
+                         reply_to_message_id=None, triage="off")
+    assert calls == []
+    track = (await session.scalars(select(Threat))).one()
+    assert track.target_type == "unknown"
+    # The stored verdict is untouched: turning the switch back on restores it.
+    assert raw.llm_type == "ballistic"
 
 
 # --- the verdict feeds back into the channel context -------------------------
@@ -425,7 +488,7 @@ async def test_a_call_that_never_completes_is_still_recorded_as_attempted(db, mo
     """A timeout used to leave no trace whatsoever — llm_attempted=0, no verdict,
     no cost — so /raw showed it as "no call was made" and an analysis of the
     2026-08-23 feed went looking for a config difference that did not exist."""
-    async def _timeout(text, context, source_label):
+    async def _timeout(text, context, source_label, region=None):
         return None, None
 
     monkeypatch.setattr("app.parsing.type_llm.llm_target_type", _timeout)
@@ -453,3 +516,79 @@ def test_usable_requires_type_evidence_and_confidence():
     assert not TypeVerdict("unknown", "context", 0.9).usable
     assert not TypeVerdict("shahed", "none", 0.9).usable
     assert not TypeVerdict("shahed", "context", 0.5).usable
+
+
+# --- the region gate on inferred types (domain.target_types) -----------------
+
+
+def test_reach_limited_types_are_gated_by_region():
+    from app.domain.target_types import type_plausible_in
+
+    # Measured, not assumed: kab/fpv are 28%/9% of Сумщина's stated types and
+    # 15%/5.5% of Харківщина's, against 0 of 195 in Чернігівщина and 0 of 1814
+    # in Київщина (the one Kyiv "kab" is a fundraising post about Запоріжжя).
+    assert type_plausible_in("kab", "sumy")
+    assert type_plausible_in("fpv", "kharkiv")
+    assert not type_plausible_in("kab", "kyiv")
+    assert not type_plausible_in("kab", "chernihiv")
+    assert not type_plausible_in("fpv", "chernihiv")
+    # Everything else travels; and an unresolved region never costs a type.
+    assert type_plausible_in("shahed", "chernihiv")
+    assert type_plausible_in("ballistic", "kyiv")
+    assert type_plausible_in("kab", None)
+
+
+async def test_a_kab_verdict_is_refused_over_the_northern_regions(db, stub_type, monkeypatch):
+    """The 2026-08-30 06:54 failure: the classifier read Сумщина/Харківщина КАБ
+    traffic out of its cross-channel context and typed a drone over Ріпки with
+    it, which then rode the channel's inheritance chain into nine tracks."""
+    session, matcher = db
+    _, box = stub_type
+    monkeypatch.setattr(settings, "llm_type_mode", "live")
+    box["verdict"] = TypeVerdict("kab", "context", 0.95)
+    src = await session.get(Source, 1)
+    src.region = "chernihiv"
+    await session.commit()
+    await _ingest(session, matcher, "Троєщина 🔴", message_id=1)
+    track = (await session.scalars(select(Threat))).one()
+    assert track.target_type == "unknown"
+    # Still recorded, so the operator can see what was refused and why.
+    raw = (await session.scalars(select(RawMessage))).one()
+    assert raw.llm_type == "kab"
+
+
+async def test_the_same_verdict_stands_where_the_weapon_reaches(db, stub_type, monkeypatch):
+    session, matcher = db
+    _, box = stub_type
+    monkeypatch.setattr(settings, "llm_type_mode", "live")
+    box["verdict"] = TypeVerdict("kab", "context", 0.95)
+    src = await session.get(Source, 1)
+    src.region = "sumy"
+    await session.commit()
+    # A Сумщина toponym, so the message's own region — the one the gate reads,
+    # exactly like the track pool it will join — is sumy.
+    await _ingest(session, matcher, "Ромни 🔴", message_id=1)
+    track = (await session.scalars(select(Threat))).one()
+    assert track.region == "sumy"
+    assert track.target_type == "kab"
+
+
+def test_the_enum_rail_drops_the_word_entirely():
+    """Belt and braces: the model is never even offered a type it could not be
+    right about, so the check on the answer only has to catch a REPLAYED
+    verdict stored before the rail existed."""
+    from app.parsing.type_llm import _schema
+
+    north = _schema(("shahed", "jet_drone", "missile", "ballistic", "unknown"))
+    assert "kab" not in north["properties"]["target_type"]["enum"]
+    assert "fpv" not in north["properties"]["target_type"]["enum"]
+
+
+def test_a_stored_out_of_region_verdict_does_not_come_back_on_replay():
+    from app.parsing.type_llm import normalize_type_verdict
+
+    allowed = ("shahed", "jet_drone", "missile", "ballistic", "unknown")
+    verdict = normalize_type_verdict(
+        {"target_type": "kab", "evidence": "context", "confidence": 0.9}, allowed
+    )
+    assert verdict.target_type == "unknown"

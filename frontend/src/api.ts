@@ -200,8 +200,10 @@ export interface RawMessagesFilter {
   q?: string
   outcome?: RawOutcomeFilter
   llm?: 'yes' | 'no'
-  sourceId?: number
-  region?: Region
+  /** Empty/absent = every source; several = their union. */
+  sourceIds?: number[]
+  /** Empty/absent = every region; several = their union. */
+  regions?: Region[]
 }
 export interface RawMessagesQuery extends RawMessagesFilter {
   beforeId?: number
@@ -213,8 +215,10 @@ function rawFilterParams(f: RawMessagesFilter): URLSearchParams {
   if (f.q) params.set('q', f.q)
   if (f.outcome) params.set('outcome', f.outcome)
   if (f.llm) params.set('llm', f.llm)
-  if (f.sourceId != null) params.set('source_id', String(f.sourceId))
-  if (f.region) params.set('region', f.region)
+  // Repeated params, one per member — FastAPI reads `?source_id=1&source_id=2`
+  // as a list, and an omitted param as "no restriction".
+  for (const id of f.sourceIds ?? []) params.append('source_id', String(id))
+  for (const region of f.regions ?? []) params.append('region', region)
   return params
 }
 
@@ -306,6 +310,7 @@ export type SourcePatch = Partial<
     | 'extra_regions'
     | 'trust_weight'
     | 'type_inherit_minutes'
+    | 'llm_enabled'
     | 'is_active'
   >
 >
