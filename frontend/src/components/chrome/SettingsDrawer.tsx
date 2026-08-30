@@ -57,11 +57,13 @@ function DrawerBody({ onClose }: { onClose: () => void }) {
 
         <div className="scroll-slim flex-1 overflow-y-auto px-3 py-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-2.5">
-            <span className="panel-title">{t("settings.language")}</span>
+            <span className="text-sm font-semibold uppercase tracking-wider text-slate-400">
+              {t("settings.language")}
+            </span>
             <LanguageSwitcher />
           </div>
           <HomeControl />
-        <CurrentRegionControl />
+          <CurrentRegionControl />
           <NotifyControl />
           <PrivacyControl />
           <FeedSettings />

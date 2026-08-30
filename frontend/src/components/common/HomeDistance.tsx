@@ -13,17 +13,15 @@ import type { Threat } from '@/types'
  * sighting is a district centroid. Renders nothing when no home is set, or
  * when the threat has no position to measure from.
  *
- * `notableOnly` is the feed-list form: it appears ONLY for a target near home
- * or closing on it, and drops the "від дому" tail. Twenty identical numbers
- * down a busy feed would hide the one that matters, which is the opposite of
- * what this is for. */
+ * Measures the TRACK — its latest sighting cluster — which is what the popup
+ * asks: where is this target now. A feed row asks something else (how far was
+ * the place this callout named), and has its own component for it,
+ * feed/ThreatLog/SightingDistance. */
 export default function HomeDistance({
   threat,
-  notableOnly = false,
   className = '',
 }: {
   threat: Threat
-  notableOnly?: boolean
   className?: string
 }) {
   const { t } = useTranslation()
@@ -32,9 +30,6 @@ export default function HomeDistance({
 
   const distance = homeDistanceOf(threat, home)
   if (distance == null) return null
-
-  const notable = distance.nearHome || distance.trend === 'closing'
-  if (notableOnly && !notable) return null
 
   const tone = distance.nearHome
     ? 'text-red-400'
@@ -55,9 +50,8 @@ export default function HomeDistance({
         style={{ transform: `rotate(${distance.bearingFromHome}deg)` }}
         fill="currentColor"
       />
-      ~{formatKm(distance.km)} {t('home.km')}
-      {!notableOnly && ` ${t('home.fromHome')}`}
-      {!notableOnly && distance.trend && (
+      ~{formatKm(distance.km)} {t('home.km')} {t('home.fromHome')}
+      {distance.trend && (
         <span>· {distance.trend === 'closing' ? t('home.closing') : t('home.receding')}</span>
       )}
     </span>

@@ -20,8 +20,8 @@ export default function ShareHomeToggle() {
   return (
     <div className="mt-3 flex items-center justify-between gap-3 border-t border-white/[0.06] pt-3">
       <div className="min-w-0">
-        <p className="text-[13px] text-slate-200">{t('friends.shareHomeLabel')}</p>
-        <p className="text-[11px] leading-snug text-slate-500">
+        <p className="text-sm text-slate-200">{t('friends.shareHomeLabel')}</p>
+        <p className="text-sm leading-snug text-slate-500">
           {home ? t('friends.shareHomeHint') : t('friends.needHome')}
         </p>
       </div>

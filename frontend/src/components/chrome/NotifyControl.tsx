@@ -46,18 +46,18 @@ export default function NotifyControl() {
   return (
     <div className="mt-2.5 rounded-xl border border-white/[0.05] bg-white/[0.02] p-3">
       <div className="mb-2.5 flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
+        <span className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-slate-400">
           <BellRing size={13} className="flex-none text-phosphor-soft/80" />
           {t('notify.title')}
         </span>
       </div>
 
       {iosNeedsInstall ? (
-        <p className="text-xs leading-snug text-slate-500">{t('notify.iosInstallFirst')}</p>
+        <p className="text-sm leading-snug text-slate-500">{t('notify.iosInstallFirst')}</p>
       ) : notifyStatus === 'denied' ? (
-        <p className="text-xs leading-snug text-slate-500">{t('notify.denied')}</p>
+        <p className="text-sm leading-snug text-slate-500">{t('notify.denied')}</p>
       ) : !home ? (
-        <p className="text-xs leading-snug text-slate-500">{t('notify.needHome')}</p>
+        <p className="text-sm leading-snug text-slate-500">{t('notify.needHome')}</p>
       ) : (
         <>
           <button
@@ -78,7 +78,7 @@ export default function NotifyControl() {
         </>
       )}
 
-      <p className="mt-2.5 text-xs leading-snug text-slate-500">{t('notify.policy')}</p>
+      <p className="mt-2.5 text-sm leading-snug text-slate-500">{t('notify.policy')}</p>
     </div>
   )
 }

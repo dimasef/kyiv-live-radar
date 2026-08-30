@@ -26,12 +26,12 @@ export default function CurrentRegionControl() {
     <div className="mt-2 rounded-xl border border-white/[0.05] bg-white/[0.02] p-3">
       <div className="mb-2.5 flex items-center gap-2">
         <MapPin size={13} className="text-phosphor-soft/80" />
-        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+        <span className="text-sm font-semibold uppercase tracking-wider text-slate-400">
           {t('currentRegion.title')}
         </span>
       </div>
 
-      <span className="mb-2 block text-[11px] leading-relaxed text-slate-500">
+      <span className="mb-2 block text-sm leading-relaxed text-slate-500">
         {t('currentRegion.hint')}
       </span>
       <RegionChoice value={chosenRegion} onChange={setChosenRegion} />

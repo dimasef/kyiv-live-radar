@@ -280,7 +280,14 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Березань", "name_en": "Berezan", "lat": 50.3133, "lon": 31.4689, "aliases": []},
     {"name_uk": "Гоголів", "name_en": "Hoholiv", "lat": 50.5127, "lon": 31.0226, "aliases": []},
     {"name_uk": "Требухів", "name_en": "Trebukhiv", "lat": 50.4833, "lon": 30.9011, "aliases": []},
-    {"name_uk": "Княжичі", "name_en": "Kniazhychi", "lat": 50.4604, "lon": 30.7862, "aliases": []},
+    # «книжич» is this channel's misspelling of the name, one letter out — the
+    # corpus has 19 correct callouts and one «На Книжичі/Проліски», which
+    # localized to nothing. It is not a second village: OSM has no Книжич*
+    # anywhere in the oblast, and the message's own pair (Проліски, 7.6 km from
+    # here) puts it on this corridor. Safe as an alias — «книж» occurs in the
+    # whole 13k-message corpus exactly once, in that typo.
+    {"name_uk": "Княжичі", "name_en": "Kniazhychi", "lat": 50.4604, "lon": 30.7862,
+     "aliases": ["книжич"]},
     {"name_uk": "Боярка", "name_en": "Boiarka", "lat": 50.3357, "lon": 30.2848, "aliases": []},
     {"name_uk": "Глеваха", "name_en": "Hlevakha", "lat": 50.2597, "lon": 30.3059, "aliases": []},
     {"name_uk": "Крюківщина", "name_en": "Kriukivshchyna", "lat": 50.3719, "lon": 30.3716, "aliases": []},
@@ -364,6 +371,15 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Чабани", "name_en": "Chabany", "lat": 50.3414, "lon": 30.4271, "aliases": []},
     # Also means "happy" — kept on a clean sweep only. See GAZETTEER.md (watch list).
     {"name_uk": "Щасливе", "name_en": "Shchaslyve", "lat": 50.3782, "lon": 30.7913, "aliases": []},
+    # 1.8 km from Щасливе, which is close enough that the pin barely moves — but
+    # the callouts naming it resolved to NOTHING for it, which is the gap. The
+    # alias is the Ріпки/ріпок class: the genitive plural drops the и and grows
+    # an о inside the root, so the stem «проліск» cannot reach «Пролісок», the
+    # form the channel used in «У район Бортничів/Пролісок».
+    # No collision with the Kharkiv «Пролісне» — that stems to «пролісн», and
+    # neither is a prefix of the other.
+    {"name_uk": "Проліски", "name_en": "Prolisky", "lat": 50.3921, "lon": 30.7796,
+     "aliases": ["пролісок"]},
     {"name_uk": "Згурівка", "name_en": "Zghurivka", "lat": 50.4951, "lon": 31.7692, "aliases": []},
     {"name_uk": "Ходосівка", "name_en": "Khodosivka", "lat": 50.2728, "lon": 30.5221, "aliases": []},
     # The bare «Заспа» rides here as an ALIAS rather than as its own entry —

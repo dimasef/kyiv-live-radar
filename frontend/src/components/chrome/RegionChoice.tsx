@@ -36,7 +36,7 @@ export default function RegionChoice({
           >
             <span className="font-medium">{region.name_uk}</span>
             {!region.active && (
-              <span className="rounded border border-white/10 px-1.5 py-px text-[10px] text-slate-500">
+              <span className="rounded border border-white/10 px-1.5 py-px text-sm text-slate-500">
                 готується
               </span>
             )}

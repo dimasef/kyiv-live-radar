@@ -203,6 +203,7 @@ def incident_out(inc: Incident, sentinel_district_id: int | None) -> IncidentOut
         district_ids=district_ids,
         classification=cls.label,
         attack_types=inc.attack_types,
+        type_override=inc.type_override,
         alert_id=inc.alert_id,
         decoy_suspected=cls.decoy_suspected,
         has_hypersonic=cls.has_hypersonic,

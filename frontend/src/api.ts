@@ -247,6 +247,13 @@ export const dismissThreat = (id: number) => send<Threat>(`/admin/threats/${id}/
 export const restoreThreat = (id: number) => send<Threat>(`/admin/threats/${id}/restore`, 'POST')
 export const setThreatType = (id: number, target_type: TargetType) =>
   send<Threat>(`/admin/threats/${id}`, 'PATCH', { target_type })
+/** The operator's verdict on what is in the air. A LIST: naming two weapon
+ * families is how 'комбінована' is expressed, since that label is derived by the
+ * server and is not a TargetType. An empty array clears the override and hands
+ * the attack back to the types derived from its member tracks — which a track
+ * retype has no equivalent of. Deliberately does NOT retype those tracks. */
+export const setIncidentType = (id: number, target_types: TargetType[]) =>
+  send<Incident>(`/admin/incidents/${id}/type`, 'PATCH', { target_types })
 export const dismissIncident = (id: number) =>
   send<Incident>(`/admin/incidents/${id}/dismiss`, 'POST')
 export const restoreIncident = (id: number) =>

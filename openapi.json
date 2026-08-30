@@ -1853,6 +1853,29 @@
             "default": 0,
             "title": "Track Count",
             "type": "integer"
+          },
+          "type_override": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "shahed",
+                    "jet_drone",
+                    "fpv",
+                    "kab",
+                    "missile",
+                    "ballistic",
+                    "unknown"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type Override"
           }
         },
         "required": [
@@ -1863,6 +1886,30 @@
           "status"
         ],
         "title": "IncidentOut",
+        "type": "object"
+      },
+      "IncidentTypeIn": {
+        "description": "PATCH /admin/incidents/{id}/type — the operator's verdict on what is in\nthe air.\n\nA LIST, because a raid is not always one thing: naming two weapon families\nis how 'комбінована' is expressed, and attack.classify then derives that\nlabel itself rather than it having to be a magic value the TargetType enum\ndoes not contain.\n\nAn empty list (or null) clears the override and hands the attack back to the\nderivation from its member tracks — which is why this can't reuse\n`ThreatTypeIn`: a track's type is one value and has no \"auto\" to return to.",
+        "properties": {
+          "target_types": {
+            "default": [],
+            "items": {
+              "enum": [
+                "shahed",
+                "jet_drone",
+                "fpv",
+                "kab",
+                "missile",
+                "ballistic",
+                "unknown"
+              ],
+              "type": "string"
+            },
+            "title": "Target Types",
+            "type": "array"
+          }
+        },
+        "title": "IncidentTypeIn",
         "type": "object"
       },
       "JournalAlertWindowOut": {
@@ -5968,6 +6015,72 @@
           }
         },
         "summary": "Admin Restore Incident"
+      }
+    },
+    "/admin/incidents/{incident_id}/type": {
+      "patch": {
+        "description": "Set what is in the air, overriding the types derived from the member\ntracks — an empty list hands the attack back to that derivation.\n\nA list because a raid is not always one thing. Naming two weapon families is\nhow the operator says 'комбінована': `attack.classify` reads the same field\nit always reads and reaches that label itself, so a manual verdict and a\nderived one are indistinguishable downstream.\n\nDeliberately does NOT retype the member tracks. They are separate claims:\neach track says what a spotter reported over one district, the attack says\nwhat the raid as a whole is. A ballistic verdict on a raid that also carried\nshaheds must not rewrite the shahed sightings into ballistic ones — the map,\nthe feed and the regression dataset would all then be wrong about the sky.\nRetyping one track is its own action (PATCH /admin/threats/{id}).\n\nFor the same reason no ParserCorrection is recorded: this is a judgement\nabout a rollup, not a labelled example of a message the parser misread.",
+        "operationId": "admin_retype_incident_admin_incidents__incident_id__type_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incident_id",
+            "required": true,
+            "schema": {
+              "title": "Incident Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncidentTypeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Retype Incident"
       }
     },
     "/admin/notices/{notice_id}": {

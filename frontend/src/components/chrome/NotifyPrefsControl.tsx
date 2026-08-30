@@ -48,8 +48,8 @@ export default function NotifyPrefsControl() {
       <div className="flex min-w-0 items-center gap-2.5">
         {icon}
         <div className="min-w-0">
-          <div className="text-[13px] text-slate-300">{label}</div>
-          {hint && <div className="mt-0.5 text-[11px] leading-snug text-slate-500">{hint}</div>}
+          <div className="text-sm text-slate-300">{label}</div>
+          {hint && <div className="mt-0.5 text-sm leading-snug text-slate-500">{hint}</div>}
         </div>
       </div>
       <Switch
@@ -63,7 +63,7 @@ export default function NotifyPrefsControl() {
   return (
     <div className="mt-2.5 space-y-2.5">
       <div>
-        <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <div className="mb-1.5 text-sm font-semibold uppercase tracking-wider text-slate-500">
           {t('notify.prefs.level')}
         </div>
         <div role="radiogroup" aria-label={t('notify.prefs.level')} className="space-y-1">
@@ -82,14 +82,14 @@ export default function NotifyPrefsControl() {
                 }`}
               >
                 <span
-                  className={`block text-[13px] font-medium ${
+                  className={`block text-sm font-medium ${
                     active ? 'text-phosphor-soft' : 'text-slate-300'
                   }`}
                 >
                   {t(`notify.prefs.levels.${lvl}`)}
                 </span>
                 <span
-                  className={`mt-0.5 block text-[11px] leading-snug ${
+                  className={`mt-0.5 block text-sm leading-snug ${
                     active ? 'text-slate-300' : 'text-slate-500'
                   }`}
                 >
@@ -102,7 +102,7 @@ export default function NotifyPrefsControl() {
       </div>
 
       <div>
-        <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <div className="mb-1.5 text-sm font-semibold uppercase tracking-wider text-slate-500">
           {t('notify.prefs.types')}
         </div>
         <div className="space-y-1">

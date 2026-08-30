@@ -36,6 +36,23 @@ class ThreatTypeIn(BaseModel):
     target_type: TargetType
 
 
+class IncidentTypeIn(BaseModel):
+    """PATCH /admin/incidents/{id}/type — the operator's verdict on what is in
+    the air.
+
+    A LIST, because a raid is not always one thing: naming two weapon families
+    is how 'комбінована' is expressed, and attack.classify then derives that
+    label itself rather than it having to be a magic value the TargetType enum
+    does not contain.
+
+    An empty list (or null) clears the override and hands the attack back to the
+    derivation from its member tracks — which is why this can't reuse
+    `ThreatTypeIn`: a track's type is one value and has no "auto" to return to.
+    """
+
+    target_types: list[TargetType] = []
+
+
 class EventDistrictIn(BaseModel):
     """PATCH /admin/events/{id} — admin fixes a mislocated sighting."""
 

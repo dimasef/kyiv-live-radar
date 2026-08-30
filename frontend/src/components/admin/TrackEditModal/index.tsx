@@ -7,11 +7,8 @@ import AdminActionButton from '@/components/admin/AdminActionButton'
 import { useDismissTransition } from '@/lib/useDismissTransition'
 import type { TargetType, Threat } from '@/types'
 
+import { ADMIN_TARGET_TYPES } from '../adminLayout'
 import TrackEventRow from './TrackEventRow'
-
-const TARGET_TYPES: TargetType[] = [
-  'shahed', 'jet_drone', 'fpv', 'missile', 'ballistic', 'unknown',
-]
 
 /** Edit one track without leaving «Весь фід»: its type, its lifecycle, and the
  * grouping of the sightings under it.
@@ -107,7 +104,7 @@ export default function TrackEditModal({
               className="rounded-md border border-white/15 bg-ink-900 px-1.5 py-1 text-xs text-slate-200"
               aria-label="Тип цілі треку"
             >
-              {TARGET_TYPES.map((tt) => (
+              {ADMIN_TARGET_TYPES.map((tt) => (
                 <option key={tt} value={tt}>
                   {t(`target.${tt}`)}
                 </option>

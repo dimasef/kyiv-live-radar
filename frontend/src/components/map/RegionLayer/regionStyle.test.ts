@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest'
 
 import { regionHoverStyle, regionStyle } from './regionStyle'
 
+/** --phosphor in index.css. Leaflet paints SVG attributes rather than CSS
+ * variables, so the value is duplicated in regionStyle; this is what keeps the
+ * two in step. */
+const PHOSPHOR = '#22d3ee'
+
 const home = regionStyle({ isHome: true, inFeed: true, active: true })
 const inFeed = regionStyle({ isHome: false, inFeed: true, active: true })
 const outOfFeed = regionStyle({ isHome: false, inFeed: false, active: true })
@@ -33,31 +38,37 @@ describe('oblast outline styling', () => {
     expect(pending.dashArray).toBeTruthy()
   })
 
-  it('gives home and a chosen region the same hue, distinct from the rest', () => {
-    expect(inFeed.color).toBe(home.color)
-    expect(outOfFeed.color).not.toBe(home.color)
+  it('never paints a RESTING oblast in the app accent', () => {
+    // The regression this locks down. --phosphor means "live threat data"
+    // everywhere else on this map, so an oblast wearing it permanently read as
+    // something happening there rather than as a setting — readers who had
+    // never opened this layer took their own region lighting up for an alert.
+    // State is the badge's job now (regionBadge); the outline is geography.
+    for (const style of [home, inFeed, outOfFeed, pending]) {
+      expect(style.color).not.toBe(PHOSPHOR)
+      expect(style.fillColor).not.toBe(PHOSPHOR)
+    }
   })
 
-  it('paints a followed region in the app accent', () => {
-    // --phosphor in index.css. Leaflet paints SVG attributes, so the value is
-    // duplicated in regionStyle and this is what keeps the two in step.
-    expect(home.color).toBe('#22d3ee')
+  it('separates the three states by weight as well as by grey', () => {
+    // Greys this close cannot carry the distinction on hue alone, and one of
+    // the three has to survive being read on a phone in daylight.
+    expect(home.weight).toBeGreaterThan(inFeed.weight!)
+    expect(inFeed.weight).toBeGreaterThan(outOfFeed.weight!)
   })
 })
 
 describe('oblast hover', () => {
   const hover = regionHoverStyle()
 
-  it('previews the accent an added region would get', () => {
-    expect(hover.color).toBe(home.color)
+  it('is the one place the accent survives on this layer', () => {
+    // And it survives because it is TRANSIENT: phosphor under the cursor reads
+    // as "this responds to you", where phosphor sitting on a region read as
+    // "something is happening there".
+    expect(hover.color).toBe(PHOSPHOR)
   })
 
-  it('stays below a region that is already in the feed', () => {
-    // Otherwise pointing at a region would look louder than actually adding it.
-    expect(hover.opacity).toBeLessThan(inFeed.opacity!)
-  })
-
-  it('lifts an out-of-feed region without shouting', () => {
+  it('lifts an out-of-feed region clear of its resting state', () => {
     expect(hover.opacity).toBeGreaterThan(outOfFeed.opacity!)
   })
 

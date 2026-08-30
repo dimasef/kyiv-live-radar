@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { Home } from '@/store/homeSlice'
 import type { Threat, ThreatEvent } from '@/types'
 
-import { homeDistanceOf } from './homeDistance'
+import { homeDistanceOf, sightingDistanceOf } from './homeDistance'
 
 const HOME: Home = { lat: 50.45, lon: 30.52, radiusKm: 3, origin: 'manual' }
 
@@ -131,5 +131,49 @@ describe('homeDistanceOf', () => {
     expect(homeDistanceOf(threat([event(p.lat, p.lon, 1)], 'city'), HOME)).toBeNull()
     expect(homeDistanceOf(threat([event(null, null, 1)]), HOME)).toBeNull()
     expect(homeDistanceOf(threat([]), HOME)).toBeNull()
+  })
+})
+
+describe('sightingDistanceOf', () => {
+  // The 2026-08-31 report: five feed cards over Боярка, Теремки, Жуляни and
+  // Голосіїв all read «~18 км». They were one track, and every row was
+  // measuring the track's LATEST position instead of its own place.
+  const BOYARKA = event(50.32, 30.29, 25) // ~20 km SW of HOME
+  const GOLOSIIV = event(50.38, 30.51, 27) // ~8 km S of HOME
+
+  it('measures the sighting, not the track it belongs to', () => {
+    const track = threat([BOYARKA, GOLOSIIV])
+    // The track reads as one number, correctly — that is the popup's question.
+    const trackKm = homeDistanceOf(track, HOME)!.km
+    // Each sighting reads as its own, and the two differ by more than rounding.
+    const boyarka = sightingDistanceOf(BOYARKA, HOME)!
+    const golosiiv = sightingDistanceOf(GOLOSIIV, HOME)!
+    expect(Math.abs(boyarka.km - golosiiv.km)).toBeGreaterThan(5)
+    // The newest sighting is what the track shows, so only that one agrees.
+    expect(golosiiv.km).toBeCloseTo(trackKm, 5)
+    expect(boyarka.km).not.toBeCloseTo(trackKm, 1)
+  })
+
+  it('needs no track events, so it survives a page reload', () => {
+    // /events/recent serves feed rows through threat_out_shallow, whose
+    // `events` is always [] — anything track-derived is simply absent there,
+    // which is why the badge used to vanish on refresh.
+    expect(homeDistanceOf(threat([]), HOME)).toBeNull()
+    expect(sightingDistanceOf(GOLOSIIV, HOME)).not.toBeNull()
+  })
+
+  it('points from home toward the place, not away from it', () => {
+    // Голосіїв is south of HOME, so the arrow points down-ish (180°±).
+    expect(sightingDistanceOf(GOLOSIIV, HOME)!.bearingFromHome).toBeGreaterThan(150)
+    expect(sightingDistanceOf(GOLOSIIV, HOME)!.bearingFromHome).toBeLessThan(210)
+  })
+
+  it('flags only a sighting inside the home zone plus its buffer', () => {
+    expect(sightingDistanceOf(BOYARKA, HOME)!.nearHome).toBe(false)
+    expect(sightingDistanceOf(event(HOME.lat, HOME.lon, 1), HOME)!.nearHome).toBe(true)
+  })
+
+  it('returns null for a sighting that never resolved to a place', () => {
+    expect(sightingDistanceOf(event(null, null, 3), HOME)).toBeNull()
   })
 })

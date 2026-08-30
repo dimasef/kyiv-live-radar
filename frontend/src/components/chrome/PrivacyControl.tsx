@@ -26,19 +26,19 @@ export default function PrivacyControl() {
     <div className="mt-2 rounded-xl border border-white/[0.05] bg-white/[0.02] p-3">
       <div className="mb-2.5 flex items-center gap-2">
         <EyeOff size={13} className="text-phosphor-soft/80" />
-        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+        <span className="text-sm font-semibold uppercase tracking-wider text-slate-400">
           {t('settings.privacy')}
         </span>
       </div>
       <div className="flex items-center justify-between gap-3">
-        <p className="min-w-0 text-[13px] text-slate-200">{t('presence.shareLabel')}</p>
+        <p className="min-w-0 text-sm text-slate-200">{t('presence.shareLabel')}</p>
         <Switch
           checked={sharePresence}
           label={t('presence.shareLabel')}
           onChange={() => void setSharePresence(!sharePresence).catch(() => {})}
         />
       </div>
-      <p className="mt-2 text-[11px] leading-snug text-slate-500">{t('presence.shareHint')}</p>
+      <p className="mt-2 text-sm leading-snug text-slate-500">{t('presence.shareHint')}</p>
     </div>
   )
 }

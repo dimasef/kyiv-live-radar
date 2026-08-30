@@ -17,7 +17,7 @@ import { isInFeed, isPinnedRegion } from '@/store/feedRegions'
 // the count is open-ended, so equal shares would shrink to unreadable as
 // regions are added.
 const chip = (on: boolean) =>
-  `rounded-lg border px-2.5 py-1.5 text-[13px] font-medium transition-colors duration-200 ${
+  `rounded-lg border px-2.5 py-1.5 text-sm font-medium transition-colors duration-200 ${
     on
       ? 'border-phosphor/30 bg-phosphor/15 text-phosphor-soft'
       : 'border-transparent bg-white/[0.04] text-slate-400'

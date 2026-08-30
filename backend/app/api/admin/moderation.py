@@ -42,6 +42,7 @@ from ...schemas import (
     EventDistrictIn,
     EventTrackIn,
     IncidentOut,
+    IncidentTypeIn,
     NoticeOut,
     RawNoticeIn,
     RegroupOut,
@@ -141,6 +142,52 @@ async def admin_retype_threat(
         results.append(Broadcast("attack", incident=inc))
     await broadcast_results(session, results)
     return _threat_out(await _threat_with_events(session, threat_id))
+
+
+@router.patch("/admin/incidents/{incident_id}/type", response_model=IncidentOut)
+async def admin_retype_incident(
+    incident_id: int,
+    body: IncidentTypeIn,
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    """Set what is in the air, overriding the types derived from the member
+    tracks — an empty list hands the attack back to that derivation.
+
+    A list because a raid is not always one thing. Naming two weapon families is
+    how the operator says 'комбінована': `attack.classify` reads the same field
+    it always reads and reaches that label itself, so a manual verdict and a
+    derived one are indistinguishable downstream.
+
+    Deliberately does NOT retype the member tracks. They are separate claims:
+    each track says what a spotter reported over one district, the attack says
+    what the raid as a whole is. A ballistic verdict on a raid that also carried
+    shaheds must not rewrite the shahed sightings into ballistic ones — the map,
+    the feed and the regression dataset would all then be wrong about the sky.
+    Retyping one track is its own action (PATCH /admin/threats/{id}).
+
+    For the same reason no ParserCorrection is recorded: this is a judgement
+    about a rollup, not a labelled example of a message the parser misread.
+    """
+    inc = await session.scalar(
+        select(Incident)
+        .where(Incident.id == incident_id)
+        .options(selectinload(Incident.threats).selectinload(Threat.events))
+    )
+    if inc is None:
+        raise HTTPException(status_code=404, detail="incident not found")
+    # Empty list stores NULL, not [], so "no override" has ONE representation —
+    # `recompute_incident_types` and the published `type_override` both read
+    # falsy either way, but two spellings of the same state invite a future
+    # `is not None` check that gets it wrong.
+    inc.type_override = list(body.target_types) or None
+    # Both directions run through here: setting an override applies it, and
+    # clearing one re-derives from the members in the same call.
+    recompute_incident_types(inc)
+    await session.commit()
+    await broadcast_results(session, [Broadcast("attack", incident=inc)])
+    sentinel_id = await citywide_district_id(session)
+    return _incident_out(inc, sentinel_id)
 
 
 @router.post("/admin/incidents/{incident_id}/dismiss", response_model=IncidentOut)

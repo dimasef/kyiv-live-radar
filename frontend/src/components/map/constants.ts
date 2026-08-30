@@ -84,11 +84,17 @@ export const ZONE_FIT_PADDING: [number, number] = [40, 72];
 // to. The fit still only ever zooms OUT — this just stops it short.
 export const ZONE_FIT_MIN_ZOOM = 8;
 
-// Where the oblast layer takes over (RegionLayer). One step below
-// ZONE_FIT_MIN_ZOOM: 8 is documented above as the level where a raion stops
-// being legible, so 7 is the first level where the oblast is the meaningful
-// unit. With MIN_ZOOM at 4 that leaves a comfortable four-level band.
-export const REGION_LAYER_MAX_ZOOM = 7;
+// Where the oblast layer takes over (RegionLayer). Two steps below
+// ZONE_FIT_MIN_ZOOM, not one: 7 is the first level where the oblast is the
+// meaningful unit, but at 7 only two or three of them fit on a phone, so the
+// layer switched on while the screen still looked like a normal map — outlines
+// lit up around the reader's own regions with nothing to compare them against,
+// and it read as the map malfunctioning rather than as a control appearing.
+//
+// At 6 the country is the frame: every oblast is on screen at once, so the lit
+// ones are visibly a SELECTION out of a set, which is what they are. The cost is
+// one level off the band (MIN_ZOOM 4 leaves three).
+export const REGION_LAYER_MAX_ZOOM = 6;
 
 /** Raion air-alert outlines (AlertZoneLayer). Drawn UNDER the Kyiv raion
  * outlines and every marker, so the state has to read at a glance while staying

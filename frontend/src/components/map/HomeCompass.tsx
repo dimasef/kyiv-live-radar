@@ -11,6 +11,7 @@ import { useRadar } from '@/store'
 import {
   edgeMarkerPosition,
   isInsideBox,
+  outsetInsets,
   overlayInsets,
   screenBearing,
   visibleInsets,
@@ -28,6 +29,23 @@ const HOME_ZOOM = 10
 /** Nominal pill footprint, slightly generous — it only decides how far from a
  * corner the pill stops, and overshooting there costs nothing. */
 const PILL = { width: 108, height: 30 }
+
+/** How far PAST the visible box home has to travel before the pointer appears,
+ * as a share of the shorter viewport side.
+ *
+ * Two jobs, both learned the hard way. `visibleInsets` pads every edge out to
+ * VIEW_MARGIN_PX so an edge marker never sits half-clipped — correct for an axis
+ * wedge, which REPLACES the origin it points at, but on its own it made this
+ * pill appear for a home still sitting plainly on screen, quoting a distance to
+ * something the operator could see. And a boundary with no dead zone flickers:
+ * dragging home a few pixels back and forth across the edge popped the pill in
+ * and out under the finger.
+ *
+ * A ratio rather than a px count so "home is well off to the side" reads the
+ * same on a phone and on a desktop. It is measured from the SAFE box, which is
+ * already inset, so the dead zone past the real container edge is what's left
+ * over: ~70 px on a phone, ~250 px on a desktop. */
+const APPEAR_MARGIN_RATIO = 0.35
 
 
 /** Points back to the user's home once they've panned or zoomed away from it,
@@ -59,9 +77,16 @@ export default function HomeCompass({ map }: { map: LeafletMap | null }) {
   const point = map.latLngToContainerPoint([home.lat, home.lon])
   const size = map.getSize()
   const insets = overlayInsets()
-  // Home is visible — nothing to point at. Measured against the safe box, so a
-  // marker sitting under the feed sheet still counts as off-screen.
-  if (isInsideBox(point.x, point.y, size, visibleInsets(insets))) return null
+  // Nothing to point at until home is off screen AND well clear of it. The box
+  // still starts from the safe area, so a home tucked under the feed sheet or
+  // the alert banner counts as gone even though it is technically in frame.
+  const gone = !isInsideBox(
+    point.x,
+    point.y,
+    size,
+    outsetInsets(visibleInsets(insets), APPEAR_MARGIN_RATIO * Math.min(size.x, size.y)),
+  )
+  if (!gone) return null
 
   const bearing = screenBearing(point.x - size.x / 2, point.y - size.y / 2)
   const { left, top } = edgeMarkerPosition(bearing, size, insets, PILL)

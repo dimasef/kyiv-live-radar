@@ -526,7 +526,9 @@
     "pending": "No data yet — coverage is being prepared",
     "add": "Add to the feed",
     "remove": "Remove from the feed",
-    "hint": "Tap an oblast to add it to your feed"
+    "hint": "Tap an oblast to add it to your feed",
+    "makePrimary": "Make it my region",
+    "makePrimaryHint": "The feed, alerts and notifications switch to this region"
   },
   "currentRegion": {
     "title": "My oblast",

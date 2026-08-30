@@ -18,7 +18,7 @@ export default function ReportBugControl() {
       }}
       className="group mt-3 flex w-full items-center justify-between gap-2 border-t border-white/[0.06] pt-3 text-left"
     >
-      <span className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500">
+      <span className="flex items-center gap-2 text-sm uppercase tracking-wider text-slate-500">
         <Bug size={13} />
         {t('bug.title')}
       </span>

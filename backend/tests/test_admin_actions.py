@@ -558,3 +558,227 @@ async def test_track_detail_requires_admin(client):
     d = await _district(s)
     threat, _ = await _threat_with_event(s, d)
     assert (await c.get(f"/admin/threats/{threat.id}")).status_code in (401, 403)
+
+
+async def test_manual_attack_type_overrides_the_derived_one(client):
+    """PATCH /admin/incidents/{id}/type — the operator's verdict on a raid.
+
+    Both published fields have to move: `target_type` (the label) and
+    `classification` (derived from attack_types by domain/attack.classify).
+    Setting only the first would leave the banner announcing 'combined' over an
+    attack the operator just called ballistic, which is the mismatch the
+    override exists to fix.
+    """
+    c, s = client
+    headers = await _admin_headers(s)
+    d = await _district(s)
+    inc = Incident(target_type="shahed", attack_types=["shahed", "missile"])
+    s.add(inc)
+    await s.commit()
+    await _threat_with_event(s, d, target_type="shahed", incident=inc)
+
+    assert (await c.get("/incidents/active")).json()[0]["classification"] == "combined"
+
+    r = await c.patch(
+        f"/admin/incidents/{inc.id}/type", json={"target_types": ["ballistic"]}, headers=headers
+    )
+    assert r.status_code == 200
+    assert r.json()["target_type"] == "ballistic"
+    assert r.json()["classification"] == "ballistic"
+    assert r.json()["type_override"] == ["ballistic"]
+
+    live = (await c.get("/incidents/active")).json()[0]
+    assert live["target_type"] == "ballistic"
+    assert live["classification"] == "ballistic"
+
+
+async def test_manual_attack_type_survives_a_new_member_track(client):
+    """The whole reason it is a stored column. `recompute_incident_types` runs on
+    every attach, so a plain write to `target_type` would be erased by the next
+    sighting — seconds away during a live raid."""
+    from app.domain.incidents import attach_to_incident
+
+    c, s = client
+    headers = await _admin_headers(s)
+    d = await _district(s)
+    inc = Incident(target_type="shahed", attack_types=["shahed"])
+    s.add(inc)
+    await s.commit()
+    await _threat_with_event(s, d, target_type="shahed", incident=inc)
+
+    await c.patch(
+        f"/admin/incidents/{inc.id}/type", json={"target_types": ["ballistic"]}, headers=headers
+    )
+
+    # A fresh shahed sighting joins the attack, exactly as the live pipeline does.
+    newcomer, _ = await _threat_with_event(s, d, target_type="shahed")
+    await attach_to_incident(s, newcomer, utcnow())
+
+    await s.refresh(inc)
+    assert inc.target_type == "ballistic"
+    assert inc.attack_types == ["ballistic"]
+    assert (await c.get("/incidents/active")).json()[0]["classification"] == "ballistic"
+
+
+async def test_clearing_the_override_returns_to_the_derived_type(client):
+    c, s = client
+    headers = await _admin_headers(s)
+    d = await _district(s)
+    inc = Incident(target_type="shahed", attack_types=["shahed"])
+    s.add(inc)
+    await s.commit()
+    await _threat_with_event(s, d, target_type="shahed", incident=inc)
+
+    await c.patch(
+        f"/admin/incidents/{inc.id}/type", json={"target_types": ["ballistic"]}, headers=headers
+    )
+    r = await c.patch(
+        f"/admin/incidents/{inc.id}/type", json={"target_types": []}, headers=headers
+    )
+    assert r.status_code == 200
+    assert r.json()["type_override"] is None
+    # Back to what the members say.
+    assert r.json()["target_type"] == "shahed"
+    assert r.json()["classification"] == "drone"
+
+
+async def test_manual_attack_type_leaves_the_member_tracks_alone(client):
+    """A verdict on the raid is not a verdict on each sighting: rewriting the
+    tracks would make the map and the regression dataset claim a spotter said
+    something they did not."""
+    c, s = client
+    headers = await _admin_headers(s)
+    d = await _district(s)
+    inc = Incident(target_type="shahed", attack_types=["shahed"])
+    s.add(inc)
+    await s.commit()
+    threat, _ = await _threat_with_event(s, d, target_type="shahed", incident=inc)
+
+    await c.patch(
+        f"/admin/incidents/{inc.id}/type", json={"target_types": ["ballistic"]}, headers=headers
+    )
+
+    await s.refresh(threat)
+    assert threat.target_type == "shahed"
+    # And no correction was harvested — this is a rollup judgement, not a
+    # labelled example of a misread message.
+    from app.models import ParserCorrection
+
+    assert await s.scalar(select(func.count()).select_from(ParserCorrection)) == 0
+
+
+async def test_retype_unknown_incident_404(client):
+    c, s = client
+    headers = await _admin_headers(s)
+    r = await c.patch(
+        "/admin/incidents/999999/type", json={"target_types": ["ballistic"]}, headers=headers
+    )
+    assert r.status_code == 404
+
+
+async def test_manual_combined_attack(client):
+    """A raid of several weapon families reads as 'комбінована', and the operator
+    has to be able to say so.
+
+    This is why the override is a LIST. `attack.classify` calls it combined only
+    when it sees ≥2 families, and 'combined' is a derived LABEL — not a member of
+    the TargetType enum — so no single value could ever have expressed it.
+    """
+    c, s = client
+    headers = await _admin_headers(s)
+    d = await _district(s)
+    inc = Incident(target_type="shahed", attack_types=["shahed"])
+    s.add(inc)
+    await s.commit()
+    await _threat_with_event(s, d, target_type="shahed", incident=inc)
+
+    assert (await c.get("/incidents/active")).json()[0]["classification"] == "drone"
+
+    r = await c.patch(
+        f"/admin/incidents/{inc.id}/type",
+        json={"target_types": ["shahed", "ballistic"]},
+        headers=headers,
+    )
+    assert r.status_code == 200
+    assert r.json()["classification"] == "combined"
+    # Labelled by the most dangerous of them, same rule the derived path uses.
+    assert r.json()["target_type"] == "ballistic"
+    assert r.json()["attack_types"] == ["shahed", "ballistic"]
+    assert r.json()["type_override"] == ["shahed", "ballistic"]
+
+    live = (await c.get("/incidents/active")).json()[0]
+    assert live["classification"] == "combined"
+
+
+async def test_two_types_of_one_family_are_not_combined(client):
+    """Shahed and a jet drone are both drones. Deriving that stays classify's
+    job — the override must not turn "two types" into "combined" by itself."""
+    c, s = client
+    headers = await _admin_headers(s)
+    d = await _district(s)
+    inc = Incident(target_type="shahed", attack_types=["shahed"])
+    s.add(inc)
+    await s.commit()
+    await _threat_with_event(s, d, target_type="shahed", incident=inc)
+
+    r = await c.patch(
+        f"/admin/incidents/{inc.id}/type",
+        json={"target_types": ["shahed", "jet_drone"]},
+        headers=headers,
+    )
+    assert r.json()["classification"] == "drone"
+    assert r.json()["target_type"] == "jet_drone"
+
+
+async def test_combined_override_survives_a_new_member_track(client):
+    from app.domain.incidents import attach_to_incident
+
+    c, s = client
+    headers = await _admin_headers(s)
+    d = await _district(s)
+    inc = Incident(target_type="shahed", attack_types=["shahed"])
+    s.add(inc)
+    await s.commit()
+    await _threat_with_event(s, d, target_type="shahed", incident=inc)
+    await c.patch(
+        f"/admin/incidents/{inc.id}/type",
+        json={"target_types": ["shahed", "ballistic"]},
+        headers=headers,
+    )
+
+    newcomer, _ = await _threat_with_event(s, d, target_type="missile")
+    await attach_to_incident(s, newcomer, utcnow())
+
+    await s.refresh(inc)
+    assert inc.attack_types == ["shahed", "ballistic"]
+    assert (await c.get("/incidents/active")).json()[0]["classification"] == "combined"
+
+
+async def test_unknown_drops_out_of_a_manual_set(client):
+    """'unknown' carries no weapon family, so it can't make an attack combined
+    and must not sit in attack_types pretending to."""
+    c, s = client
+    headers = await _admin_headers(s)
+    d = await _district(s)
+    inc = Incident(target_type="shahed", attack_types=["shahed"])
+    s.add(inc)
+    await s.commit()
+    await _threat_with_event(s, d, target_type="shahed", incident=inc)
+
+    r = await c.patch(
+        f"/admin/incidents/{inc.id}/type",
+        json={"target_types": ["unknown", "missile"]},
+        headers=headers,
+    )
+    assert r.json()["attack_types"] == ["missile"]
+    assert r.json()["classification"] == "cruise_missile"
+
+    # Only 'unknown' named: an override that says nothing about a family.
+    r = await c.patch(
+        f"/admin/incidents/{inc.id}/type", json={"target_types": ["unknown"]}, headers=headers
+    )
+    assert r.json()["attack_types"] == []
+    assert r.json()["target_type"] == "unknown"
+    assert r.json()["classification"] == "unknown"
+    # Still an override, not a fall-back to the members' 'shahed'.
+    assert r.json()["type_override"] == ["unknown"]

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { edgeMarkerPosition, isInsideBox, screenBearing } from './edgeProjection'
+import { edgeMarkerPosition, isInsideBox, outsetInsets, screenBearing } from './edgeProjection'
 
 describe('edgeMarkerPosition', () => {
   // A phone-ish map with the alert banner up top and the feed sheet below.
@@ -64,6 +64,45 @@ describe('isInsideBox', () => {
   it('rejects a point hidden under the feed sheet or the banner', () => {
     expect(isInsideBox(195, size.y - insets.bottom + 1, size, insets)).toBe(false)
     expect(isInsideBox(195, insets.top - 1, size, insets)).toBe(false)
+  })
+})
+
+describe('outsetInsets', () => {
+  // The HomeCompass dead zone: home must clear the visible box by a real
+  // distance before the pointer is worth showing. Numbers mirror the component
+  // — a phone-ish map, the safe box, and a quarter of the shorter side.
+  const size = { x: 390, y: 780 }
+  const safe = { top: 64, right: 56, bottom: 76, left: 56 }
+  // Mirrors APPEAR_MARGIN_RATIO in HomeCompass — the component can't be imported
+  // here (it pulls Leaflet into a DOM-free suite), so the number is restated.
+  const margin = 0.35 * Math.min(size.x, size.y) // 136.5
+  const zone = outsetInsets(safe, margin)
+
+  it('lets the box run past the container edge', () => {
+    // Negative insets are the point: "97 px beyond the left edge" has no
+    // expression inside the container.
+    expect(zone.left).toBeLessThan(0)
+    expect(zone.right).toBeLessThan(0)
+  })
+
+  it('still counts a home just off the edge as present', () => {
+    // The regression this fixes: at x = 20 home is plainly on screen, yet the
+    // bare safe box (left = 56) called it gone and showed a distance to
+    // something the operator could see.
+    expect(isInsideBox(20, 400, size, safe)).toBe(false)
+    expect(isInsideBox(20, 400, size, zone)).toBe(true)
+    // Even a little past the edge is still "just up there", not gone.
+    expect(isInsideBox(-40, 400, size, zone)).toBe(true)
+  })
+
+  it('reports home as gone once it clears the dead zone', () => {
+    expect(isInsideBox(-160, 400, size, zone)).toBe(false)
+    expect(isInsideBox(size.x + 160, 400, size, zone)).toBe(false)
+    expect(isInsideBox(195, -160, size, zone)).toBe(false)
+  })
+
+  it('leaves the box unchanged at zero', () => {
+    expect(outsetInsets(safe, 0)).toEqual(safe)
   })
 })
 

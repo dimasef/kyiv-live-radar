@@ -320,6 +320,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/incidents/{incident_id}/type": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Admin Retype Incident
+         * @description Set what is in the air, overriding the types derived from the member
+         *     tracks — an empty list hands the attack back to that derivation.
+         *
+         *     A list because a raid is not always one thing. Naming two weapon families is
+         *     how the operator says 'комбінована': `attack.classify` reads the same field
+         *     it always reads and reaches that label itself, so a manual verdict and a
+         *     derived one are indistinguishable downstream.
+         *
+         *     Deliberately does NOT retype the member tracks. They are separate claims:
+         *     each track says what a spotter reported over one district, the attack says
+         *     what the raid as a whole is. A ballistic verdict on a raid that also carried
+         *     shaheds must not rewrite the shahed sightings into ballistic ones — the map,
+         *     the feed and the regression dataset would all then be wrong about the sky.
+         *     Retyping one track is its own action (PATCH /admin/threats/{id}).
+         *
+         *     For the same reason no ParserCorrection is recorded: this is a judgement
+         *     about a rollup, not a labelled example of a message the parser misread.
+         */
+        patch: operations["admin_retype_incident_admin_incidents__incident_id__type_patch"];
+        trace?: never;
+    };
     "/admin/notices/{notice_id}": {
         parameters: {
             query?: never;
@@ -2732,6 +2768,29 @@ export interface components {
              * @default 0
              */
             track_count: number;
+            /** Type Override */
+            type_override?: ("shahed" | "jet_drone" | "fpv" | "kab" | "missile" | "ballistic" | "unknown")[] | null;
+        };
+        /**
+         * IncidentTypeIn
+         * @description PATCH /admin/incidents/{id}/type — the operator's verdict on what is in
+         *     the air.
+         *
+         *     A LIST, because a raid is not always one thing: naming two weapon families
+         *     is how 'комбінована' is expressed, and attack.classify then derives that
+         *     label itself rather than it having to be a magic value the TargetType enum
+         *     does not contain.
+         *
+         *     An empty list (or null) clears the override and hands the attack back to the
+         *     derivation from its member tracks — which is why this can't reuse
+         *     `ThreatTypeIn`: a track's type is one value and has no "auto" to return to.
+         */
+        IncidentTypeIn: {
+            /**
+             * Target Types
+             * @default []
+             */
+            target_types: ("shahed" | "jet_drone" | "fpv" | "kab" | "missile" | "ballistic" | "unknown")[];
         };
         /**
          * JournalAlertWindowOut
@@ -4606,6 +4665,43 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_retype_incident_admin_incidents__incident_id__type_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                incident_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IncidentTypeIn"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

@@ -45,13 +45,13 @@ export default function GamificationControl() {
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Sparkles size={13} className="text-phosphor-soft/80" />
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+          <span className="text-sm font-semibold uppercase tracking-wider text-slate-400">
             {t('game.settingsTitle')}
           </span>
         </div>
         <Switch checked={on} onChange={change} label={t('game.settingsTitle')} />
       </div>
-      <p className="mt-2 text-[11px] leading-snug text-slate-500">{t('game.settingsHint')}</p>
+      <p className="mt-2 text-sm leading-snug text-slate-500">{t('game.settingsHint')}</p>
 
       {authOpen && <AuthModal onClose={closeAuth} />}
       {confirming && (

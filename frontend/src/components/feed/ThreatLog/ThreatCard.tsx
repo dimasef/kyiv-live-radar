@@ -2,7 +2,6 @@ import { Sparkles, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import HomeDistance from '@/components/common/HomeDistance'
 import { useRadar } from '@/store'
 import { CountBadge, typeLabel } from '@/threatDisplay'
 import { threatColor } from '@/theme'
@@ -10,6 +9,7 @@ import type { FeedEntry } from '@/types'
 
 import { DevId, DevSource, EventTime, SourceName } from './badges'
 import ClampText from './ClampText'
+import SightingDistance from './SightingDistance'
 import StatusChip from './StatusChip'
 import TypeGlyph from './TypeGlyph'
 
@@ -67,8 +67,9 @@ export default function ThreatCard({ event, threat }: FeedEntry) {
             count={event.event_target_count ?? threat.target_count}
             className="ml-1 font-mono font-semibold text-amber-400"
           />
-          {/* Only for targets near home or closing on it — see HomeDistance. */}
-          <HomeDistance threat={threat} notableOnly className="ml-0.5 flex-none text-[10px]" />
+          {/* THIS sighting's distance, not the track's — same rule as the count
+              badge above. Only for a callout inside the home zone. */}
+          <SightingDistance event={event} className="ml-0.5 flex-none text-[10px]" />
         </span>
         <span className="flex items-center gap-1.5">
           {rescued && (

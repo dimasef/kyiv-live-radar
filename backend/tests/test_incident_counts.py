@@ -34,6 +34,10 @@ def _incident(threats):
         ended_reason=None,
         target_type="jet_drone",
         attack_types=["jet_drone"],
+        # No operator override — the derived type stands. This stub has to name
+        # every field incident_out reads, so a new one shows up here as an
+        # AttributeError rather than as a wrong number.
+        type_override=None,
         alert_id=None,
         decoy_mentions=0,
         has_hypersonic=False,

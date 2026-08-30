@@ -2,6 +2,7 @@ import L from 'leaflet'
 import { useEffect } from 'react'
 import { GeoJSON, Popup, useMap } from 'react-leaflet'
 
+import { touchPrimary } from '@/lib/device'
 import { currentRegion } from '@/lib/regions'
 import { useRadar } from '@/store'
 import { isInFeed, isPinnedRegion } from '@/store/feedRegions'
@@ -9,6 +10,7 @@ import { isInFeed, isPinnedRegion } from '@/store/feedRegions'
 import { REGION_LAYER_MAX_ZOOM } from '../constants'
 import { tagPath } from '../tagPath'
 import { useMapZoom } from '../useMapZoom'
+import RegionBadges from './RegionBadges'
 import RegionMenu from './RegionMenu'
 import { regionHoverStyle, regionStyle } from './regionStyle'
 
@@ -43,6 +45,10 @@ export default function RegionLayer() {
   const followed = useRadar((s) => currentRegion(s))
 
   const visible = zoom != null && zoom <= REGION_LAYER_MAX_ZOOM
+  // The desktop affordance for all of this is a hover, which a finger does not
+  // have — so a touch screen gets a visible badge per oblast instead. Read at
+  // render, like every other caller: it is a media query, not a device class.
+  const badges = touchPrimary()
 
   // Entering the band is a moment, not a render: it lazily pulls the polygons
   // and raises the one-time hint, both of which write to the store. Doing that
@@ -89,6 +95,7 @@ export default function RegionLayer() {
           </GeoJSON>
         )
       })}
+      {badges && <RegionBadges regions={regions.filter((r) => outlines[r.id])} />}
     </>
   )
 }

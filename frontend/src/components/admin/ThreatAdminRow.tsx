@@ -6,11 +6,8 @@ import { dismissThreat, setThreatType } from '@/api'
 import type { TargetType, Threat } from '@/types'
 
 import AdminActionButton from './AdminActionButton'
+import { ADMIN_TARGET_TYPES } from './adminLayout'
 import EventAdminRow from './EventAdminRow'
-
-const TARGET_TYPES: TargetType[] = [
-  'shahed', 'jet_drone', 'fpv', 'missile', 'ballistic', 'unknown',
-]
 
 /** One active track: retype its target, cancel it (false positive), or expand
  * to edit its individual sightings. */
@@ -38,7 +35,7 @@ export default function ThreatAdminRow({ threat }: { threat: Threat }) {
           }}
           className="ml-auto rounded-md border border-white/15 bg-ink-900 px-1.5 py-1 text-xs text-slate-200"
         >
-          {TARGET_TYPES.map((tt) => (
+          {ADMIN_TARGET_TYPES.map((tt) => (
             <option key={tt} value={tt}>
               {t(`target.${tt}`)}
             </option>

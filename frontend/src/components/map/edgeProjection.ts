@@ -36,6 +36,19 @@ export function visibleInsets(i: EdgeInsets): EdgeInsets {
   }
 }
 
+/** The same box grown OUTWARD by `px` on every side.
+ *
+ * Insets go negative once the box passes the container edge, which is exactly
+ * what "this far off screen" has to mean — `isInsideBox` compares plain
+ * numbers, so it reads a negative inset as intended.
+ *
+ * For a hysteresis margin: something has to clear the visible area by a real
+ * distance before an edge marker is worth showing, otherwise the marker flickers
+ * in and out while the map is dragged along that boundary. */
+export function outsetInsets(i: EdgeInsets, px: number): EdgeInsets {
+  return { top: i.top - px, right: i.right - px, bottom: i.bottom - px, left: i.left - px }
+}
+
 /** Top-left px of an edge marker of the given size, for a compass bearing,
  * projected onto the box left after `insets` and kept fully inside it.
  *

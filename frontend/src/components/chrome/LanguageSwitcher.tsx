@@ -6,7 +6,7 @@ export default function LanguageSwitcher() {
   const { i18n } = useTranslation()
   const langs = ['uk', 'en']
   return (
-    <div className="flex rounded-full border border-white/10 bg-white/[0.04] p-0.5 text-[11px] font-mono">
+    <div className="flex rounded-full border border-white/10 bg-white/[0.04] p-0.5 text-sm font-mono">
       {langs.map((l) => {
         const active = i18n.language.startsWith(l)
         return (

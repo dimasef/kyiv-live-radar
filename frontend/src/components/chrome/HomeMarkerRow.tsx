@@ -37,8 +37,8 @@ export default function HomeMarkerRow() {
       >
         <MarkerGlyph icon={style.icon} color={style.color} size={18} glow={style.glow} />
         <span className="min-w-0 flex-1">
-          <span className="block text-[13px] text-slate-200">{t('marker.edit')}</span>
-          <span className="block truncate text-[11px] text-slate-500">{shape}</span>
+          <span className="block text-sm text-slate-200">{t('marker.edit')}</span>
+          <span className="block truncate text-sm text-slate-500">{shape}</span>
         </span>
         <ChevronRight size={15} className="flex-none text-slate-500" />
       </button>

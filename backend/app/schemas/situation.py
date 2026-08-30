@@ -52,6 +52,12 @@ class IncidentOut(BaseModel):
     # --- Attack classification (derived — see app/attack.py::classify) ---
     classification: str = "unknown"  # 'drone'|'cruise_missile'|'ballistic'|'combined'|'unknown'
     attack_types: list[str] = []
+    # The operator's manual verdict — the types they say are in the air — or
+    # null when the attack's type is derived from its member tracks. Published
+    # so the admin console can show WHICH of the two a row is showing and offer
+    # "back to auto"; `target_type` alone cannot say, and under a combined
+    # override it names only the most severe of several.
+    type_override: list[TargetType] | None = None
     alert_id: int | None = None
     decoy_suspected: bool = False
     has_hypersonic: bool = False

@@ -563,6 +563,22 @@ class Incident(Base):
     # app/attack.py::classify, which derives the family/combined label from
     # this at serialization time — never stored itself).
     attack_types: Mapped[list] = mapped_column(JSON, default=list)
+    # Operator's manual verdict on what is in the air, overriding both fields
+    # above. NULL = derive them from the member tracks, the normal path.
+    #
+    # A LIST, mirroring `attack_types`, because an attack is not always one
+    # thing: several weapon families at once is 'комбінована', and
+    # domain/attack.classify only says that when it is given ≥2 families. A
+    # single value could never express it — and 'combined' cannot be a value
+    # here either, since it is a derived label, not a TargetType.
+    #
+    # Stored rather than written straight onto `target_type`/`attack_types`
+    # because those two are rebuilt from the members by
+    # `recompute_incident_types` on EVERY attach: during a live raid the next
+    # sighting is seconds away, so a plain write would be erased before the
+    # operator finished reading it. The override is consulted inside that same
+    # function, the one place either field is ever derived.
+    type_override: Mapped[list | None] = mapped_column(JSON, nullable=True)
     # The official alert (see models.Alert) this attack belongs to, if any —
     # linked either forward (a new incident joins an already-open city alert)
     # or retroactively (a ballistic incident often starts before the siren;

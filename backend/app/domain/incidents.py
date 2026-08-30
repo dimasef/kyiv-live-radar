@@ -11,6 +11,7 @@ api/routes.py), not stored here.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from datetime import datetime, timedelta
 
 from sqlalchemy import func, select
@@ -87,18 +88,37 @@ def recompute_incident_types(inc: Incident) -> None:
     threats — needed after an admin retypes or removes a member track, where the
     accumulate-only `attach_to_incident` path can't shrink the set. Requires
     `inc.threats` to be loaded (selectinload). Ignores dismissed tracks so a
-    cancelled false positive can't keep an obsolete type alive."""
-    types = sorted(
-        {
-            t.target_type
-            for t in inc.threats
-            if t.target_type not in (None, "unknown")
-            and t.closed_reason != "dismissed"
-        },
-        key=lambda tt: _SEVERITY.get(tt, 0),
+    cancelled false positive can't keep an obsolete type alive.
+
+    An operator's `type_override` wins over all of it. This is the ONLY place
+    either field is derived, and every writer goes through here — the attach
+    path, an admin track retype, a deleted sighting, a deleted source — which is
+    what makes the override hold instead of surviving until the next sighting.
+    """
+    if inc.type_override:
+        # Same shape the derived path produces, so everything downstream —
+        # `attack.classify` above all — cannot tell the two apart. That is what
+        # makes 'комбінована' expressible by hand: name two families and the
+        # classifier reaches its own conclusion, exactly as it does for a raid
+        # it worked out itself. 'unknown' carries no family, so it drops out
+        # rather than becoming a member of the set.
+        inc.attack_types = _by_severity(t for t in inc.type_override if t != "unknown")
+        inc.target_type = inc.attack_types[-1] if inc.attack_types else "unknown"
+        return
+    types = _by_severity(
+        t.target_type
+        for t in inc.threats
+        if t.target_type not in (None, "unknown") and t.closed_reason != "dismissed"
     )
     inc.attack_types = types
     inc.target_type = types[-1] if types else "unknown"
+
+
+def _by_severity(types: Iterable[str]) -> list[str]:
+    """Deduplicated and ordered least → most dangerous, so the tail is the label
+    `target_type` takes. Shared by both branches above, which is what keeps a
+    manual override indistinguishable in shape from a derived one."""
+    return sorted(set(types), key=lambda tt: _SEVERITY.get(tt, 0))
 
 
 

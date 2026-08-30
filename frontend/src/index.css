@@ -917,6 +917,22 @@ body::after {
     transition: none;
   }
 }
+
+/* The oblast state chip on a touch screen (RegionBadges). The class REPLACES
+   Leaflet's own .leaflet-div-icon rather than joining it, which is what keeps
+   the white box and grey border off — same trick as .threat-icon.
+
+   The element is deliberately bigger than the glyph it holds (BADGE_HIT vs
+   BADGE_SIZE) so a thumb has ~40 px to land on, and this centres the drawing
+   inside it. Padding could NOT do that job: Leaflet writes width/height inline
+   from iconSize, and Tailwind's preflight sets border-box, so padding would eat
+   into the glyph instead of growing the target. */
+.region-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
 /* An alerted raion is a lit edge, not a red wash — the filter replaces the
    polygon's fill with a band of glow hugging the inside of its border (see
    ZoneGlowDefs). Non-interactive: the outline path below it owns the cursor and
