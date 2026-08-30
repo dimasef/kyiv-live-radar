@@ -285,6 +285,15 @@ export const fetchCoverageCandidates = (limit = 60, scan?: number) =>
     `/admin/coverage_candidates?limit=${limit}${scan ? `&scan=${scan}` : ''}`,
   )
 
+// Each returns the FULL dismissed list, so the caller never has to guess what
+// the server now holds after its own mutation.
+export const fetchDismissedToponyms = () =>
+  get<string[]>('/admin/coverage_candidates/dismissed')
+export const dismissToponym = (name: string) =>
+  send<string[]>('/admin/coverage_candidates/dismiss', 'POST', { name })
+export const restoreToponym = (name: string) =>
+  send<string[]>(`/admin/coverage_candidates/dismiss/${encodeURIComponent(name)}`, 'DELETE')
+
 export type Correction = Schemas['CorrectionOut']
 export const fetchCorrections = (limit = 100) =>
   get<Correction[]>(`/admin/corrections?limit=${limit}`)
@@ -326,6 +335,25 @@ export const deactivateSource = (id: number) =>
 /** HARD delete — removes the channel AND all its stored messages/events. */
 export const deleteSource = (id: number) =>
   send<SourceDeleteResult>(`/admin/sources/${id}`, 'DELETE')
+
+// --- Admin users ---
+// `AdminUser`, not `User`: that name is the signed-in user's own profile
+// (types.ts), and this is the operator's view of somebody else's account.
+export type AdminUser = Schemas['AdminUserOut']
+export const fetchUsers = () => get<AdminUser[]>('/admin/users')
+/** Blocking is enforced server-side on every authenticated request, so the
+ * target's live session dies on their next one — not only at next login. */
+export const blockUser = (id: number) => send<AdminUser>(`/admin/users/${id}/block`, 'POST')
+export const unblockUser = (id: number) => send<AdminUser>(`/admin/users/${id}/unblock`, 'POST')
+/** Only 'user' and 'admin_g' are assignable — plain 'admin' is recomputed from
+ * the env allowlists on every login, so it can't be granted durably. */
+export type AssignableRole = Schemas['AdminUserRoleIn']['role']
+export const setUserRole = (id: number, role: AssignableRole) =>
+  send<AdminUser>(`/admin/users/${id}/role`, 'PATCH', { role })
+export type AdminUserDeleteResult = Schemas['AdminUserDeleteOut']
+/** HARD delete — removes the account, its logins, friendships and cards. */
+export const deleteUser = (id: number) =>
+  send<AdminUserDeleteResult>(`/admin/users/${id}`, 'DELETE')
 
 // --- Admin reprocess (rebuild tracks from raw messages) — replaces the
 // REPROCESS_ON_BOOT env+restart footgun with a guarded, one-click apply. ---

@@ -5,11 +5,13 @@ account-linking and role rules live in exactly one place.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
-from ..models import OAuthIdentity, User, utcnow
+from ..models import OAuthIdentity, RoleSource, User, utcnow
 from .security import encode_access, encode_refresh
 
 
@@ -23,6 +25,39 @@ def role_for(verified_email: str | None, telegram_ids: list[int]) -> str:
     if any(tid in admin_tg for tid in telegram_ids):
         return "admin"
     return "user"
+
+
+def telegram_ids_in(identities: Iterable[OAuthIdentity]) -> list[int]:
+    """The numeric Telegram ids among already-loaded identity rows.
+
+    The object-graph twin of `_telegram_ids_for` below, which selects the column
+    straight from the DB for the login path. Kept separate on purpose: a list
+    view has the rows in hand (selectinload) and must not emit a query per user,
+    while the login path has no reason to load whole identity objects."""
+    out: list[int] = []
+    for identity in identities:
+        if identity.provider != "telegram":
+            continue
+        try:
+            out.append(int(identity.provider_user_id))
+        except (TypeError, ValueError):
+            pass
+    return out
+
+
+def role_source_for(user: User, identities: Sequence[OAuthIdentity]) -> RoleSource:
+    """WHY this user's role is what it is — see models.RoleSource.
+
+    Pure: the caller supplies the eagerly-loaded identities, so serializing a
+    whole page of users costs no extra query. Lives here, next to `role_for` and
+    `resolve_and_set_role`, because all three read the same allowlists and must
+    never disagree about what they mean."""
+    if user.role == "admin_g":
+        return "manual"
+    verified_email = user.email if user.email_verified else None
+    if role_for(verified_email, telegram_ids_in(identities)) == "admin":
+        return "allowlist"
+    return "default"
 
 
 async def _telegram_ids_for(session: AsyncSession, user: User) -> list[int]:

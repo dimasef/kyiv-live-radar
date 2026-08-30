@@ -1,3 +1,5 @@
+import { FilterX } from 'lucide-react'
+
 import { useRadar } from '@/store'
 import type { RawOutcomeFilter, RawSource, Region } from '@/types'
 
@@ -29,6 +31,8 @@ export default function RawFilterBar({
   onSourceIdsChange,
   regions: pickedRegions,
   onRegionsChange,
+  canReset,
+  onReset,
 }: {
   search: string
   onSearchChange: (v: string) => void
@@ -41,6 +45,9 @@ export default function RawFilterBar({
   onSourceIdsChange: (v: number[]) => void
   regions: Region[]
   onRegionsChange: (v: Region[]) => void
+  /** Whether anything is filtered at all — the reset appears only then. */
+  canReset: boolean
+  onReset: () => void
 }) {
   // From the server catalogue, so a newly declared region is filterable the day
   // it exists — and one with no coverage yet is still offered, because "did
@@ -86,6 +93,20 @@ export default function RawFilterBar({
       />
       <FilterSelect options={OUTCOME_OPTIONS} value={outcome} onChange={onOutcomeChange} />
       <FilterSelect options={LLM_OPTIONS} value={llm} onChange={onLlmChange} />
+      {/* Only while something IS filtered: five controls deep, the way back to
+          the whole feed is otherwise five separate clicks, and each dropdown's
+          own «Очистити» clears just itself. */}
+      {canReset && (
+        <button
+          type="button"
+          onClick={onReset}
+          title="Скинути всі фільтри"
+          className="flex items-center gap-1 rounded-lg border border-white/[0.08] bg-white/[0.03] px-2 py-1.5 text-xs font-medium text-slate-400 transition-colors hover:text-slate-100"
+        >
+          <FilterX size={13} />
+          Скинути
+        </button>
+      )}
     </div>
   )
 }

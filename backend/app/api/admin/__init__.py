@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from . import bugs, learning, moderation, reprocess, sources
+from . import bugs, learning, moderation, reprocess, sources, users
 
 router = APIRouter()
-for _module in (moderation, learning, reprocess, sources, bugs):
+for _module in (moderation, learning, reprocess, sources, bugs, users):
     router.include_router(_module.router)

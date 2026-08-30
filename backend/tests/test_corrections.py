@@ -228,3 +228,92 @@ def test_corrections_eval_check():
     )
     agrees, _ = check(rt, m)
     assert agrees is True
+
+
+async def test_channel_signature_never_ranks_as_a_place(client):
+    """A footer repeats mechanically, so on a list ranked by FREQUENCY it beats
+    every real village. Live on 2026-08-30 «Підписатись | Відправити новину»
+    held three of the queue's top six rows while Володимирівка — eight real
+    callouts in the same window — was nowhere on it."""
+    c, s = client
+    headers = await _admin_headers(s)
+    src = Source(channel_key="s-sig", name="Sig")
+    s.add(src)
+    await s.commit()
+    # Six posts carrying the same signature line, and one real bare callout.
+    for i in range(6):
+        s.add(RawMessage(source_id=src.id, message_id=6100 + i,
+                         text=f"Ціль {i} рухається\nПідписатись | Відправити новину"))
+    s.add(RawMessage(source_id=src.id, message_id=6200, text="Володимирівка"))
+    await s.commit()
+
+    r = await c.get("/admin/coverage_candidates", headers=headers)
+    names = [row["name"] for row in r.json()]
+    assert "володимирівка" in names
+    for footer_word in ("підписатись", "відправити", "новину"):
+        assert footer_word not in names
+
+
+async def test_a_word_only_counts_where_a_place_stands(client):
+    """A long post contributes every noun it contains, which is what buried the
+    ranking. The four positions in `_place_positions` are what a callout uses —
+    including being the whole short message, the northern channels' own form."""
+    c, s = client
+    headers = await _admin_headers(s)
+    src = Source(channel_key="s-pos", name="Pos")
+    s.add(src)
+    await s.commit()
+    s.add_all([
+        RawMessage(source_id=src.id, message_id=6300, text="Жукотки"),
+        RawMessage(source_id=src.id, message_id=6301, text="Довжик на жукля"),
+        RawMessage(source_id=src.id, message_id=6302, text="Строївка/Паперня 4"),
+        # Prose: the unknown words sit nowhere a place could stand.
+        RawMessage(source_id=src.id, message_id=6303, text=(
+            "Хочу подякувати кожному, хто лишається з нами цієї виснажливої "
+            "доби, ваша підтримка неймовірно допомагає тримати цей ресурс "
+            "живим щодня попри втому")),
+    ])
+    await s.commit()
+
+    r = await c.get("/admin/coverage_candidates", headers=headers)
+    names = {row["name"] for row in r.json()}
+    assert {"жукотки", "жукля", "строївка", "паперня"} <= names
+    assert "виснажливої" not in names
+    assert "неймовірно" not in names
+
+
+async def test_operator_can_rule_a_candidate_out_and_put_it_back(client):
+    """The queue's word lists live in code because each is a decision with a
+    failure mode; this is their operator-editable half — one exact word, no
+    deploy, and reversible."""
+    c, s = client
+    headers = await _admin_headers(s)
+    src = Source(channel_key="s-dis", name="Dis")
+    s.add(src)
+    await s.commit()
+    s.add(RawMessage(source_id=src.id, message_id=6400, text="Огірками"))
+    await s.commit()
+
+    assert "огірками" in {row["name"] for row in (
+        await c.get("/admin/coverage_candidates", headers=headers)).json()}
+
+    r = await c.post("/admin/coverage_candidates/dismiss",
+                     json={"name": "Огірками"}, headers=headers)
+    assert r.status_code == 200
+    assert r.json() == ["огірками"]  # normalized, and echoed back in full
+
+    assert "огірками" not in {row["name"] for row in (
+        await c.get("/admin/coverage_candidates", headers=headers)).json()}
+    # ...and the message it was the only candidate of stops being a gap at all.
+    assert 6400 not in {g["raw_message_id"] for g in (
+        await c.get("/admin/coverage_gaps", headers=headers)).json()}
+
+    # Dismissing twice is not an error, and the list stays one row.
+    r = await c.post("/admin/coverage_candidates/dismiss",
+                     json={"name": "огірками"}, headers=headers)
+    assert r.json() == ["огірками"]
+
+    r = await c.delete("/admin/coverage_candidates/dismiss/огірками", headers=headers)
+    assert r.json() == []
+    assert "огірками" in {row["name"] for row in (
+        await c.get("/admin/coverage_candidates", headers=headers)).json()}

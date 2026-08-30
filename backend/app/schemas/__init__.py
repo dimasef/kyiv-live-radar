@@ -8,6 +8,9 @@ the split is an internal reorganisation, not an API change.
 from __future__ import annotations
 
 from .admin import (
+    AdminUserDeleteOut,
+    AdminUserOut,
+    AdminUserRoleIn,
     CorrectionOut,
     CoverageCandidateOut,
     CoverageGapOut,
@@ -22,6 +25,7 @@ from .admin import (
     ReprocessResultOut,
     ReprocessSummaryOut,
     ThreatTypeIn,
+    ToponymDismissalIn,
 )
 from .analytics import (
     DistrictStatOut,
@@ -140,6 +144,9 @@ __all__ = [
     "PublicUserBrief",
     "_as_utc",
     "AccessTokenOut",
+    "AdminUserDeleteOut",
+    "AdminUserOut",
+    "AdminUserRoleIn",
     "AlertOut",
     "AlertZoneOut",
     "AnalyzeIn",
@@ -156,6 +163,7 @@ __all__ = [
     "CollectionOut",
     "CorrectionOut",
     "CoverageCandidateOut",
+    "ToponymDismissalIn",
     "CoverageGapOut",
     "DismissedOut",
     "DistrictOut",

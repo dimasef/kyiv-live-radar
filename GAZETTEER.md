@@ -94,6 +94,15 @@ single distinctive one-word alias: «димерка», «щимель», «ус�
 single word is both distinctive and safe, the entry cannot be added at all (see
 Красна Гірка below).
 
+The same is true of a multi-word **alias**, which is the trap: it looks like it
+works and silently never fires. Лівобережний carried «лівий берег» for the life
+of the project and matched not one of the 102 bank callouts; «Русанівські сади»
+and «Нижні Сади» were in the list with no alias at all, i.e. unmatchable by
+construction. `test_toponyms.py::test_every_entry_is_reachable_by_its_own_name_or_an_alias`
+now fails on any entry no text can reach. When the distinctive half is an
+ordinary adjective, the way in is a whole-word alias per case form, pinned to
+the following noun if it needs one — see «лівий/правий» and `_ALIAS_NEXT_WORD_REQUIRED`.
+
 **Longest matched stem wins an overlap.** Two entries matching at the same
 offset are ranked by how much of the word each explains, `prefer_region` only as
 the tie-break. This is what keeps «Пирогівці» off «Пирогів», «Понорниця» off
@@ -149,9 +158,13 @@ it governs, so each side states its own half:
 
 Four keys, mirroring the global set: `prev_required`, `prev_veto`,
 `next_required`, `next_veto`. `*_required` drops the match when the neighbouring
-word is absent, `*_veto` when it is present. Alias keys match as prefixes of the
-whole match, so a rule written for an entry's ambiguous alias leaves its
-unambiguous ones alone («великописарівськ» above needs no qualifier).
+word is absent, `*_veto` when it is present. An alias key governs itself plus a
+**case tail** and nothing else (`matcher._governs`), so a rule written for an
+entry's ambiguous alias leaves its unambiguous ones alone («великописарівськ»
+above needs no qualifier). Plain `startswith` was enough while every rule keyed a
+stem, and stopped being when ТЕЦ-5 took a bare «тец» rule: the name's own
+«тец-5» starts with it too, so the plant disqualified itself for lacking the
+digit it already carried.
 
 The three cases in the list, all measured on the stored corpus:
 
@@ -255,7 +268,13 @@ say so explicitly and record the new sweep.
 | **Заспа** (bare, as a STEM or as its own entry) | Stem `засп` fires inside «заспокоїтись», and a different village Заспа ~45 km away means a standalone entry has to put a point on one of the two. *(Reversed in the only form that dodges both, 2026-08-27 — see the row in "kept under watch". The rejection stands for a stem and for a separate record.)* |
 | **Віта** (bare) | `віта` ⊂ вітаю / вітання. Віта-Поштова matches on its hyphenated compound only. |
 | **ТЕС** (bare) | ⊂ тест / тесля. Трипільська ТЕС rides on «трипіл». |
-| **ТЕЦ** (bare, Kyiv) | Tried 2026-08-21 and reverted. As a whole-word alias it survives «тец-6», but the corpus also spells it «ТЕЦ - 6» spaced, where the bare alias matched and ТЕЦ-6's hyphenated stem did not — a message went from matching nothing to matching the wrong plant 12 km away. The Chernihiv «ТЕЦ» is unaffected: it is `region_only`, so it never meets a numbered form. |
+| **ТЕЦ** (bare, Kyiv) *(reversed 2026-08-30 — see below)* | Tried 2026-08-21 and reverted. As a whole-word alias it survives «тец-6», but the corpus also spells it «ТЕЦ - 6» spaced, where the bare alias matched and ТЕЦ-6's hyphenated stem did not — a message went from matching nothing to matching the wrong plant 12 km away. The Chernihiv «ТЕЦ» is unaffected: it is `region_only`, so it never meets a numbered form. **The reversal:** each Kyiv plant now takes the bare alias *and* `match_context.next_required` on its own digit, so «ТЕЦ 5» → ТЕЦ-5, «ТЕЦ - 6» → ТЕЦ-6, and an unnumbered «ТЕЦ 🔴» still matches neither. 8 dead messages recovered; the wrong-plant failure is unreachable by construction rather than by luck. |
+| **Південні** (Kyiv) | 8 bare «Південні 🔴» callouts, always beside a southern place (Козин, Іподром, Васильків) — but it is the channel's *direction*, not a settlement, and the message «Південні регіони — був пуск» uses the same word for half the country. Directional callouts are `domain/origins.py`'s business, not a pin. |
+| **Борщ ага** (Kyiv) | Three messages where the channel's own «Борщага» came out split by an autocorrect. Unfixable in this layer: any rule keyed «борщ» governs Борщагівка's real 98 callouts too (`_governs` matches an alias plus its case tail), so the fix would silence the name it is trying to reach. |
+| **Сніжки** (Сумщина, 2026-08-30) | A real village with 2 clean callouts, and the sweep is clean — but the corpus only covers July–August, and «сніжки» is a winter noun the sweep structurally cannot have seen. Whole-word matching cannot help: the noun IS the same word. The Веселе rejection, one season away. |
+| **Морів** (Чернігівщина) | The channel's truncation of Морівськ, which is already an entry and matches its full form 3 times. As an alias «морів» is also the genitive plural of «море», which the «Район моря» entry already fights over. One truncated callout is not worth re-opening that. |
+| **Харитонівка, Панфіль, Соснова, Мала Загорівка** (Чернігівщина, 2026-08-30) | One callout each, no neighbour in the same minutes to place them, and several of the names exist more than once in the oblast. The bar is the same one Тростянка/Дмитрівка were held to and later cleared. |
+| **Медвин** (Kyiv) | One corpus mention, and it contradicts itself — «Йде наразі на самий північ в район Медвин», while the only Медвин in the oblast is 120 km SOUTH. One hit that points the wrong way is an anecdote. |
 | **зона** (bare) | Common noun. Чорнобильська зона uses «чзв» + «чорнобиль». |
 | **Красна Гірка** | Two-word, and neither word is safe: «гірк» is how this channel names a *different* settlement (Гірки), and «красн» swallows «Краснодарського», an ORIGIN mention `domain/origins.py` owns. |
 | **Хороше Озеро, Червоне Озеро, Велика Доч, Мала Дівиця, Зелений Гай, Великий Щимель** (as spaced names) | No distinctive single word; the shared «озеро» is generic (5 unrelated corpus hits). Великий Щимель ships only because «щимель» itself is distinctive. |
@@ -301,6 +320,11 @@ corpus sweep found zero bad matches. Re-sweep if the feed changes.
 | **Терни / Річки / Садки / Низи / Вири** | `терн` ⊂ Тернопільщина + Тернівка; `річк` ⊂ «річка»; `садк` ⊂ «садків»; `низи` ⊂ «низина»; `вири` ⊂ «вирив» | Терни, Річки and the poplar/«сад» family are whole-word (see the vocab notes); Низи 21/21 and Вири 16/16 are clean as stems |
 | **Земляне, Мозкове, Синяк, Спаське** | ordinary-looking adjectives/nouns | 3–7 hits each, every one the settlement |
 | **Верхня Сироватка** (one entry for a pair) | Нижня Сироватка 9 km away shares the only alias «сироватк» | 36 hits, 27 of them the upper village; the 4 lower ones land 9 km off, the Гути trade one raion wide |
+| **Лівий / Правий берег** (2026-08-30) | «прав» and «лів» sit inside «правил», «правоохоронних», «правильно», «ліворуч» | Whole-word, and only the four case forms the feed types. «Праві»/«правій» are deliberately absent — their only hits are «праві смуги»/«правій смузі», a road-closure notice. 102 callouts recovered; six news items that name a bank in the city-news register are dropped by new `_AFTERMATH`/`_CIVIC_NOTICE` words added in the same pass |
+| **Хотів** (2026-08-30) | the past tense of «хотіти» | 6 callouts against 3 verbs, and no property of the word separates them — the entry vetoes the function words only the verb takes («хотів у вас…», «хотів би…», «хотів її…»). Pinned by a test on all three verb sentences |
+| **Лавина** (2026-08-30) | «лавина» = an avalanche | 3/3 corpus hits are the mall on Берковецька, used as a landmark exactly like Sky Mall |
+| **Золоті** (Золоті ворота, 2026-08-30) | the plural adjective «золоті» | Whole-word, so the stem «золот» cannot reach Чернігівщина's «Золотий берег» beach; 7/7 hits are the callout, and the full name never appears |
+| **Охоче** (Харківщина, 2026-08-30) | «охоче» = willingly | 8/8 corpus hits are the village, named inside the Таранівка→Красноград corridor bulletin by both Kharkiv channels. The adverb has never appeared; re-sweep if the feed changes |
 
 ---
 
@@ -325,4 +349,6 @@ Reactively, from real feed gaps. Each pass is recorded in git; the short version
 | 08-28 | **S** — Сумщина's first layer, and the region's activation. 137 entries mined from 3760 messages of its two spotter channels, which localized **0%** before (the region shipped declared-and-empty in 0.38.0) and **64%** after. Three groups, the same shape the north took over three passes: raion/hromada centres, the Сумський-район border belt where the КАБ and FPV traffic is, and a Суми CITY layer. It also needed two new context hooks (`_ALIAS_PREV_WORD_VETO`, `_ALIAS_NEXT_WORD_REQUIRED`) and unmuted eight names the coverage-gap stoplist had been hiding. |
 | 08-30 | **T** — the first pass mined over the WHOLE stored corpus rather than a recent window: every unlocalized spotter message re-parsed with the current gazetteer, unknown words ranked by frequency. 21 Чернігівщина entries, all from one channel and all still dead after eight previous passes — Виблі, Халявин, Солонівка, Черниш, Кошівка, Підгірне, Лукашівка, Пакуль, Ковчин, Єньків, Жовідь, Товстоліс, Салтикова Дівиця, Нові/Старі Боровичі, Корчев'я, Загороднє, Петрики, Скитьки, Кузничі, Минаївщина, plus the «сновсок» alias. 93 messages change, 82 gain a first match, nothing moves. Six of them are the far end of an «A на B» vector, so the gap was costing a route. Triggered by raw 13578 «Петрики , Скитьки 3», which produced nothing while the same channel's next three callouts became tracks. |
 | 08-30 | **U** — second Харківщина pass off the same whole-corpus mining. Nine settlements + the Шевченківський/Холодногірський city raions (`region_only`, since Kyiv owns a Шевченківський). 13 messages change, 12 gain a first match, nothing moves. The east-of-the-city corridor «Верхня Роганка → Елітне/Зернове → Кулиничі → ХТЗ» was one target with three dead callouts in the middle. Four rejections came out of the same list and are half the value: Довжик (three in the oblast, its two callouts point opposite ways), Проходи (`проход` ⊂ «проходить», 17 of 19 hits the verb), Варварівка and Петрівка (several each, one callout, no neighbour). Also the first *documented reversal by re-geocoding*: «Елітне» had been rejected because Nominatim answered Зернове — queried with its raion it answers Елітне, 1 km from Зернове, and the corridor confirms both. |
+| 08-30 | **V** — the first whole-corpus pass over **Київщина** itself, the region every earlier pass had assumed was done. 9 entries + 4 aliases, and most of the value was not new villages but names the list already had and could not reach: «Лівий/Правий берег» (102 callouts, the old alias was a spaced form that can never stem), «Русанівські сади» (in the list since July with no alias, unmatchable), and both ТЕЦ in their spaced spelling. New: Коцюбинське — which Чернігівщина's Михайло-Коцюбинське had been claiming from 12 Kyiv callouts, a wrong pin 130 km out — plus Хотів, Лісники, Київська ГЕС, Золоті ворота, ВДНГ, Лавина, and «хрещатик»/«голосіів» aliases. 171 messages gain a first match, 40 gain a second place, **nothing moves**, and two long-standing false positives (a «сильний дим після удару» advisory over Борщагівка/Троєщина, a «звуки які може чути Оболонь та Вишгород» explainer) stop raising tracks. |
+| 08-30 | **W** — the first batch mined by the **coverage queue itself** rather than by a script, the same day that queue stopped ranking channel signatures above villages (`api/coverage.py`). 8 entries + the «лозівськ» raion alias, from three regions at once: Охоче (Харківщина, 8 callouts in the Таранівка→Красноград corridor), the Ріпки–Любеч strip Паперня/Строївка/Ільмівка/Гучин/Листвен (Чернігівщина, one corridor whose every stage was dead), and Авраменкове (Сумщина). Володимирівка came last and separately — 9 callouts, the most-named unlocalized place in the whole corpus, and it was missed on the first pass through this very list; the operator caught it live the same afternoon. 38 messages change, 21 gain a first match, 17 gain a second place, nothing moves. Four rejections came off the same list and are recorded above — Сніжки is the interesting one: a clean sweep over a July–August corpus says nothing about a winter noun. |
 | 08-27 | Глузди + Горбове — a Куликівка pair 4.5 km and 9 s apart, one target that produced nothing at either end. Plus the Заспа aliases: the first *reversal* of a documented rejection, allowed only because the whole-word/alias form dodges both of its reasons. Then «Гути», decoded off the channel's own corridor bulletin — three of its five callouts are «A на Гути», so the gap was costing a whole route, not a pin. And Стоянка on the Zhytomyr highway, where the nearest entry was 7.8 km off. |

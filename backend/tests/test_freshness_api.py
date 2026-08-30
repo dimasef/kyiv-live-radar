@@ -86,13 +86,20 @@ async def test_active_threats_publish_the_fade_window(client):
 async def test_a_followed_track_publishes_the_long_window(client):
     """Both axes of the rule have to survive the trip to the client, not just
     the type one — this is what stops a target a channel is actively walking
-    along from fading out between its (legitimately spaced) callouts."""
+    along from fading out between its (legitimately spaced) callouts.
+
+    Deliberately a shahed, the type whose two windows are furthest apart (15
+    tracked vs 5 orphan) — and the same type the test above sends UNfollowed, so
+    the pair isolates the reply-chain axis with the type held constant. It used
+    to be a jet_drone, which stopped proving anything the day its tracked window
+    was brought down to its orphan one.
+    """
     c, s = client
-    await _track(s, target_type="jet_drone", minutes_ago=1, followed=True)
+    await _track(s, target_type="shahed", minutes_ago=1, followed=True)
     row = (await c.get("/threats/active")).json()[0]
     seen = datetime.fromisoformat(row["last_event_at"])
     stale = datetime.fromisoformat(row["stale_at"])
-    assert (stale - seen) == timedelta(minutes=10)
+    assert (stale - seen) == timedelta(minutes=15)
 
 
 async def test_freshness_timestamps_carry_an_explicit_utc_offset(client):

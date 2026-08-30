@@ -4,9 +4,16 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
-from ..models import CorrectionKind, NoticeKind, TargetType
+from ..models import (
+    AssignableRole,
+    CorrectionKind,
+    NoticeKind,
+    RoleSource,
+    TargetType,
+    UserRole,
+)
 from .base import _as_utc
 from .situation import AlertOut, IncidentOut
 from .threats import ThreatOut
@@ -96,6 +103,13 @@ class CoverageCandidateOut(BaseModel):
     example_raw_message_id: int
 
 
+class ToponymDismissalIn(BaseModel):
+    """POST /admin/coverage_candidates/dismiss — one candidate the operator
+    judged not to be a place."""
+
+    name: str = Field(min_length=2, max_length=60)
+
+
 class CorrectionOut(BaseModel):
     """GET /admin/corrections — a harvested correction plus whether the CURRENT
     parser already agrees (so the admin sees which mistakes are retired)."""
@@ -110,6 +124,70 @@ class CorrectionOut(BaseModel):
     resolved: bool  # current parser now matches the correction
 
     _tz_corr = field_validator("created_at", mode="before")(_as_utc)
+
+
+class AdminUserOut(BaseModel):
+    """GET /admin/users — one account in the «Юзери» tab.
+
+    A superset of `UserOut`'s public profile plus the operator-only columns:
+    whether the email was ever verified, when the account was created / last
+    signed in / last did anything, whether it is blocked, and WHY its role holds
+    the value it does (see models.RoleSource — `role` itself is read-only here,
+    because role resolution recomputes it from the env allowlists on every
+    login).
+
+    `last_seen_at` is published regardless of the owner's `share_presence`: that
+    flag gates peer-to-peer disclosure to accepted contacts, not the operator's
+    view of their own database. Deliberately absent, as none of the operator's
+    business: `gamification`, `share_presence`, `home_*`, `contact_prefs`.
+    """
+
+    id: int
+    email: str | None = None
+    email_verified: bool
+    display_name: str | None = None
+    avatar_url: str | None = None
+    role: UserRole
+    role_source: RoleSource
+    # 'password' first (a native account), then the linked SSO providers sorted
+    # — the exact order auth_routes._user_out builds, so the operator's view and
+    # the user's own profile can never disagree about how they sign in.
+    providers: list[str] = []
+    is_active: bool
+    created_at: datetime
+    last_login_at: datetime | None = None
+    last_seen_at: datetime | None = None
+
+    _tz_created = field_validator("created_at", mode="before")(_as_utc)
+    _tz_login = field_validator("last_login_at", mode="before")(_as_utc)
+    _tz_seen = field_validator("last_seen_at", mode="before")(_as_utc)
+
+
+class AdminUserRoleIn(BaseModel):
+    """PATCH /admin/users/{id}/role — grant or revoke console access.
+
+    Only `AssignableRole` values: plain 'admin' is derived from the env
+    allowlists on every login, so storing it would be a lie the next sign-in
+    corrects. Durable admin is 'admin_g'."""
+
+    role: AssignableRole
+
+
+class AdminUserDeleteOut(BaseModel):
+    """DELETE /admin/users/{id} — what the cascade actually removed.
+
+    Reported rather than assumed because the deletion is done with explicit
+    statements, not left to the DDL: SQLite (dev) does not enforce `ondelete`
+    without PRAGMA foreign_keys, while Postgres (prod) does — so relying on the
+    schema alone would mean two different behaviours."""
+
+    deleted: int
+    identities: int
+    friendships: int
+    analyses: int
+    # Rows kept but disowned (their FKs are ON DELETE SET NULL): bug reports,
+    # parser corrections, toponym dismissals, push subscriptions, sources added.
+    orphaned: int
 
 
 class ReprocessDayOut(BaseModel):

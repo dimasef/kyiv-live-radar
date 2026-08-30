@@ -207,6 +207,10 @@ def _is_oblast_form(norm_text: str, start: int, end: int, stem: str) -> bool:
 # phrasing these entries exist for.
 _WORD_SPLIT = re.compile(r"[\s" + re.escape(_LIST_BREAK) + r"]+")
 
+# What a match may carry after an alias and still be the same word: a case
+# ending, nothing else. See _governs.
+_CASE_TAIL = re.compile(r"[а-яіїєґ]+$")
+
 
 def _prev_word(norm_text: str, start: int) -> str:
     """The word immediately before a match, punctuation and list breaks skipped."""
@@ -230,13 +234,29 @@ def _is_proper_name(norm_text: str, start: int, end: int) -> bool:
     return _next_word(norm_text, end).startswith(veto)
 
 
+def _governs(alias: str, matched: str) -> bool:
+    """Whether a rule written for `alias` applies to this `matched` text.
+
+    An alias governs itself plus its CASE TAIL («писарівк» -> «писарівкою»), and
+    nothing else. Plain `startswith` used to be enough — every rule keyed a stem
+    whose only continuations were endings — but an entry whose NAME continues
+    past the alias in some other way is a different word: ТЕЦ-5's «тец» rule must
+    not fire on the name's own «тец-5», or the plant's hyphenated spelling
+    disqualifies itself for lacking the digit it already carries.
+    """
+    if not matched.startswith(alias):
+        return False
+    tail = matched[len(alias):]
+    return tail == "" or bool(_CASE_TAIL.match(tail))
+
+
 def _missing_required_next(norm_text: str, start: int, end: int) -> bool:
     """True if the match at [start:end) needs a specific FOLLOWING word and
     doesn't have it («старе» only counts before «село») — see
     vocab._ALIAS_NEXT_WORD_REQUIRED."""
     matched = norm_text[start:end]
     for alias, required in _ALIAS_NEXT_WORD_REQUIRED.items():
-        if not matched.startswith(alias):
+        if not _governs(alias, matched):
             continue
         return not _next_word(norm_text, end).startswith(required)
     return False
@@ -248,7 +268,7 @@ def _missing_required_prev(norm_text: str, start: int, end: int) -> bool:
     vocab._ALIAS_PREV_WORD_REQUIRED."""
     matched = norm_text[start:end]
     for alias, required in _ALIAS_PREV_WORD_REQUIRED.items():
-        if not matched.startswith(alias):
+        if not _governs(alias, matched):
             continue
         return not _prev_word(norm_text, start).startswith(required)
     return False
@@ -309,25 +329,25 @@ def _context_blocks(
     ctx: MatchContext | None, norm_text: str, start: int, end: int
 ) -> bool:
     """True if THIS entry's own context rules disqualify the match at
-    [start:end). Alias keys are matched as prefixes of the whole match, the same
-    way the global dicts are, so an entry's unambiguous aliases are untouched by
-    a rule written for its ambiguous one."""
+    [start:end). Alias keys govern themselves plus a case tail (see _governs),
+    the same way the global dicts do, so an entry's unambiguous aliases are
+    untouched by a rule written for its ambiguous one."""
     if ctx is None:
         return False
     matched = norm_text[start:end]
     prev = _prev_word(norm_text, start)
     nxt = _next_word(norm_text, end)
     for alias, words in ctx.prev_required.items():
-        if matched.startswith(alias) and not prev.startswith(words):
+        if _governs(alias, matched) and not prev.startswith(words):
             return True
     for alias, words in ctx.prev_veto.items():
-        if matched.startswith(alias) and prev.startswith(words):
+        if _governs(alias, matched) and prev.startswith(words):
             return True
     for alias, words in ctx.next_required.items():
-        if matched.startswith(alias) and not nxt.startswith(words):
+        if _governs(alias, matched) and not nxt.startswith(words):
             return True
     for alias, words in ctx.next_veto.items():
-        if matched.startswith(alias) and nxt.startswith(words):
+        if _governs(alias, matched) and nxt.startswith(words):
             return True
     return False
 

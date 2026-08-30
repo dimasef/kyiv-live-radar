@@ -388,7 +388,18 @@ _AFTERMATH = ("постраждал", "загинул", "поранен", "же�
               # must keep its live meaning. ("Вся Лукʼянівка палає" raised a live
               # ballistic track on 07-19.)
               "палає", "палають", "палала", "палало",
-              "відновленн")
+              "відновленн",
+              # Smoke seen after a strike, always paired with a "close your
+              # windows" advisory. Qualified forms only: the bare "дим" sits
+              # inside Димер, Димерка and «видимість». These surfaced the day
+              # the two banks became matchable places — before that the
+              # messages named nothing and the miss was invisible.
+              "густий дим", "сильний дим", "позачиняти вікна", "закрийте вікна",
+              # The channel explaining what a sound WAS ("Звуки, що може чути
+              # лівий берег — детонація", "Звуки які може чути Оболонь та
+              # Вишгород наші: планові тренування") — commentary about a place,
+              # never a target over it. Both corpus hits were raising tracks.
+              "може чути", "можете чути")
 
 # --- Our air defence engaged ("Відпрацювали установки по Дарницькому та
 # Соломʼянському", "працює ППО") — not an incoming target, and matching its two
@@ -424,7 +435,11 @@ _CIVIC_NOTICE = ("тролейбус", "трамвай", "маршрутк", "ф
                  # City-services news in the same register — it names beaches,
                  # lakes and neighbourhoods ("🏖 На більшості пляжів Києва вода
                  # відповідає нормам … у Пущі-Водиці", raw 1724).
-                 "пляж", "водойм", "відповідає нормам", "якість води")
+                 "пляж", "водойм", "відповідає нормам", "якість води",
+                 # A blackout report is the same register as the utility works
+                 # above, and it names the half of the city it happened in
+                 # («На Правому березі подекуди зникло світло»).
+                 "зникло світло")
 
 # єППО = the crowd-sensor app. Spotters relay its marks while dismissing them as
 # unverified. Suppress only when an єППО mention is PAIRED with a dismissal cue,
@@ -902,11 +917,12 @@ _WHOLE_WORD_ALIASES = frozenset({"чзв", "пох", "бц", "голос", "пу
                                  "гути",
                                  # Both cities' power plant, as the spotters
                                  # type it bare. Three letters, so it could
-                                 # never be a stem anyway; whole-word matching
-                                 # also keeps it from eating "ТЕЦ-6" — that
-                                 # entry explains 5 characters of the same word
-                                 # and wins the specificity resolution in
-                                 # DistrictMatcher.find. Swept over the corpus.
+                                 # never be a stem anyway. Чернігів's plant owns
+                                 # the bare word (region_only); Kyiv's two are
+                                 # 12 km apart, so each requires its own digit
+                                 # as the next word — see their `match_context`
+                                 # in gazetteer.py, which is what lets «ТЕЦ 5»
+                                 # and «ТЕЦ - 6» resolve at all.
                                  "тец",
                                  # Two 2026-08-22 villages whose stems are
                                  # ordinary words: "заміст" is inside «замість»
@@ -965,7 +981,29 @@ _WHOLE_WORD_ALIASES = frozenset({"чзв", "пох", "бц", "голос", "пу
                                  # the Kyiv feed's «річка "Либідь"
                                  # пофарбувалася» onto a Sumy village. The
                                  # hromada form rides on the longer «річків».
-                                 "річки"})
+                                 "річки",
+                                 # --- Київщина, 2026-08-30. The two banks of
+                                 # the Dnipro, the coarsest place this feed
+                                 # names and 102 corpus callouts. The stems
+                                 # "лів"/"прав" are inside «ліворуч»,
+                                 # «правил(а)», «правоохоронних», «правильно» —
+                                 # so only the exact case forms the corpus types
+                                 # count, and «праві»/«правій» are left out
+                                 # («праві смуги», a road-closure notice).
+                                 "лівий", "лівим", "лівому", "лівого",
+                                 "правий", "правим", "правому", "правого",
+                                 # Золоті ворота, always called out as just
+                                 # «Золоті»; the stem "золот" would also take
+                                 # «Золотий берег», a beach 130 km north.
+                                 "золоті",
+                                 # The Vyshhorod dam, three letters like «тец».
+                                 "гес",
+                                 # Русанівські сади' only way in (a spaced name).
+                                 # As a stem "русанівськ" it also took
+                                 # «Русанівського каналу» — a drowning-rescue
+                                 # news item, i.e. the aftermath class this map
+                                 # must not draw.
+                                 "русанівські"})
 
 # An alias that is also part of a PROPER NAME, keyed to the word that follows it.
 # "Голос Києва" is a Telegram channel other channels quote ("Голос Києва —

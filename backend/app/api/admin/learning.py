@@ -5,7 +5,7 @@ each harvested correction."""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...auth.deps import require_admin
@@ -17,12 +17,15 @@ from ...feeds.common import build_matcher
 from ...models import (
     District,
     ParserCorrection,
+    ToponymDismissal,
     User,
 )
+from ...parsing import normalize
 from ...schemas import (
     CorrectionOut,
     CoverageCandidateOut,
     CoverageGapOut,
+    ToponymDismissalIn,
 )
 from ..coverage import find_coverage_gaps, find_toponym_candidates
 
@@ -56,6 +59,53 @@ async def admin_coverage_candidates(
     by default, because a candidate's whole signal is that it repeats."""
     matcher = await build_matcher(session)
     return await find_toponym_candidates(session, matcher, limit=limit, scan=scan)
+
+
+@router.get("/admin/coverage_candidates/dismissed", response_model=list[str])
+async def admin_dismissed_toponyms(
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    """The words the operator has ruled out, so the console can show them and
+    offer to put one back."""
+    return sorted(await session.scalars(select(ToponymDismissal.word)))
+
+
+@router.post("/admin/coverage_candidates/dismiss", response_model=list[str])
+async def admin_dismiss_toponym(
+    body: ToponymDismissalIn,
+    session: AsyncSession = Depends(get_session),
+    admin: User = Depends(require_admin),
+):
+    """Mark one candidate as «не прогалина». It disappears from the ranking and
+    from the message rows admitted for it alone, permanently and for good — the
+    same judgement the curated lists in `parsing/toponyms.py` encode, made by
+    hand instead of by deploy.
+
+    Idempotent, and matched WHOLE: unlike the stem lists, a dismissal can never
+    shadow a real name that merely starts with the same letters.
+    """
+    word = normalize(body.name).strip()
+    if word and not await session.scalar(
+        select(ToponymDismissal).where(ToponymDismissal.word == word)
+    ):
+        session.add(ToponymDismissal(word=word, created_by_user_id=admin.id))
+        await session.commit()
+    return sorted(await session.scalars(select(ToponymDismissal.word)))
+
+
+@router.delete("/admin/coverage_candidates/dismiss/{word}", response_model=list[str])
+async def admin_restore_toponym(
+    word: str,
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    """Undo a dismissal — the word ranks again from the next scan."""
+    await session.execute(
+        delete(ToponymDismissal).where(ToponymDismissal.word == normalize(word).strip())
+    )
+    await session.commit()
+    return sorted(await session.scalars(select(ToponymDismissal.word)))
 
 
 @router.get("/admin/corrections", response_model=list[CorrectionOut])

@@ -182,6 +182,24 @@ INCIDENT_ENDED_REASONS: tuple[IncidentEndedReason, ...] = get_args(IncidentEnded
 UserRole = Literal["admin", "admin_g", "user"]
 USER_ROLES: tuple[UserRole, ...] = get_args(UserRole)
 ADMIN_ROLES: tuple[UserRole, ...] = ("admin", "admin_g")
+# WHY a User.role holds the value it does — read-only provenance for the admin
+# console's «Юзери» tab (auth/service.role_source_for computes it). 'manual' is
+# the DB-only 'admin_g' that role resolution preserves; 'allowlist' means the env
+# lists would resolve 'admin' for this user on their next login; 'default' means
+# nothing backs the role at all.
+#
+# The combination worth reading is role='admin' + 'default': a STALE admin whose
+# allowlist entry is gone, who will silently drop to 'user' the next time they
+# sign in. Nothing else in the app surfaces that.
+RoleSource = Literal["allowlist", "manual", "default"]
+ROLE_SOURCES: tuple[RoleSource, ...] = get_args(RoleSource)
+# The roles an operator may actually ASSIGN from the console. Plain 'admin' is
+# deliberately absent: it is derived, not stored intent — role resolution
+# recomputes it from the env allowlists on every login, so writing it to the DB
+# either changes nothing (the user is allowlisted anyway) or silently reverts to
+# 'user' at their next sign-in. Granting admin durably means 'admin_g'.
+AssignableRole = Literal["user", "admin_g"]
+ASSIGNABLE_ROLES: tuple[AssignableRole, ...] = get_args(AssignableRole)
 # Linked SSO providers on OAuthIdentity. Email+password is native on the User
 # row (password_hash), NOT an identity — so it's absent here.
 Provider = Literal["google", "telegram"]
@@ -911,6 +929,28 @@ class ParserCorrection(Base):
     # "district_en"} for relocate.
     expected: Mapped[dict] = mapped_column(JSON, default=dict)
     origin: Mapped[str] = mapped_column(String(20))  # see CORRECTION_ORIGINS
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+
+class ToponymDismissal(Base):
+    """A word the operator judged NOT a missing place, hidden from the
+    coverage-gap queue for good.
+
+    The queue's word lists (`parsing/toponyms.py`) are curated in code because
+    every entry there is a decision with a failure mode — a stop word that is
+    the prefix of a real name silently costs the next such village. This table
+    is the same list's operator-editable half: a judgement about ONE exact word,
+    made while reading the ranking, that needs no deploy and cannot shadow a
+    name it is not equal to. Matched whole and lowercased, never as a prefix.
+    """
+
+    __tablename__ = "toponym_dismissals"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    word: Mapped[str] = mapped_column(String(60), unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     created_by_user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True

@@ -30,8 +30,9 @@ KYIV_CENTER = {"lat": 50.4501, "lon": 30.5234}
 DISTRICTS: list[dict] = [
     # "голос" is whole-word only (vocab._WHOLE_WORD_ALIASES): as a stem it fires
     # inside "голосно"/"голосування".
+    # "голосіів" is the feed's own misspelling (ї -> і), twice its own message.
     {"name_uk": "Голосіївський", "name_en": "Holosiivskyi", "lat": 50.381, "lon": 30.508,
-     "aliases": ["голосіїв", "голосіївський район", "голосієво", "голос"]},
+     "aliases": ["голосіїв", "голосіївський район", "голосієво", "голос", "голосіів"]},
     {"name_uk": "Дарницький", "name_en": "Darnytskyi", "lat": 50.410, "lon": 30.630,
      "aliases": ["дарниця", "дарницький район"]},
     {"name_uk": "Деснянський", "name_en": "Desnianskyi", "lat": 50.515, "lon": 30.605,
@@ -83,9 +84,10 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Совки", "name_en": "Sovky", "lat": 50.4062, "lon": 30.4852,
      "aliases": []},
     # Whole-word only: the stem is a prefix of "центральній", "укргідрометцентр".
-    # Point is Хрещатик, which is what a spotter means by "центр".
+    # Point is Хрещатик, which is what a spotter means by "центр" — so the
+    # street name itself rides here rather than as a second point 200 m away.
     {"name_uk": "Центр", "name_en": "KyivCentre", "lat": 50.4472, "lon": 30.5229,
-     "aliases": ["центру", "центрі"]},
+     "aliases": ["центру", "центрі", "хрещатик"]},
     {"name_uk": "Русанівка", "name_en": "Rusanivka", "lat": 50.440, "lon": 30.590,
      "aliases": ["русанівка"]},
     {"name_uk": "Бортничі", "name_en": "Bortnychi", "lat": 50.395, "lon": 30.700,
@@ -93,7 +95,23 @@ DISTRICTS: list[dict] = [
     {"name_uk": "ДВРЗ", "name_en": "DVRZ", "lat": 50.445, "lon": 30.660,
      "aliases": ["дврз"]},
     {"name_uk": "Лівобережний", "name_en": "Livoberezhnyi", "lat": 50.452, "lon": 30.598,
-     "aliases": ["лівий берег", "лівобережна"]},
+     "aliases": ["лівобережна"]},
+    # The two BANKS, the coarsest place this feed names — 102 corpus callouts
+    # («Лівий берег!», «Позаду через правий», «Ще один на Лівому березі»), every
+    # one of which resolved to nothing: the old "лівий берег" alias on
+    # Лівобережний above was a spaced form, and `_stem` strips spaces, so it
+    # could never fire (GAZETTEER.md, "Multi-word names cannot match as one
+    # stem"). Half the city each, so the point is that half's centroid.
+    #
+    # The adjectives are WHOLE-WORD (vocab._WHOLE_WORD_ALIASES): the stems
+    # "лів"/"прав" are inside «правил», «правоохоронних», «правильно»,
+    # «ліворуч». Only the four case forms the corpus actually types are listed,
+    # and «праві»/«правій» are deliberately NOT among them — their only corpus
+    # hits are «праві смуги»/«правій смузі», a road-closure notice.
+    {"name_uk": "Лівий берег", "name_en": "LeftBank", "lat": 50.455, "lon": 30.620,
+     "aliases": ["лівий", "лівим", "лівому", "лівого", "лівобережжя"]},
+    {"name_uk": "Правий берег", "name_en": "RightBank", "lat": 50.440, "lon": 30.495,
+     "aliases": ["правий", "правим", "правому", "правого", "правобережжя"]},
 
     {"name_uk": "Сирець", "name_en": "Syrets", "lat": 50.478, "lon": 30.430,
      "aliases": ["сирця", "сирці"]},
@@ -121,12 +139,36 @@ DISTRICTS: list[dict] = [
      "aliases": []},
     {"name_uk": "Видубичі", "name_en": "Vydubychi", "lat": 50.4147, "lon": 30.568,
      "aliases": []},
-    # ТЕЦ-5 and ТЕЦ-6 are DIFFERENT plants 12 km apart, so both carry numbered
-    # forms only. A bare "тец" alias was tried 2026-08-21 and reverted (GAZETTEER.md).
+    # ТЕЦ-5 and ТЕЦ-6 are DIFFERENT plants 12 km apart, so the number is the
+    # whole name. The hyphenated aliases used to be the only ones, and the feed
+    # also spells the plant «ТЕЦ 5» / «ТЕЦ - 6» spaced — 8 messages that matched
+    # nothing, because a stem cannot contain a space. Each entry now takes the
+    # bare whole-word «тец» (vocab._WHOLE_WORD_ALIASES, shared with Чернігів's
+    # own plant) and requires ITS OWN digit as the next word, so all three
+    # spellings resolve and a bare «ТЕЦ 🔴» still matches neither.
+    #
+    # This reverses the 2026-08-21 rejection of a bare "тец" alias, in the one
+    # form that dodges its reason: back then the bare alias won over the
+    # hyphenated stem on «ТЕЦ - 6» and put the target on the wrong plant 12 km
+    # away. Here the number decides both branches, so it cannot.
     {"name_uk": "ТЕЦ-5", "name_en": "TETs-5 (CHP-5)", "lat": 50.3942, "lon": 30.5684,
-     "aliases": ["тец-5", "тец5", "тэц-5", "тэц5"]},
+     "aliases": ["тец", "тэц-5", "тэц5"],
+     "match_context": {"next_required": {"тец": ["5"]}}},
     {"name_uk": "ТЕЦ-6", "name_en": "TETs-6 (CHP-6)", "lat": 50.5312, "lon": 30.667,
-     "aliases": ["тец-6", "тец6", "тэц-6", "тэц6"]},
+     "aliases": ["тец", "тэц-6", "тэц6"],
+     "match_context": {"next_required": {"тец": ["6"]}}},
+    # Kyiv landmarks the spotters narrate a target across, all bare-noun
+    # collisions resolved by whole-word matching (vocab._WHOLE_WORD_ALIASES).
+    # «Золоті» is how the feed says Золоті ворота — never the full name — and
+    # the stem "золот" would take «Золотий берег» (a Chernihiv beach) with it.
+    {"name_uk": "Золоті ворота", "name_en": "ZolotiVorota", "lat": 50.4489, "lon": 30.5134,
+     "aliases": ["золоті"]},
+    {"name_uk": "ВДНГ", "name_en": "VDNH", "lat": 50.3809, "lon": 30.4766, "aliases": []},
+    # The mall on Берковецька, used as a landmark the same way Sky Mall is.
+    # "лавина" is also an ordinary noun; all 3 corpus hits are the callout
+    # (GAZETTEER.md watch list).
+    {"name_uk": "Лавина", "name_en": "LavinaMall", "lat": 50.4955, "lon": 30.3606,
+     "aliases": []},
 
 
     # --- Approach-corridor localities, Kyiv oblast ---
@@ -160,6 +202,32 @@ DISTRICTS: list[dict] = [
      "aliases": ["наливайківку", "наливайківки"]},
     {"name_uk": "Трипілля", "name_en": "Trypillia", "lat": 50.115, "lon": 30.777,
      "aliases": ["трипілля", "трипільськ"]},
+    # Shares its only word with Чернігівщина's Михайло-Коцюбинське 130 km north,
+    # which owned «коцюбинське» alone — so every Kyiv callout («На Коцюбинське»,
+    # «Ірпінь/Коцюбинське») pinned a target on the wrong oblast. Two entries, one
+    # word: no context rule needed, because a source only ever matches inside the
+    # regions it is BOUND to (feeds.common.RegionMatchers.for_source), and
+    # `prefer_region` breaks the tie for the admin/reprocess matchers.
+    # «Коцюба» is this feed's own shorthand for it.
+    {"name_uk": "Коцюбинське", "name_en": "Kotsiubynske", "lat": 50.4905, "lon": 30.3338,
+     "aliases": ["коцюба"]},
+    # South-western approach pair, always called out together («Далі на
+    # Лісники/Хотів і все що поруч»); 4 km apart.
+    {"name_uk": "Лісники", "name_en": "Lisnyky", "lat": 50.3085, "lon": 30.518, "aliases": []},
+    # "хотів" is also the past tense of "хотіти", and nothing about the word
+    # itself separates the two — the corpus has 6 callouts and 3 verbs. What
+    # separates them is what FOLLOWS: the verb takes an object or a second verb
+    # («хотів у вас запитати», «хотів би вдарити», «хотів її зʼїсти»), while a
+    # callout is followed by an emoji, a slash or the end of the message. So the
+    # entry vetoes the function words that can only be the verb's.
+    {"name_uk": "Хотів", "name_en": "Khotiv", "lat": 50.3263, "lon": 30.4686, "aliases": [],
+     "match_context": {"next_veto": {"хотів": ["у", "в", "би", "б", "її", "його",
+                                              "їх", "мене", "нас", "вас", "щоб"]}}},
+    # The dam at Вишгород — the feed says the bare «ГЕС» («Оболонь/район ГЕС»,
+    # «ГЕС/Вишгород»), so it is a whole-word alias: 3 letters is under the stem
+    # floor and would never index at all.
+    {"name_uk": "Київська ГЕС", "name_en": "KyivHPP", "lat": 50.5885, "lon": 30.5119,
+     "aliases": ["гес"]},
 
     # Administratively Kyiv oblast, but 150 km north — `region` follows geography,
     # because it decides which track pool a sighting joins.
@@ -266,8 +334,12 @@ DISTRICTS: list[dict] = [
     # for one callout would read as three simultaneous targets. Whole-word only.
     {"name_uk": "Позняки-Осокорки-Харківський", "name_en": "PoznyakyOsokorkyKharkivskyi",
      "lat": 50.4029, "lon": 30.6363, "aliases": ["пох"]},
+    # Spaced name, so the alias is the ONLY way in — without it the entry could
+    # never match anything (its own name stems to "русанівськісади", which no
+    # text contains). «Русанівська» набережна does not exist in the corpus, and
+    # Русанівка itself is a different stem, so the adjective is unambiguous.
     {"name_uk": "Русанівські сади", "name_en": "RusanivskiSady", "lat": 50.4744, "lon": 30.5753,
-     "aliases": []},
+     "aliases": ["русанівські"]},
     {"name_uk": "Нижні Сади", "name_en": "NyzhniSady", "lat": 50.3682, "lon": 30.6076, "aliases": []},
     {"name_uk": "Лісовий масив", "name_en": "LisovyiMasyv", "lat": 50.4746, "lon": 30.6302,
      "aliases": ["лісовий"]},
@@ -370,6 +442,27 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Василева Гута", "name_en": "Vasyleva Huta", "lat": 51.288, "lon": 30.7064,
      "region": "chernihiv", "aliases": ["василева", "василеву", "гути"]},
     {"name_uk": "Чудівка", "name_en": "Chudivka", "lat": 51.8765, "lon": 30.9985,
+     "region": "chernihiv", "aliases": []},
+    # The Ріпки–Любеч border strip, all four mined 2026-08-30 off the same
+    # channel and all four confirmed by the neighbours they are called out
+    # with: «Димерка південь на Паперня», «Строївка/Паперня 4», «Ільмівка на
+    # Строївку», «Ріпки на малий листвен». Паперня↔Строївка are 4.7 km apart,
+    # Ільмівка 13 km on — one corridor, and every one of its stages was dead.
+    {"name_uk": "Паперня", "name_en": "Papernia", "lat": 51.957, "lon": 31.1143,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Строївка", "name_en": "Stroivka", "lat": 51.998, "lon": 31.1354,
+     "region": "chernihiv", "aliases": []},
+    # One callout, kept because it is the far end of an «A на B» vector whose
+    # near end (Строївка) is in this same batch — the missing-chain-root class,
+    # the same reason Глузди/Горбове ship as a pair.
+    {"name_uk": "Ільмівка", "name_en": "Ilmivka", "lat": 52.0533, "lon": 31.3103,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Гучин", "name_en": "Huchyn", "lat": 51.6847, "lon": 31.0495,
+     "region": "chernihiv", "aliases": []},
+    # ONE entry for the Малий/Великий pair 2 km apart, like Верхня Сироватка:
+    # the corpus only ever writes «малий листвен», and a second point could only
+    # ever be the wrong one of two neighbours.
+    {"name_uk": "Листвен", "name_en": "Lystven", "lat": 51.7202, "lon": 31.0127,
      "region": "chernihiv", "aliases": []},
     {"name_uk": "Хотівля", "name_en": "Khotivlia", "lat": 51.9585, "lon": 31.5016,
      "region": "chernihiv", "aliases": []},
@@ -886,6 +979,18 @@ DISTRICTS: list[dict] = [
      "region": "chernihiv", "aliases": []},
     {"name_uk": "Клубівка", "name_en": "Klubivka", "lat": 51.9715, "lon": 30.9427,
      "region": "chernihiv", "aliases": []},
+    # 9 callouts, the most-named unlocalized place in the whole corpus, and the
+    # oblast has TWO of it — the neighbours decide, as they did for Блистова and
+    # Курилівка. «Лемешівка, Перепис на Володимирівку» comes from the east and
+    # «Володимирівка на Клубівку» leaves to the west, which puts it between
+    # Перепис (11 km) and Клубівка (26 km): the Городнянська one, not the
+    # Новгород-Сіверська one 115 km further east.
+    #
+    # `region_only` because the name is among the commonest in the country —
+    # the Іванівка/Новоселівка class the doc reserves it for. All 9 callouts are
+    # this one northern channel's.
+    {"name_uk": "Володимирівка", "name_en": "Volodymyrivka CH", "lat": 52.0229, "lon": 31.3095,
+     "region": "chernihiv", "region_only": True, "aliases": []},
     {"name_uk": "Козероги", "name_en": "Kozerohy", "lat": 51.312, "lon": 31.036,
      "region": "chernihiv", "aliases": []},
     {"name_uk": "Конятин", "name_en": "Koniatyn", "lat": 51.5935, "lon": 32.7894,
@@ -1116,6 +1221,11 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Ромни", "name_en": "Romny", "lat": 50.7421, "lon": 33.4877,
      "region": "sumy", "aliases": []},
     {"name_uk": "Недригайлів", "name_en": "Nedryhailiv", "lat": 50.8359, "lon": 33.8783,
+     "region": "sumy", "aliases": []},
+    # Between Ромни and Недригайлів on the westward line the channel narrates
+    # («Повернув на Авраменкове», «Авраменкове > Чернігівщина реактивний шах» —
+    # the second is a vector root, so the gap cost a route, not a pin).
+    {"name_uk": "Авраменкове", "name_en": "Avramenkove", "lat": 50.9139, "lon": 33.3808,
      "region": "sumy", "aliases": []},
     {"name_uk": "Липова Долина", "name_en": "Lypova Dolyna", "lat": 50.5638, "lon": 33.799,
      "region": "sumy", "aliases": ["липов"]},
@@ -1474,8 +1584,12 @@ DISTRICTS: list[dict] = [
      "region": "kharkiv", "aliases": []},
     # Лозова and Руська Лозова share «лозов» and nothing else — the Писарівка
     # class, so each states its own half (see matcher.MatchContext).
+    # «лозівськ» is the RAION, whose centre this is: the channel narrates the
+    # alert by raion («тривога в Лозівському районі», «Лозівський район
+    # дорозвідка») six times over, and the town's own stem reaches none of those
+    # forms — і↔о inside the root is exactly what the stemmer cannot bridge.
     {"name_uk": "Лозова", "name_en": "Lozova", "lat": 48.8842, "lon": 36.3160,
-     "region": "kharkiv", "aliases": ["лозовой"],
+     "region": "kharkiv", "aliases": ["лозовой", "лозівськ", "лозівск"],
      "match_context": {"prev_veto": {"лозов": ["руськ"]}}},
     {"name_uk": "Руська Лозова", "name_en": "Ruska Lozova", "lat": 50.1417, "lon": 36.2863,
      "region": "kharkiv", "aliases": ["лозов"],
@@ -1582,6 +1696,12 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Васищеве", "name_en": "Vasyshcheve", "lat": 49.8354, "lon": 36.3312,
      "region": "kharkiv", "aliases": []},
     {"name_uk": "Таранівка", "name_en": "Taranivka", "lat": 49.6167, "lon": 36.1512,
+     "region": "kharkiv", "aliases": []},
+    # The Зміїв→Красноград leg, named in both Kharkiv channels' corridor
+    # bulletins («Таранівка/Охоче/Слобожанське/Красноград/Полтавщина»). Its stem
+    # «охоч» is also the adverb «охоче» — 8 of 8 corpus hits are the village, so
+    # it ships on a clean sweep like Щасливе (GAZETTEER.md watch list).
+    {"name_uk": "Охоче", "name_en": "Okhoche", "lat": 49.5611, "lon": 36.0505,
      "region": "kharkiv", "aliases": []},
     {"name_uk": "Кочеток", "name_en": "Kochetok", "lat": 49.8720, "lon": 36.7255,
      "region": "kharkiv", "aliases": []},

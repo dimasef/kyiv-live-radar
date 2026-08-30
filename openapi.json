@@ -20,6 +20,173 @@
         "title": "AccessTokenOut",
         "type": "object"
       },
+      "AdminUserDeleteOut": {
+        "description": "DELETE /admin/users/{id} — what the cascade actually removed.\n\nReported rather than assumed because the deletion is done with explicit\nstatements, not left to the DDL: SQLite (dev) does not enforce `ondelete`\nwithout PRAGMA foreign_keys, while Postgres (prod) does — so relying on the\nschema alone would mean two different behaviours.",
+        "properties": {
+          "analyses": {
+            "title": "Analyses",
+            "type": "integer"
+          },
+          "deleted": {
+            "title": "Deleted",
+            "type": "integer"
+          },
+          "friendships": {
+            "title": "Friendships",
+            "type": "integer"
+          },
+          "identities": {
+            "title": "Identities",
+            "type": "integer"
+          },
+          "orphaned": {
+            "title": "Orphaned",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "deleted",
+          "identities",
+          "friendships",
+          "analyses",
+          "orphaned"
+        ],
+        "title": "AdminUserDeleteOut",
+        "type": "object"
+      },
+      "AdminUserOut": {
+        "description": "GET /admin/users — one account in the «Юзери» tab.\n\nA superset of `UserOut`'s public profile plus the operator-only columns:\nwhether the email was ever verified, when the account was created / last\nsigned in / last did anything, whether it is blocked, and WHY its role holds\nthe value it does (see models.RoleSource — `role` itself is read-only here,\nbecause role resolution recomputes it from the env allowlists on every\nlogin).\n\n`last_seen_at` is published regardless of the owner's `share_presence`: that\nflag gates peer-to-peer disclosure to accepted contacts, not the operator's\nview of their own database. Deliberately absent, as none of the operator's\nbusiness: `gamification`, `share_presence`, `home_*`, `contact_prefs`.",
+        "properties": {
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "email_verified": {
+            "title": "Email Verified",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "last_login_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Login At"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "providers": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Providers",
+            "type": "array"
+          },
+          "role": {
+            "enum": [
+              "admin",
+              "admin_g",
+              "user"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "role_source": {
+            "enum": [
+              "allowlist",
+              "manual",
+              "default"
+            ],
+            "title": "Role Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email_verified",
+          "role",
+          "role_source",
+          "is_active",
+          "created_at"
+        ],
+        "title": "AdminUserOut",
+        "type": "object"
+      },
+      "AdminUserRoleIn": {
+        "description": "PATCH /admin/users/{id}/role — grant or revoke console access.\n\nOnly `AssignableRole` values: plain 'admin' is derived from the env\nallowlists on every login, so storing it would be a lie the next sign-in\ncorrects. Durable admin is 'admin_g'.",
+        "properties": {
+          "role": {
+            "enum": [
+              "user",
+              "admin_g"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "title": "AdminUserRoleIn",
+        "type": "object"
+      },
       "AlertOut": {
         "description": "An official air-raid alert window (тривога -> відбій).",
         "properties": {
@@ -4618,6 +4785,22 @@
         "title": "TokenPairOut",
         "type": "object"
       },
+      "ToponymDismissalIn": {
+        "description": "POST /admin/coverage_candidates/dismiss — one candidate the operator\njudged not to be a place.",
+        "properties": {
+          "name": {
+            "maxLength": 60,
+            "minLength": 2,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ToponymDismissalIn",
+        "type": "object"
+      },
       "UserOut": {
         "description": "The authenticated user's public profile.",
         "properties": {
@@ -5183,6 +5366,178 @@
           }
         },
         "summary": "Admin Coverage Candidates"
+      }
+    },
+    "/admin/coverage_candidates/dismiss": {
+      "post": {
+        "description": "Mark one candidate as «не прогалина». It disappears from the ranking and\nfrom the message rows admitted for it alone, permanently and for good — the\nsame judgement the curated lists in `parsing/toponyms.py` encode, made by\nhand instead of by deploy.\n\nIdempotent, and matched WHOLE: unlike the stem lists, a dismissal can never\nshadow a real name that merely starts with the same letters.",
+        "operationId": "admin_dismiss_toponym_admin_coverage_candidates_dismiss_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToponymDismissalIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "Response Admin Dismiss Toponym Admin Coverage Candidates Dismiss Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Dismiss Toponym"
+      }
+    },
+    "/admin/coverage_candidates/dismiss/{word}": {
+      "delete": {
+        "description": "Undo a dismissal — the word ranks again from the next scan.",
+        "operationId": "admin_restore_toponym_admin_coverage_candidates_dismiss__word__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "word",
+            "required": true,
+            "schema": {
+              "title": "Word",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "Response Admin Restore Toponym Admin Coverage Candidates Dismiss  Word  Delete",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Restore Toponym"
+      }
+    },
+    "/admin/coverage_candidates/dismissed": {
+      "get": {
+        "description": "The words the operator has ruled out, so the console can show them and\noffer to put one back.",
+        "operationId": "admin_dismissed_toponyms_admin_coverage_candidates_dismissed_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "Response Admin Dismissed Toponyms Admin Coverage Candidates Dismissed Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Dismissed Toponyms"
       }
     },
     "/admin/coverage_gaps": {
@@ -6427,6 +6782,303 @@
           }
         },
         "summary": "Admin Restore Threat"
+      }
+    },
+    "/admin/users": {
+      "get": {
+        "description": "Every account, newest first. Unpaginated and unfiltered by design: this\nis a `sources`-sized table, not a `raw_messages`-sized one, and the console\nfilters it client-side (a server-side query param would mean one request per\nkeystroke). `limit` is only there so an unbounded table can't produce an\nunbounded response.\n\nBlocked accounts stay in place rather than sorting to the bottom — the\noperator usually opens this right after blocking someone, to confirm it.",
+        "operationId": "admin_list_users_admin_users_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 2000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AdminUserOut"
+                  },
+                  "title": "Response Admin List Users Admin Users Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin List Users"
+      }
+    },
+    "/admin/users/{user_id}": {
+      "delete": {
+        "description": "HARD-delete an account and everything that only exists because of it —\nirreversible, unlike blocking.\n\nThe dependent rows are removed with EXPLICIT statements rather than left to\nthe `ondelete` clauses in the schema, because those don't run everywhere:\nSQLite (dev) ignores foreign keys unless PRAGMA foreign_keys is on, while\nPostgres (prod) enforces them. Leaving it to the DDL would mean dev quietly\nkeeping orphan friendship rows that prod deletes — and an orphan friendship\nbreaks the OTHER person's contact list.\n\nWhat survives, deliberately, with its owner set to NULL: bug reports, parser\ncorrections, toponym dismissals, push subscriptions and any source they\nadded. Those are project history and training data, not personal effects —\nthe same call `ondelete=SET NULL` already makes in the schema.",
+        "operationId": "admin_delete_user_admin_users__user_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserDeleteOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Delete User"
+      }
+    },
+    "/admin/users/{user_id}/block": {
+      "post": {
+        "description": "Deactivate an account. `User.is_active` is already enforced everywhere\nthat matters — auth/deps (every authenticated request), login and refresh —\nso this needs no enforcement code of its own: the target's current session\ndies on their very next request.",
+        "operationId": "admin_block_user_admin_users__user_id__block_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Block User"
+      }
+    },
+    "/admin/users/{user_id}/role": {
+      "patch": {
+        "description": "Grant or revoke console access.\n\nOnly 'user' and 'admin_g' are assignable (see models.AssignableRole): plain\n'admin' is derived from the env allowlists on every login, so it cannot be\ngranted here in a way that survives.\n\nRevoking is refused while the env allowlist still names the person — role\nresolution would hand the role straight back at their next sign-in, and a\ncontrol that silently undoes itself is worse than one that says no. The\nentry has to go from ADMIN_EMAILS / ADMIN_TELEGRAM_IDS first.",
+        "operationId": "admin_set_user_role_admin_users__user_id__role_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminUserRoleIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Set User Role"
+      }
+    },
+    "/admin/users/{user_id}/unblock": {
+      "post": {
+        "description": "No guards here — unblocking is the recovery direction.",
+        "operationId": "admin_unblock_user_admin_users__user_id__unblock_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Unblock User"
       }
     },
     "/alert-zones": {

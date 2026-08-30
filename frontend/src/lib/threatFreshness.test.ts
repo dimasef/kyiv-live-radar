@@ -92,10 +92,40 @@ describe('fadeFactor', () => {
     expect(isQuiet(impact, T0 + 60 * MIN)).toBe(false)
   })
 
-  it('leaves a closed track alone — its exit is a CSS animation', () => {
-    const closed = threat({ closed_at: new Date(T0 + 20 * MIN).toISOString(), status: 'lost' })
+  it('leaves a track closed by NEWS alone — its exit is a CSS animation', () => {
+    const closed = threat({
+      closed_at: new Date(T0 + 20 * MIN).toISOString(),
+      closed_reason: 'destroyed',
+      status: 'destroyed',
+    })
     expect(fadeFactor(closed, T0 + 21 * MIN)).toBe(1)
     expect(isQuiet(closed, T0 + 21 * MIN)).toBe(false)
+  })
+
+  it('does not brighten a target the sweeper retired for silence', () => {
+    // The whole point: a stale close is the ABSENCE of news. Restoring full
+    // brightness there made the quietest target on the map the loudest for the
+    // length of its linger.
+    const stale = threat({
+      closed_at: new Date(T0 + 20 * MIN).toISOString(),
+      closed_reason: 'stale',
+      status: 'lost',
+    })
+    expect(fadeFactor(stale, T0 + 21 * MIN)).toBeCloseTo(0.25)
+    // Held at the floor rather than continuing down — it must stay visible (and
+    // clickable) for the linger, just not louder than it was a second earlier.
+    expect(fadeFactor(stale, T0 + 20 * MIN)).toBeCloseTo(0.25)
+    // Still not "live": a closed track never pulses, whatever closed it.
+    expect(showsLiveMotion(stale, T0 + 21 * MIN)).toBe(false)
+  })
+
+  it('keeps a stale-closed target legible while it is being read', () => {
+    const stale = threat({
+      closed_at: new Date(T0 + 20 * MIN).toISOString(),
+      closed_reason: 'stale',
+      status: 'lost',
+    })
+    expect(fadeFactor(stale, T0 + 21 * MIN, true)).toBeCloseTo(0.85)
   })
 })
 

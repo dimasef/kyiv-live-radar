@@ -178,6 +178,22 @@ _CHATTER_WORDS = (
     "ворожа", "ворожо", "ворожу", "ворожи", "ворожі", "вороже",
     "відомо", "краще", "лівом", "навіть", "немає", "нехай", "основном",
     "перебува", "попередн", "проте",
+    # Fifth pass, 2026-08-30. Once a candidate had to stand where a PLACE stands
+    # (`_place_positions`), the prose noise went with the change and what was
+    # left ranking were the ONE-WORD status messages — a message that is nothing
+    # but «Впали» looks exactly like a message that is nothing but «Гучин».
+    # Spelt to stop short of a name each time: "впал" and not "впад" (Впадище),
+    # "здох" is its own word, "гучн" ⊄ any entry (Гучин is "гучин").
+    "впав", "впала", "впали", "впало", "здох", "здохл", "гучно", "гучні",
+    "бухнул", "видихаєм", "знижуєт", "знижуют", "збиванн", "збиття",
+    "вилетів", "вилетіл", "кордон", "нашої", "нашій", "нашу", "подальш",
+    "офлайн", "болотах",
+    # The zone-status posts the Сумщина channel repeats per raion («Сумський
+    # район - повітряна тривога!»). They are whole short messages, so the
+    # boilerplate detector deliberately leaves them alone (see
+    # api.coverage.channel_boilerplate) and the vocabulary has to.
+    "повітрян", "локаційн", "станом", "транзит", "маневрує", "назад",
+    "скоріш", "найближч", "становл", "уважні", "чути", "спати", "південних",
 )
 
 _KNOWN_STEMS: tuple[str, ...] = tuple(
@@ -198,16 +214,77 @@ def is_known_word(token: str) -> bool:
     return token in _KNOWN_EXACT or bool(_KNOWN_RE.match(token))
 
 
-def unknown_toponyms(text: str, matcher: DistrictMatcher) -> list[str]:
+# --- Where a place stands ---------------------------------------------------
+# Words that anchor a place on either side. A locational preposition is the
+# obvious one; «район»/«курс» work the same way, and the anchor also counts
+# BACKWARDS, because «Володимирівка на Клубівку» names a place on each side of
+# it — the "A на B" vector shape the gazetteer passes are mined from.
+_ANCHOR = (
+    r"(?:на|над|у|в|біля|поблизу|повз|через|під|коло|бік|до|від|з|зі|між|"
+    r"курс|курсом|район|районі|району|масив|масиві)"
+)
+_TOKEN = r"[а-яіїєґ][а-яіїєґ'\-]{2,}"
+_AFTER_ANCHOR = re.compile(_ANCHOR + r"\s+(" + _TOKEN + r")")
+_BEFORE_ANCHOR = re.compile(r"(" + _TOKEN + r")\s+" + _ANCHOR + r"\s")
+# «Строївка/Паперня 4», «Тростянець > Охтирка», «Козин, Українка» — a list of
+# places is a place position for every item in it.
+_LIST_PAIR = re.compile(r"(" + _TOKEN + r")\s*[/>,]\s*(" + _TOKEN + r")")
+# A message this short IS the callout, so every word in it stands where a place
+# stands: the northern channels' dominant form is a bare «Жукотки» or «Замглай
+# два», and an anchor-only extractor would see none of them. Measured against
+# the whole stored corpus, the four rules together see 97% of the place mentions
+# the gazetteer actually matched — and a name the queue is meant to propose
+# repeats, so the other 3% surface from their other occurrences.
+_SHORT_MESSAGE_WORDS = 6
+
+
+def _place_positions(norm: str) -> set[str]:
+    """The words in `norm` that stand where a place stands."""
+    out: set[str] = set()
+    for regex in (_AFTER_ANCHOR, _BEFORE_ANCHOR):
+        for m in regex.finditer(norm):
+            out.add(m.group(1))
+    for m in _LIST_PAIR.finditer(norm):
+        out.update(m.groups())
+    words = _WORD_RE.findall(norm)
+    if len(words) <= _SHORT_MESSAGE_WORDS:
+        out.update(words)
+    return out
+
+
+def strip_boilerplate(norm: str, boilerplate: frozenset[str]) -> str:
+    """Drop the lines a channel appends to every post — see
+    `api.coverage.channel_boilerplate` for how they are found.
+
+    A signature is the worst possible input to a list ranked by FREQUENCY: it
+    repeats mechanically, so it outranks every real village. «Підписатись |
+    Відправити новину» took three of the queue's top six rows on 2026-08-30,
+    while Володимирівка — eight real callouts in the same window — was nowhere
+    on it.
+    """
+    if not boilerplate:
+        return norm
+    kept = [ln for ln in norm.splitlines() if ln.strip() not in boilerplate]
+    return "\n".join(kept)
+
+
+def unknown_toponyms(
+    text: str, matcher: DistrictMatcher, boilerplate: frozenset[str] = frozenset()
+) -> list[str]:
     """Normalized words in `text` that look like a place the gazetteer is
     missing — deduplicated, in the order they appear.
 
-    Deliberately no preposition requirement. `eval/mine_toponyms.py` mines
-    "«на» + Word" and slash pairs, which fits Kyiv-side prose; the northern
-    channel's dominant message is a bare one-word callout («Жукотки»,
-    «Красяни»), and an anchor-based extractor sees none of them.
+    A word counts only where a PLACE could stand (`_place_positions`), which
+    includes a short message being nothing but the callout. The rule used to be
+    "every unknown word", on the grounds that the northern channels write bare
+    one-word callouts an anchor-based extractor would miss — true, and that is
+    why the short-message rule exists rather than a bare preposition
+    requirement. What the old rule could not survive was prose: a long post
+    contributes every noun it contains, so the ranking filled with verbs and
+    channel signatures and the real names sank under them.
     """
-    norm = normalize(text)
+    norm = strip_boilerplate(normalize(text), boilerplate)
+    positions = _place_positions(norm)
     out: list[str] = []
     seen: set[str] = set()
     for match in _WORD_RE.finditer(norm):
@@ -215,6 +292,8 @@ def unknown_toponyms(text: str, matcher: DistrictMatcher) -> list[str]:
         if len(word) < _MIN_LEN or word in seen:
             continue
         seen.add(word)
+        if word not in positions:
+            continue
         # Gazetteer FIRST, and that order is load-bearing. Several stem lists
         # above are prefixes of real place names — the numerals alone swallow
         # Трипілля ("три"), Семиполки ("семи") and Троєщина ("троє"), and
@@ -228,7 +307,9 @@ def unknown_toponyms(text: str, matcher: DistrictMatcher) -> list[str]:
 
 
 def rank_candidates(
-    texts: Iterable[tuple[str, object]], matcher: DistrictMatcher
+    texts: Iterable[tuple[str, object]],
+    matcher: DistrictMatcher,
+    boilerplate: frozenset[str] = frozenset(),
 ) -> list[dict]:
     """Aggregate `unknown_toponyms` over many messages into a work-list ranked
     by how often each candidate occurs.
@@ -241,7 +322,7 @@ def rank_candidates(
     counts: dict[str, int] = {}
     example: dict[str, tuple[str, object]] = {}
     for text, ref in texts:
-        for word in unknown_toponyms(text, matcher):
+        for word in unknown_toponyms(text, matcher, boilerplate):
             counts[word] = counts.get(word, 0) + 1
             example.setdefault(word, (text, ref))
     return [

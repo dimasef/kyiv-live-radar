@@ -5,10 +5,17 @@ import { ADMIN_WIDTH } from "@/components/admin/adminLayout";
 import AdminGate from "@/components/admin/AdminGate";
 import { observeVisible } from "@/lib/observers";
 import { STORAGE_KEYS, safeGet, safeSet } from "@/lib/storage";
+import { replaceSearch } from "@/router";
 import { useRadar } from "@/store";
 import type { RawOutcomeFilter, RawSource, Region } from "@/types";
 
 import ControlsToggle from "./ControlsToggle";
+import {
+  filtersFromSearch,
+  filtersToSearch,
+  hasActiveFilters,
+  NO_RAW_FILTERS,
+} from "./rawFilters";
 import RawFilterBar from "./RawFilterBar";
 import RawMessageRow from "./RawMessageRow";
 import RawToolbar from "./RawToolbar";
@@ -32,15 +39,19 @@ export default function RawMessagesPage() {
  * so the admin console can host it as its "Весь Фід" tab; it assumes the caller
  * already gated on admin. */
 export function RawMessagesView() {
-  const [searchInput, setSearchInput] = useState("");
-  const [q, setQ] = useState("");
-  const [outcome, setOutcome] = useState<RawOutcomeFilter | "all">("all");
-  const [llm, setLlm] = useState<"all" | "yes" | "no">("all");
+  // The URL is read ONCE, at mount: from here on this state is the filter, and
+  // the effect below writes it back. A reload, a bookmark or a link pasted into
+  // a bug report therefore reopens the same slice of the feed.
+  const [initial] = useState(() => filtersFromSearch(window.location.search));
+  const [searchInput, setSearchInput] = useState(initial.q);
+  const [q, setQ] = useState(initial.q);
+  const [outcome, setOutcome] = useState<RawOutcomeFilter | "all">(initial.outcome);
+  const [llm, setLlm] = useState<"all" | "yes" | "no">(initial.llm);
   // Both are SETS: empty means "no restriction", which is the filter's own off
   // position — so there is no "all" entry that could be picked alongside a
   // named value.
-  const [sourceIds, setSourceIds] = useState<number[]>([]);
-  const [regions, setRegions] = useState<Region[]>([]);
+  const [sourceIds, setSourceIds] = useState<number[]>(initial.sourceIds);
+  const [regions, setRegions] = useState<Region[]>(initial.regions);
   const regionCatalogue = useRadar((s) => s.regions);
   const ensureRegions = useRadar((s) => s.ensureRegions);
   // The admin console is reachable on a route that never bootstraps the map, so
@@ -75,6 +86,22 @@ export function RawMessagesView() {
     () => ({ q, outcome, llm, sourceIds, regions }),
     [q, outcome, llm, sourceIds, regions],
   );
+
+  const resetFilters = () => {
+    setSearchInput(NO_RAW_FILTERS.q);
+    setQ(NO_RAW_FILTERS.q);
+    setOutcome(NO_RAW_FILTERS.outcome);
+    setLlm(NO_RAW_FILTERS.llm);
+    setSourceIds(NO_RAW_FILTERS.sourceIds);
+    setRegions(NO_RAW_FILTERS.regions);
+  };
+
+  // Mirror the filter into the URL. An effect because the target is the browser
+  // itself, not React state — and it keys on the DEBOUNCED search, so the
+  // address bar follows the query that actually ran rather than every keystroke.
+  useEffect(() => {
+    replaceSearch(filtersToSearch(filters));
+  }, [filters]);
   const {
     items,
     loading,
@@ -135,6 +162,8 @@ export function RawMessagesView() {
                 onSourceIdsChange={setSourceIds}
                 regions={regions}
                 onRegionsChange={setRegions}
+                canReset={hasActiveFilters(filters)}
+                onReset={resetFilters}
               />
 
               <RawToolbar

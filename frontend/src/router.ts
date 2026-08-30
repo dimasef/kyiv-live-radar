@@ -8,6 +8,21 @@ export function navigate(to: string) {
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
 
+/** Put `search` (a query string, no leading «?») on the CURRENT path without
+ * navigating: same URL bar, same history entry, no re-render.
+ *
+ * Replace rather than push, because the caller is a control the operator adjusts
+ * continuously — a filter typed one letter at a time would otherwise leave a
+ * history entry per keystroke, and «back» would walk them one by one instead of
+ * leaving the page. Nothing subscribes to the query string either: whoever put a
+ * value there is the component holding it in state.
+ */
+export function replaceSearch(search: string) {
+  const url = window.location.pathname + (search ? `?${search}` : '')
+  if (url === window.location.pathname + window.location.search) return
+  window.history.replaceState(window.history.state, '', url)
+}
+
 /** Current pathname, re-rendering on back/forward and navigate(). */
 export function useRoute(): string {
   const [path, setPath] = useState(() => window.location.pathname)
@@ -57,7 +72,7 @@ export const RAW_MESSAGES_PATH = '/raw'
 // Admin console tabs, each its own route (/admin/<tab>) so a reload keeps the
 // open tab instead of snapping back to the first one. 'manage' is the bare
 // /admin route; 'raw' also answers the legacy /raw path (see adminTabFromPath).
-export const ADMIN_TABS = ['manage', 'bugs', 'sources', 'gaps', 'corrections', 'reprocess', 'raw'] as const
+export const ADMIN_TABS = ['manage', 'bugs', 'users', 'sources', 'gaps', 'corrections', 'reprocess', 'raw'] as const
 export type AdminTab = (typeof ADMIN_TABS)[number]
 
 /** True for any admin route: /admin, /admin/<tab>, or the legacy /raw. */

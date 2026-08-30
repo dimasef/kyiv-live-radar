@@ -1783,3 +1783,35 @@ def test_kab_case_forms_type_but_kabinet_does_not(text, expected):
     messages against 10 colliders. The forms are listed explicitly rather than
     the stem relaxed."""
     assert parse_message(text, _SUMY_M).target_type == expected, text
+
+
+def test_a_bank_callout_is_a_live_sighting():
+    """The two banks are the coarsest place this feed names, and the commonest:
+    «Лівий берег!» and «Правий берег!» alone are ~100 corpus messages that
+    resolved to nothing before 2026-08-30."""
+    for txt, place in [("Лівий берег!", "Лівий берег"),
+                       ("Правий берег! Підліт", "Правий берег"),
+                       ("Спуск лівий берег!", "Лівий берег")]:
+        r = parse_message(txt, M)
+        assert r.matched and [h.name for h in r.districts] == [place], txt
+
+
+def test_news_about_a_bank_is_not_a_target_over_it():
+    """The other side of making the banks matchable: the city-news register that
+    names them. Each of these was silent while the bank was unmatchable, and
+    each raised a track the day it stopped being."""
+    for txt in [
+        "⏺На лівому березі Києва видніється густий дим, рекомендуємо позачиняти вікна",
+        "💡 На Правому березі подекуди зникло світло",
+        "Звуки, що може чути лівий берег — детонація. Не уточнюємо місце.",
+    ]:
+        assert not parse_message(txt, M).matched, txt
+
+
+def test_smoke_advisory_after_a_strike_is_aftermath():
+    """Predates the banks — «Борщагівка і Троя видніється сильний дим після
+    удару» was raising a live two-district track over the city."""
+    r = parse_message(
+        "❗️Борщагівка і Троя видніється сильний дим після удару!Закрийте вікна до відбою!", M
+    )
+    assert r.aftermath and not r.matched

@@ -88,10 +88,20 @@ function smoothstep(x: number): number {
  * MIN_FADE as its auto-close arrives.
  *
  * Impacts never fade — a strike is a historical fact, not a target that could
- * have moved on. A closed track doesn't fade here either: its disappearance is
- * animated in CSS over the linger (see `.threat-icon--closing`). */
+ * have moved on. A track closed by NEWS (збито, відбій, «чисто») doesn't fade
+ * here either: something was actually reported about it, so it stays legible for
+ * its linger and its disappearance is animated in CSS (`.threat-icon--closing`).
+ *
+ * The exception is `closed_reason: 'stale'`, which is the absence of news — the
+ * sweeper retiring a target nobody has mentioned. Exempting it too meant a track
+ * that had spent minutes dimming to MIN_FADE snapped back to FULL brightness at
+ * the instant it was closed (the marker ~4x, the vector ~2x), sat there for the
+ * whole linger, and only then left: the quietest thing on the map became the
+ * loudest, right when the map was saying the opposite. Its phase keeps growing
+ * past 1, so it simply stays at the floor it had already reached. */
 export function fadeFactor(threat: Threat, now: number, inspected = false): number {
-  if (threat.kind === 'impact' || threat.closed_at) return 1
+  if (threat.kind === 'impact') return 1
+  if (threat.closed_at && threat.closed_reason !== 'stale') return 1
   const p = stalePhase(threat, now)
   if (p <= FADE_START) return 1
   const decay = smoothstep((p - FADE_START) / (1 - FADE_START))

@@ -144,6 +144,16 @@ def test_known_districts_are_not_candidates(matcher):
     assert unknown_toponyms("Реактивний на Славутич", matcher) == []
 
 
+# Entries the coverage queue could never have proposed, and must not be asked
+# to: every word of the name is an ordinary word the queue is right to mute.
+# «Лівий/Правий берег» is an adjective plus a common noun, «Київська ГЕС» is the
+# oblast adjective plus a 3-letter abbreviation. None of them was found by the
+# queue — all three came out of a whole-corpus mining pass — so the property the
+# test below guards (a stop word silently costing us the NEXT such village)
+# cannot apply. Keep this list short; a real village name belongs in neither.
+_NOT_PROPOSABLE = {"Лівий берег", "Правий берег", "Київська ГЕС"}
+
+
 def test_stoplist_would_still_propose_every_known_place():
     """The corpus sweep app/gazetteer.py demands before any new stem lands.
 
@@ -165,6 +175,7 @@ def test_stoplist_would_still_propose_every_known_place():
         # "Київ" is not a place the gazetteer is missing, and the matcher skips
         # it on purpose, so the word lists are all that can suppress it.
         if d["name_en"] != _CITYWIDE_NAME_EN
+        and d["name_uk"] not in _NOT_PROPOSABLE
         # A name too short to be a stem at all («ТЕЦ») is matched through
         # vocab._WHOLE_WORD_ALIASES, and the queue's own 4-char floor means it
         # could never be proposed whatever the word lists say. Nothing to guard.
@@ -249,13 +260,34 @@ def test_northern_landmark_is_invisible_to_a_kyiv_channel(text):
     assert _region_matcher("kyiv").find(normalize(text)) == []
 
 
-def test_kyiv_numbered_plants_still_win_their_own_mentions():
-    """Regression guard for the reverted bare-"тец" alias: «ТЕЦ - 6» (spaced) once
-    matched ТЕЦ-5, turning a message that matched nothing into a wrong pin."""
-    m = _region_matcher("kyiv")
-    assert [h.name for h in m.find(normalize("ТЕЦ-6/Воскресенка"))][0] == "ТЕЦ-6"
-    assert [h.name for h in m.find(normalize("Видубичі/ТЕЦ-5"))][-1] == "ТЕЦ-5"
-    assert [h.name for h in m.find(normalize("ТЕЦ - 6"))] == []
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("ТЕЦ-6/Воскресенка", "ТЕЦ-6"),
+        ("Видубичі/ТЕЦ-5", "ТЕЦ-5"),
+        # The spellings the feed actually uses. «ТЕЦ - 6» is the one that once
+        # matched ТЕЦ-5 — the wrong plant, 12 km away — which is why the bare
+        # alias was reverted in 2026-08-21 and both plants stayed unreachable in
+        # every spaced form until each started requiring its own digit.
+        ("ТЕЦ 5", "ТЕЦ-5"),
+        ("ТЕЦ 6", "ТЕЦ-6"),
+        ("ТЕЦ - 6", "ТЕЦ-6"),
+        ("1 на ТЕЦ 6", "ТЕЦ-6"),
+    ],
+)
+def test_kyiv_numbered_plants_win_their_own_mentions(text, expected):
+    names = [h.name for h in _region_matcher("kyiv").find(normalize(text))]
+    assert expected in names
+    # Never BOTH: they are two plants, and one callout names one of them.
+    assert len([n for n in names if n.startswith("ТЕЦ")]) == 1
+
+
+@pytest.mark.parametrize("text", ["ТЕЦ 🔴.", "Район ТЕЦ", "На ТЕЦ уважно"])
+def test_unnumbered_kyiv_tets_matches_neither_plant(text):
+    """The number IS the name here. Without it the callout is ambiguous between
+    two plants 12 km apart, so it stays unmatched and reaches the coverage queue
+    — unmatched is where it already was, a wrong pin would be new."""
+    assert [h.name for h in _region_matcher("kyiv").find(normalize(text))] == []
 
 
 def test_region_only_entry_is_hidden_from_the_llm_enum():
@@ -580,3 +612,156 @@ def test_the_kharkiv_raions_never_reach_a_kyiv_channel():
 @pytest.mark.parametrize("name", ["Кутузівка", "Кулиничі", "Бурбулатове", "Чайківка"])
 def test_the_stoplist_would_still_have_proposed_the_kharkiv_batch(name):
     assert any(not is_known_word(w) for w in normalize(name).split() if len(w) >= 4)
+
+
+# --- V: the Київщина pass, 2026-08-30 -------------------------------------
+# Mined over the whole stored corpus the way passes T and U were. Everything
+# here was a Kyiv-channel callout that resolved to nothing, or (Коцюбинське)
+# to the wrong oblast.
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("Далі на Лісники/Хотів і все що поруч - уважно", ["Лісники", "Хотів"]),
+        ("Хотів 🔴.", ["Хотів"]),
+        ("Виноградар/Коцюбинське 🔴.", ["Виноградар", "Коцюбинське"]),
+        ("Коцюба увага", ["Коцюбинське"]),
+        ("Увага Оболонь/район ГЕС 🔴.", ["Київська ГЕС", "Оболонь"]),
+        ("На Золоті/Хрещатик 🔴.", ["Золоті ворота", "Центр"]),
+        ("Теремки/ВДНГ 🔴.", ["ВДНГ", "Теремки"]),
+        ("Воскресенка/Русанівські сади 🔴.", ["Воскресенка", "Русанівські сади"]),
+        ("Лавина 🔴.", ["Лавина"]),
+        ("Голосіів", ["Голосіївський"]),
+    ],
+)
+def test_the_kyiv_batch_localizes(text, expected):
+    m = _region_matcher("kyiv")
+    assert sorted({h.name for h in m.find(normalize(text))}) == sorted(expected), text
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("Лівий берег!", "Лівий берег"),
+        ("Позаду через правий", "Правий берег"),
+        ("Ще один на Лівому березі", "Лівий берег"),
+        ("Кружляє над Правим берегом", "Правий берег"),
+        ("Відхиляється перший по лівобережжю", "Лівий берег"),
+        ("Перші бандеролі на правобережжі", "Правий берег"),
+    ],
+)
+def test_the_two_banks_are_places(text, expected):
+    """102 corpus callouts, none of which resolved: the old «лівий берег» alias
+    was a SPACED form, and a stem never contains a space."""
+    assert expected in [h.name for h in _region_matcher("kyiv").find(normalize(text))]
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["правила дорожнього руху", "правоохоронці працюють", "робите правильно",
+     "перекриють праві смуги", "у правій смузі", "ліворуч від траси"],
+)
+def test_the_bank_adjectives_do_not_fire_inside_ordinary_words(text):
+    """Whole-word aliases, and only the four case forms the feed types: «прав»
+    as a stem is inside half the vocabulary of a road-closure notice."""
+    assert _region_matcher("kyiv").find(normalize(text)) == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["доречі хотів у вас запитати, можливо у вас є преміум",
+     "якщо іран так хотів би вдарити по україні",
+     "напав на Україну, бо хотів її зʼїсти"],
+)
+def test_khotiv_the_verb_is_not_khotiv_the_village(text):
+    """The village and the past tense of «хотіти» are the same word; what
+    separates them is the object or second verb that only the verb takes."""
+    assert _region_matcher("kyiv").find(normalize(text)) == []
+
+
+def test_kotsiubynske_belongs_to_the_channel_that_called_it():
+    """Two settlements 130 km apart share «коцюбинське». Before the Kyiv one
+    existed, «Ірпінь/Коцюбинське» from a Kyiv channel pinned a target on
+    Чернігівщина's Михайло-Коцюбинське."""
+    kyiv = [h.name for h in _region_matcher("kyiv").find(normalize("Ірпінь/Коцюбинське"))]
+    assert kyiv == ["Ірпінь", "Коцюбинське"]
+    north = _region_matcher("chernihiv").find(normalize("Михайло Коцюбинське"))
+    assert [h.name for h in north] == ["Михайло-Коцюбинське"]
+
+
+def test_every_entry_is_reachable_by_its_own_name_or_an_alias():
+    """A spaced name cannot match as one stem, so an entry whose only way in is
+    its own multi-word name can never fire at all — «Русанівські сади» sat in
+    the list unmatchable for the life of the project, and so did the «лівий
+    берег» alias on Лівобережний. Cheap to state, invisible otherwise."""
+    entries = [{"id": i + 1, **d} for i, d in enumerate(DISTRICTS)]
+    dead = []
+    for e in entries:
+        if e["name_en"] == _CITYWIDE_NAME_EN:
+            continue
+        region = e.get("region", "kyiv")
+        m = DistrictMatcher(entries, prefer_region=region,
+                            allowed_regions=frozenset({region}))
+        forms = [e["name_uk"], *e.get("aliases", [])]
+        if not any(any(h.district_id == e["id"] for h in m.find(normalize(f))) for f in forms):
+            dead.append(e["name_uk"])
+    assert dead == ["Нижні Сади"]  # spaced, and the corpus has never named it
+
+
+# --- W: the fixed coverage queue's first batch, 2026-08-30 -----------------
+# Every one of these came off the ranked candidate list the same day the queue
+# stopped counting channel signatures — which is the point of that fix: the
+# names were in the feed all along and the list could not show them.
+
+
+@pytest.mark.parametrize(
+    ("region", "text", "expected"),
+    [
+        ("kharkiv", "2 курсом на Охоче❗️", ["Охоче"]),
+        ("kharkiv", "Таранівка/Охоче/Слобожанське/Красноград",
+         ["Берестин", "Охоче", "Слобожанське", "Таранівка"]),
+        # The raion, which the town's own stem cannot reach (і↔о inside the root).
+        ("kharkiv", "Лозівський район дорозвідка", ["Лозова"]),
+        ("kharkiv", "Лозівский район не довго пісня грала", ["Лозова"]),
+        ("chernihiv", "Строївка/Паперня 4", ["Паперня", "Строївка"]),
+        ("chernihiv", "Ільмівка на Строївку", ["Ільмівка", "Строївка"]),
+        ("chernihiv", "Димерка південь на Паперня", ["Димерка", "Паперня"]),
+        ("chernihiv", "На гучин", ["Гучин"]),
+        ("chernihiv", "Ріпки на малий листвен", ["Листвен", "Ріпки"]),
+        ("sumy", "Авраменкове > Чернігівщина реактивний шах", ["Авраменкове"]),
+        # The corpus's most-called unlocalized place, 9 messages of it.
+        ("chernihiv", "Володимирівка", ["Володимирівка"]),
+        ("chernihiv", "Володимирівка на Клубівку", ["Володимирівка", "Клубівка"]),
+        ("chernihiv", "Лемешівка, Перепис на Володимирівку",
+         ["Володимирівка", "Лемешівка", "Перепис"]),
+    ],
+)
+def test_the_coverage_queue_batch_localizes(region, text, expected):
+    m = DistrictMatcher(
+        [{"id": i + 1, **d} for i, d in enumerate(DISTRICTS)],
+        prefer_region=region, allowed_regions=frozenset({region}),
+    )
+    assert sorted({h.name for h in m.find(normalize(text))}) == sorted(expected), text
+
+
+def test_lozova_raion_does_not_steal_ruska_lozova():
+    """The town takes «лозівськ» (its raion); the two Лозова entries keep
+    splitting «лозов» between them exactly as before."""
+    m = DistrictMatcher(
+        [{"id": i + 1, **d} for i, d in enumerate(DISTRICTS)],
+        prefer_region="kharkiv", allowed_regions=frozenset({"kharkiv"}),
+    )
+    assert [h.name for h in m.find(normalize("Руська Лозова"))] == ["Руська Лозова"]
+    assert [h.name for h in m.find(normalize("Лозова"))] == ["Лозова"]
+
+
+def test_volodymyrivka_is_invisible_to_every_other_region():
+    """One of the commonest names in the country, and the oblast has two of it —
+    `region_only`, so only the northern channel that has ever called it out can
+    reach it (the Іванівка/Новоселівка class in GAZETTEER.md)."""
+    assert _region_matcher("kyiv").find(normalize("Володимирівка")) == []
+    assert _region_matcher("sumy").find(normalize("На Володимирівку")) == []
+    assert [h.name for h in _region_matcher("chernihiv").find(normalize("Володимирівка"))] == [
+        "Володимирівка"
+    ]

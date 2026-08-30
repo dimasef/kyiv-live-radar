@@ -71,7 +71,12 @@ class Settings(BaseSettings):
         # callouts sit 0.7 min apart at the median and 3.2 at p90, which is what
         # these two numbers already were. A new type does not oblige new windows.
         "kab": 6,
-        "jet_drone": 10,
+        # Deliberately the SAME as its orphan window: a reactive drone crossing
+        # the city is re-reported at the same cadence whether or not a channel
+        # happens to be threading its callouts, so the tracked/orphan split buys
+        # nothing here — and 10 min of silence on the fastest thing over the city
+        # was a dot nobody could still vouch for. Maintainer's call, 2026-08-30.
+        "jet_drone": 8,
         # Measured on 3760 Сумщина messages: within one FPV run the callouts
         # sit 3.0 min apart at the median and 8.6 at p90. It is also the
         # shortest-legged thing on the map — ~20 km of range at rooftop
@@ -79,7 +84,15 @@ class Settings(BaseSettings):
         # nowhere.
         "fpv": 8,
         "shahed": 15,     # the SLOWEST-reported type: p95 gap between callouts is 25 min
-        "unknown": 20,
+        # No longer the twin of `track_stale_minutes` (20), which stays the
+        # fallback for a target_type missing from this map entirely. The two mean
+        # different things: an unconfigured NEW type should behave like the old
+        # single-window world, while 'unknown' is the single most common bucket
+        # on the map (~35% of sightings even after the LLM tier) — an untyped dot
+        # held for 20 min is the biggest single source of ghosts, and nothing
+        # about "we don't know what it is" argues for the LONGEST window there
+        # is. Maintainer's call, 2026-08-30.
+        "unknown": 10,
     }
     # A track with no reply chain will never be joined by anything — a reply
     # can't arrive, and corroboration only merges the SAME district within

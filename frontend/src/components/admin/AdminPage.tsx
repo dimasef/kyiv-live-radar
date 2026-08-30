@@ -9,6 +9,7 @@ import CoverageGapList from './CoverageGapList'
 import ManagementTab from './ManagementTab'
 import ReprocessPanel from './ReprocessPanel'
 import SourcesPanel from './SourcesPanel'
+import UsersPanel from './UsersPanel'
 
 /** Admin console (replaces the old standalone /raw tab), behind AdminGate. The
  * open tab is driven by the URL (/admin/<tab>) so a reload keeps it instead of
@@ -28,6 +29,9 @@ export default function AdminPage() {
             </TabButton>
             <TabButton active={tab === 'bugs'} onClick={() => navigate(adminTabPath('bugs'))}>
               Баги
+            </TabButton>
+            <TabButton active={tab === 'users'} onClick={() => navigate(adminTabPath('users'))}>
+              Юзери
             </TabButton>
             <TabButton active={tab === 'sources'} onClick={() => navigate(adminTabPath('sources'))}>
               Джерела
@@ -61,6 +65,7 @@ export default function AdminPage() {
           <div className="h-full overflow-y-auto overscroll-contain">
             {tab === 'manage' && <ManagementTab />}
             {tab === 'bugs' && <BugReportsPanel />}
+            {tab === 'users' && <UsersPanel />}
             {tab === 'sources' && <SourcesPanel />}
             {tab === 'gaps' && <CoverageGapList />}
             {tab === 'corrections' && <CorrectionsPanel />}

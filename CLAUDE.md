@@ -178,7 +178,7 @@ endpoint to the module that owns its area, not to `routes.py`.
 
 ### Gazetteer (`app/gazetteer.py`)
 
-~687 entries (146 Київщина / 317 Чернігівщина / 140 Сумщина / 84 Харківщина —
+~704 entries (155 Київщина / 323 Чернігівщина / 141 Сумщина / 85 Харківщина —
 the last still `active=False`): 10 administrative raions + in-city
 micro-neighborhoods/landmarks + approach-corridor villages across the covered
 oblasts, each with a stem + aliases the spotters actually use. Grown reactively from real feed gaps — coverage is the primary

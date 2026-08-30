@@ -116,6 +116,73 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/coverage_candidates/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Dismiss Toponym
+         * @description Mark one candidate as «не прогалина». It disappears from the ranking and
+         *     from the message rows admitted for it alone, permanently and for good — the
+         *     same judgement the curated lists in `parsing/toponyms.py` encode, made by
+         *     hand instead of by deploy.
+         *
+         *     Idempotent, and matched WHOLE: unlike the stem lists, a dismissal can never
+         *     shadow a real name that merely starts with the same letters.
+         */
+        post: operations["admin_dismiss_toponym_admin_coverage_candidates_dismiss_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/coverage_candidates/dismiss/{word}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Admin Restore Toponym
+         * @description Undo a dismissal — the word ranks again from the next scan.
+         */
+        delete: operations["admin_restore_toponym_admin_coverage_candidates_dismiss__word__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/coverage_candidates/dismissed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin Dismissed Toponyms
+         * @description The words the operator has ruled out, so the console can show them and
+         *     offer to put one back.
+         */
+        get: operations["admin_dismissed_toponyms_admin_coverage_candidates_dismissed_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/coverage_gaps": {
         parameters: {
             query?: never;
@@ -511,6 +578,138 @@ export interface paths {
         put?: never;
         /** Admin Restore Threat */
         post: operations["admin_restore_threat_admin_threats__threat_id__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin List Users
+         * @description Every account, newest first. Unpaginated and unfiltered by design: this
+         *     is a `sources`-sized table, not a `raw_messages`-sized one, and the console
+         *     filters it client-side (a server-side query param would mean one request per
+         *     keystroke). `limit` is only there so an unbounded table can't produce an
+         *     unbounded response.
+         *
+         *     Blocked accounts stay in place rather than sorting to the bottom — the
+         *     operator usually opens this right after blocking someone, to confirm it.
+         */
+        get: operations["admin_list_users_admin_users_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Admin Delete User
+         * @description HARD-delete an account and everything that only exists because of it —
+         *     irreversible, unlike blocking.
+         *
+         *     The dependent rows are removed with EXPLICIT statements rather than left to
+         *     the `ondelete` clauses in the schema, because those don't run everywhere:
+         *     SQLite (dev) ignores foreign keys unless PRAGMA foreign_keys is on, while
+         *     Postgres (prod) enforces them. Leaving it to the DDL would mean dev quietly
+         *     keeping orphan friendship rows that prod deletes — and an orphan friendship
+         *     breaks the OTHER person's contact list.
+         *
+         *     What survives, deliberately, with its owner set to NULL: bug reports, parser
+         *     corrections, toponym dismissals, push subscriptions and any source they
+         *     added. Those are project history and training data, not personal effects —
+         *     the same call `ondelete=SET NULL` already makes in the schema.
+         */
+        delete: operations["admin_delete_user_admin_users__user_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{user_id}/block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Block User
+         * @description Deactivate an account. `User.is_active` is already enforced everywhere
+         *     that matters — auth/deps (every authenticated request), login and refresh —
+         *     so this needs no enforcement code of its own: the target's current session
+         *     dies on their very next request.
+         */
+        post: operations["admin_block_user_admin_users__user_id__block_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{user_id}/role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Admin Set User Role
+         * @description Grant or revoke console access.
+         *
+         *     Only 'user' and 'admin_g' are assignable (see models.AssignableRole): plain
+         *     'admin' is derived from the env allowlists on every login, so it cannot be
+         *     granted here in a way that survives.
+         *
+         *     Revoking is refused while the env allowlist still names the person — role
+         *     resolution would hand the role straight back at their next sign-in, and a
+         *     control that silently undoes itself is worse than one that says no. The
+         *     entry has to go from ADMIN_EMAILS / ADMIN_TELEGRAM_IDS first.
+         */
+        patch: operations["admin_set_user_role_admin_users__user_id__role_patch"];
+        trace?: never;
+    };
+    "/admin/users/{user_id}/unblock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Unblock User
+         * @description No guards here — unblocking is the recovery direction.
+         */
+        post: operations["admin_unblock_user_admin_users__user_id__unblock_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1637,6 +1836,96 @@ export interface components {
              * @default bearer
              */
             token_type: string;
+        };
+        /**
+         * AdminUserDeleteOut
+         * @description DELETE /admin/users/{id} — what the cascade actually removed.
+         *
+         *     Reported rather than assumed because the deletion is done with explicit
+         *     statements, not left to the DDL: SQLite (dev) does not enforce `ondelete`
+         *     without PRAGMA foreign_keys, while Postgres (prod) does — so relying on the
+         *     schema alone would mean two different behaviours.
+         */
+        AdminUserDeleteOut: {
+            /** Analyses */
+            analyses: number;
+            /** Deleted */
+            deleted: number;
+            /** Friendships */
+            friendships: number;
+            /** Identities */
+            identities: number;
+            /** Orphaned */
+            orphaned: number;
+        };
+        /**
+         * AdminUserOut
+         * @description GET /admin/users — one account in the «Юзери» tab.
+         *
+         *     A superset of `UserOut`'s public profile plus the operator-only columns:
+         *     whether the email was ever verified, when the account was created / last
+         *     signed in / last did anything, whether it is blocked, and WHY its role holds
+         *     the value it does (see models.RoleSource — `role` itself is read-only here,
+         *     because role resolution recomputes it from the env allowlists on every
+         *     login).
+         *
+         *     `last_seen_at` is published regardless of the owner's `share_presence`: that
+         *     flag gates peer-to-peer disclosure to accepted contacts, not the operator's
+         *     view of their own database. Deliberately absent, as none of the operator's
+         *     business: `gamification`, `share_presence`, `home_*`, `contact_prefs`.
+         */
+        AdminUserOut: {
+            /** Avatar Url */
+            avatar_url?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Display Name */
+            display_name?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Email Verified */
+            email_verified: boolean;
+            /** Id */
+            id: number;
+            /** Is Active */
+            is_active: boolean;
+            /** Last Login At */
+            last_login_at?: string | null;
+            /** Last Seen At */
+            last_seen_at?: string | null;
+            /**
+             * Providers
+             * @default []
+             */
+            providers: string[];
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "admin" | "admin_g" | "user";
+            /**
+             * Role Source
+             * @enum {string}
+             */
+            role_source: "allowlist" | "manual" | "default";
+        };
+        /**
+         * AdminUserRoleIn
+         * @description PATCH /admin/users/{id}/role — grant or revoke console access.
+         *
+         *     Only `AssignableRole` values: plain 'admin' is derived from the env
+         *     allowlists on every login, so storing it would be a lie the next sign-in
+         *     corrects. Durable admin is 'admin_g'.
+         */
+        AdminUserRoleIn: {
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "user" | "admin_g";
         };
         /**
          * AlertOut
@@ -3697,6 +3986,15 @@ export interface components {
             user: components["schemas"]["UserOut"];
         };
         /**
+         * ToponymDismissalIn
+         * @description POST /admin/coverage_candidates/dismiss — one candidate the operator
+         *     judged not to be a place.
+         */
+        ToponymDismissalIn: {
+            /** Name */
+            name: string;
+        };
+        /**
          * UserOut
          * @description The authenticated user's public profile.
          */
@@ -3977,6 +4275,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CoverageCandidateOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_dismiss_toponym_admin_coverage_candidates_dismiss_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ToponymDismissalIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_restore_toponym_admin_coverage_candidates_dismiss__word__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                word: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_dismissed_toponyms_admin_coverage_candidates_dismissed_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
                 };
             };
             /** @description Validation Error */
@@ -4694,6 +5091,175 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ThreatOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_list_users_admin_users_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_delete_user_admin_users__user_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserDeleteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_block_user_admin_users__user_id__block_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_set_user_role_admin_users__user_id__role_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminUserRoleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_unblock_user_admin_users__user_id__unblock_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserOut"];
                 };
             };
             /** @description Validation Error */

@@ -508,6 +508,28 @@ QUERIES: list[tuple[str, list[str]]] = [
     ("Sumykhimprom", ["Сумихімпром, Суми, Сумська область"]),
     ("Zarichnyi Sumy", ["Зарічний район, Суми, Сумська область"]),
     ("Kovpakivskyi Sumy", ["Ковпаківський район, Суми, Сумська область"]),
+    # V — Київщина, 2026-08-30. The first whole-corpus pass over the home
+    # region: settlements the feed names on the western and southern approaches,
+    # plus the in-city landmarks it narrates a target across. Хотів and the dam
+    # only answer to the wider query — with the raion they return nothing.
+    ("Kotsiubynske", ["Коцюбинське, Бучанський район, Київська область"]),
+    ("Khotiv", ["Хотів, Київська область"]),
+    ("Lisnyky", ["Лісники, Обухівський район, Київська область"]),
+    ("KyivHPP", ["Київська ГЕС"]),
+    ("ZolotiVorota", ["Золоті ворота, Київ"]),
+    ("VDNH", ["ВДНГ, Київ"]),
+    ("LavinaMall", ["Lavina Mall, Київ"]),
+    # W — the first batch off the FIXED coverage queue (2026-08-30): once the
+    # ranking stopped counting channel signatures, these rose to its top four.
+    # Паперня answers only to the oblast query — with its raion it returns
+    # nothing, the reverse of the Елітне case in the U pass.
+    ("Okhoche", ["Охоче, Харківська область"]),
+    ("Papernia", ["Паперня, Чернігівська область"]),
+    ("Stroivka", ["Строївка, Чернігівська область"]),
+    ("Ilmivka", ["Ільмівка, Чернігівська область"]),
+    ("Huchyn", ["Гучин, Чернігівська область"]),
+    ("Lystven", ["Листвен, Ріпкинська громада, Чернігівська область"]),
+    ("Avramenkove", ["Авраменкове, Сумська область"]),
 ]
 
 
