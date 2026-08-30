@@ -1447,8 +1447,29 @@ DISTRICTS: list[dict] = [
     #   «Перемога» — 6 of 8 are elsewhere: a Kyiv village, the donation slogan
     #                «крок до перемоги», and Суми's Проспект Перемоги. Its
     #                callouts pair with Шестакове, which is here.
-    #   «Елітне»   — Nominatim answered with Зернове, a different village. A
-    #                wrong pin is worse than a gap; re-add when geocoded right.
+    #   «Довжик»   — three of them in the oblast (Валківська, Золочівська, and a
+    #                quarter of Гороховатка), and its two callouts point two
+    #                different ways: one follows Олексіївка on the city's NW
+    #                side, the other follows Шестакове 50 km east. Neighbours
+    #                that disagree cannot settle a name (2026-08-30).
+    #   «Проходи»  — `проход` is inside «проходить»/«проходять»: 17 of the 19
+    #                corpus hits are the verb, 2 are the place. The Остер
+    #                failure exactly. It is also ambiguous between Великі and
+    #                Малі Проходи, which the one callout does not resolve.
+    #   «Варварівка», «Петрівка» — four and several in the oblast respectively,
+    #                one callout each and no neighbouring toponym to place them.
+    #   «Перещепине» — a real callout, but the settlement is Дніпропетровщина's,
+    #                and that region has no gazetteer (and is not active).
+    #
+    # Reversed 2026-08-30, with the new evidence the procedure asks for:
+    #   «Елітне»   — the rejection said Nominatim answered with Зернове. Queried
+    #                as «Елітне, Харківський район» it answers Елітне (49.9908,
+    #                36.4543), 1.0 km from Зернове — they are neighbours in
+    #                Вільхівська громада, which is why the loose query collapsed
+    #                them. The corridor confirms both: «Верхня Роганка» ->
+    #                «Молнія на Елітне/Зернове» -> «Кулиничі» -> «ХТЗ» is one
+    #                target crossing the city's eastern edge, and all four are
+    #                now in the list.
     {"name_uk": "Харків", "name_en": "Kharkiv City", "lat": 49.9923, "lon": 36.2310,
      "region": "kharkiv", "aliases": []},
     # Лозова and Руська Лозова share «лозов» and nothing else — the Писарівка
@@ -1584,6 +1605,52 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Лісопарк", "name_en": "Lisopark KH", "lat": 50.0579, "lon": 36.2406,
      "region": "kharkiv", "region_only": True, "aliases": []},
     {"name_uk": "Помірки", "name_en": "Pomirky", "lat": 50.0512, "lon": 36.2645,
+     "region": "kharkiv", "region_only": True, "aliases": []},
+
+    # --- U (2026-08-30): second Харківщина pass, from the same whole-corpus
+    # mining as the northern one. Nine entries; the four rejections above came
+    # out of the same list and are half the value of the pass.
+    #
+    # The east-of-the-city corridor is the shape of it: «Верхня Роганка» ->
+    # «Молнія на Елітне/Зернове» -> «Кулиничі» -> «ХТЗ» was ONE target, and its
+    # middle three callouts localized to nothing. Кутузівка and Бобрівка sit on
+    # the same line 6 km apart.
+    {"name_uk": "Кутузівка", "name_en": "Kutuzivka", "lat": 50.0431, "lon": 36.4701,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Бобрівка", "name_en": "Bobrivka KH", "lat": 50.0500, "lon": 36.3924,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Зернове", "name_en": "Zernove KH", "lat": 49.9886, "lon": 36.4419,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Елітне", "name_en": "Elitne", "lat": 49.9908, "lon": 36.4543,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Кулиничі", "name_en": "Kulynychi", "lat": 49.9820, "lon": 36.3839,
+     "region": "kharkiv", "aliases": []},
+    # HOMONYM: the other Чайківка is Вовчанська громада, 80 km north-east. This
+    # one is 12 km from Черкаська Лозова, which its callout sits between
+    # («FPV над Черкаською Лозовою» -> «Далі на Чайківку» -> back), so the
+    # neighbours decide (GAZETTEER.md step 1).
+    {"name_uk": "Чайківка", "name_en": "Chaikivka KH", "lat": 50.0747, "lon": 36.1902,
+     "region": "kharkiv", "aliases": []},
+    # Both callouts are Лозівський: «курсом на Самійлівку» is followed by «курс
+    # Лозова» 15 km north.
+    {"name_uk": "Самійлівка", "name_en": "Samiylivka", "lat": 48.7698, "lon": 36.2292,
+     "region": "kharkiv", "aliases": []},
+    {"name_uk": "Бурбулатове", "name_en": "Burbulatove", "lat": 48.8202, "lon": 36.6425,
+     "region": "kharkiv", "aliases": []},
+    # City raions — the spotters narrate «Загроза для Шевченківського/
+    # Холодногірського р-в» exactly as the Kyiv channels do. `region_only` for
+    # the reason the Чернігів «Деснянський район» has it: Kyiv owns a
+    # Шевченківський of its own, and a raion name must never cross an oblast.
+    {"name_uk": "Шевченківський район", "name_en": "Shevchenkivskyi KH",
+     "lat": 50.0385, "lon": 36.2268, "region": "kharkiv", "region_only": True,
+     "aliases": ["шевченківськ"]},
+    {"name_uk": "Холодногірський район", "name_en": "Kholodnohirskyi KH",
+     "lat": 50.0064, "lon": 36.1680, "region": "kharkiv", "region_only": True,
+     "aliases": ["холодногірськ"]},
+    # The city suburb, not one of the four other Олексіївки in the oblast: its
+    # callouts run «Мала Данилівка» -> «Олексіївка» and «П'ятихатки» ->
+    # «Лісопарк/Олексіївка», both of which are the north-west of the city.
+    {"name_uk": "Олексіївка", "name_en": "Oleksiivka KH", "lat": 50.0440, "lon": 36.1983,
      "region": "kharkiv", "region_only": True, "aliases": []},
     # `region_only`: the name (or its stem) is one another region already owns —
     # Андріївка/Валки/Вільшана are Сумщина's, «лісн» opens Kyiv's Лісники and

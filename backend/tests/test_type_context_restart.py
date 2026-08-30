@@ -193,7 +193,10 @@ async def test_a_stated_type_wins_over_a_stored_verdict_on_the_same_message(sess
     await session.commit()
     _recent_type.clear()
     await rehydrate_type_context(session)
-    assert _recent_type[src.id] == ("ballistic", now - timedelta(minutes=20), False)
+    ctx = _recent_type[src.id]
+    assert (ctx.target_type, ctx.when, ctx.inferred) == (
+        "ballistic", now - timedelta(minutes=20), False
+    )
 
 
 async def test_a_shadow_mode_verdict_is_not_restored_into_a_live_process(session, monkeypatch):

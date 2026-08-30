@@ -44,6 +44,10 @@ export function useRawMessages(filters: RawMessageFilters) {
   // of appending stale results onto the fresh (reset) list.
   const cursorRef = useRef<number | undefined>(undefined)
   const requestIdRef = useRef(0)
+  // Bumped by `reload` to re-run the effect below on an unchanged filter. The
+  // list is a live feed read while messages are still arriving, and the only
+  // other way to see them was to change a filter and change it back.
+  const [nonce, setNonce] = useState(0)
 
   // Destructured so the memo depends on the filter VALUES, not the object's
   // identity — the caller rebuilds `filters` every render, and keying on it
@@ -99,7 +103,7 @@ export function useRawMessages(filters: RawMessageFilters) {
         if (requestId === requestIdRef.current) setTotal(r.count)
       })
       .catch(() => {})
-  }, [fetchPage, apiFilter])
+  }, [fetchPage, apiFilter, nonce])
 
   /** Drop a deleted sighting from the row that produced it, in place — a
    * refetch here would restart the cursor and throw away everything the admin
@@ -179,12 +183,18 @@ export function useRawMessages(filters: RawMessageFilters) {
     )
   }, [])
 
+  /** Re-run the current filter from the top: new page, new count, cursor reset.
+   * Not a silent poll — the operator asks for it, so a row they are mid-way
+   * through editing never moves under them on a timer. */
+  const reload = useCallback(() => setNonce((n) => n + 1), [])
+
   return {
     items,
     loading,
     done,
     total,
     loadMore,
+    reload,
     apiFilter,
     dropEvent,
     setNotice,

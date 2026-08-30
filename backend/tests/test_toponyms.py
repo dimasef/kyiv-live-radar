@@ -536,3 +536,47 @@ def test_the_stoplist_would_still_have_proposed_the_batch(name):
     """Same guard the Сумщина batch needed: a stop word that is a prefix of a
     real name silently costs the next such village."""
     assert any(not is_known_word(w) for w in normalize(name).split() if len(w) >= 4)
+
+
+# --- U (2026-08-30): second Харківщина pass ----------------------------------
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        # One target crossing the city's eastern edge; its middle three callouts
+        # localized to nothing before this pass.
+        ("Молнія на Елітне/Зернове⚠️", ["Елітне", "Зернове"]),
+        ("Молнія продовжує рух на Кулиничі❗️", ["Кулиничі"]),
+        ("Далі на Кутузівку❗️", ["Кутузівка"]),
+        ("Ударний БПЛА на Бобрівку‼️", ["Бобрівка"]),
+        ("Далі на Чайківку‼️", ["Чайківка"]),
+        ("Реактивний шахед курсом на Самійлівку", ["Самійлівка"]),
+        ("В районі Бурбулатове", ["Бурбулатове"]),
+        # The city raion layer, written exactly the way the Kyiv channels write
+        # theirs.
+        ("Загроза для Шевченківського/Холодногірського р-в❗️",
+         ["Холодногірський район", "Шевченківський район"]),
+        ("Далі на Лісопарк/Олексіївку‼️", ["Лісопарк", "Олексіївка"]),
+    ],
+)
+def test_the_kharkiv_batch_localizes(text, expected):
+    m = DistrictMatcher(
+        [{"id": i + 1, **d} for i, d in enumerate(DISTRICTS)],
+        prefer_region="kharkiv", allowed_regions=frozenset({"kharkiv"}),
+    )
+    assert sorted({h.name for h in m.find(normalize(text))}) == sorted(expected), text
+
+
+def test_the_kharkiv_raions_never_reach_a_kyiv_channel():
+    """Kyiv owns a Шевченківський of its own — a raion name crossing an oblast
+    is the «Мезин, деснянське» failure, which opened a Kyiv attack banner from a
+    northern callout. Both city raions are `region_only`."""
+    m = _region_matcher("kyiv")
+    assert [h.name for h in m.find(normalize("Шевченківський район 🔴"))] == ["Шевченківський"]
+    assert m.find(normalize("Ціль на Олексіївку")) == []
+
+
+@pytest.mark.parametrize("name", ["Кутузівка", "Кулиничі", "Бурбулатове", "Чайківка"])
+def test_the_stoplist_would_still_have_proposed_the_kharkiv_batch(name):
+    assert any(not is_known_word(w) for w in normalize(name).split() if len(w) >= 4)

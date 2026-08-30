@@ -2,6 +2,7 @@ import { dismissAlert } from '@/api'
 import { useRadar } from '@/store'
 
 import AdminActionButton from './AdminActionButton'
+import AdminRegionList from './AdminRegionList'
 
 /** Open official air-raid alerts (banner source). Cancelling clears a
  * city/oblast alert that was raised in error. */
@@ -17,8 +18,8 @@ export default function ActiveAlertList() {
       {open.length === 0 ? (
         <p className="text-xs text-slate-600">Немає активних тривог.</p>
       ) : (
-        <ul className="space-y-1.5">
-          {open.map((alert) => (
+        <AdminRegionList items={open} regionOf={(a) => a.region}>
+          {(alert) => (
             <li
               key={alert.id}
               className="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs"
@@ -34,8 +35,8 @@ export default function ActiveAlertList() {
                 />
               </div>
             </li>
-          ))}
-        </ul>
+          )}
+        </AdminRegionList>
       )}
     </section>
   )

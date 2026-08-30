@@ -318,10 +318,12 @@ async def test_a_verdict_types_the_next_bare_toponym_without_a_second_call(
     assert {t.target_type for t in await session.scalars(select(Threat))} == {"jet_drone"}
 
 
-async def test_an_inferred_type_decays_instead_of_refreshing_itself(db, stub_type, monkeypatch):
-    """One window per ANSWER, not a self-feeding chain. Inheritance never touches
-    the stored timestamp, so a verdict recorded at t0 stops being inherited a
-    window later however many messages inherited it in between."""
+async def test_carrying_a_type_forward_keeps_it_alive(db, stub_type, monkeypatch):
+    """A callout is evidence the wave is still running, so inheriting restarts
+    the window. Before that, the window measured silence since somebody last
+    happened to NAME the weapon — and on 2026-08-30 it lapsed 3 seconds before
+    the next callout, bought a second answer on an unchanged feed, and got a
+    different one."""
     session, matcher = db
     calls, box = stub_type
     monkeypatch.setattr(settings, "llm_type_mode", "live")
@@ -333,7 +335,31 @@ async def test_an_inferred_type_decays_instead_of_refreshing_itself(db, stub_typ
                   when=t0 + timedelta(minutes=3), message_id=2)
     await _ingest(session, matcher, "Ще є Новгород",
                   when=t0 + timedelta(minutes=7), message_id=3)
-    assert len(calls) == 2   # t0 and t0+7; the middle one rode the context
+    # One call, not two: the middle message pushed the window forward.
+    assert len(calls) == 1
+    for track in await session.scalars(select(Threat)):
+        assert track.target_type == "jet_drone"
+
+
+async def test_one_answer_cannot_ride_past_the_total_age_cap(db, stub_type, monkeypatch):
+    """The refresh above is bounded by TOTAL age, which is why the old design
+    refused to refresh at all: uncapped, one guess owns the channel for as long
+    as it keeps talking."""
+    session, matcher = db
+    calls, box = stub_type
+    monkeypatch.setattr(settings, "llm_type_mode", "live")
+    monkeypatch.setattr(settings, "type_inherit_window_minutes", 5)
+    monkeypatch.setattr(settings, "type_inherit_max_age_minutes", 6)
+    box["verdict"] = TypeVerdict("jet_drone", "context", 0.85)
+    t0 = utcnow()
+    await _ingest(session, matcher, "Рогівка зайшов", when=t0, message_id=1)
+    for i, minutes in enumerate((3, 6, 9, 12), start=2):
+        await _ingest(session, matcher, "Новгород ⚠️⚠️⚠️",
+                      when=t0 + timedelta(minutes=minutes), message_id=i)
+    # t0+6 is the last refresh the cap allows, so the window then runs out from
+    # a frozen mark and t0+12 buys a fresh answer. The tail is therefore bounded
+    # at cap + one window, never at "as long as the channel keeps talking".
+    assert len(calls) == 2
 
 
 async def test_a_stated_type_still_overrules_an_inferred_one(db, stub_type, monkeypatch):

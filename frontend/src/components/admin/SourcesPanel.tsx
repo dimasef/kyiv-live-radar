@@ -4,6 +4,7 @@ import { fetchSources, type Source } from '@/api'
 import { useAsyncData } from '@/lib/useAsyncData'
 import { useRadar } from '@/store'
 
+import AdminLoading from './AdminLoading'
 import { ADMIN_WIDTH } from './adminLayout'
 import AddSourceForm from './AddSourceForm'
 import AlertRow from './AlertRow'
@@ -60,6 +61,7 @@ export default function SourcesPanel() {
 
       <AddSourceForm role={role} onAdded={upsert} />
 
+      {!loaded && <AdminLoading rows={4} />}
       {loaded && list.length === 0 && (
         <p className="text-xs text-slate-600">
           {tab === 'channels' ? 'Каналів немає.' : 'Каналів тривог немає.'}

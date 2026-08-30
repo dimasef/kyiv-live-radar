@@ -141,6 +141,14 @@ class Settings(BaseSettings):
     # this window. Rule-only, in-memory — never triggers an LLM call (a message
     # that already has a district short-circuits the LLM fallback gate anyway).
     type_inherit_window_minutes: int = 5
+    # …and how long ONE answer may keep being carried forward in total. Every
+    # inherit restarts the window above (a callout is evidence the wave is still
+    # running), so without this a single type rides for as long as the channel
+    # keeps talking — measured at 178 min / 54 messages on the stored corpus,
+    # which is long enough for one wrong guess to own a whole night. At 60 the
+    # tail is bounded at ~88 min (cap + one last window) and only 37 of the 838
+    # messages the refresh types are given back.
+    type_inherit_max_age_minutes: int = 60
 
     # --- Incident grouping (Stage E) ---
     # A new track/impact/city-alert joins the current OPEN incident if the

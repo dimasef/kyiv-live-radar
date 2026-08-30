@@ -81,6 +81,7 @@ export function RawMessagesView() {
     done,
     total,
     loadMore,
+    reload,
     apiFilter,
     dropEvent,
     setNotice,
@@ -111,6 +112,8 @@ export function RawMessagesView() {
             loaded={items.length}
             total={total}
             selectedCount={selection.selectedCount}
+            loading={loading}
+            onReload={reload}
           />
 
           {!controlsOpen ? null : (

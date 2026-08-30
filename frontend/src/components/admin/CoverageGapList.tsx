@@ -6,6 +6,7 @@ import { useAsyncData } from '@/lib/useAsyncData'
 import AdminActionButton from './AdminActionButton'
 import CoverageCandidates from './CoverageCandidates'
 import { downloadGapExport, openGapExport } from './exportGaps'
+import AdminLoading from './AdminLoading'
 import { ADMIN_WIDTH } from './adminLayout'
 
 /** How many recent raw messages an export re-parses. The on-screen list stays
@@ -57,6 +58,7 @@ export default function CoverageGapList() {
           }}
         />
       </div>
+      {!loaded && <AdminLoading rows={4} />}
       {loaded && gaps.length === 0 && (
         <p className="text-xs text-slate-600">Прогалин не знайдено.</p>
       )}

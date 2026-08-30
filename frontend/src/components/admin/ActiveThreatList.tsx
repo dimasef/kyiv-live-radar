@@ -1,5 +1,6 @@
 import { useRadar } from '@/store'
 
+import AdminRegionList from './AdminRegionList'
 import ThreatAdminRow from './ThreatAdminRow'
 
 /** All live tracks on the map right now — the primary surface for retyping or
@@ -17,11 +18,9 @@ export default function ActiveThreatList() {
       {list.length === 0 ? (
         <p className="text-xs text-slate-600">Немає активних цілей.</p>
       ) : (
-        <ul className="space-y-1.5">
-          {list.map((threat) => (
-            <ThreatAdminRow key={threat.id} threat={threat} />
-          ))}
-        </ul>
+        <AdminRegionList items={list} regionOf={(t) => t.region}>
+          {(threat) => <ThreatAdminRow key={threat.id} threat={threat} />}
+        </AdminRegionList>
       )}
     </section>
   )

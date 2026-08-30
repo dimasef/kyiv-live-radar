@@ -32,12 +32,23 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.42.0";
+const LATEST = "0.42.1";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "реактивні впізнаються з першого слова",
+    date: "2026-08-30",
+    kind: "patch",
+    changes: [
+      "«рБПЛА» — скорочення, яким один із каналів називає реактивний БПЛА — тепер розпізнається як реактивний одразу. Раніше такий виклик доводилось типізувати за сусідніми повідомленнями, тож перша ціль хвилі могла лишитись без типу",
+      "Тип цілі довше тримається на серії викликів: поки спостерігач веде ту саму хвилю топонім за топонімом, ціль не втрачає позначку через тишу між згадками зброї",
+      "Ще одинадцять місць на Харківщині — Кутузівка, Бобрівка, Кулиничі, Елітне, Зернове, Чайківка, Самійлівка, Бурбулатове й міські райони Харкова",
+    ],
+  },
+  {
+    version: "0.42.0",
     title: "більше півночі на мапі",
     date: "2026-08-30",
     kind: "minor",

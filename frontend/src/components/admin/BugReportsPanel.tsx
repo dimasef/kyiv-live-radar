@@ -10,6 +10,7 @@ import {
 
 import { useAsyncData } from '@/lib/useAsyncData'
 
+import AdminLoading from './AdminLoading'
 import { ADMIN_WIDTH } from './adminLayout'
 import BugReportRow from './BugReportRow'
 
@@ -68,6 +69,7 @@ export default function BugReportsPanel() {
         ))}
       </div>
 
+      {!loaded && <AdminLoading rows={3} />}
       {loaded && reports.length === 0 && <p className="text-xs text-slate-600">Порожньо.</p>}
 
       <ul className="space-y-2">

@@ -82,7 +82,14 @@ _MISSILE = _MISSILE_WEAPON + _MISSILE_CARRIER
 _JET_MODEL = ("бандерол", "молні")
 # Bare "реактив", not "реактивн" — the noun form is used too ("3 реактива повз
 # Славутич"); on 08-04 those stayed unknown and inherited ballistic.
-_JET = ("реактив", "швидкісн")
+#
+# «рбпла» is the Kyiv channel's own abbreviation for «реактивний БПЛА», 12
+# messages and every one of them a live callout («Виноградар рБПЛА 🔴», «2х
+# рБПЛА море/Вишгород»). It typed as `unknown`, not even as a generic drone:
+# keywords anchor on a word START, so the «бпла» in `_UAV` cannot see it behind
+# the «р». Those callouts took their type from the channel context instead,
+# which means they were right only while a wave was already typed.
+_JET = ("реактив", "швидкісн", "рбпла")
 # "баражуюч"/"баражаюч" = loitering munition, both spellings in the feed. It is
 # the generic class word the alert channel uses when it names no model
 # ("двом баражаючим боєприпасам"); with a model named, the more specific list

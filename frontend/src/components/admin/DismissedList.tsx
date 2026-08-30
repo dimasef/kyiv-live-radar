@@ -12,6 +12,8 @@ import {
 import { useAsyncData } from '@/lib/useAsyncData'
 
 import AdminActionButton from './AdminActionButton'
+import AdminLoading from './AdminLoading'
+import AdminRegionList from './AdminRegionList'
 
 const EMPTY: Dismissed = { threats: [], incidents: [], alerts: [] }
 
@@ -20,7 +22,7 @@ const EMPTY: Dismissed = { threats: [], incidents: [], alerts: [] }
  * (a restore both un-cancels the row and re-adds it to the live layer via WS). */
 export default function DismissedList() {
   const { t } = useTranslation()
-  const { data: items, reload } = useAsyncData<Dismissed>(fetchDismissed, [], EMPTY)
+  const { data: items, loaded, reload } = useAsyncData<Dismissed>(fetchDismissed, [], EMPTY)
 
   const restore = (run: () => Promise<unknown>) => async () => {
     await run()
@@ -28,44 +30,45 @@ export default function DismissedList() {
   }
 
   const total = items.threats.length + items.incidents.length + items.alerts.length
+  // One list across the three kinds, so a region block holds everything that
+  // was cancelled over that oblast rather than three separate piles.
+  const rows = [
+    ...items.threats.map((th) => ({
+      key: `t${th.id}`, region: th.region,
+      label: `Ціль T${th.id} · ${t(`target.${th.target_type}`)}`,
+      run: () => restoreThreat(th.id),
+    })),
+    ...items.incidents.map((inc) => ({
+      key: `i${inc.id}`, region: inc.region, label: `Атака #${inc.id}`,
+      run: () => restoreIncident(inc.id),
+    })),
+    ...items.alerts.map((a) => ({
+      key: `a${a.id}`, region: a.region, label: `Тривога #${a.id}`,
+      run: () => restoreAlert(a.id),
+    })),
+  ]
 
   return (
     <section>
       <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
         Нещодавно скасовані ({total})
       </h2>
-      {total === 0 ? (
+      {!loaded ? (
+        <AdminLoading rows={2} />
+      ) : total === 0 ? (
         <p className="text-xs text-slate-600">Порожньо.</p>
       ) : (
-        <ul className="space-y-1.5">
-          {items.threats.map((th) => (
-            <Row key={`t${th.id}`} label={`Ціль T${th.id} · ${t(`target.${th.target_type}`)}`}>
+        <AdminRegionList items={rows} regionOf={(r) => r.region}>
+          {(row) => (
+            <Row key={row.key} label={row.label}>
               <AdminActionButton
                 label="Повернути"
                 tone="accent"
-                onRun={restore(() => restoreThreat(th.id))}
+                onRun={restore(row.run)}
               />
             </Row>
-          ))}
-          {items.incidents.map((inc) => (
-            <Row key={`i${inc.id}`} label={`Атака #${inc.id}`}>
-              <AdminActionButton
-                label="Повернути"
-                tone="accent"
-                onRun={restore(() => restoreIncident(inc.id))}
-              />
-            </Row>
-          ))}
-          {items.alerts.map((a) => (
-            <Row key={`a${a.id}`} label={`Тривога #${a.id}`}>
-              <AdminActionButton
-                label="Повернути"
-                tone="accent"
-                onRun={restore(() => restoreAlert(a.id))}
-              />
-            </Row>
-          ))}
-        </ul>
+          )}
+        </AdminRegionList>
       )}
       <button
         onClick={reload}

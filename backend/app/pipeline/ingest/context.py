@@ -28,11 +28,19 @@ class TypeContext(NamedTuple):
     enumeration split (handlers._handle_sighting) must not treat a guess as
     grounds for splitting «Вишневе Жуляни» into two targets. An OPERATOR retype
     is not inferred — a human correcting the map outranks the rules.
+
+    The two timestamps answer different questions. `when` is the last time this
+    type was CONFIRMED — restated, or carried onto another callout — and is what
+    the inheritance window measures against. `anchored_at` is when the answer
+    was first established, and only the total-age cap reads it (see
+    `_note_and_inherit_type`). None means "same as `when`", for the entries that
+    predate the field.
     """
 
     target_type: str
     when: datetime
     inferred: bool = False
+    anchored_at: datetime | None = None
 
 
 # Per-source "last known target type" context for cross-message type
@@ -175,9 +183,9 @@ def _note_and_inherit_type(
             and prev[0] == "ballistic"
             and _within_inherit_window(when, prev[1], window_minutes)
         ):
-            _recent_type[source_id] = TypeContext("ballistic", when)
+            _recent_type[source_id] = TypeContext("ballistic", when, anchored_at=when)
         else:
-            _recent_type[source_id] = TypeContext(parsed.target_type, when)
+            _recent_type[source_id] = TypeContext(parsed.target_type, when, anchored_at=when)
         # A stated type is new information in the FEED — every channel's stale
         # "I can't tell" is now worth re-asking (see type_context_declined).
         _type_generation += 1
@@ -195,6 +203,26 @@ def _note_and_inherit_type(
     if not type_plausible_in(recent.target_type, region):
         return False
     parsed.target_type = recent.target_type
+    # Carrying the type onto a callout CONFIRMS the wave is still running, so
+    # the window restarts from here. Without this the window measures silence
+    # since the last time somebody happened to name the weapon, which on a
+    # channel that names it once an hour is not a measure of anything: on
+    # 2026-08-30 the anchor expired 3 seconds before the next callout, the
+    # classifier was asked again on an unchanged feed, and answered `kab`
+    # instead of the `shahed` it had answered 30 minutes earlier — which then
+    # rode 9 tracks. Measured on the stored corpus: 2115 -> 2953 messages typed
+    # by inheritance.
+    #
+    # Capped by TOTAL age, which is the reason the old design refused to
+    # refresh at all: uncapped, one answer rides as long as the channel keeps
+    # talking (longest chain on the corpus 178 min / 54 messages), so a wrong
+    # guess becomes permanent for the night. The cap costs 37 of those 838
+    # extra messages and bounds the tail at 88 minutes.
+    anchor = recent.anchored_at or recent.when
+    if abs((naive(when) - naive(anchor)).total_seconds()) <= (
+        settings.type_inherit_max_age_minutes * 60
+    ):
+        _recent_type[source_id] = recent._replace(when=when, anchored_at=anchor)
     return recent.inferred
 
 
@@ -213,14 +241,19 @@ def note_inferred_type(source_id: int | None, target_type: str, when: datetime) 
     typed coverage 80.6% -> 90.0%: the inherited verdict also types the
     sightings a call would have answered `unknown` on.
 
-    Decay is bounded to ONE window per answer, not a self-refreshing chain —
-    inheritance deliberately never touches the stored timestamp, so a verdict
-    recorded at 16:35 stops being inherited at 17:05 whatever happens in
-    between. `inferred=True` keeps it distinguishable downstream.
+    Decay used to be bounded to ONE window per answer: inheritance never touched
+    the stored timestamp, so a verdict recorded at 16:35 stopped being inherited
+    at 17:05 whatever happened in between. That is no longer true, and the
+    reason is in `_note_and_inherit_type`: carrying a type onto a callout is
+    evidence the wave is still running, so it now restarts the window, and the
+    unbounded-chain risk that the old rule existed to prevent is handled by
+    `settings.type_inherit_max_age_minutes` instead. `inferred=True` still keeps
+    the answer distinguishable downstream.
     """
     if source_id is None or target_type == "unknown":
         return
-    _recent_type[source_id] = TypeContext(target_type, when, inferred=True)
+    _recent_type[source_id] = TypeContext(target_type, when, inferred=True,
+                                          anchored_at=when)
 
 
 def note_operator_type(source_ids, target_type: str, when: datetime) -> None:
@@ -256,7 +289,7 @@ def note_operator_type(source_ids, target_type: str, when: datetime) -> None:
     if target_type == "unknown":
         return
     for source_id in {s for s in source_ids if s is not None}:
-        _recent_type[source_id] = TypeContext(target_type, when)
+        _recent_type[source_id] = TypeContext(target_type, when, anchored_at=when)
         _declined_type.pop(source_id, None)
     _type_generation += 1
 

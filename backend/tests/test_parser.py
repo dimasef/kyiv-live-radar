@@ -70,6 +70,24 @@ def test_jet_drone_stated_as_a_noun():
         assert parse_message(txt, M).target_type == "jet_drone", txt
 
 
+def test_the_channels_own_abbreviation_for_a_jet_drone():
+    """«рБПЛА» is how the Kyiv channel writes «реактивний БПЛА» — 12 corpus
+    messages, every one a live callout. It typed as `unknown`, not even as a
+    generic drone: keywords anchor on a word START, so `_UAV`'s «бпла» cannot
+    see it behind the «р». Those callouts were taking their type from the
+    channel context, i.e. they were right only while a wave was already typed."""
+    for txt in ["Виноградар рБПЛА 🔴.", "2х рБПЛА море/Вишгород 🔴.",
+                "На Чернігівщині 4х нових рБПЛА.", "Над містом 3х рБПЛА!"]:
+        assert parse_message(txt, M).target_type == "jet_drone", txt
+
+
+def test_the_abbreviation_does_not_eat_a_plain_drone_callout():
+    # The whole risk of a three-letter prefix: «удар БПЛА» must stay a drone.
+    for txt in ["удар БПЛА по місту", "Відбій тривоги та загрози від БПЛА",
+                "ударний бпла"]:
+        assert parse_message(txt, M).target_type == "shahed", txt
+
+
 def test_masculine_one_infers_shahed_when_no_type_stated():
     # Ukrainian numeral agreement: "один"/"одне" (masculine/neuter) implies a
     # masculine-gender noun (шахед/дрон/БПЛА), not "ракета" (feminine). Real

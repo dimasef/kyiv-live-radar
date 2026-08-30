@@ -4,6 +4,7 @@ import { dismissIncident } from '@/api'
 import { useRadar } from '@/store'
 
 import AdminActionButton from './AdminActionButton'
+import AdminRegionList from './AdminRegionList'
 
 /** Ongoing attacks (incident rollups). Cancelling an attack also cancels all of
  * its member tracks in one action — for when a whole raid was raised in error. */
@@ -19,8 +20,8 @@ export default function ActiveIncidentList() {
       {incidents.length === 0 ? (
         <p className="text-xs text-slate-600">Немає активних атак.</p>
       ) : (
-        <ul className="space-y-1.5">
-          {incidents.map((inc) => (
+        <AdminRegionList items={incidents} regionOf={(i) => i.region}>
+          {(inc) => (
             <li
               key={inc.id}
               className="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs"
@@ -38,8 +39,8 @@ export default function ActiveIncidentList() {
                 />
               </div>
             </li>
-          ))}
-        </ul>
+          )}
+        </AdminRegionList>
       )}
     </section>
   )

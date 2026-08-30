@@ -2,6 +2,7 @@ import { CheckCircle2, Circle } from 'lucide-react'
 
 import { fetchCorrections, type Correction } from '@/api'
 import { useAsyncData } from '@/lib/useAsyncData'
+import AdminLoading from './AdminLoading'
 import { ADMIN_WIDTH } from './adminLayout'
 
 const KIND_LABEL: Record<Correction['kind'], string> = {
@@ -30,6 +31,7 @@ export default function CorrectionsPanel() {
           <span className="font-mono text-slate-200">{items.length}</span>
         </p>
       )}
+      {!loaded && <AdminLoading rows={3} />}
       {loaded && items.length === 0 && (
         <p className="text-xs text-slate-600">Виправлень ще немає.</p>
       )}
