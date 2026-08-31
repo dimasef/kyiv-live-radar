@@ -6,6 +6,8 @@ import { contactMarkerSvg, homeStyleOf } from "@/lib/contactMarker";
 import { centerPinMode } from "@/lib/device";
 import { useRadar } from "@/store";
 
+import AddressSearch from "./AddressSearch";
+
 export default function HomePlacement({ map }: { map: L.Map | null }) {
   const { t } = useTranslation();
   const placingHome = useRadar((s) => s.placingHome);
@@ -56,28 +58,41 @@ export default function HomePlacement({ map }: { map: L.Map | null }) {
       setPlacingHome(false);
     };
     return (
-      <div className="pointer-events-none absolute inset-0 z-[1200] flex flex-col items-center justify-center">
-        <span aria-hidden dangerouslySetInnerHTML={{ __html: houseSvg(30) }} />
-        <div className="pointer-events-auto mt-4 flex items-center gap-2">
-          <button onClick={confirm} className="btn btn--accent px-4 py-2 shadow-lg">
-            {t("home.confirmPlace")}
-          </button>
-          <button onClick={() => setPlacingHome(false)} className="btn px-3 py-2 shadow-lg">
-            {t("home.cancel")}
-          </button>
+      <>
+        <AddressSearch map={map} />
+        <div className="pointer-events-none absolute inset-0 z-[1200] flex flex-col items-center justify-center">
+          <span aria-hidden dangerouslySetInnerHTML={{ __html: houseSvg(30) }} />
+          <div className="pointer-events-auto mt-4 flex items-center gap-2">
+            <button onClick={confirm} className="btn btn--accent px-4 py-2 shadow-lg">
+              {t("home.confirmPlace")}
+            </button>
+            <button onClick={() => setPlacingHome(false)} className="btn px-3 py-2 shadow-lg">
+              {t("home.cancel")}
+            </button>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
-  // Desktop cursor-follow ghost (viewport-fixed, positioned from clientX/Y).
+  // Desktop: cursor-follow ghost (viewport-fixed, positioned from clientX/Y)
+  // plus the reminder of what to do with it — the settings drawer that said so
+  // is closed by the time placement starts.
   return (
-    <div
-      ref={ghostRef}
-      aria-hidden
-      className="pointer-events-none fixed left-0 top-0 z-[1200] opacity-0"
-      style={{ willChange: "transform" }}
-      dangerouslySetInnerHTML={{ __html: houseSvg(26) }}
-    />
+    <>
+      <AddressSearch map={map} />
+      {/* Bottom-centre, not under the search box: the suggestion list drops
+          into exactly that space. */}
+      <p className="pointer-events-none absolute bottom-6 left-1/2 z-[1200] -translate-x-1/2 rounded-md bg-ink-900/90 px-2.5 py-1 text-xs text-slate-400 shadow-lg">
+        {t("home.placing")}
+      </p>
+      <div
+        ref={ghostRef}
+        aria-hidden
+        className="pointer-events-none fixed left-0 top-0 z-[1200] opacity-0"
+        style={{ willChange: "transform" }}
+        dangerouslySetInnerHTML={{ __html: houseSvg(26) }}
+      />
+    </>
   );
 }

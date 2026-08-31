@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { Languages, X } from "lucide-react";
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -15,6 +15,7 @@ import LanguageSwitcher from "./LanguageSwitcher";
 import NotifyControl from "./NotifyControl";
 import PrivacyControl from "./PrivacyControl";
 import ReportBugControl from "./ReportBugControl";
+import SettingsSection from "./SettingsSection";
 import VersionInfo from "./VersionInfo";
 
 function DrawerBody({ onClose }: { onClose: () => void }) {
@@ -55,13 +56,15 @@ function DrawerBody({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <div className="scroll-slim flex-1 overflow-y-auto px-3 py-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-2.5">
-            <span className="text-sm font-semibold uppercase tracking-wider text-slate-400">
-              {t("settings.language")}
-            </span>
-            <LanguageSwitcher />
-          </div>
+        {/* One rhythm for the whole list: the gap lives here, so a section that
+            hides itself (signed out, unsupported browser) leaves no margin
+            behind and nothing has to carry its own `mt-*`. */}
+        <div className="scroll-slim flex-1 space-y-2.5 overflow-y-auto px-3 py-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <SettingsSection
+            icon={Languages}
+            title={t("settings.language")}
+            action={<LanguageSwitcher />}
+          />
           <HomeControl />
           <CurrentRegionControl />
           <NotifyControl />

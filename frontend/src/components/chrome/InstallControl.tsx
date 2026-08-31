@@ -1,9 +1,11 @@
-import { Download, Share, X } from 'lucide-react'
+import { Download, Share, Smartphone, X } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { safeGet, safeSet, STORAGE_KEYS } from '@/lib/storage'
 import { useRadar } from '@/store'
+
+import SettingsSection from './SettingsSection'
 
 const isStandalone = () =>
   window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true
@@ -38,11 +40,10 @@ export default function InstallControl() {
   }
 
   return (
-    <div className="mt-2.5 rounded-xl border border-white/[0.05] bg-white/[0.02] p-3">
-      <div className="mb-2.5 flex items-center justify-between">
-        <span className="text-sm font-semibold uppercase tracking-wider text-slate-400">
-          {t('install.title')}
-        </span>
+    <SettingsSection
+      icon={Smartphone}
+      title={t('install.title')}
+      action={
         <button
           onClick={dismiss}
           aria-label={t('install.dismiss')}
@@ -51,8 +52,8 @@ export default function InstallControl() {
         >
           <X size={12} />
         </button>
-      </div>
-
+      }
+    >
       {canPrompt ? (
         <button
           onClick={install}
@@ -68,6 +69,6 @@ export default function InstallControl() {
           {t('install.iosHintAfter')}
         </p>
       )}
-    </div>
+    </SettingsSection>
   )
 }

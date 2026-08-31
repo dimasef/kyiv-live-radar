@@ -33,7 +33,10 @@ export const STORAGE_KEYS = {
   // Desktop only: the event feed collapsed to give the map the full width.
   // Mobile has the bottom sheet for the same job and ignores this.
   feedCollapsed: 'klr-feed-collapsed',
-  geoAsked: 'klr-geo-asked',
+  // The first-run "mark your home" card was dismissed. Sticky on purpose: an
+  // offer that returns after being declined is nagging, and the same action
+  // stays in Settings forever.
+  homeHint: 'klr-home-hint',
   notify: 'klr-notify',
   notifyPrefs: 'klr-notify-prefs',
   // Contact ids whose shared home the user has hidden on their OWN map (local

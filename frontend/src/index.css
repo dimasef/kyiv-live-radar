@@ -157,6 +157,59 @@ body::after {
   border-color: rgba(245, 158, 11, 0.5);
 }
 
+/* ---------- selectable options: "pick one of N" ---------- */
+/* One look for the three places that ask the same question — the feed's
+   segmented controls, the region list and the notification level. They were
+   written inline three times and drifted into three paddings, two active fills
+   and one hover state out of three.
+
+   The lit state comes from ARIA rather than a class, because every call site
+   already had to set `aria-pressed`/`aria-checked` anyway: the selector cannot
+   disagree with what a screen reader is told.
+
+   Deliberately silent about font-size, width and text-align — this block is
+   declared after `@tailwind utilities` and would beat any utility on the same
+   element (see the note on `.panel--active`). The feed's text-size samples set
+   their own size, and they must keep winning. */
+.opt {
+  border-radius: 10px;
+  border: 1px solid rgba(148, 197, 233, 0.1);
+  background: rgba(148, 197, 233, 0.04);
+  color: #cbd5e1;
+  font-weight: 500;
+  padding: 7px 12px;
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    color 0.2s;
+}
+.opt:hover {
+  background: rgba(148, 197, 233, 0.075);
+  border-color: rgba(148, 197, 233, 0.2);
+}
+.opt:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.45);
+}
+.opt[aria-pressed='true'],
+.opt[aria-checked='true'] {
+  border-color: rgba(34, 211, 238, 0.35);
+  background: rgba(34, 211, 238, 0.15);
+  color: #b9f2fc;
+}
+/* Full-width option stacked in a column (a region, a notification level) rather
+   than sharing a row: taller, and its content reads left-to-right. */
+.opt--stack {
+  width: 100%;
+  padding: 9px 12px;
+  text-align: left;
+}
+/* The dimmer second line inside an option. Inherits the option's colour so a
+   lit row tints as one thing instead of needing its own active/inactive pair. */
+.opt-sub {
+  opacity: 0.72;
+}
+
 /* ---------- load-in stagger ---------- */
 @keyframes rise {
   from {

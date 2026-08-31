@@ -6,6 +6,7 @@ import AuthModal from '@/components/auth/AuthModal'
 import ConfirmModal from '@/components/common/ConfirmModal'
 import { useRadar } from '@/store'
 
+import SettingsSection from './SettingsSection'
 import Switch from './Switch'
 
 /** Settings toggle for the opt-in gamification layer. Off by default.
@@ -41,17 +42,12 @@ export default function GamificationControl() {
   }
 
   return (
-    <div className="mt-2 rounded-xl border border-white/[0.05] bg-white/[0.02] p-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Sparkles size={13} className="text-phosphor-soft/80" />
-          <span className="text-sm font-semibold uppercase tracking-wider text-slate-400">
-            {t('game.settingsTitle')}
-          </span>
-        </div>
-        <Switch checked={on} onChange={change} label={t('game.settingsTitle')} />
-      </div>
-      <p className="mt-2 text-sm leading-snug text-slate-500">{t('game.settingsHint')}</p>
+    <SettingsSection
+      icon={Sparkles}
+      title={t('game.settingsTitle')}
+      action={<Switch checked={on} onChange={change} label={t('game.settingsTitle')} />}
+    >
+      <p className="text-sm leading-snug text-slate-500">{t('game.settingsHint')}</p>
 
       {authOpen && <AuthModal onClose={closeAuth} />}
       {confirming && (
@@ -64,6 +60,6 @@ export default function GamificationControl() {
           onCancel={() => setConfirming(false)}
         />
       )}
-    </div>
+    </SettingsSection>
   )
 }

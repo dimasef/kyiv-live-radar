@@ -28,25 +28,39 @@ export default function RegionPickerModal() {
   const setChosenRegion = useRadar((s) => s.setChosenRegion)
   const [picked, setPicked] = useState<Region | null>(null)
 
-  // A pre-selection, never a decision: if the browser already granted a
-  // location on the first-run geolocation prompt, start on the oblast it falls
-  // in so the common case is one tap. Silent on failure — an unanswered
-  // permission, a home abroad, or no network all just leave nothing selected.
+  // A pre-selection, never a decision: when a location is available, start on
+  // the oblast it falls in so the common case is one tap. Silent on failure —
+  // no permission, a home abroad, or no network all just leave nothing
+  // selected, and the reader picks from the list.
+  //
+  // Asks the permission API first and gives up unless it is ALREADY granted, so
+  // this never raises a browser prompt of its own. Two reasons: a permission
+  // dialog stacked on top of the first-run modal is a bad first second, and the
+  // app deliberately does not go looking for the reader's location (see
+  // store/bootstrap.ts — jamming makes an unrequested fix a liability). A fix
+  // that lands outside every watched region selects nothing, which is what
+  // keeps a jammed one from quietly choosing an oblast.
   useEffect(() => {
-    if (!navigator.geolocation) return
+    if (!navigator.geolocation || !navigator.permissions) return
     let cancelled = false
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        if (cancelled) return
-        void fetchRegionAt(pos.coords.latitude, pos.coords.longitude)
-          .then((res) => {
-            if (!cancelled && res.region) setPicked(res.region)
-          })
-          .catch(() => {})
-      },
-      () => {},
-      { timeout: 5000, maximumAge: 600_000 },
-    )
+    void navigator.permissions
+      .query({ name: 'geolocation' })
+      .then(({ state }) => {
+        if (cancelled || state !== 'granted') return
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            if (cancelled) return
+            void fetchRegionAt(pos.coords.latitude, pos.coords.longitude)
+              .then((res) => {
+                if (!cancelled && res.region) setPicked(res.region)
+              })
+              .catch(() => {})
+          },
+          () => {},
+          { timeout: 5000, maximumAge: 600_000 },
+        )
+      })
+      .catch(() => {})
     return () => {
       cancelled = true
     }

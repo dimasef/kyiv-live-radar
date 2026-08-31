@@ -51,6 +51,7 @@ export type Collection = Schemas['CollectionOut']
 export type CardCount = Schemas['CardCountOut']
 export type AnalysisResult = Schemas['AnalyzeOut']
 export type ThreatAnalysisState = Schemas['ThreatAnalysisStateOut']
+export type GeocodeHit = Schemas['GeocodeHitOut']
 
 export type TargetType = Threat['target_type']
 export type ThreatStatus = Threat['status']

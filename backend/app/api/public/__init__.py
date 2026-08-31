@@ -12,6 +12,7 @@ from fastapi import APIRouter
 from . import (
     bugs,
     districts,
+    geocode,
     journal,
     push,
     raw,
@@ -24,5 +25,5 @@ from . import (
 
 router = APIRouter()
 for _module in (districts, regions, sources, threats, situation, zones, journal, raw,
-                push, bugs):
+                push, bugs, geocode):
     router.include_router(_module.router)

@@ -574,6 +574,29 @@ class Settings(BaseSettings):
     def alert_zones_demo_list(self) -> list[str]:
         return [z.strip() for z in self.alert_zones_demo.split(",") if z.strip()]
 
+    # --- Address search for home placement (app/geocoding.py). The gazetteer
+    #     tier is always on; these govern only the OSM half. ---
+    geocode_osm_enabled: bool = True
+    # Photon, not Nominatim: the same OSM data, but indexed for PREFIX search.
+    # Nominatim matches whole words only, so «тираспольс» answers with nothing
+    # — a search box built on it works only for a reader who already finished
+    # typing (see the module docstring for the measurement).
+    geocode_url: str = "https://photon.komoot.io/api/"
+    # Both services ask for a User-Agent that identifies the application.
+    # Overridden per deployment so a Railway instance and a laptop are
+    # distinguishable in their logs.
+    geocode_user_agent: str = "KyivLiveRadar/1.0 (kyiv-live-radar)"
+    geocode_timeout_s: float = 5.0
+    # Photon publishes no rate limit, only a request to be fair — so this is a
+    # self-imposed ceiling of ~3 req/s for the whole application (see the
+    # serialization in geocoding.osm_hits), which a typeahead can live behind
+    # while still being a small, bounded load on someone else's free service.
+    geocode_min_interval_s: float = 0.35
+    # Addresses do not move. The cache exists for the prefixes of ONE address
+    # typed in one sitting, so anything above a few minutes is already generous;
+    # a day just means a second visit to the same street is free.
+    geocode_cache_ttl_s: float = 86400.0
+
     # --- Observability (app/observability.py). All opt-in: with the token/DSN
     #     empty the SDKs stay fully dormant — no network calls, no behavior
     #     change — so local dev and the test suite run exactly as before. Set on

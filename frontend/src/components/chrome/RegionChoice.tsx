@@ -28,15 +28,11 @@ export default function RegionChoice({
             type="button"
             aria-pressed={on}
             onClick={() => onChange(region.id)}
-            className={`flex items-center justify-between rounded-lg border px-3 py-2.5 text-left text-sm transition-colors duration-200 ${
-              on
-                ? 'border-phosphor/40 bg-phosphor/15 text-phosphor-soft'
-                : 'border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.06]'
-            }`}
+            className="opt opt--stack flex items-center justify-between text-sm"
           >
-            <span className="font-medium">{region.name_uk}</span>
+            <span>{region.name_uk}</span>
             {!region.active && (
-              <span className="rounded border border-white/10 px-1.5 py-px text-sm text-slate-500">
+              <span className="opt-sub rounded border border-white/10 px-1.5 py-px text-sm font-normal">
                 готується
               </span>
             )}

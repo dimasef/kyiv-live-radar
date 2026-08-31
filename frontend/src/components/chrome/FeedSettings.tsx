@@ -8,16 +8,13 @@ import { shownRegions } from '@/store/feedRegions'
 import { FEED_LIMITS, type FeedLimit, type FeedTextSize, type SheetHeight } from '@/store/prefsSlice'
 
 import FeedRegionChips from './FeedRegionChips'
+import SettingsSection from './SettingsSection'
 
 const HEIGHTS: SheetHeight[] = ['low', 'mid', 'high']
 const SIZES: FeedTextSize[] = ['sm', 'md', 'lg']
 
-const seg = (active: boolean) =>
-  `flex-1 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors duration-200 ${
-    active
-      ? 'border-phosphor/30 bg-phosphor/15 text-phosphor-soft'
-      : 'border-transparent bg-white/[0.04] text-slate-400'
-  }`
+// Chrome comes from `.opt`, which reads the lit state off `aria-pressed`.
+const seg = 'opt flex-1 text-sm'
 
 /** Merged "Event feed" settings module: how tall the mobile sheet opens, the
  * feed text scale, and how many messages we fetch/keep. */
@@ -50,14 +47,7 @@ export default function FeedSettings() {
   const label = 'mb-1 block text-sm text-slate-500'
 
   return (
-    <div className="mt-2 rounded-xl border border-white/[0.05] bg-white/[0.02] p-3">
-      <div className="mb-2.5 flex items-center gap-2">
-        <Rows3 size={13} className="text-phosphor-soft/80" />
-        <span className="text-sm font-semibold uppercase tracking-wider text-slate-400">
-          {t('settings.feed')}
-        </span>
-      </div>
-
+    <SettingsSection icon={Rows3} title={t('settings.feed')}>
       {/* Sheet height — mobile only (desktop feed lives in a fixed sidebar). */}
       <div className="lg:hidden">
         <span className={label}>{t('settings.sheetHeight')}</span>
@@ -67,7 +57,7 @@ export default function FeedSettings() {
               key={o}
               onClick={() => setSheetHeight(o)}
               aria-pressed={sheetHeight === o}
-              className={seg(sheetHeight === o)}
+              className={seg}
             >
               {t(`settings.sheet.${o}`)}
             </button>
@@ -86,7 +76,7 @@ export default function FeedSettings() {
             // to stay visibly different from one another AND from the 14px
             // floor. 14/16/18 keeps the ratios of FEED_ZOOM (0.85/1/1.15) while
             // starting where every other label in this drawer starts.
-            className={`${seg(feedTextSize === o)} ${
+            className={`${seg} ${
               o === 'sm' ? 'text-sm' : o === 'md' ? 'text-base' : 'text-lg'
             }`}
           >
@@ -107,7 +97,7 @@ export default function FeedSettings() {
             key={String(on)}
             onClick={() => setFeedShowSource(on)}
             aria-pressed={feedShowSource === on}
-            className={seg(feedShowSource === on)}
+            className={seg}
           >
             {t(on ? 'settings.feedSourceShow' : 'settings.feedSourceHide')}
           </button>
@@ -121,12 +111,12 @@ export default function FeedSettings() {
             key={n}
             onClick={() => changeLimit(n)}
             aria-pressed={feedLimit === n}
-            className={`${seg(feedLimit === n)} font-mono tabular-nums`}
+            className={`${seg} font-mono tabular-nums`}
           >
             {n}
           </button>
         ))}
       </div>
-    </div>
+    </SettingsSection>
   )
 }

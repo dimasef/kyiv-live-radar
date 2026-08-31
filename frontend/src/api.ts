@@ -6,6 +6,7 @@ import type {
   District,
   DistrictBoundary,
   FeedEntry,
+  GeocodeHit,
   HealthStatus,
   Incident,
   Journal,
@@ -103,8 +104,8 @@ async function parseBody<T>(res: Response): Promise<T> {
   return (await res.json()) as T
 }
 
-async function get<T>(path: string): Promise<T> {
-  const res = await authedFetch(path)
+async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const res = await authedFetch(path, { signal })
   if (!res.ok) throw new ApiError(res.status, `${path} -> ${res.status}`)
   return res.json() as Promise<T>
 }
@@ -168,6 +169,14 @@ export const fetchRegionOutlines = () => get<RegionOutlines>('/regions/geometry'
 export const fetchRegionAt = (lat: number, lon: number) =>
   get<RegionAt>(`/regions/at?lat=${lat}&lon=${lon}`)
 export const fetchHealth = () => get<HealthStatus>('/health')
+// Address search for home placement. `region` narrows the OSM half to one
+// oblast's bounding box; `signal` aborts the answer to a prefix the reader has
+// already typed past.
+export const fetchGeocode = (q: string, region: Region | null, signal?: AbortSignal) =>
+  get<GeocodeHit[]>(
+    `/geocode?q=${encodeURIComponent(q)}` + (region ? `&region=${region}` : ''),
+    signal,
+  )
 export const fetchRecentNotices = (limit = 30) =>
   get<Notice[]>(`/notices/recent?limit=${limit}`)
 // `regions` narrows the page the feed loads to the pools asked for. Without it

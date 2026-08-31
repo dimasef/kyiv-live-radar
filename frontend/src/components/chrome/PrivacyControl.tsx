@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useRadar } from '@/store'
 
+import SettingsSection from './SettingsSection'
 import Switch from './Switch'
 
 /** What other people can see about you. Currently one switch — the last-seen
@@ -23,13 +24,7 @@ export default function PrivacyControl() {
   if (!authed) return null
 
   return (
-    <div className="mt-2 rounded-xl border border-white/[0.05] bg-white/[0.02] p-3">
-      <div className="mb-2.5 flex items-center gap-2">
-        <EyeOff size={13} className="text-phosphor-soft/80" />
-        <span className="text-sm font-semibold uppercase tracking-wider text-slate-400">
-          {t('settings.privacy')}
-        </span>
-      </div>
+    <SettingsSection icon={EyeOff} title={t('settings.privacy')}>
       <div className="flex items-center justify-between gap-3">
         <p className="min-w-0 text-sm text-slate-200">{t('presence.shareLabel')}</p>
         <Switch
@@ -38,7 +33,7 @@ export default function PrivacyControl() {
           onChange={() => void setSharePresence(!sharePresence).catch(() => {})}
         />
       </div>
-      <p className="mt-2 text-sm leading-snug text-slate-500">{t('presence.shareHint')}</p>
-    </div>
+      <p className="mt-2.5 text-sm leading-snug text-slate-500">{t('presence.shareHint')}</p>
+    </SettingsSection>
   )
 }

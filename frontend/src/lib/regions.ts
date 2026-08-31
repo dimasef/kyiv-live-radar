@@ -63,6 +63,31 @@ export function framingBounds(
   return regionBounds(catalogue, chosen) ?? fallback
 }
 
+/** Whether a point falls inside any watched region — the sanity check on a
+ * GNSS fix before it is allowed to become someone's home.
+ *
+ * Jamming is routine over Ukraine during a raid, and a jammed fix arrives
+ * looking exactly like a good one: no error, a plausible accuracy, coordinates
+ * in another country. The bounding boxes are coarse on purpose — this is not
+ * asking "is this the right building", only "could the reader conceivably live
+ * here", which is the only question a coordinate can be wrong about by a
+ * thousand kilometres.
+ *
+ * Fails CLOSED on an unloaded catalogue, unlike its neighbours above: they fall
+ * back to "assume it's fine" because the cost is a label rendering as an id,
+ * while the cost here is a home marker somewhere the reader has never been.
+ */
+export function insideWatchedRegions(
+  catalogue: RegionInfo[],
+  lat: number,
+  lon: number,
+): boolean {
+  return catalogue.some(({ bbox }) => {
+    const [south, west, north, east] = bbox
+    return bbox.length === 4 && lat >= south && lat <= north && lon >= west && lon <= east
+  })
+}
+
 export function regionBounds(
   catalogue: RegionInfo[],
   id: Region | null,

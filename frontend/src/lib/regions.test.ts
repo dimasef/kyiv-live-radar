@@ -6,6 +6,7 @@ import {
   currentRegion,
   effectiveRegion,
   framingBounds,
+  insideWatchedRegions,
   regionBounds,
   regionLabel,
 } from './regions'
@@ -94,5 +95,30 @@ describe('what the map is framed on', () => {
 
   it('frames the whole country for a region the catalogue does not declare', () => {
     expect(framingBounds(CATALOGUE, 'nowhere' as never, UA)).toEqual(UA)
+  })
+})
+
+describe('sanity-checking a GNSS fix before it becomes a home', () => {
+  it('accepts a point inside a watched region', () => {
+    expect(insideWatchedRegions(CATALOGUE, 50.45, 30.52)).toBe(true)
+  })
+
+  it('rejects a jammed fix in another country', () => {
+    // The reason this check exists: electronic warfare is routine over Ukraine
+    // during exactly the raids this app is for, and a jammed fix arrives
+    // looking like a good one — no error, plausible accuracy, coordinates in
+    // China. Silently stamping a home from it moves the danger radius and the
+    // push gate somewhere the reader has never been.
+    expect(insideWatchedRegions(CATALOGUE, 39.9, 116.4)).toBe(false)
+  })
+
+  it('rejects a point just outside every box', () => {
+    expect(insideWatchedRegions(CATALOGUE, 51.5, 30)).toBe(false)
+  })
+
+  it('rejects everything while the catalogue is still empty', () => {
+    // Fails CLOSED, unlike the helpers above: their fallback costs a label
+    // rendered as an id, this one would cost a wrong home.
+    expect(insideWatchedRegions([], 50.45, 30.52)).toBe(false)
   })
 })

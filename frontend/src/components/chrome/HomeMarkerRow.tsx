@@ -1,4 +1,3 @@
-import { ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -6,6 +5,8 @@ import MarkerGlyph from '@/components/common/MarkerGlyph'
 import MarkerStyleModal from '@/components/common/MarkerStyleModal'
 import { CONTACT_ICONS, HOME_COLORS, homeStyleOf } from '@/lib/contactMarker'
 import { useRadar } from '@/store'
+
+import SettingsRow from './SettingsRow'
 
 /** How the user's own home marker is drawn — opened from the home section of
  * the settings drawer, where the rest of the home controls already live.
@@ -30,18 +31,13 @@ export default function HomeMarkerRow() {
   const shape = CONTACT_ICONS.find((i) => i.id === style.icon)?.label ?? ''
 
   return (
-    <div className="mt-3 border-t border-white/[0.06] pt-3">
-      <button
+    <div className="mt-3">
+      <SettingsRow
+        icon={<MarkerGlyph icon={style.icon} color={style.color} size={18} glow={style.glow} />}
+        label={t('marker.edit')}
+        sub={shape}
         onClick={() => setEditing(true)}
-        className="flex w-full items-center gap-2.5 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-left transition-colors hover:border-white/20 hover:bg-white/[0.06]"
-      >
-        <MarkerGlyph icon={style.icon} color={style.color} size={18} glow={style.glow} />
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm text-slate-200">{t('marker.edit')}</span>
-          <span className="block truncate text-sm text-slate-500">{shape}</span>
-        </span>
-        <ChevronRight size={15} className="flex-none text-slate-500" />
-      </button>
+      />
       {editing && (
         <MarkerStyleModal
           title={t('home.markerTitle')}

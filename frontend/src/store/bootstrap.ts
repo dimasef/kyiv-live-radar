@@ -12,10 +12,8 @@ import {
   fetchRecentNotices,
   fetchPublicSources,
 } from '@/api'
-import { requestGeolocation } from '@/components/chrome'
 import { resyncHomePush } from '@/lib/push'
 import { currentRegion } from '@/lib/regions'
-import { safeGet, safeSet, STORAGE_KEYS } from '@/lib/storage'
 import { registerLifecycleListeners } from '@/lifecycle'
 import { connectWS } from '@/ws'
 
@@ -145,15 +143,14 @@ export function bootstrapApp() {
     }
   }, 30_000)
 
-  // Ask for the user's real location once, on the very first run — NOT every
-  // time home is missing. Otherwise clearing home and reloading would silently
-  // re-set it from an already-granted geolocation permission. The marker is
-  // stamped on the first boot regardless of whether a home already exists, so a
-  // later clear never re-triggers the prompt; the manual "use my location"
-  // button stays available afterwards.
-  const firstRun = !safeGet(STORAGE_KEYS.geoAsked)
-  if (firstRun) safeSet(STORAGE_KEYS.geoAsked, '1')
-  if (firstRun && !store.home) requestGeolocation()
+  // No automatic geolocation on first run, deliberately. Electronic warfare is
+  // active over Ukraine during exactly the raids this app is for, and a jammed
+  // GNSS fix is not a bad fix — it is a confident one that can land in another
+  // country. Silently stamping a home from it puts the danger radius, the push
+  // gate and the map's framing somewhere the reader has never been, and they
+  // have no reason to suspect the number. Placing a home is a deliberate act
+  // here: the map click, the address search, or the "my location" button —
+  // which checks the fix against the watched regions before accepting it.
 
   // Notifications opted in: re-register the still-live browser subscription so
   // the server's home copy heals from anything missed offline (home edited in

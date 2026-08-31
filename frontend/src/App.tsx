@@ -1,7 +1,7 @@
 import { Analytics } from "@vercel/analytics/react";
 import { useEffect, useState } from "react";
 
-import { RegionLayerHint, StatusBanner, ZoneLayerNotice } from "@/components/banners";
+import { HomeNudge, RegionLayerHint, StatusBanner, ZoneLayerNotice } from "@/components/banners";
 import {
   AppStatus,
   DisclaimerModal,
@@ -55,6 +55,10 @@ export default function App() {
           <ZoneLayerNotice />
           <RegionLayerHint />
         </div>
+        {/* Bottom of the map: the first-run invitation to place a home. Gated
+            on the two modals this route owns — behind a backdrop it would be an
+            argument nobody can read or act on. */}
+        {!showDisclaimer && !needsRegion && <HomeNudge />}
         {/* Connection status — top-right corner of the map. */}
         <div className="absolute right-3 top-3 z-[1000]">
           <AppStatus />

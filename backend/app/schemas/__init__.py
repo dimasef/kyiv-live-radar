@@ -92,6 +92,7 @@ from .gamification import (
     GamificationPrefOut,
     ThreatAnalysisStateOut,
 )
+from .geocode import GeocodeHitOut
 from .journal import (
     JournalAlertWindowOut,
     JournalDayOut,
@@ -181,6 +182,7 @@ __all__ = [
     "FriendUserBrief",
     "GamificationPrefIn",
     "GamificationPrefOut",
+    "GeocodeHitOut",
     "GoogleAuthIn",
     "HomePointOut",
     "HourBucketOut",

@@ -301,6 +301,9 @@
     "cancel": "Cancel",
     "useGeo": "My location",
     "geoDenied": "Geolocation denied — set home by clicking the map",
+    "geoImplausible": "That fix looks jammed — the coordinates fall outside every watched region. Set your home manually.",
+    "searchPlaceholder": "Find an address or a locality",
+    "searchEmpty": "Nothing found",
     "radius": "Radius",
     "clear": "Reset",
     "district": "District",
@@ -311,7 +314,15 @@
     "approxHint": "Approximate — measured from the centre of the district where the target was seen",
     "markerTitle": "My home on the map",
     "markerPreviewHint": "This is how your marker looks on the map",
-    "backToHome": "Back to my home"
+    "backToHome": "Back to my home",
+    "nudge": {
+      "title": "Mark your home",
+      "distance": "Distance and bearing to every target — from your home, not the city centre",
+      "notify": "Notifications only when a threat is close to you",
+      "framing": "The map opens on your own area",
+      "action": "Set home",
+      "dismiss": "Dismiss"
+    }
   },
   "friends": {
     "friend": "Contact",

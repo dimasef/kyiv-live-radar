@@ -75,24 +75,10 @@ export default function NotifyPrefsControl() {
                 role="radio"
                 aria-checked={active}
                 onClick={() => setPrefs({ minLevel: lvl })}
-                className={`w-full rounded-lg border px-3 py-2 text-left transition-colors duration-200 ${
-                  active
-                    ? 'border-phosphor/30 bg-phosphor/10'
-                    : 'border-transparent bg-white/[0.03]'
-                }`}
+                className="opt opt--stack"
               >
-                <span
-                  className={`block text-sm font-medium ${
-                    active ? 'text-phosphor-soft' : 'text-slate-300'
-                  }`}
-                >
-                  {t(`notify.prefs.levels.${lvl}`)}
-                </span>
-                <span
-                  className={`mt-0.5 block text-sm leading-snug ${
-                    active ? 'text-slate-300' : 'text-slate-500'
-                  }`}
-                >
+                <span className="block text-sm">{t(`notify.prefs.levels.${lvl}`)}</span>
+                <span className="opt-sub mt-0.5 block text-sm font-normal leading-snug">
                   {t(`notify.prefs.levelHint.${lvl}`)}
                 </span>
               </button>

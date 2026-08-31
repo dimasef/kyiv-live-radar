@@ -174,6 +174,12 @@ ALERT_CLOSED_REASONS: tuple[AlertClosedReason, ...] = get_args(AlertClosedReason
 # ('stale'). NULL while active — see app/incidents.py.
 IncidentEndedReason = Literal["all_clear", "alert_end", "stale", "dismissed"]
 INCIDENT_ENDED_REASONS: tuple[IncidentEndedReason, ...] = get_args(IncidentEndedReason)
+# Which tier answered an address search (app/geocoding.py). 'gazetteer' = one of
+# our own entries, 'osm' = Nominatim. Shown to the reader, because the two are
+# not equally precise: an entry is a settlement's centre, an OSM hit can be a
+# house number.
+GeocodeSource = Literal["gazetteer", "osm"]
+GEOCODE_SOURCES: tuple[GeocodeSource, ...] = get_args(GeocodeSource)
 # User roles (app/auth/). 'admin' and 'admin_g' both get the service tools
 # (/raw, source management — see require_admin); 'user' gets personalization
 # only. 'admin' is derived from the env allowlists on every login; 'admin_g' is

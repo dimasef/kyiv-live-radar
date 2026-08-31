@@ -4,29 +4,40 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { districtAt } from '@/lib/geo'
+import { insideWatchedRegions } from '@/lib/regions'
 import { MAP_PATH, navigate } from '@/router'
 import { useRadar } from '@/store'
 
 import HomeMarkerRow from './HomeMarkerRow'
+import SettingsSection from './SettingsSection'
 import ShareHomeToggle from './ShareHomeToggle'
 
-/** Request the browser geolocation and set it as home (origin 'geo'). */
-export function requestGeolocation(onDenied?: () => void) {
+/** Why a location request produced no home. 'implausible' is the interesting
+ * one: the browser answered, confidently, with a point outside every watched
+ * region — the signature of a jammed GNSS fix during a raid. */
+export type GeoFailure = 'denied' | 'implausible'
+
+/** Request the browser geolocation and set it as home (origin 'geo'), unless
+ * the fix lands somewhere the reader could not plausibly live.
+ *
+ * Only ever called from the button. Nothing in the app asks for a location on
+ * its own — see the note in store/bootstrap.ts. */
+export function requestGeolocation(onFail?: (reason: GeoFailure) => void) {
   if (!('geolocation' in navigator)) {
-    onDenied?.()
+    onFail?.('denied')
     return
   }
   navigator.geolocation.getCurrentPosition(
     (pos) => {
-      const cur = useRadar.getState().home
-      useRadar.getState().setHome({
-        lat: pos.coords.latitude,
-        lon: pos.coords.longitude,
-        radiusKm: cur?.radiusKm ?? 3,
-        origin: 'geo',
-      })
+      const { latitude: lat, longitude: lon } = pos.coords
+      const state = useRadar.getState()
+      if (!insideWatchedRegions(state.regions, lat, lon)) {
+        onFail?.('implausible')
+        return
+      }
+      state.setHome({ lat, lon, radiusKm: state.home?.radiusKm ?? 3, origin: 'geo' })
     },
-    () => onDenied?.(),
+    () => onFail?.('denied'),
     { enableHighAccuracy: true, timeout: 8000 },
   )
 }
@@ -44,7 +55,7 @@ export default function HomeControl() {
   const placingHome = useRadar((s) => s.placingHome)
   const setPlacingHome = useRadar((s) => s.setPlacingHome)
   const setSettingsOpen = useRadar((s) => s.setSettingsOpen)
-  const [denied, setDenied] = useState(false)
+  const [geoFailure, setGeoFailure] = useState<GeoFailure | null>(null)
 
   // Placing home needs the map visible — leave the drawer (and any sub-page).
   const togglePlacing = () => {
@@ -62,22 +73,20 @@ export default function HomeControl() {
     : '0%'
 
   return (
-    <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-3">
-      <div className="mb-2.5 flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-slate-400">
-          <Home size={13} className="flex-none text-phosphor-soft/80" />
-          {t('home.title')}
-        </span>
-        {home && (
+    <SettingsSection
+      icon={Home}
+      title={t('home.title')}
+      action={
+        home && (
           <button
             onClick={() => setHome(null)}
             className="text-sm text-red-400 underline decoration-red-400/40 underline-offset-2 transition-colors hover:text-red-300"
           >
             {t('home.clear')}
           </button>
-        )}
-      </div>
-
+        )
+      }
+    >
       {home ? (
         <>
           <div className="flex items-baseline justify-between gap-2">
@@ -109,11 +118,15 @@ export default function HomeControl() {
         <div className="text-sm text-slate-500">{t('home.notSet')}</div>
       )}
 
+      {/* Manual placement is the accented one: it is the way that works during
+          a raid, when jamming makes a location fix a confident lie (see
+          requestGeolocation). "My location" stays — it is genuinely the fastest
+          route on a quiet evening — but it no longer looks like the answer. */}
       <div className="mt-3 grid grid-cols-2 gap-1.5">
         <button
           onClick={togglePlacing}
           className={`btn flex items-center justify-center gap-1.5 ${
-            placingHome ? 'btn--warn' : ''
+            placingHome ? 'btn--warn' : 'btn--accent'
           }`}
         >
           {placingHome ? <X size={13} /> : <MapPin size={13} />}
@@ -121,22 +134,30 @@ export default function HomeControl() {
         </button>
         <button
           onClick={() => {
-            setDenied(false)
-            requestGeolocation(() => setDenied(true))
+            setGeoFailure(null)
+            requestGeolocation(setGeoFailure)
           }}
-          className="btn btn--accent flex items-center justify-center gap-1.5"
+          className="btn flex items-center justify-center gap-1.5"
         >
           <LocateFixed size={13} />
           {t('home.useGeo')}
         </button>
       </div>
-      {(placingHome || denied) && (
-        <p className="mt-1.5 text-sm leading-snug text-slate-500">
-          {placingHome ? t('home.placing') : t('home.geoDenied')}
+      {(placingHome || geoFailure) && (
+        <p
+          className={`mt-1.5 text-sm leading-snug ${
+            geoFailure === 'implausible' ? 'text-amber-200/90' : 'text-slate-500'
+          }`}
+        >
+          {placingHome
+            ? t('home.placing')
+            : geoFailure === 'implausible'
+              ? t('home.geoImplausible')
+              : t('home.geoDenied')}
         </p>
       )}
       <HomeMarkerRow />
       <ShareHomeToggle />
-    </div>
+    </SettingsSection>
   )
 }

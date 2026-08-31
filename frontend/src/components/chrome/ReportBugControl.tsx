@@ -1,7 +1,9 @@
-import { Bug, ChevronRight } from 'lucide-react'
+import { Bug } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { useRadar } from '@/store'
+
+import SettingsRow from './SettingsRow'
 
 /** "Report a bug" row in Settings, under the version. Deliberately next to the
  * version number: that is what a person looks at when something is wrong. */
@@ -11,18 +13,13 @@ export default function ReportBugControl() {
   const setBugReportOpen = useRadar((s) => s.setBugReportOpen)
 
   return (
-    <button
+    <SettingsRow
+      icon={<Bug size={13} className="flex-none text-slate-500" />}
+      label={t('bug.title')}
       onClick={() => {
         setSettingsOpen(false)
         setBugReportOpen(true)
       }}
-      className="group mt-3 flex w-full items-center justify-between gap-2 border-t border-white/[0.06] pt-3 text-left"
-    >
-      <span className="flex items-center gap-2 text-sm uppercase tracking-wider text-slate-500">
-        <Bug size={13} />
-        {t('bug.title')}
-      </span>
-      <ChevronRight size={13} className="text-slate-500 group-hover:text-slate-300" />
-    </button>
+    />
   )
 }

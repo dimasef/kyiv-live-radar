@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useRadar } from '@/store'
 
 import RegionChoice from './RegionChoice'
+import SettingsSection from './SettingsSection'
 
 /** The oblast this device follows — picked on first run, changed here.
  *
@@ -23,18 +24,11 @@ export default function CurrentRegionControl() {
   const setChosenRegion = useRadar((s) => s.setChosenRegion)
 
   return (
-    <div className="mt-2 rounded-xl border border-white/[0.05] bg-white/[0.02] p-3">
-      <div className="mb-2.5 flex items-center gap-2">
-        <MapPin size={13} className="text-phosphor-soft/80" />
-        <span className="text-sm font-semibold uppercase tracking-wider text-slate-400">
-          {t('currentRegion.title')}
-        </span>
-      </div>
-
+    <SettingsSection icon={MapPin} title={t('currentRegion.title')}>
       <span className="mb-2 block text-sm leading-relaxed text-slate-500">
         {t('currentRegion.hint')}
       </span>
       <RegionChoice value={chosenRegion} onChange={setChosenRegion} />
-    </div>
+    </SettingsSection>
   )
 }

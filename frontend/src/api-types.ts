@@ -1247,6 +1247,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/geocode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Geocode
+         * @description Places matching `q` — our gazetteer first, then OSM.
+         */
+        get: operations["geocode_geocode_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -2586,6 +2606,25 @@ export interface components {
         GamificationPrefOut: {
             /** Enabled */
             enabled: boolean;
+        };
+        /**
+         * GeocodeHitOut
+         * @description One place the reader could mean.
+         */
+        GeocodeHitOut: {
+            /** Label */
+            label: string;
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "gazetteer" | "osm";
+            /** Sublabel */
+            sublabel?: string | null;
         };
         /**
          * GoogleAuthIn
@@ -6186,6 +6225,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicUserBrief"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    geocode_geocode_get: {
+        parameters: {
+            query: {
+                q: string;
+                region?: ("kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro") | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeocodeHitOut"][];
                 };
             };
             /** @description Validation Error */

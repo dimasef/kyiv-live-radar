@@ -1536,6 +1536,50 @@
         "title": "GamificationPrefOut",
         "type": "object"
       },
+      "GeocodeHitOut": {
+        "description": "One place the reader could mean.",
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "source": {
+            "enum": [
+              "gazetteer",
+              "osm"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "sublabel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sublabel"
+          }
+        },
+        "required": [
+          "label",
+          "lat",
+          "lon",
+          "source"
+        ],
+        "title": "GeocodeHitOut",
+        "type": "object"
+      },
       "GoogleAuthIn": {
         "description": "POST /auth/google — the id_token from Google Identity Services.",
         "properties": {
@@ -8445,6 +8489,75 @@
         "tags": [
           "friends"
         ]
+      }
+    },
+    "/geocode": {
+      "get": {
+        "description": "Places matching `q` — our gazetteer first, then OSM.",
+        "operationId": "geocode_geocode_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "maxLength": 120,
+              "minLength": 1,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "kyiv",
+                    "chernihiv",
+                    "sumy",
+                    "kharkiv",
+                    "dnipro"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Region"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GeocodeHitOut"
+                  },
+                  "title": "Response Geocode Geocode Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Geocode"
       }
     },
     "/health": {
