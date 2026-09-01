@@ -7,9 +7,16 @@ are currently under alert, and the map colours them. Nothing here opens or
 closes a track, an incident or an `Alert` row — if the provider dies, this layer
 goes stale and everything else carries on.
 
-State is deliberately NOT stored. The provider reports the instant each raion
-last changed, so a restart re-learns both the state and how long it has held —
-there is nothing a table would add.
+The INSTANTANEOUS state is deliberately not stored: the provider reports the
+instant each raion last changed, so a restart re-learns both the state and how
+long it has held, and the map can paint straight from the poller's snapshot.
+
+What IS stored is the confirmed transitions — `domain/zone_alerts.py` debounces
+this snapshot and turns a raion that has held a new state for a few polls into an
+`Alert` row with `scope='raion'` and `zone_id` set. That is what lets the banner
+answer "is MY raion under alert?" for a reader outside Kyiv city. The debounce is
+the whole reason the two layers can coexist: the provider flickers, and only a
+state that survives it earns a row.
 
 Zone geometry lives in `app/data/alert_zones.json`, fetched once by
 `scripts/fetch_alert_zones.py` (same one-off pattern as boundaries.json).
@@ -124,6 +131,11 @@ ZONES: tuple[Zone, ...] = (
 # which is exactly what a not-yet-covered region should look like.
 WATCHED_OBLASTS: frozenset[str] = frozenset(z.oblast for z in ZONES)
 ZONE_BY_PLACE: dict[tuple[str, str], Zone] = {(z.oblast, z.name_uk): z for z in ZONES}
+ZONE_BY_ID: dict[str, Zone] = {z.id: z for z in ZONES}
+# Kyiv city is the one zone whose siren we do NOT take from this provider: the
+# official Telegram channel reports the same siren and reports it better, so
+# `domain/zone_alerts.eligible` excludes this id (see .claude/plans/alert-layer.md).
+KYIV_CITY_ZONE_ID = "kyiv-city"
 # `Zone.oblast` is the provider's display string and `Region` is the track pool;
 # nothing mapped the two before. Built over every declared region, so a zone
 # added for a region that has no tracks yet still resolves.

@@ -137,6 +137,7 @@ from .ws import (
     WSMessage,
 )
 from .zones import (
+    AlertZoneAtOut,
     AlertZoneOut,
 )
 
@@ -150,6 +151,7 @@ __all__ = [
     "AdminUserOut",
     "AdminUserRoleIn",
     "AlertOut",
+    "AlertZoneAtOut",
     "AlertZoneOut",
     "AnalyzeIn",
     "AnalyzeOut",

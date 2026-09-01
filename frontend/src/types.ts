@@ -73,6 +73,7 @@ export type RegionOutlines = Record<
 export type ClosedReason = NonNullable<Threat['closed_reason']>
 export type NoticeKind = Notice['kind']
 export type AlertZone = Schemas['AlertZoneOut']
+export type AlertZoneAt = Schemas['AlertZoneAtOut']
 
 /** GET /alert-zones/geometry — `response_model`-less for the same reason as
  * /districts/boundaries: the GeoJSON geometry is passed through verbatim, and

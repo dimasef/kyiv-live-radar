@@ -2,6 +2,11 @@
  * with anything else that might share the origin. */
 export const STORAGE_KEYS = {
   home: 'klr-home',
+  // Which raion the home point falls in, as {lat, lon, zoneId}. The coordinates
+  // are stored WITH the answer so a moved home invalidates the cache by itself;
+  // caching at all is what lets the banner paint the right raion on the first
+  // frame after a reload instead of flashing someone else's siren.
+  homeZone: 'klr-home-zone',
   legendOpen: 'klr-legend-open',
   // Whether the raion air-alert layer is switched on. Off by default: it's
   // extra context, and it costs a lazy 76 KB of polygons on first use.

@@ -5,10 +5,14 @@ import AdminActionButton from './AdminActionButton'
 import AdminRegionList from './AdminRegionList'
 
 /** Open official air-raid alerts (banner source). Cancelling clears a
- * city/oblast alert that was raised in error. */
+ * city/oblast alert that was raised in error.
+ *
+ * Raion alerts (`zone_id != null`) are left out: they belong to the district
+ * siren provider, which is reconciled against the DB every 20 s, so cancelling
+ * one would only last until the next poll reopened it. */
 export default function ActiveAlertList() {
   const alerts = useRadar((s) => s.alerts)
-  const open = alerts.filter((a) => !a.ended_at)
+  const open = alerts.filter((a) => !a.ended_at && a.zone_id == null)
 
   return (
     <section>

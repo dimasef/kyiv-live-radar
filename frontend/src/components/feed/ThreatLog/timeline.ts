@@ -1,5 +1,6 @@
+import { type AlertScopeCtx, alertCoversMe } from '@/components/banners/coverage'
 import { kyivDayKey, kyivDayMonth } from '@/lib/kyivTime'
-import type { FeedEntry, Incident, Notice, Region } from '@/types'
+import type { Alert, FeedEntry, Incident, Notice, Region } from '@/types'
 
 // YYYY-MM-DD in Kyiv's calendar day, not UTC/browser-local — a message right
 // after midnight Kyiv time must group under that new day, not the UTC one.
@@ -71,6 +72,22 @@ export function filterFeedIncidents(
   return incidents.filter((i) => shown.has(i.region))
 }
 
+/** …and for alerts, which are narrowed by RAION rather than by region.
+ *
+ * The only siren worth a card is the one the reader can hear. Everything else in
+ * this timeline is a sighting — something to watch happening elsewhere, which is
+ * what a secondary feed region is for — but an alert is an instruction to take
+ * shelter, and it is wrong wherever it is not yours. On a busy night a
+ * region-wide siren staggers across seven raions, so the region-level filter the
+ * other inputs use would have posted seven cards for one event.
+ *
+ * Hence `shownRegions` is not consulted at all here: `alertCoversMe` already
+ * requires the reader's own region, one granularity finer.
+ */
+export function filterFeedAlerts(alerts: Alert[], ctx: AlertScopeCtx): Alert[] {
+  return alerts.filter((a) => alertCoversMe(a, ctx))
+}
+
 // One real message can close several tracks at once (e.g. an untyped
 // "Дорозвідка" stand-down) — each gets its own ThreatEvent so it shows up in
 // ITS OWN track's inspect view, but that means the SAME raw text would
@@ -132,15 +149,45 @@ export type TimelineItem =
   | { kind: 'group'; time: string; keyId: string; group: FeedEntry[] }
   | { kind: 'notice'; time: string; keyId: string; notices: Notice[] }
   | { kind: 'incidentEnd'; time: string; keyId: string; incident: Incident }
+  | { kind: 'alertStart'; time: string; keyId: string; alert: Alert }
+  | { kind: 'alertEnd'; time: string; keyId: string; alert: Alert }
 
-/** Merge sighting groups, info notices, and ended-attack summaries into one
- * time-sorted timeline; multi-source cues are clustered into one unit. */
+/** Merge sighting groups, info notices, ended-attack summaries and air-raid
+ * alerts into one time-sorted timeline; multi-source cues are clustered.
+ *
+ * An alert contributes up to two entries — it is one row that mutates from open
+ * to ended, but in a timeline its start and its end are two moments. Only RAION
+ * alerts get an end entry: the official channel's відбій already arrives as a
+ * `Notice(kind='clear')` and renders as `AllClearCard`, so emitting one here too
+ * would print the all-clear twice.
+ */
 export function buildTimeline(
   log: FeedEntry[],
   notices: Notice[],
   recentIncidents: Incident[] = [],
+  alerts: Alert[] = [],
 ): TimelineItem[] {
+  // An admin-dismissed alert is a false positive, same as a dismissed incident.
+  const real = alerts.filter((a) => a.closed_reason !== 'dismissed')
   return [
+    ...real.map(
+      (alert): TimelineItem => ({
+        kind: 'alertStart',
+        time: alert.started_at,
+        keyId: `as${alert.id}`,
+        alert,
+      }),
+    ),
+    ...real
+      .filter((a) => a.zone_id != null && a.ended_at != null)
+      .map(
+        (alert): TimelineItem => ({
+          kind: 'alertEnd',
+          time: alert.ended_at as string,
+          keyId: `ae${alert.id}`,
+          alert,
+        }),
+      ),
     ...groupFeed(log).map(
       (group): TimelineItem => ({
         kind: 'group',

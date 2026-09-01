@@ -1,12 +1,13 @@
 import { Fragment, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { currentRegion } from '@/lib/regions'
+import { currentRegion, effectiveRegion } from '@/lib/regions'
 import { useRadar } from '@/store'
 import { shownRegions } from '@/store/feedRegions'
 import { FEED_ZOOM } from '@/store/prefsSlice'
 
 import OnlineBadge from '../OnlineBadge'
+import AlertCard from './AlertCard'
 import AttackSummaryCard from './AttackSummaryCard'
 import ClosedGroupCard from './ClosedGroupCard'
 import DaySeparator from './DaySeparator'
@@ -14,6 +15,7 @@ import NoticeCard from './NoticeCard'
 import ThreatCard from './ThreatCard'
 import {
   buildTimeline,
+  filterFeedAlerts,
   filterFeedIncidents,
   filterFeedNotices,
   filterFeedRegions,
@@ -25,6 +27,8 @@ export default function ThreatLog() {
   const log = useRadar((s) => s.log)
   const notices = useRadar((s) => s.notices)
   const recentIncidents = useRadar((s) => s.recentIncidents)
+  const alerts = useRadar((s) => s.alerts)
+  const homeZoneId = useRadar((s) => s.homeZoneId)
   const feedTextSize = useRadar((s) => s.feedTextSize)
   const feedExtraRegions = useRadar((s) => s.feedExtraRegions)
   const regions = useRadar((s) => s.regions)
@@ -36,16 +40,23 @@ export default function ThreatLog() {
       new Set(shownRegions(feedExtraRegions, currentRegion({ regions, chosenRegion }))),
     [feedExtraRegions, regions, chosenRegion],
   )
-  // Grouping up to 250 entries plus notices and incidents — pure, and only the
-  // four inputs move it, so it must not re-run on an unrelated re-render.
+  // Alerts are narrowed by RAION, not by the shown regions — see
+  // filterFeedAlerts.
+  const alertCtx = useMemo(
+    () => ({ zoneId: homeZoneId, region: effectiveRegion(regions, chosenRegion) }),
+    [homeZoneId, regions, chosenRegion],
+  )
+  // Grouping up to 250 entries plus notices, incidents and alerts — pure, and
+  // only these inputs move it, so it must not re-run on an unrelated re-render.
   const timeline = useMemo(
     () =>
       buildTimeline(
         filterFeedRegions(log, shown),
         filterFeedNotices(notices, shown),
         filterFeedIncidents(recentIncidents, shown),
+        filterFeedAlerts(alerts, alertCtx),
       ),
-    [log, shown, notices, recentIncidents],
+    [log, shown, notices, recentIncidents, alerts, alertCtx],
   )
 
   const dayKeys = useMemo(
@@ -83,6 +94,15 @@ export default function ThreatLog() {
                 <Fragment key={item.keyId}>
                   {separator}
                   <NoticeCard notices={item.notices} />
+                </Fragment>
+              )
+            }
+
+            if (item.kind === 'alertStart' || item.kind === 'alertEnd') {
+              return (
+                <Fragment key={item.keyId}>
+                  {separator}
+                  <AlertCard alert={item.alert} ended={item.kind === 'alertEnd'} />
                 </Fragment>
               )
             }

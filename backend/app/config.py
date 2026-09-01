@@ -520,9 +520,9 @@ class Settings(BaseSettings):
 
     # --- Alert-zone layer (app/feeds/alert_zones.py) — which raions of
     #     Київщина/Чернігівщина currently have a siren, painted on the map.
-    #     READ-ONLY context: it never touches tracks, incidents or the `alerts`
-    #     table, so switching it off (or the provider dying) removes one map
-    #     layer and changes nothing else. ---
+    #     It never touches tracks or incidents. It DOES write `alerts` rows for
+    #     confirmed raion transitions (see alert_zones_persist below), which is
+    #     how a reader outside Kyiv city gets a banner for their own raion. ---
     alert_zones_enabled: bool = True
     # ubilling.net.ua proxies several alert services into one shape and asks for
     # no key. `skog` is the only source that returns a FULL snapshot — every
@@ -569,6 +569,14 @@ class Settings(BaseSettings):
     # dormant, real provider state only. Ids are in domain/alert_zones.py, e.g.
     # ALERT_ZONES_DEMO="kyiv-obl-vyshhorodskyi,chernihiv-obl-nizhynskyi".
     alert_zones_demo: str = ""
+    # Whether confirmed raion transitions become `Alert` rows (scope='raion').
+    # Off means the layer goes back to being map-only: the polygons still paint,
+    # but no banner, feed card or journal entry follows from them.
+    alert_zones_persist: bool = True
+    # Consecutive polls a raion must hold a state that differs from what we have
+    # stored before it earns a row — the flicker guard, see domain/zone_alerts.py.
+    # 2 costs ~40 s at the 20 s interval and kills every single-tick blink.
+    alert_zones_confirm_ticks: int = 2
 
     @property
     def alert_zones_demo_list(self) -> list[str]:

@@ -212,3 +212,62 @@ async def test_an_alert_defaults_to_the_home_region(session):
     """Every caller that predates regions still means what it always meant."""
     a = await apply_alert_signal(session, AlertSignal(scope="city", action="start", when=BASE))
     assert a is not None and a.region == "kyiv"
+
+
+# --- raions (migration 0041) ---
+#
+# The district siren provider writes scope='raion' alerts, one per raion. Same
+# shape of bug as the region one above, one level down.
+
+async def test_two_raions_of_one_region_alert_independently(session):
+    brovary = await apply_alert_signal(session, AlertSignal(
+        scope="raion", action="start", when=BASE, region="kyiv",
+        zone_id="kyiv-obl-brovarskyi"))
+    vyshhorod = await apply_alert_signal(session, AlertSignal(
+        scope="raion", action="start", when=BASE, region="kyiv",
+        zone_id="kyiv-obl-vyshhorodskyi"))
+    assert brovary is not None and vyshhorod is not None and brovary.id != vyshhorod.id
+
+
+async def test_a_raion_end_closes_only_that_raion(session):
+    await apply_alert_signal(session, AlertSignal(
+        scope="raion", action="start", when=BASE, region="kyiv",
+        zone_id="kyiv-obl-brovarskyi"))
+    await apply_alert_signal(session, AlertSignal(
+        scope="raion", action="start", when=BASE, region="kyiv",
+        zone_id="kyiv-obl-vyshhorodskyi"))
+
+    await apply_alert_signal(session, AlertSignal(
+        scope="raion", action="end", when=BASE + timedelta(hours=1), region="kyiv",
+        zone_id="kyiv-obl-brovarskyi"))
+    still_open = list(await session.scalars(select(Alert).where(Alert.ended_at.is_(None))))
+    assert [a.zone_id for a in still_open] == ["kyiv-obl-vyshhorodskyi"]
+
+
+async def test_a_city_alert_is_not_found_by_a_raion_lookup(session):
+    """NULL zone_id is a value in the key, not a wildcard — an official Kyiv
+    alert must not be closed by the district provider clearing a raion."""
+    city = await apply_alert_signal(
+        session, AlertSignal(scope="city", action="start", when=BASE, region="kyiv"))
+    ended = await apply_alert_signal(session, AlertSignal(
+        scope="raion", action="end", when=BASE + timedelta(minutes=5), region="kyiv",
+        zone_id="kyiv-obl-brovarskyi"))
+    assert ended is None
+    await session.refresh(city)
+    assert city.ended_at is None
+
+
+async def test_the_failsafe_leaves_raion_alerts_alone(session):
+    """A >12 h siren is routine in the north, and the provider — polled every
+    20 s — is the only thing entitled to close a raion alert. Force-closing one
+    here would just be reopened on the next tick."""
+    await apply_alert_signal(
+        session, AlertSignal(scope="city", action="start", when=BASE, region="kyiv"))
+    await apply_alert_signal(session, AlertSignal(
+        scope="raion", action="start", when=BASE, region="sumy",
+        zone_id="sumy-obl-sumskyi"))
+
+    closed = await close_stale_alerts(session, BASE + timedelta(hours=20), 12)
+    assert [a.scope for a in closed] == ["city"]
+    still_open = list(await session.scalars(select(Alert).where(Alert.ended_at.is_(None))))
+    assert [a.zone_id for a in still_open] == ["sumy-obl-sumskyi"]

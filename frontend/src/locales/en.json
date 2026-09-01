@@ -44,14 +44,17 @@
   "alert": {
     "scope": {
       "city": "Air raid alert — Kyiv",
-      "oblast": "Air raid alert — Kyiv oblast"
+      "oblast": "Air raid alert — Kyiv oblast",
+      "raion": "Air raid alert — {{name}}"
     },
     "clear": "All-clear",
     "word": "Alert",
     "short": {
       "city": "Kyiv",
-      "oblast": "Oblast"
-    }
+      "oblast": "Oblast",
+      "raion": "Raion"
+    },
+    "staleSource": "Alert data is out of date"
   },
   "attack": {
     "classification": {
@@ -140,7 +143,14 @@
     "clearTail1": "you can breathe out.",
     "clearTail2": "the threat is no longer being tracked.",
     "clearTail3": "the sky over the city is clear.",
-    "clearTail4": "take care."
+    "clearTail4": "take care.",
+    "alertStart": "Air raid alert",
+    "alertStartBody": "An air-raid alert has been declared — {{where}}. Take shelter.",
+    "alertEnded": "All clear",
+    "alertEndedBody": "The alert is over — {{where}}.",
+    "alertWhereCity": "Kyiv",
+    "alertWhereOblast": "the oblast",
+    "alertOngoing": "ongoing"
   },
   "status": {
     "impact": "incident",

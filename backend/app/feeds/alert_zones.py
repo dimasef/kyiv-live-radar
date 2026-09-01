@@ -1,8 +1,11 @@
 """Polls an external provider for the siren state of the watched raions and
 pushes changes to the map.
 
-Read-only situational context — see domain/alert_zones.py for why this is a
-separate layer from `Alert` and why nothing is persisted. The loop follows
+The snapshot itself is in-memory only — see domain/alert_zones.py for why. What
+survives a tick is the CONFIRMED transitions: `persist_once` debounces the
+snapshot through domain/zone_alerts.py and reconciles it into `alerts` rows with
+`scope='raion'`, which is what gives a reader outside Kyiv city a banner for
+their own raion. The loop follows
 pipeline/sweeper.py (sleep, one guarded body, never let an exception kill the
 task) and the httpx conventions of auth/providers/google.py (short timeout,
 client per call).
@@ -24,18 +27,26 @@ from dataclasses import replace
 from datetime import datetime
 
 import httpx
+from sqlalchemy import select
 
 from ..api.ws import manager
 from ..config import settings
+from ..db import SessionLocal
 from ..domain.alert_zones import (
     OBLAST_REGION,
     WATCHED_OBLASTS,
+    ZONE_BY_ID,
     ZONE_BY_PLACE,
     ZONES,
     ZoneState,
+    region_of,
     unknown_state,
 )
-from ..models import utcnow
+from ..domain.alerts import AlertSignal, apply_alert_signal
+from ..domain.zone_alerts import Pending, confirm_changes, signal_time
+from ..models import Alert, utcnow
+from ..pipeline.broadcast import broadcast_results
+from ..pipeline.results import Broadcast
 from ..schemas import AlertZoneOut, WSMessage
 from ..timeutil import from_kyiv_local
 
@@ -48,6 +59,10 @@ _EPOCH_YEAR = 1971
 _states: dict[str, ZoneState] = {}
 _last_ok: datetime | None = None
 _unknown_places: set[tuple[str, str]] = set()
+# Raion states waiting out the flicker guard — see domain/zone_alerts.py. Only
+# the counter lives in memory; what has been COMMITTED is re-read from the DB
+# every tick, so a restart mid-siren costs nothing.
+_pending: dict[str, Pending] = {}
 
 
 def _parse_skog_time(value: str | None) -> datetime | None:
@@ -341,6 +356,47 @@ async def poll_once(*, roster_only: bool = False) -> list[ZoneState]:
     return changed
 
 
+async def persist_once() -> list[Alert]:
+    """Reconcile the current snapshot into `alerts` rows, debounced.
+
+    Returns the alerts actually opened/closed this tick (empty on a quiet one).
+    Nothing happens while the layer is `stale`: an unreachable provider tells us
+    nothing about a raion, and treating its silence as an all-clear is the exact
+    failure this layer is engineered against.
+    """
+    global _pending
+    if is_stale():
+        return []
+    async with SessionLocal() as session:
+        open_rows = list(await session.scalars(
+            select(Alert).where(Alert.zone_id.is_not(None), Alert.ended_at.is_(None))
+        ))
+        committed = {a.zone_id: True for a in open_rows}
+        observed = {s.zone_id: s for s in current_states()}
+        _pending, confirmed = confirm_changes(
+            _pending, committed, observed, settings.alert_zones_confirm_ticks
+        )
+        if not confirmed:
+            return []
+        now = utcnow()
+        changed: list[Alert] = []
+        for state in confirmed:
+            zone = ZONE_BY_ID[state.zone_id]
+            alert = await apply_alert_signal(session, AlertSignal(
+                scope="raion",
+                action="start" if state.alert else "end",
+                when=signal_time(state, now),
+                region=region_of(zone),
+                provider=settings.alert_zones_source,
+                zone_id=zone.id,
+            ))
+            if alert is not None:
+                changed.append(alert)
+        if changed:
+            await broadcast_results(session, [Broadcast("alert", alert=a) for a in changed])
+        return changed
+
+
 async def _broadcast(states: list[ZoneState]) -> None:
     if not states:
         return
@@ -368,6 +424,14 @@ async def run_alert_zones() -> None:
                 await _broadcast(current_states())
             else:
                 await _broadcast(changed)
+            if settings.alert_zones_persist:
+                # Guarded separately: the map layer is the job this loop must
+                # never lose, and a DB hiccup writing raion alerts is not a
+                # reason to stop painting sirens.
+                try:
+                    await persist_once()
+                except Exception as ex:
+                    log.warning("alert zones: persisting raion alerts failed: %s", ex)
         except asyncio.CancelledError:
             raise
         except Exception as ex:
@@ -383,7 +447,8 @@ async def run_alert_zones() -> None:
 
 def reset_state() -> None:
     """Drop the in-memory snapshot (tests; process-global by design)."""
-    global _states, _last_ok
+    global _states, _last_ok, _pending
     _states = {}
     _last_ok = None
+    _pending = {}
     _unknown_places.clear()

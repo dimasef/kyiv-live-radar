@@ -772,6 +772,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/alert-zones/at": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Alert Zone At
+         * @description Which watched raion contains this point, or null if none does.
+         *
+         *     The banner needs this for every reader — an alert is "mine" when it is my
+         *     raion's, and the oblast-level region a reader follows cannot answer that
+         *     (region `kyiv` covers both the city and the whole oblast around it). Kept
+         *     server-side so nobody has to download the polygons to find out.
+         *
+         *     Same coarse point-in-polygon as the districts layer (holes ignored), which
+         *     is ample: raions are large and a home is never placed on a border to the
+         *     metre.
+         */
+        get: operations["alert_zone_at_alert_zones_at_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/alert-zones/geometry": {
         parameters: {
             query?: never;
@@ -2007,12 +2036,35 @@ export interface components {
              * Scope
              * @enum {string}
              */
-            scope: "city" | "oblast";
+            scope: "city" | "oblast" | "raion";
             /**
              * Started At
              * Format: date-time
              */
             started_at: string;
+            /** Zone Id */
+            zone_id?: string | null;
+        };
+        /**
+         * AlertZoneAtOut
+         * @description Which raion a point falls in — the answer to "what is MY zone?".
+         *
+         *     Served instead of letting the client resolve it against the geometry file:
+         *     the polygons are ~76 KB and only downloaded when the reader turns the layer
+         *     on, but every reader needs their own raion for the banner.
+         */
+        AlertZoneAtOut: {
+            /** Name Uk */
+            name_uk: string;
+            /** Oblast */
+            oblast: string;
+            /**
+             * Region
+             * @enum {string}
+             */
+            region: "kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro";
+            /** Zone Id */
+            zone_id: string;
         };
         /**
          * AlertZoneOut
@@ -5424,6 +5476,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AlertZoneOut"][];
+                };
+            };
+        };
+    };
+    alert_zone_at_alert_zones_at_get: {
+        parameters: {
+            query: {
+                lat: number;
+                lon: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertZoneAtOut"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

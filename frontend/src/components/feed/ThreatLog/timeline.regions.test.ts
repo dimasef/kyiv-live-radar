@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import type { FeedEntry, Incident, Notice, Region } from '@/types'
+import type { Alert, FeedEntry, Incident, Notice, Region } from '@/types'
 
 import {
   buildTimeline,
+  filterFeedAlerts,
   filterFeedIncidents,
   filterFeedNotices,
   filterFeedRegions,
@@ -159,5 +160,67 @@ describe('regions in the feed — attack summaries', () => {
     const shown = buildTimeline([], [], filterFeedIncidents([incident()], HOME))
     expect(shown).toHaveLength(1)
     expect(shown[0].kind).toBe('incidentEnd')
+  })
+})
+
+describe('alerts in the feed', () => {
+  const BROVARY = 'kyiv-obl-brovarskyi'
+
+  function alert(over: Partial<Alert>): Alert {
+    return {
+      id: nextId++,
+      region: 'kyiv',
+      scope: 'city',
+      zone_id: null,
+      alert_type: 'air_raid',
+      started_at: '2026-08-20T22:00:00Z',
+      ended_at: null,
+      provider: 'telegram',
+      closed_reason: null,
+      ...over,
+    } as Alert
+  }
+
+  const AT_HOME = { zoneId: BROVARY, region: 'kyiv' as Region }
+
+  it('keeps only the reader\'s own raion', () => {
+    // A region-wide siren staggers across seven raions; the region-level filter
+    // the other feed inputs use would have posted seven cards for one event.
+    const mine = alert({ scope: 'raion', zone_id: BROVARY })
+    const neighbour = alert({ scope: 'raion', zone_id: 'kyiv-obl-buchanskyi' })
+    expect(filterFeedAlerts([mine, neighbour], AT_HOME)).toEqual([mine])
+  })
+
+  it('drops a secondary feed region\'s alerts, unlike its sightings', () => {
+    // A sighting over Чернігівщина is something to watch happening elsewhere.
+    // A siren there is an instruction to take shelter — and it is not the
+    // reader's, however much of that region their feed lists.
+    const north = alert({ region: 'chernihiv', scope: 'raion', zone_id: 'chernihiv-obl-nizhynskyi' })
+    expect(filterFeedAlerts([north], AT_HOME)).toEqual([])
+    expect(filterFeedRegions([entry('chernihiv')], HOME_AND_NORTH)).toHaveLength(1)
+  })
+
+  it('emits a start card for every alert', () => {
+    const shown = buildTimeline([], [], [], [alert({ scope: 'raion', zone_id: BROVARY })])
+    expect(shown.map((i) => i.kind)).toEqual(['alertStart'])
+  })
+
+  it('emits an end card for a raion alert but not for the official channel\'s', () => {
+    // The official відбій already arrives as a Notice(kind='clear') and renders
+    // as AllClearCard — a second card here would print the all-clear twice.
+    const ended = { ended_at: '2026-08-20T23:30:00Z', closed_reason: 'official' as const }
+    const raion = alert({ scope: 'raion', zone_id: BROVARY, ...ended })
+    const official = alert({ scope: 'city', ...ended })
+    const kinds = buildTimeline([], [], [], [raion, official]).map((i) => i.kind)
+    expect(kinds.filter((k) => k === 'alertStart')).toHaveLength(2)
+    expect(kinds.filter((k) => k === 'alertEnd')).toHaveLength(1)
+  })
+
+  it('drops an admin-dismissed alert entirely', () => {
+    const bogus = alert({
+      scope: 'raion', zone_id: BROVARY,
+      ended_at: '2026-08-20T22:05:00Z', closed_reason: 'dismissed',
+    })
+    expect(buildTimeline([], [], [], [bogus])).toEqual([])
   })
 })

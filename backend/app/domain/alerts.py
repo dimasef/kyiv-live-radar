@@ -22,7 +22,7 @@ log = logging.getLogger("alerts")
 
 @dataclass
 class AlertSignal:
-    scope: str  # 'city' | 'oblast'
+    scope: str  # 'city' | 'oblast' | 'raion'
     action: str  # 'start' | 'end'
     when: datetime
     # Whose siren. Defaults to the deployment's primary region so a caller that
@@ -31,6 +31,9 @@ class AlertSignal:
     provider: str = "telegram"
     raw_id: int | None = None
     alert_type: str = "air_raid"
+    # Which raion (domain/alert_zones.Zone.id), for a 'raion'-scoped signal from
+    # the district provider. NULL for the official channel — see Alert.zone_id.
+    zone_id: str | None = None
 
 
 def dismiss_alert(alert: Alert, when: datetime) -> None:
@@ -51,17 +54,26 @@ def restore_alert(alert: Alert) -> None:
     log.info("alert %s restored (admin, scope=%s)", alert.id, alert.scope)
 
 
-async def _find_open(session, scope: str, region: str) -> Alert | None:
-    """The open alert for ONE region's scope.
+async def _find_open(session, scope: str, region: str, zone_id: str | None = None) -> Alert | None:
+    """The open alert for ONE region's scope, and — for a district signal — ONE
+    raion.
 
     Region is part of the key, not a filter on top of it: without it an open
     Kyiv siren made every other region's `start` look like a repeat and no-op,
     so a second region could never raise an alert at all while Kyiv's was
-    running.
+    running. `zone_id` is in the key for exactly the same reason one level down:
+    seven raions of Київська область alert independently, and without it the
+    first one to sound would swallow the other six.
+
+    NULL is matched as a value, not skipped — the official channel's alerts are
+    the `zone_id IS NULL` ones, and they must not be found by a raion lookup.
     """
     return await session.scalar(
         select(Alert).where(
-            Alert.scope == scope, Alert.region == region, Alert.ended_at.is_(None)
+            Alert.scope == scope,
+            Alert.region == region,
+            Alert.zone_id.is_(None) if zone_id is None else Alert.zone_id == zone_id,
+            Alert.ended_at.is_(None),
         )
     )
 
@@ -77,11 +89,12 @@ async def apply_alert_signal(session, signal: AlertSignal) -> Alert | None:
     real transition, else None.
     """
     if signal.action == "start":
-        if await _find_open(session, signal.scope, signal.region) is not None:
+        if await _find_open(session, signal.scope, signal.region, signal.zone_id) is not None:
             return None
         alert = Alert(
             scope=signal.scope,
             region=signal.region,
+            zone_id=signal.zone_id,
             alert_type=signal.alert_type,
             started_at=signal.when,
             provider=signal.provider,
@@ -89,21 +102,21 @@ async def apply_alert_signal(session, signal: AlertSignal) -> Alert | None:
         )
         session.add(alert)
         await session.commit()
-        log.info("alert %s opened (region=%s, scope=%s)",
-                 alert.id, alert.region, alert.scope)
+        log.info("alert %s opened (region=%s, scope=%s, zone=%s)",
+                 alert.id, alert.region, alert.scope, alert.zone_id)
         if signal.scope == "city":
             await _adopt_recent_incident(session, alert, signal.when)
         return alert
 
-    existing = await _find_open(session, signal.scope, signal.region)
+    existing = await _find_open(session, signal.scope, signal.region, signal.zone_id)
     if existing is None:
         return None
     existing.ended_at = signal.when
     existing.ended_raw_id = signal.raw_id
     existing.closed_reason = "official"
     await session.commit()
-    log.info("alert %s closed (region=%s, scope=%s)",
-             existing.id, existing.region, existing.scope)
+    log.info("alert %s closed (region=%s, scope=%s, zone=%s)",
+             existing.id, existing.region, existing.scope, existing.zone_id)
     return existing
 
 
@@ -145,9 +158,19 @@ async def close_stale_alerts(session, now: datetime, hours: int) -> list[Alert]:
     day-long siren — force-close it (`closed_reason='failsafe'`) so a stuck
     banner doesn't mislead the operator indefinitely. The caller is expected
     to log this loudly; silent data loss on the alert channel is exactly the
-    failure mode this exists to catch (see domain-model-v2.md risk #8)."""
+    failure mode this exists to catch (see domain-model-v2.md risk #8).
+
+    Raion alerts are exempt. Their provider is polled every 20 s and reconciled
+    against the DB on every tick, so a stuck one is only possible while the
+    provider is unreachable — which the layer already reports as `stale`. Closing
+    one here would be worse than useless: a >12 h siren is genuinely routine in
+    Сумщина, and the reconciler would reopen it on the next tick, churning a new
+    row every failsafe cycle.
+    """
     stale_gap = timedelta(hours=hours)
-    open_alerts = list(await session.scalars(select(Alert).where(Alert.ended_at.is_(None))))
+    open_alerts = list(await session.scalars(
+        select(Alert).where(Alert.ended_at.is_(None), Alert.zone_id.is_(None))
+    ))
     closed = [a for a in open_alerts if not within(a.started_at, now, stale_gap)]
     for a in closed:
         a.ended_at = now

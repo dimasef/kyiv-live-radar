@@ -1,6 +1,7 @@
 import type {
   Alert,
   AlertZone,
+  AlertZoneAt,
   AlertZoneGeometry,
   AnalyticsPeriod,
   District,
@@ -157,6 +158,14 @@ export const fetchActiveAxes = () => get<ThreatAxis[]>('/axes/active')
 export const fetchRecentAlerts = (limit = 30) =>
   get<Alert[]>(`/alerts/recent?limit=${limit}`)
 export const fetchAlertZones = () => get<AlertZone[]>('/alert-zones')
+/** Which raion a point falls in, null outside every watched one.
+ *
+ * The banner's whole question — "is this alert MINE?" — is a raion question,
+ * and the followed region can't answer it: region `kyiv` covers both the city
+ * and the oblast around it. Asked of the server so nobody has to download the
+ * polygons (only the layer does) just to learn one zone id. */
+export const fetchZoneAt = (lat: number, lon: number) =>
+  get<AlertZoneAt | null>(`/alert-zones/at?lat=${lat}&lon=${lon}`)
 /** Lazy: only fetched when the raion-alert layer is first switched on. */
 export const fetchAlertZoneGeometry = () => get<AlertZoneGeometry>('/alert-zones/geometry')
 /** The watched-region catalogue. Server-owned so a newly declared region shows

@@ -71,7 +71,10 @@ async function runHydrate(): Promise<void> {
     fetchActiveIncidents().then(apply(store.setIncidents)).catch(() => {}),
     fetchRecentIncidents().then(apply(store.setRecentIncidents)).catch(() => {}),
     fetchActiveAxes().then(apply(store.setAxes)).catch(() => {}),
-    fetchRecentAlerts().then(apply(store.setAlerts)).catch(() => {}),
+    // 60, not the default 30: raion alerts turn over far faster than the one
+    // city window did, and the page needs to still contain the reader's OWN
+    // recently-ended alert for the banner's «щойно відбій» linger to fire.
+    fetchRecentAlerts(60).then(apply(store.setAlerts)).catch(() => {}),
     fetchAlertZones().then(apply(store.setZones)).catch(() => {}),
     fetchRecentEvents(
       store.feedLimit,
@@ -124,6 +127,10 @@ export function bootstrapApp() {
   // already on — its polygons are lazy, and without this the button would light
   // up with nothing drawn. No-op when the layer is off.
   store.ensureZoneGeometry()
+  // Which raion the home sits in — the banner's "is this alert mine?" test.
+  // Re-asked on every boot rather than trusted from the cache forever, so a
+  // raion the roster gained (or a home restored from the account) resolves.
+  void store.resolveHomeZone().catch(() => {})
 
   hydrate()
   connectWS()

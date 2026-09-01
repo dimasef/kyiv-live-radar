@@ -244,7 +244,8 @@
           "scope": {
             "enum": [
               "city",
-              "oblast"
+              "oblast",
+              "raion"
             ],
             "title": "Scope",
             "type": "string"
@@ -253,6 +254,17 @@
             "format": "date-time",
             "title": "Started At",
             "type": "string"
+          },
+          "zone_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Id"
           }
         },
         "required": [
@@ -264,6 +276,42 @@
           "provider"
         ],
         "title": "AlertOut",
+        "type": "object"
+      },
+      "AlertZoneAtOut": {
+        "description": "Which raion a point falls in — the answer to \"what is MY zone?\".\n\nServed instead of letting the client resolve it against the geometry file:\nthe polygons are ~76 KB and only downloaded when the reader turns the layer\non, but every reader needs their own raion for the banner.",
+        "properties": {
+          "name_uk": {
+            "title": "Name Uk",
+            "type": "string"
+          },
+          "oblast": {
+            "title": "Oblast",
+            "type": "string"
+          },
+          "region": {
+            "enum": [
+              "kyiv",
+              "chernihiv",
+              "sumy",
+              "kharkiv",
+              "dnipro"
+            ],
+            "title": "Region",
+            "type": "string"
+          },
+          "zone_id": {
+            "title": "Zone Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "zone_id",
+          "name_uk",
+          "oblast",
+          "region"
+        ],
+        "title": "AlertZoneAtOut",
         "type": "object"
       },
       "AlertZoneOut": {
@@ -7259,6 +7307,67 @@
           }
         },
         "summary": "Alert Zones"
+      }
+    },
+    "/alert-zones/at": {
+      "get": {
+        "description": "Which watched raion contains this point, or null if none does.\n\nThe banner needs this for every reader — an alert is \"mine\" when it is my\nraion's, and the oblast-level region a reader follows cannot answer that\n(region `kyiv` covers both the city and the whole oblast around it). Kept\nserver-side so nobody has to download the polygons to find out.\n\nSame coarse point-in-polygon as the districts layer (holes ignored), which\nis ample: raions are large and a home is never placed on a border to the\nmetre.",
+        "operationId": "alert_zone_at_alert_zones_at_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Lat",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "Lon",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/AlertZoneAtOut"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Alert Zone At Alert Zones At Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Alert Zone At"
       }
     },
     "/alert-zones/geometry": {

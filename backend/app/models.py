@@ -162,9 +162,14 @@ NOTICE_KINDS: tuple[NoticeKind, ...] = get_args(NoticeKind)
 # tracks prematurely (see telegram_listener.py).
 SourceRole = Literal["spotter", "alert"]
 SOURCE_ROLES: tuple[SourceRole, ...] = get_args(SourceRole)
-AlertScope = Literal["city", "oblast"]
+# 'city'/'oblast' = an official Telegram announcement, which names no smaller
+# area than those two. 'raion' = one raion of the district siren provider
+# (app/feeds/alert_zones.py), carried in `Alert.zone_id` — the granularity a
+# reader outside the city actually lives at.
+AlertScope = Literal["city", "oblast", "raion"]
 ALERT_SCOPES: tuple[AlertScope, ...] = get_args(AlertScope)
-# 'official' = a real відбій from the alert channel; 'failsafe' = the sweeper
+# 'official' = a real відбій (from the alert channel, or the district provider
+# reporting the raion clear); 'failsafe' = the sweeper
 # force-closed an alert open past alert_failsafe_hours (dead Telethon session
 # ate the відбій, not a real day-long siren) — see app/alerts.py.
 AlertClosedReason = Literal["official", "failsafe", "dismissed"]
@@ -336,8 +341,11 @@ class Alert(Base):
     __tablename__ = "alerts"
     # Alerts are narrowed to one region's scope first, then ordered by start
     # time — `region` leads because every lookup asks about one region's siren.
+    # The second index serves the district provider's reconciliation, which asks
+    # the same question per raion on every poll.
     __table_args__ = (
         Index("ix_alerts_region_scope_started_at", "region", "scope", "started_at"),
+        Index("ix_alerts_region_zone_started_at", "region", "zone_id", "started_at"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -347,7 +355,13 @@ class Alert(Base):
     # reporting channel's `Source.region`, since an alert names no district to
     # read a region off.
     region: Mapped[str] = mapped_column(String(20), default=HOME_REGION)
-    scope: Mapped[str] = mapped_column(String(10))  # 'city' | 'oblast'
+    scope: Mapped[str] = mapped_column(String(10))  # 'city' | 'oblast' | 'raion'
+    # Which raion siren this is, as `domain/alert_zones.Zone.id`. NULL means the
+    # alert came from the official channel, which announces a whole city/oblast
+    # and names no raion — so NULL is not "unknown", it is the pre-existing kind
+    # of alert, and every lookup keys on (scope, region, zone_id) because seven
+    # raions of one oblast must be able to alert independently.
+    zone_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
     alert_type: Mapped[str] = mapped_column(String(20), default="air_raid")
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     ended_at: Mapped[datetime | None] = mapped_column(

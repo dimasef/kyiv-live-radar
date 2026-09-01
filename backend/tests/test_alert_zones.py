@@ -27,6 +27,7 @@ from pathlib import Path
 
 import pytest
 
+from app.api.public.zones import alert_zone_at
 from app.config import settings
 from app.domain.alert_zones import ZONES
 from app.feeds import alert_zones as az
@@ -312,6 +313,31 @@ async def test_a_fresh_roster_is_still_trusted_for_its_clears(monkeypatch):
     await az.poll_once()
     out = {z.zone_id: z for z in az.zones_out()}
     assert out["kyiv-obl-vyshhorodskyi"].changed_at is not None
+
+
+# --- GET /alert-zones/at: which raion a home falls in ---
+
+async def test_a_point_in_the_city_resolves_to_the_city_zone():
+    out = await alert_zone_at(lat=50.4501, lon=30.5234)
+    assert out is not None and out.zone_id == "kyiv-city" and out.region == "kyiv"
+
+
+async def test_a_point_in_the_oblast_resolves_to_its_raion_not_the_city():
+    """The whole reason this endpoint exists: region `kyiv` covers both м. Київ
+    and the oblast around it, so following the region cannot tell a Brovary
+    reader that Kyiv's siren is not theirs."""
+    out = await alert_zone_at(lat=50.5109, lon=30.7900)
+    assert out is not None and out.zone_id == "kyiv-obl-brovarskyi"
+
+
+async def test_a_point_in_another_watched_region_resolves_there():
+    out = await alert_zone_at(lat=50.5931, lon=32.3878)
+    assert out is not None
+    assert out.zone_id == "chernihiv-obl-pryluckyi" and out.region == "chernihiv"
+
+
+async def test_a_point_outside_every_watched_raion_is_null():
+    assert await alert_zone_at(lat=49.84, lon=24.03) is None
 
 
 def _dt(value: str) -> datetime:

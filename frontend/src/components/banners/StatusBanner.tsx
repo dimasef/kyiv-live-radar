@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { effectiveRegion } from '@/lib/regions'
 import { safeGet, safeRemove, safeSet, STORAGE_KEYS } from '@/lib/storage'
 
 import { useRadar } from '@/store'
@@ -12,12 +13,12 @@ import AttackSegment from './AttackSegment'
 import BannerShell from './BannerShell'
 import Collapsible from './Collapsible'
 import Presence from './Presence'
+import { alertCoversMe, primaryAlert } from './coverage'
 import {
   CLEAR_LINGER_MS,
   type CollapsedFor,
   mostRecentlyEnded,
   notableIncident,
-  primaryAlert,
   inFollowedRegion,
   stillCollapsed,
   useNow,
@@ -39,10 +40,13 @@ export default function StatusBanner() {
   const incidents = useRadar((s) => s.incidents)
   const regions = useRadar((s) => s.regions)
   const chosenRegion = useRadar((s) => s.chosenRegion)
+  const homeZoneId = useRadar((s) => s.homeZoneId)
 
   // Narrowed before anything is picked, so the banner can only ever speak
-  // about the region this reader follows.
-  const mine = inFollowedRegion(alerts, regions, chosenRegion)
+  // about where this reader actually is — their raion for an alert (see
+  // coverage.ts), their oblast for an attack.
+  const ctx = { zoneId: homeZoneId, region: effectiveRegion(regions, chosenRegion) }
+  const mine = alerts.filter((a) => alertCoversMe(a, ctx))
   const alert = primaryAlert(mine)
   const incident = notableIncident(inFollowedRegion(incidents, regions, chosenRegion))
   const ended = mostRecentlyEnded(mine)

@@ -104,6 +104,10 @@ class AlertOut(BaseModel):
     # actually following, rather than treating every alert as theirs.
     region: Region
     scope: AlertScope
+    # Set only for scope='raion' — which raion siren this is, matched against
+    # the reader's own zone (GET /alert-zones/at) to decide whether the banner
+    # should speak. NULL is the official channel's city/oblast announcement.
+    zone_id: str | None = None
     alert_type: str
     started_at: datetime
     ended_at: datetime | None = None

@@ -10,7 +10,11 @@ const SEVERITY: Record<string, number> = { ballistic: 3, missile: 2, drone: 1 }
 
 const severity = (type: TargetType) => SEVERITY[DRONE_FAMILY.has(type) ? 'drone' : type] ?? 0
 
-/** Narrow alerts or attacks to the region this reader is actually following.
+/** Narrow attacks to the region this reader is actually following.
+ *
+ * Alerts have since moved one granularity finer — see coverage.ts, which asks
+ * about the reader's RAION, because region `kyiv` covers both the city and the
+ * oblast around it. An incident is still a region-level thing.
  *
  * Both carry their own region now (backend migration 0036), so the banner asks
  * the direct question. It used to ask an indirect one — "is the reader showing
@@ -43,11 +47,6 @@ export function notableIncident(incidents: Incident[]): Incident | null {
   const notable = incidents.filter((i) => i.notable)
   if (notable.length === 0) return null
   return [...notable].sort((a, b) => severity(b.target_type) - severity(a.target_type))[0]
-}
-
-export function primaryAlert(alerts: Alert[]): Alert | null {
-  const open = alerts.filter((a) => !a.ended_at)
-  return open.find((a) => a.scope === 'city') ?? open[0] ?? null
 }
 
 export function mostRecentlyEnded(alerts: Alert[]): Alert | null {

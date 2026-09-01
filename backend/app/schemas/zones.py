@@ -33,3 +33,17 @@ class AlertZoneOut(BaseModel):
     stale: bool = False
 
     _tz_changed_at = field_validator("changed_at", mode="before")(_as_utc)
+
+
+class AlertZoneAtOut(BaseModel):
+    """Which raion a point falls in — the answer to "what is MY zone?".
+
+    Served instead of letting the client resolve it against the geometry file:
+    the polygons are ~76 KB and only downloaded when the reader turns the layer
+    on, but every reader needs their own raion for the banner.
+    """
+
+    zone_id: str
+    name_uk: str
+    oblast: str
+    region: Region
