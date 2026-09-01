@@ -995,6 +995,28 @@ body::after {
   pointer-events: none;
 }
 
+/* Both glow layers go away while the map is being dragged or zoomed.
+   An SVG filter cannot be reused across the CSS transforms Leaflet pans and
+   zooms with, so every frame of a gesture re-runs a full Gaussian blur over a
+   raion-sized shape — and it scales the wrong way, because the number of blurs
+   is the number of raions under siren. During a real raid that is most of the
+   oblast, so the layer became unusable exactly when it is worth looking at.
+
+   `visibility`, NOT `filter: none`: the source path is a SOLID opaque fill by
+   design (ZONE_GLOW.style) and the filter is what turns it into an edge, so
+   dropping the filter alone would flood each raion with flat red. Visibility
+   also leaves the running entry/all-clear animations alone, which `display`
+   would restart on every mouse-up.
+
+   Nothing is lost meanwhile: the crisp outline underneath is a separate path
+   and never hides, so a raion keeps its state and its border mid-drag. The glow
+   is a state cue, not a live one — it has no news to deliver during the
+   half-second someone spends moving the map. */
+.map-moving .zone-glow,
+.map-moving .zone-allclear {
+  visibility: hidden;
+}
+
 /* Switching the layer on used to drop every raion, its glow and its
    labels onto the map in a single frame — a hard cut that reads as a glitch
    rather than as a layer arriving. Everything the layer owns fades in instead.

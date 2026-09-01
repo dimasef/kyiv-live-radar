@@ -6,6 +6,7 @@ import { useShownRegions } from '@/store/useShownRegions'
 
 import { inShownRegions, zoneTone } from './alertZones'
 import { tagPath, taggedId } from './tagPath'
+import { useMapMoving } from './useMapMoving'
 import { ZONE_ALL_CLEAR, ZONE_GLOW, ZONE_LABEL_NUDGE, ZONE_STYLES } from './constants'
 import ZoneGlowDefs from './ZoneGlowDefs'
 import ZoneLabel from './ZoneLabel'
@@ -30,6 +31,8 @@ export default function AlertZoneLayer() {
   // sirens drawn over the map they came for.
   const geometry = inShownRegions(allGeometry, shown)
   const map = useMap()
+  // Parks the glow filters for the length of a drag — see `.map-moving`.
+  useMapMoving()
   /** Zone whose name is currently revealed — hovered, or focused. */
   const [named, setNamed] = useState<string | null>(null)
 
