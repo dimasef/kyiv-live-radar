@@ -345,25 +345,37 @@ def _target_count(norm: str, districts) -> int | None:
     Still the size of ONE group flying together, an annotation on the track — it
     never fabricates N tracks, and the multi-district enumeration path
     deliberately refuses to stamp it per district (see handlers.py)."""
-    nums = [int(m.group(1)) for m in _COUNT_RE.finditer(norm)]
+    def inside_a_name(pos: int) -> bool:
+        """Whether the number at `pos` is part of a matched place's own name.
+
+        The two plants are numbered, so their digit reaches every rule below,
+        not just the place-adjacent pair — «Йде на ТЕЦ-6 реактивний» read as six
+        through _COUNT_NOUN_RE."""
+        return any(h.position <= pos < h.end for h in districts)
+
+    nums = [int(m.group(1)) for m in _COUNT_RE.finditer(norm)
+            if not inside_a_name(m.start(1))]
     # Every rule below accepts a numeral WORD as well as digits, so the value has
     # to be resolved rather than int()'d (see vocab._NUM_WORDS).
-    nums += [count_value(m.group(1)) for m in _COUNT_NOUN_RE.finditer(norm)]
+    nums += [count_value(m.group(1)) for m in _COUNT_NOUN_RE.finditer(norm)
+             if not inside_a_name(m.start(1))]
     nums += [
         count_value(m.group(1))
         for m in _COUNT_TO_PLACE_RE.finditer(norm)
-        if _place_follows(m.end(), districts)
+        if _place_follows(m.end(), districts) and not inside_a_name(m.start(1))
     ]
-    nums += [count_value(m.group(1)) for m in _COUNT_MOVING_RE.finditer(norm)]
+    nums += [count_value(m.group(1)) for m in _COUNT_MOVING_RE.finditer(norm)
+             if not inside_a_name(m.start(1))]
     # The place-adjacent form ("Замглай два", "Два хрінівка на Добрянка"). Its
     # anchor is a gazetteer hit rather than a word, so the scan lives here — and
-    # it uses the hit's real END, which is what keeps the "5" of «ТЕЦ-5» out.
+    # it uses the hit's real END, which is also what puts a name's own number
+    # inside the span above (matcher._end_past_required_next).
     for h in districts:
         after = _COUNT_AFTER_PLACE_RE.match(norm[h.end:])
-        if after:
+        if after and not inside_a_name(h.end + after.start(1)):
             nums.append(count_value(after.group(1)))
         before = _COUNT_BEFORE_PLACE_RE.search(norm[:h.position])
-        if before:
+        if before and not inside_a_name(before.start(1)):
             nums.append(count_value(before.group(1)))
     nums = [n for n in nums if n is not None and 1 <= n <= 50]  # junk like "100х"/years
     return max(nums) if nums else None

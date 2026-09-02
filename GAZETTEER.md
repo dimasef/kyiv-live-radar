@@ -324,6 +324,8 @@ corpus sweep found zero bad matches. Re-sweep if the feed changes.
 | **Хотів** (2026-08-30) | the past tense of «хотіти» | 6 callouts against 3 verbs, and no property of the word separates them — the entry vetoes the function words only the verb takes («хотів у вас…», «хотів би…», «хотів її…»). Pinned by a test on all three verb sentences |
 | **Лавина** (2026-08-30) | «лавина» = an avalanche | 3/3 corpus hits are the mall on Берковецька, used as a landmark exactly like Sky Mall |
 | **Золоті** (Золоті ворота, 2026-08-30) | the plural adjective «золоті» | Whole-word, so the stem «золот» cannot reach Чернігівщина's «Золотий берег» beach; 7/7 hits are the callout, and the full name never appears |
+| **Березна / Березну** (2026-09-02) | «березня» — the MONTH — sits under the stem «березн» | Whole-word, both case forms the feed types; 11/11 corpus callouts survive and the month is unreachable. Safe as a stem only while Чернігівщина's own channel was the only reader: it does not repost policy news, and raw 1255 («до березня 2028 року») is a Kyiv channel doing exactly that. Found by sweeping the `extra_regions` binding BEFORE turning it on |
+| **Славутич** (2026-09-02) | «ЖК "Славутич"», a housing estate on Позняки 150 km from the town | `prev_veto` on «жк», the narrowest guard that works — every other form («зі Славутича», «повз Славутич», «на Славутич») keeps matching. 1 corpus hit, an aftermath recap listing where drones landed. Same sweep as Березна above |
 | **Охоче** (Харківщина, 2026-08-30) | «охоче» = willingly | 8/8 corpus hits are the village, named inside the Таранівка→Красноград corridor bulletin by both Kharkiv channels. The adverb has never appeared; re-sweep if the feed changes |
 
 ---

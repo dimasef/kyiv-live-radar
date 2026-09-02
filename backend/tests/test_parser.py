@@ -189,6 +189,18 @@ def test_a_number_beside_a_place_that_is_not_a_count():
     # anchors on the hit's END rather than on stem length.
     assert parse_message("На ТеЦ-5🔴.", M).target_count is None
     assert parse_message("Троєщина, ТЕЦ-6, Бровари - уважно", M).target_count is None
+    # The SPACED spelling, where the match is the bare «тец» alias and the digit
+    # is the next word, so the END has to be extended past it. All real
+    # messages; each used to put a phantom ×5/×6 on a single drone.
+    for text in ("ТЕЦ 5", "ТЕЦ 6", "Знову ТЕЦ 6", "ТЕЦ 5 увага", "Реактивний ТЕЦ 5",
+                 "З Обухова на ТЕЦ 5", "Троя, ТЕЦ 6 уважно"):
+        assert parse_message(text, M).target_count is None, text
+    # The digit reaches the other count rules too — this one read as six through
+    # _COUNT_NOUN_RE («6 реактивний»).
+    assert parse_message("Йде на ТЕЦ-6 реактивний", M).target_count is None
+    # A stated count still counts — before and after the plant's own number.
+    assert parse_message("1 на ТЕЦ 6", M).target_count == 1
+    assert parse_message("ТЕЦ 6 два", M).target_count == 2
     # A warning time and an arrival table, not targets.
     assert parse_message("Ніжин 5 хв увага ‼️", north).target_count is None
     assert parse_message("Суми 3:30 Харків 3:45 Чернігів 4:15", M).target_count is None
@@ -1815,3 +1827,48 @@ def test_smoke_advisory_after_a_strike_is_aftermath():
         "❗️Борщагівка і Троя видніється сильний дим після удару!Закрийте вікна до відбою!", M
     )
     assert r.aftermath and not r.matched
+
+
+def _kyiv_bound_to_the_north():
+    """A Kyiv channel with `extra_regions=['chernihiv']` — the binding the seed
+    gives every Kyiv spotter (gazetteer.SOURCES)."""
+    from app.gazetteer import DISTRICTS
+    return DistrictMatcher(
+        [{"id": i + 1, **d} for i, d in enumerate(DISTRICTS)],
+        prefer_region="kyiv", allowed_regions=frozenset({"kyiv", "chernihiv"}),
+    )
+
+
+def test_the_northern_corridor_is_visible_to_a_kyiv_channel_bound_to_it():
+    """The point of the binding: 174 corpus messages from Kyiv channels named a
+    northern place and localized NOWHERE, so their reply chains broke and the
+    corridor handover (Славутич -> Вишгород -> Київ) could never form."""
+    north = _kyiv_bound_to_the_north()
+    assert names(parse_message("Реактивний на Славутич", north)) == ["Славутич"]
+    assert names(parse_message("Ще один реактивний від Десни на Київщину", north)) == ["Десна"]
+    # The handover itself: both halves of the path in one message.
+    assert names(parse_message(
+        "8х реактивних БпЛА з Брянщини повз Славутич у напрямку Броварського району",
+        north)) == ["Славутич", "Бровари"]
+
+
+def test_the_binding_does_not_import_the_norths_word_collisions():
+    """Two entries are safe only while the northern channel alone can see them:
+    it reposts no policy news and names no Kyiv housing estates. Both surfaced
+    in a corpus sweep run before turning the binding on."""
+    north = _kyiv_bound_to_the_north()
+    # «ЖК "Славутич"» is on Позняки; the town is 150 km up the Dnipro (raw 208,
+    # an aftermath recap listing where drones landed).
+    assert names(parse_message(
+        'Приліт БПЛА по ЖК "Варшавський", ЖК "Славутич", а також на Позняках', north,
+    )) == ["Позняки"]
+    # «березня» is the MONTH — the stem «березн» reached it (raw 1255).
+    assert names(parse_message(
+        "домовилися продовжити тимчасовий захист до березня 2028 року", north)) == []
+    from app.gazetteer import DISTRICTS
+    chernihiv = DistrictMatcher(
+        [{"id": i + 1, **d} for i, d in enumerate(DISTRICTS)], prefer_region="chernihiv")
+    for text in ("На березну", "Березна на Чернігів", "На Седнів, Березна"):
+        assert "Березна" in names(parse_message(text, chernihiv)), text
+    for text in ("Ще 1 зі Славутича на водосховище", "На Славутич ще 5 летить"):
+        assert "Славутич" in names(parse_message(text, north)), text

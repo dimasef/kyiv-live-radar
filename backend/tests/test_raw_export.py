@@ -77,6 +77,29 @@ async def test_parsed_snapshot_is_present_even_when_nothing_was_produced(session
     assert parsed.matched and parsed.district_names == ["Оболонський"]
 
 
+async def test_the_diagnosis_sees_only_what_the_channels_binding_allows(session):
+    """The debug view must diagnose with the matcher the PIPELINE used.
+
+    `for_region` merely PREFERS a region where the feeds restrict to the
+    channel's binding, so the view could match a place ingest never saw and then
+    explain the row by a filter that needs a district: it read this message from
+    a Kyiv-bound channel as `siren_only` where the pipeline had matched nothing
+    and dropped it as `not_threat`. 183 corpus rows disagreed that way.
+    """
+    session.add(District(name_uk="Славутич", name_en="Slavutych", lat=51.5, lon=30.7,
+                         region="chernihiv"))
+    kyiv_channel = Source(name="Київ", channel_key="kb", role="spotter", region="kyiv")
+    session.add(kyiv_channel)
+    await session.commit()
+    raw = await _raw(session, kyiv_channel, "Тривога надовго, ще 6 сунуть з Славутича",
+                     message_id=1)
+
+    out = (await _serialize(session, [raw]))[raw.id]
+    assert out.parsed is not None and not out.parsed.matched
+    assert out.parsed.district_names == []
+    assert out.suppressed_by != "siren_only"
+
+
 async def test_event_link_carries_the_district_it_landed_on(session):
     src = await _spotter(session)
     raw = await _raw(session, src, "БПЛА Оболонь", message_id=1)

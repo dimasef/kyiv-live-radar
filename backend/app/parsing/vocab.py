@@ -915,6 +915,12 @@ _WHOLE_WORD_ALIASES = frozenset({"чзв", "пох", "бц", "голос", "пу
                                  # Василева/Хатилова Гута pair. Four letters, so
                                  # it could never be a stem anyway.
                                  "гути",
+                                 # The stem «березн» also fires on «березня» —
+                                 # the MONTH, which the town's own case forms
+                                 # never produce (raw 1255, a policy-news repost
+                                 # on a Kyiv channel). Both real forms listed,
+                                 # like море/моря.
+                                 "березна", "березну",
                                  # Both cities' power plant, as the spotters
                                  # type it bare. Three letters, so it could
                                  # never be a stem anyway. Чернігів's plant owns

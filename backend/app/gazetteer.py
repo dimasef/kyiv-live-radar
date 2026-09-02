@@ -231,8 +231,11 @@ DISTRICTS: list[dict] = [
 
     # Administratively Kyiv oblast, but 150 km north — `region` follows geography,
     # because it decides which track pool a sighting joins.
+    # The veto keeps «ЖК "Славутич"» — a housing estate on Позняки — off the
+    # town 150 km upriver; it can only be reached by a Kyiv-bound channel.
     {"name_uk": "Славутич", "name_en": "Slavutych", "lat": 51.519, "lon": 30.746,
-     "region": "chernihiv", "aliases": ["славутича", "славутичі"]},
+     "region": "chernihiv", "aliases": ["славутича", "славутичі"],
+     "match_context": {"prev_veto": {"славутич": ["жк"]}}},
     {"name_uk": "Десна", "name_en": "Desna", "lat": 50.9248, "lon": 30.773,
      "region": "chernihiv", "aliases": ["десну", "десни"]},
     {"name_uk": "Жукин", "name_en": "Zhukyn", "lat": 50.716, "lon": 30.628,
@@ -622,8 +625,9 @@ DISTRICTS: list[dict] = [
      "region": "chernihiv", "aliases": []},
     {"name_uk": "Сосниця", "name_en": "Sosnytsia", "lat": 51.5245, "lon": 32.5029,
      "region": "chernihiv", "aliases": []},
+    # Whole-word (see vocab): the stem «березн» reaches the month «березня».
     {"name_uk": "Березна", "name_en": "Berezna", "lat": 51.5779, "lon": 31.7903,
-     "region": "chernihiv", "aliases": []},
+     "region": "chernihiv", "aliases": ["березну"]},
     {"name_uk": "Чемер", "name_en": "Chemer", "lat": 51.1002, "lon": 31.2122,
      "region": "chernihiv", "aliases": []},
     {"name_uk": "Кукшин", "name_en": "Kukshyn", "lat": 51.1661, "lon": 31.6523,

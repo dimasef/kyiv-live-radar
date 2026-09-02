@@ -261,11 +261,13 @@ async def serialize_raw_rows(session, rows: list[RawMessage]) -> list[RawMessage
     # On THIS session: the diagnosis now runs for every row, so the gazetteer it
     # matches against must be the one this request reads (build_region_matchers'
     # own rule for request handlers) rather than a second connection's.
-    # One matcher PER REGION, picked by each row's own channel: a region-only
-    # entry («ТЕЦ», «вокзал») is invisible to the wrong region's matcher, so a
-    # single home-region matcher would diagnose every northern «ТЕЦ» as "не про
-    # загрозу" — the exact thing the live pipeline now gets right. The debug
-    # view has to agree with the pipeline or it stops being evidence.
+    # One matcher per row, built from that channel's BINDING the way the feeds
+    # build theirs: a region-only entry («ТЕЦ», «вокзал») is invisible to the
+    # wrong region's matcher, so a single home-region matcher would diagnose
+    # every northern «ТЕЦ» as "не про загрозу". The debug view has to agree with
+    # the pipeline or it stops being evidence, and `for_region` only PREFERS a
+    # region where the feeds RESTRICT to the binding — a gap that had the view
+    # explaining 183 rows by matches ingest could never have made.
     matchers = await build_region_matchers(session)
     items: list[RawMessageOut] = []
     for r in rows:
@@ -277,7 +279,11 @@ async def serialize_raw_rows(session, rows: list[RawMessage]) -> list[RawMessage
         # its `parsed` snapshot is what makes an export self-explanatory, and
         # `outcome` still prefers the authoritative event/notice when there is
         # one. Alert-channel rows go through their own parser instead.
-        matcher = matchers.for_region(r.source.region if r.source is not None else None)
+        matcher = (
+            matchers.for_source(r.source.region, r.source.extra_regions)
+            if r.source is not None
+            else matchers.default
+        )
         diag = None if is_alert_channel else diagnose(r.text, matcher)
         if events:
             row_outcome, suppressed_by = "подія", None

@@ -262,6 +262,34 @@ def _missing_required_next(norm_text: str, start: int, end: int) -> bool:
     return False
 
 
+def _end_past_required_next(
+    norm_text: str, start: int, end: int, ctx: MatchContext | None
+) -> int:
+    """`end`, extended past a word this match REQUIRED after it.
+
+    A required next word names the place as much as the match does — «тец 5» is
+    ТЕЦ-5 exactly as «тец-5» is. `end` is what tells a name's own number from a
+    stated count (rules._target_count), so leaving it short made the spaced
+    spelling of both plants read as 5 and 6 targets (25 real messages).
+
+    Only called once a match has passed the required-next checks.
+    """
+    matched = norm_text[start:end]
+    rules = [_ALIAS_NEXT_WORD_REQUIRED]
+    if ctx is not None:
+        rules.append(ctx.next_required)
+    for required_by_alias in rules:
+        for alias, required in required_by_alias.items():
+            if not _governs(alias, matched):
+                continue
+            after = norm_text[end:]
+            gap = len(after) - len(after.lstrip(_EDGE))
+            word = _WORD_SPLIT.split(after[gap:])[0] if after[gap:] else ""
+            if word.startswith(required):
+                return end + gap + len(word)
+    return end
+
+
 def _missing_required_prev(norm_text: str, start: int, end: int) -> bool:
     """True if the match at [start:end) needs a specific preceding word and
     doesn't have it ("церкв" only counts inside "Біла Церква") — see
@@ -532,8 +560,9 @@ class DistrictMatcher:
                     continue
                 if _context_blocks(p.context, norm_text, m.start(), m.end()):
                     continue
+                end = _end_past_required_next(norm_text, m.start(), m.end(), p.context)
                 hits[p.district_id] = (
-                    DistrictHit(p.district_id, p.name, m.start(), len(matched), m.end(),
+                    DistrictHit(p.district_id, p.name, m.start(), len(matched), end,
                                 self.region_by_id.get(p.district_id)),
                     p.preferred,
                 )
