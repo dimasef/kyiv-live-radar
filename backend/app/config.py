@@ -153,7 +153,26 @@ class Settings(BaseSettings):
     # its own, inherit the most recent stated type from the SAME source within
     # this window. Rule-only, in-memory — never triggers an LLM call (a message
     # that already has a district short-circuits the LLM fallback gate anyway).
-    type_inherit_window_minutes: int = 5
+    #
+    # 15, not the original 5. Measured on eval/type_eval.py (584 labeled
+    # messages, no LLM), sweeping this value alone:
+    #
+    #     window   coverage   exact   family   untyped
+    #        5      55.1%     49.4%   95.3%      75
+    #        8      60.4%     53.3%   95.8%      44
+    #       15      62.3%     53.6%   95.9%      33
+    #       30      63.9%     53.6%   96.0%      —
+    #
+    # Not a coverage-for-accuracy trade: at 15 the tier types 42 MORE messages
+    # than at 5 and makes the same 15 drone/missile confusions in absolute
+    # terms, so both rates rise together. 5 min was simply tighter than the
+    # thing it models — spotters narrating one circling target go quiet for
+    # minutes at a time (2026-09-02: «Місто Кия» typed a jet_drone 17 callouts
+    # running, paused 13m53s, and the next callout had lost the type and cost
+    # an LLM call that came back "I can't tell"). Past ~15 the curve flattens;
+    # the rest is bounded by type_inherit_max_age_minutes below, which never
+    # binds above 15 on this corpus.
+    type_inherit_window_minutes: int = 15
     # …and how long ONE answer may keep being carried forward in total. Every
     # inherit restarts the window above (a callout is evidence the wave is still
     # running), so without this a single type rides for as long as the channel
@@ -370,6 +389,43 @@ class Settings(BaseSettings):
     # start. That is the whole feature; a narrow window silently does nothing.
     llm_type_context_messages: int = 25
     llm_type_context_minutes: int = 120
+    # …and on TOP of those 25, up to this many of the message's OWN region.
+    #
+    # The national window is filled by whoever is loudest, and a busy raid in
+    # one oblast starves every other. 2026-09-02 09:58, a Kyiv sighting: 13 of
+    # its 25 lines were Харківщина ("Бандеролі", "Реактивний Шахед на Лозову"),
+    # 5 were Kyiv and none of those five named a type — so the classifier read
+    # a picture with one wave in it that was not its own and correctly refused
+    # to answer. Meanwhile «Реактивний Липки/нижні сади/Осокорки» sat 22 min
+    # back in the Kyiv feed, crowded out.
+    #
+    # Measured over the 82 declines in the stored corpus, counting those whose
+    # context contained a stated type from their own region at all:
+    #
+    #     own top-up    declines with own-region evidence    avg extra lines
+    #         0                    20 / 82                        —
+    #        10                    29 / 82                       3.6
+    #        20                    37 / 82                       7.3
+    #        30                    39 / 82                      11.1
+    #
+    # Additive rather than a reserved slice of the 25: a hard region filter
+    # would be far worse than either, since 98 of 289 successful typings (34%)
+    # had the type word ONLY in a neighbouring oblast — that northern corridor
+    # is what makes the tier work (see build_type_context).
+    #
+    # Then the link that count does not prove — does evidence appearing make
+    # the model ANSWER? Re-asked the classifier on exactly the 17 stored
+    # declines this top-up first gives own-region evidence to: 14 of 17 came
+    # back with a type, every one of them evidence=context at confidence
+    # 0.72-0.92, i.e. over llm_type_min_confidence. So ~17% of all declines are
+    # recoverable this way. Costs +5.3 lines / ~180 input tokens per call
+    # (+9%, $0.0022 -> $0.0024) on the live corpus.
+    #
+    # NOT measurable on eval/type_eval.py: eval_backfill.db is a single-oblast
+    # backfill, so its national window is already 100% own-region and the
+    # top-up adds literally nothing there. A run of that harness will report
+    # this setting as a no-op no matter what it is set to.
+    llm_type_context_own_messages: int = 20
     # Below this we keep `unknown`. A generic marker is honest; a wrong weapon
     # icon is not (and it drives the per-type stale window, so it also decides
     # how long the target lingers on the map).

@@ -10,6 +10,10 @@ import type { Threat } from "@/types";
 import ThreatPopup from "./ThreatPopup";
 import { threatVisual } from "./threatVisual";
 
+/** --phosphor, the app's accent — spelled out because this is a Leaflet path
+ * option, not a class. */
+const PICK_COLOR = "#22d3ee";
+
 /** Two expanding rings pulsing in the threat color — the live head of a track.
  * One ring under the motion budget: the second exists to make a lone contact
  * read as breathing, and it is the first thing worth spending when the map is
@@ -55,6 +59,11 @@ const ThreatLayer = memo(function ThreatLayer({
   // exit fade from closed_at made a clicked-on target dissolve while being read.
   const leaving = useRadar((s) => s.leavingThreatIds.includes(threat.id));
   const setOpenPopupThreat = useRadar((s) => s.setOpenPopupThreat);
+  // Regrouping a sighting by picking its new track off the map: while that is
+  // armed, every OTHER target is a destination rather than something to read.
+  const regroupPick = useRadar((s) => s.regroupPick);
+  const completeRegroupPick = useRadar((s) => s.completeRegroupPick);
+  const pickable = regroupPick != null && regroupPick.sourceThreatId !== threat.id;
   const type = threat.target_type;
   const { pts, color, moved, heading, state } = threatVisual(threat);
 
@@ -165,18 +174,35 @@ const ThreatLayer = memo(function ThreatLayer({
           zIndexOffset={-100}
         />
       )}
+      {/* Ring marking a destination the armed sighting can be dropped onto —
+          same idiom as the corroboration halo, in the accent colour so pick
+          mode reads as a mode and not as new evidence. */}
+      {pickable && (
+        <CircleMarker
+          center={[head.lat, head.lon]}
+          radius={18}
+          interactive={false}
+          pathOptions={{ color: PICK_COLOR, weight: 2, opacity: 0.9, dashArray: "4 4", fill: false }}
+        />
+      )}
       <Marker
         position={[head.lat, head.lon]}
         icon={headIcon}
         opacity={dim}
         // A closed target's popup is exactly what someone reads right after
         // "мінус" — while it's open the store holds off the eviction.
-        eventHandlers={{
-          popupopen: () => setOpenPopupThreat(threat.id),
-          popupclose: () => setOpenPopupThreat(null),
-        }}
+        eventHandlers={
+          pickable
+            ? { click: () => void completeRegroupPick(threat.id).catch(() => {}) }
+            : {
+                popupopen: () => setOpenPopupThreat(threat.id),
+                popupclose: () => setOpenPopupThreat(null),
+              }
+        }
       >
-        <ThreatPopup threat={threat} />
+        {/* No Popup child while picking: react-leaflet binds the popup by its
+            presence, and an auto-opening popup would swallow the pick click. */}
+        {!pickable && <ThreatPopup threat={threat} />}
       </Marker>
     </>
   );

@@ -8,10 +8,14 @@ import PopupSection from './PopupSection'
 import { MONO } from './popupStyles'
 
 /** The raw spotter reports behind the track, verbatim — the last word on what a
- * target actually is when the parsed summary above looks off. */
+ * target actually is when the parsed summary above looks off.
+ *
+ * Newest first, against the chronology: the box scrolls at 150px, so on a
+ * well-reported target the freshest word — the one that says where it is NOW —
+ * was the one you had to scroll down to find. */
 export default function MessageList({ threat }: { threat: Threat }) {
   const { t } = useTranslation()
-  const messages = dedupeMessages(threat.events)
+  const messages = dedupeMessages(threat.events).reverse()
   if (messages.length === 0) return null
 
   return (

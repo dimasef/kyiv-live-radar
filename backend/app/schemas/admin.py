@@ -36,6 +36,18 @@ class ThreatTypeIn(BaseModel):
     target_type: TargetType
 
 
+class ThreatCountIn(BaseModel):
+    """PATCH /admin/threats/{id}/count — how many targets fly in this track.
+
+    A separate route from the retype PATCH because the two answer different
+    questions and are corrected at different moments; and null here means
+    something the retype body has no equivalent of — drop the operator's
+    override and go back to the count derived from the track's own sightings,
+    the same "auto" that an empty `IncidentTypeIn.target_types` expresses."""
+
+    target_count: int | None = Field(default=None, ge=1, le=999)
+
+
 class IncidentTypeIn(BaseModel):
     """PATCH /admin/incidents/{id}/type — the operator's verdict on what is in
     the air.

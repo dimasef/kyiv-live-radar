@@ -26,6 +26,8 @@ from app.models import (
     User,
     utcnow,
 )
+from app.parsing.rules import ParseResult
+from app.pipeline.ingest.context import _apply_update
 
 
 @pytest_asyncio.fixture
@@ -73,6 +75,15 @@ async def _threat_with_event(session, district, *, target_type="shahed", inciden
     session.add(ev)
     await session.commit()
     return threat, ev
+
+
+def _sighting(count: int) -> ParseResult:
+    """A parsed corroborating sighting stating a group size — the input the
+    running max in _apply_update reads."""
+    return ParseResult(
+        target_type="shahed", status="sighting", is_new_target=False,
+        districts=[], confidence=0.8, target_count=count,
+    )
 
 
 async def _active_ids(c, headers) -> set[int]:
@@ -135,6 +146,68 @@ async def test_retype_updates_incident(client):
     await s.refresh(refreshed)
     assert refreshed.target_type == "ballistic"
     assert refreshed.attack_types == ["ballistic"]
+
+
+async def test_recount_threat_latches_against_the_parser(client):
+    """The whole point of the override: the pipeline grows target_count as a
+    running max, so a correction that didn't latch would be undone by the next
+    spotter restating a bigger group."""
+    c, s = client
+    headers = await _admin_headers(s)
+    d = await _district(s)
+    threat, _ = await _threat_with_event(s, d)
+    threat.target_count = 5
+    await s.commit()
+
+    r = await c.patch(
+        f"/admin/threats/{threat.id}/count", json={"target_count": 2}, headers=headers
+    )
+    assert r.status_code == 200
+    assert r.json()["target_count"] == 2
+    assert r.json()["target_count_locked"] is True
+
+    _apply_update(_sighting(3), threat)
+    assert threat.target_count == 2
+
+
+async def test_recount_null_hands_the_count_back_to_the_sightings(client):
+    c, s = client
+    headers = await _admin_headers(s)
+    d = await _district(s)
+    threat, ev = await _threat_with_event(s, d)
+    ev.event_target_count = 4
+    await s.commit()
+
+    await c.patch(
+        f"/admin/threats/{threat.id}/count", json={"target_count": 1}, headers=headers
+    )
+    r = await c.patch(
+        f"/admin/threats/{threat.id}/count", json={"target_count": None}, headers=headers
+    )
+    assert r.status_code == 200
+    assert r.json()["target_count"] == 4
+    assert r.json()["target_count_locked"] is False
+
+    _apply_update(_sighting(6), threat)
+    assert threat.target_count == 6
+
+
+async def test_recount_rejects_a_nonsense_count(client):
+    c, s = client
+    headers = await _admin_headers(s)
+    d = await _district(s)
+    threat, _ = await _threat_with_event(s, d)
+
+    assert (
+        await c.patch(
+            f"/admin/threats/{threat.id}/count", json={"target_count": 0}, headers=headers
+        )
+    ).status_code == 422
+    assert (
+        await c.patch(
+            "/admin/threats/999999/count", json={"target_count": 2}, headers=headers
+        )
+    ).status_code == 404
 
 
 async def test_retype_of_an_open_track_becomes_the_channel_type_context(client):

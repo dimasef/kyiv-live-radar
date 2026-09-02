@@ -6,6 +6,7 @@ import { homeStyleOf } from "@/lib/contactMarker";
 import { framingBounds } from "@/lib/regions";
 import { homeDangerFor, raionIdsForZone } from "@/lib/homeDanger";
 import { useRadar } from "@/store";
+import AdminTrackEditor from "./AdminTrackEditor";
 import AlertZoneLayer from "./AlertZoneLayer";
 import AxisLayer from "./AxisLayer";
 import CitywidePulse from "./CitywidePulse";
@@ -29,6 +30,7 @@ import HomeMarker from "./HomeMarker";
 import HomePlacement from "./HomePlacement";
 import MapControls from "./MapControls";
 import RegionLayer from "./RegionLayer";
+import RegroupPickBanner from "./RegroupPickBanner";
 import ThreatLayer from "./ThreatLayer";
 import { useMapViewport } from "./useMapViewport";
 import { isVisible } from "./viewportCull";
@@ -76,14 +78,21 @@ export default function MapView() {
   // the store evict the track outright.
   const view = useMapViewport(map);
   const openPopupThreatId = useRadar((s) => s.openPopupThreatId);
+  // Third exemption, same reason: while an admin is picking a new track for a
+  // sighting, the track it came FROM has to stay on screen — they are looking
+  // at it to decide where it belongs.
+  const pickSourceId = useRadar((s) => s.regroupPick?.sourceThreatId);
   const shown = useMemo(() => {
     const all = Object.values(threats);
     if (!view) return all;
     return all.filter(
       (th) =>
-        th.id === inspectedThreat?.id || th.id === openPopupThreatId || isVisible(th, view),
+        th.id === inspectedThreat?.id ||
+        th.id === openPopupThreatId ||
+        th.id === pickSourceId ||
+        isVisible(th, view),
     );
-  }, [threats, view, inspectedThreat?.id, openPopupThreatId]);
+  }, [threats, view, inspectedThreat?.id, openPopupThreatId, pickSourceId]);
 
   // Counted over what is DRAWN, not what is open — with culling in front of it,
   // a quiet corner of a busy night keeps its motion (see MOTION_BUDGET).
@@ -180,6 +189,10 @@ export default function MapView() {
       <HomeCompass map={map} />
       <HomePlacement map={map} />
       <MapControls />
+      {/* Both live OUTSIDE MapContainer: the editor must survive the marker
+          that opened it being removed from the map (see AdminTrackEditor). */}
+      <RegroupPickBanner />
+      <AdminTrackEditor />
     </div>
   );
 }

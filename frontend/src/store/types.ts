@@ -1,3 +1,4 @@
+import type { AdminSlice } from './adminSlice'
 import type { AlertsSlice } from './alertsSlice'
 import type { AuthSlice } from './authSlice'
 import type { AxesSlice } from './axesSlice'
@@ -38,4 +39,5 @@ export type RadarState = DistrictsSlice &
   NotifySlice &
   WsSlice &
   AuthSlice &
-  UiSlice
+  UiSlice &
+  AdminSlice

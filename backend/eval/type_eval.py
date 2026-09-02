@@ -88,7 +88,7 @@ async def _replay_baseline() -> dict[tuple[str, int], dict]:
     _recent_type.clear()
     async with SessionLocal() as s:
         districts = list(await s.scalars(select(District)))
-        sources = {src.id: src.name for src in await s.scalars(select(Source))}
+        sources = {src.id: (src.name, src.region) for src in await s.scalars(select(Source))}
         raws = list(await s.scalars(select(RawMessage).order_by(RawMessage.event_time)))
     matcher = DistrictMatcher(districts)
     out: dict[tuple[str, int], dict] = {}
@@ -96,14 +96,19 @@ async def _replay_baseline() -> dict[tuple[str, int], dict]:
         parsed = parse_message(r.text or "", matcher)
         stated = parsed.target_type
         _note_and_inherit_type(parsed, r.source_id, r.event_time, None)
-        name = sources.get(r.source_id)
-        if name is None or r.message_id is None:
+        src = sources.get(r.source_id)
+        if src is None or r.message_id is None:
             continue
+        name, region = src
         out[(name, r.message_id)] = {
             "raw_id": r.id,
             "text": r.text or "",
             "when": r.event_time,
             "source": name,
+            # The reporting channel's oblast. Production resolves the
+            # region from where the message LANDED; the channels here are
+            # single-region, so the source's own is the same answer.
+            "region": region,
             "stated": stated,                    # tier 1: the message's own words
             "baseline": parsed.target_type,      # tier 1 + tier 2 (channel window)
             "sighting": bool(parsed.districts) or parsed.citywide,
@@ -140,9 +145,13 @@ async def _run_llm(cases: list[dict], verbose: bool) -> list[tuple[str, str]]:
     async with SessionLocal() as s:
         for case in cases:
             context = await build_type_context(
-                s, case["when"], exclude_raw_id=case["raw_id"]
+                s, case["when"], exclude_raw_id=case["raw_id"], region=case["region"]
             )
-            verdict, usage = await llm_target_type(case["text"], context, case["source"])
+            # `region` also narrows the output enum, exactly as in production —
+            # without it this arm would score a classifier we do not ship.
+            verdict, usage = await llm_target_type(
+                case["text"], context, case["source"], case["region"]
+            )
             if usage is not None:
                 spend += usage.cost_usd
             predicted = "unknown"

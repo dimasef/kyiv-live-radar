@@ -586,6 +586,40 @@ export interface paths {
         patch: operations["admin_retype_threat_admin_threats__threat_id__patch"];
         trace?: never;
     };
+    "/admin/threats/{threat_id}/count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Admin Recount Threat
+         * @description Set how many targets this track carries, or hand the number back.
+         *
+         *     The count is otherwise a running max over the group sizes spotters state
+         *     (ingest.context._apply_update), which is exactly why the override has to
+         *     LATCH: a correction of an inflated "5" down to "2" that didn't would be
+         *     undone by the next message restating a bigger group.
+         *
+         *     A null count clears the latch and re-derives the number from the sightings
+         *     the track actually holds — the same value the pipeline would have arrived
+         *     at, so an operator can always undo themselves.
+         *
+         *     No ParserCorrection is recorded. The count is a fact assembled across
+         *     several messages, not a verdict on any single raw row, and the correction
+         *     dataset is keyed per raw message (domain/corrections.py) — the same reason
+         *     a regroup records nothing.
+         */
+        patch: operations["admin_recount_threat_admin_threats__threat_id__count_patch"];
+        trace?: never;
+    };
     "/admin/threats/{threat_id}/dismiss": {
         parameters: {
             query?: never;
@@ -3987,6 +4021,20 @@ export interface components {
             /** Track Taken */
             track_taken: boolean;
         };
+        /**
+         * ThreatCountIn
+         * @description PATCH /admin/threats/{id}/count — how many targets fly in this track.
+         *
+         *     A separate route from the retype PATCH because the two answer different
+         *     questions and are corrected at different moments; and null here means
+         *     something the retype body has no equivalent of — drop the operator's
+         *     override and go back to the count derived from the track's own sightings,
+         *     the same "auto" that an empty `IncidentTypeIn.target_types` expresses.
+         */
+        ThreatCountIn: {
+            /** Target Count */
+            target_count?: number | null;
+        };
         /** ThreatEventOut */
         ThreatEventOut: {
             /** Confidence */
@@ -4102,6 +4150,11 @@ export interface components {
              * @default 1
              */
             target_count: number;
+            /**
+             * Target Count Locked
+             * @default false
+             */
+            target_count_locked: boolean;
             /**
              * Target Type
              * @enum {string}
@@ -5202,6 +5255,43 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ThreatTypeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThreatOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_recount_threat_admin_threats__threat_id__count_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                threat_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ThreatCountIn"];
             };
         };
         responses: {

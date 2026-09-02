@@ -461,7 +461,14 @@ def _apply_update(parsed: ParseResult, track: Threat, *, promote: bool = True,
     track.target_type = upgrade_type(track.target_type, parsed.target_type)
     if promote and parsed.status != "unconfirmed":
         promote_track(track)
-    if grow_count and parsed.target_count and parsed.target_count > track.target_count:
+    # `target_count_locked` — an operator already set this count by hand, and a
+    # running max cannot climb back down past a correction on its own.
+    if (
+        grow_count
+        and not track.target_count_locked
+        and parsed.target_count
+        and parsed.target_count > track.target_count
+    ):
         track.target_count = parsed.target_count
     # Latches: a path stated once stays stated. A later bare «Смяч» corroborating
     # the same track doesn't make the leg already drawn any less real.

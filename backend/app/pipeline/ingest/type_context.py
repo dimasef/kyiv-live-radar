@@ -57,40 +57,67 @@ def _age_minutes(when: datetime, then: datetime) -> int:
     return max(0, int((naive(when) - naive(then)).total_seconds() // 60))
 
 
-async def build_type_context(session, when: datetime, *, exclude_raw_id: int | None) -> str:
-    """The last `llm_type_context_messages` messages from every channel within
-    `llm_type_context_minutes` before `when`, oldest first, one line each.
+async def build_type_context(
+    session, when: datetime, *, exclude_raw_id: int | None, region: str | None = None
+) -> str:
+    """The recent feed, as the classifier sees it: the last
+    `llm_type_context_messages` messages from every channel within
+    `llm_type_context_minutes` before `when`, plus up to
+    `llm_type_context_own_messages` more from `region` alone — oldest first,
+    one line each, deduped.
 
     Each line is labelled with its channel's REGION as well as its name. The
-    window is deliberately still national — a cruise or ballistic wave crosses
-    three oblasts inside one of these windows, and reading the neighbouring feed
-    is what makes the tier work at all (measured: cross-channel context types 22
-    of 25 cases, own-channel 3). But it stopped being safe to leave the region
-    implicit once Сумщина went live: that feed posts ~188 messages a day, most of
-    them about FPV quadcopters with a 20 km reach, which say nothing whatsoever
-    about a target over Kyiv. Naming the region lets the model discount them —
-    a cheaper and less destructive fix than filtering the window down, which
-    would also throw away the northern corridor that does predict Kyiv.
+    national window is deliberately still national — a cruise or ballistic wave
+    crosses three oblasts inside one of these windows, and reading the
+    neighbouring feed is what makes the tier work at all (measured:
+    cross-channel context types 22 of 25 cases, own-channel 3; and 34% of the
+    typings it gets right had the type word ONLY in a neighbouring oblast). But
+    it stopped being safe to leave the region implicit once Сумщина went live:
+    that feed posts ~188 messages a day, most of them about FPV quadcopters
+    with a 20 km reach, which say nothing whatsoever about a target over Kyiv.
+    Naming the region lets the model discount them.
+
+    The own-region top-up fixes the other half of the same problem, which
+    labelling cannot: a busy raid elsewhere does not just add noise, it takes
+    the SLOTS. On 2026-09-02 a Kyiv sighting got 13 Харківщина lines out of 25
+    and five Kyiv ones that named no type, while the Kyiv feed had said
+    «Реактивний …» three times in the preceding half hour. Additive, so the
+    corridor above is untouched — see settings.llm_type_context_own_messages
+    for the measurement behind the size.
 
     `exclude_raw_id` drops the message being classified: on the live path it is
     already stored by the time this runs, and seeing itself in its own context
     invites the model to treat a bare toponym as its own evidence.
     """
     window_start = naive(when) - timedelta(minutes=settings.llm_type_context_minutes)
-    stmt = (
-        select(RawMessage.text, RawMessage.event_time, Source.name, Source.region)
-        .outerjoin(Source, RawMessage.source_id == Source.id)
-        .where(RawMessage.event_time < when, RawMessage.event_time >= window_start)
-        .order_by(RawMessage.event_time.desc(), RawMessage.id.desc())
-        .limit(settings.llm_type_context_messages)
-    )
-    if exclude_raw_id is not None:
-        stmt = stmt.where(RawMessage.id != exclude_raw_id)
-    rows = list(await session.execute(stmt))
-    lines = [
-        f"[-{_age_minutes(when, event_time)}хв {label(region or HOME_REGION)}"
+
+    def _recent(limit: int, only_region: str | None):
+        stmt = (
+            select(RawMessage.id, RawMessage.text, RawMessage.event_time,
+                   Source.name, Source.region)
+            .outerjoin(Source, RawMessage.source_id == Source.id)
+            .where(RawMessage.event_time < when, RawMessage.event_time >= window_start)
+            .order_by(RawMessage.event_time.desc(), RawMessage.id.desc())
+            .limit(limit)
+        )
+        if only_region is not None:
+            stmt = stmt.where(Source.region == only_region)
+        if exclude_raw_id is not None:
+            stmt = stmt.where(RawMessage.id != exclude_raw_id)
+        return stmt
+
+    rows = list(await session.execute(_recent(settings.llm_type_context_messages, None)))
+    if region is not None and settings.llm_type_context_own_messages > 0:
+        seen = {r[0] for r in rows}
+        own = await session.execute(
+            _recent(settings.llm_type_context_own_messages, region)
+        )
+        rows.extend(r for r in own if r[0] not in seen)
+    # One chronological transcript, however the two queries interleaved.
+    rows.sort(key=lambda r: (r[2], r[0]))
+    return "\n".join(
+        f"[-{_age_minutes(when, event_time)}хв {label(row_region or HOME_REGION)}"
         f"/{name or 'канал'}] "
         + " ".join((text or "").split())[:_MAX_LINE_CHARS]
-        for text, event_time, name, region in reversed(rows)
-    ]
-    return "\n".join(lines)
+        for _id, text, event_time, name, row_region in rows
+    )

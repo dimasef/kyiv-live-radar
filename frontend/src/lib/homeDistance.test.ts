@@ -35,6 +35,7 @@ function threat(
     scope,
     region: 'kyiv',
     target_count: 1,
+    target_count_locked: false,
     confidence: 0.8,
     movement_stated: false,
     corroboration_count: 1,

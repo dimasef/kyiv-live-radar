@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 
+import { createAdminSlice } from './adminSlice'
 import { createAlertsSlice } from './alertsSlice'
 import { createAuthSlice } from './authSlice'
 import { createAxesSlice } from './axesSlice'
@@ -43,4 +44,5 @@ export const useRadar = create<RadarState>()((...a) => ({
   ...createWsSlice(...a),
   ...createAuthSlice(...a),
   ...createUiSlice(...a),
+  ...createAdminSlice(...a),
 }))

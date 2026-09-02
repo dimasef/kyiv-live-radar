@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useState } from 'react'
 
 import ConfirmModal from '@/components/common/ConfirmModal'
@@ -23,6 +24,7 @@ export default function AdminActionButton({
   confirm,
   compact = false,
   title,
+  icon,
 }: {
   label: string
   onRun: () => Promise<unknown>
@@ -32,6 +34,8 @@ export default function AdminActionButton({
   compact?: boolean
   /** Tooltip — worth setting when `compact` shrinks the label to a glyph. */
   title?: string
+  /** Leading glyph, dropped while pending/failed so the state owns the button. */
+  icon?: ReactNode
 }) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState(false)
@@ -55,10 +59,16 @@ export default function AdminActionButton({
         onClick={() => (confirm ? setAsking(true) : execute())}
         disabled={pending}
         title={title}
-        className={`rounded-md border font-medium transition-colors duration-150 disabled:opacity-40 ${
-          compact ? 'px-1 py-0 text-[10px] leading-4' : 'px-2.5 py-1 text-xs'
+        // The full-size variant is a 36px thumb target, not a 26px mouse
+        // target: this console is used one-handed on a phone mid-raid, and
+        // «Скасувати ціль» sitting a few pixels from «Видалити» is not a
+        // mistake worth making with a finger. `compact` stays as it was — it
+        // exists to sit INSIDE a chip, where it is never the primary target.
+        className={`inline-flex items-center justify-center gap-1 rounded-lg border font-medium transition-colors duration-150 disabled:opacity-40 ${
+          compact ? 'px-1 py-0 text-[10px] leading-4' : 'h-9 px-3 text-xs'
         } ${error ? TONE.danger : TONE[tone]}`}
       >
+        {icon && !pending && !error && icon}
         {error ? (compact ? '!' : 'Помилка') : pending ? '…' : label}
       </button>
       {asking && confirm && (

@@ -265,6 +265,11 @@ export const dismissThreat = (id: number) => send<Threat>(`/admin/threats/${id}/
 export const restoreThreat = (id: number) => send<Threat>(`/admin/threats/${id}/restore`, 'POST')
 export const setThreatType = (id: number, target_type: TargetType) =>
   send<Threat>(`/admin/threats/${id}`, 'PATCH', { target_type })
+/** How many targets fly in this track. The count is otherwise a running max
+ * over the group sizes spotters state, so a hand-set one LATCHES — passing null
+ * releases it and hands the number back to the track's own sightings. */
+export const setThreatCount = (id: number, target_count: number | null) =>
+  send<Threat>(`/admin/threats/${id}/count`, 'PATCH', { target_count })
 /** The operator's verdict on what is in the air. A LIST: naming two weapon
  * families is how 'комбінована' is expressed, since that label is derived by the
  * server and is not a TargetType. An empty array clears the override and hands

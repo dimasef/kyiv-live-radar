@@ -666,6 +666,12 @@ class Threat(Base):
     # Stated size of the group flying together ("2х" -> 2, "їх вже 3х" -> 3);
     # grows within the reply-chain as spotters revise it. 1 when unstated.
     target_count: Mapped[int] = mapped_column(default=1)
+    # An operator set the count by hand, so the pipeline stops growing it
+    # (ingest.context._apply_update). Without this a correction of "5" down to
+    # "2" was undone by the next spotter who restated a bigger group — the
+    # running max has no way to know one of its inputs was already judged wrong.
+    # Cleared by a null count patch, which re-derives from the track's events.
+    target_count_locked: Mapped[bool] = mapped_column(default=False)
     closed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

@@ -25,6 +25,7 @@ from .admin import (
     ReprocessPreviewOut,
     ReprocessResultOut,
     ReprocessSummaryOut,
+    ThreatCountIn,
     ThreatTypeIn,
     ToponymDismissalIn,
 )
@@ -241,6 +242,7 @@ __all__ = [
     "ThreatEventOut",
     "ThreatOut",
     "RegroupOut",
+    "ThreatCountIn",
     "ThreatTypeIn",
     "TokenPairOut",
     "UserOut",

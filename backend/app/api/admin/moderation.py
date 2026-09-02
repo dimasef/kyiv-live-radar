@@ -46,6 +46,7 @@ from ...schemas import (
     NoticeOut,
     RawNoticeIn,
     RegroupOut,
+    ThreatCountIn,
     ThreatOut,
     ThreatTypeIn,
 )
@@ -138,6 +139,52 @@ async def admin_retype_threat(
         recompute_incident_types(inc)
     await session.commit()
     results = [Broadcast("status", threat)]
+    if inc is not None:
+        results.append(Broadcast("attack", incident=inc))
+    await broadcast_results(session, results)
+    return _threat_out(await _threat_with_events(session, threat_id))
+
+
+@router.patch("/admin/threats/{threat_id}/count", response_model=ThreatOut)
+async def admin_recount_threat(
+    threat_id: int,
+    body: ThreatCountIn,
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    """Set how many targets this track carries, or hand the number back.
+
+    The count is otherwise a running max over the group sizes spotters state
+    (ingest.context._apply_update), which is exactly why the override has to
+    LATCH: a correction of an inflated "5" down to "2" that didn't would be
+    undone by the next message restating a bigger group.
+
+    A null count clears the latch and re-derives the number from the sightings
+    the track actually holds — the same value the pipeline would have arrived
+    at, so an operator can always undo themselves.
+
+    No ParserCorrection is recorded. The count is a fact assembled across
+    several messages, not a verdict on any single raw row, and the correction
+    dataset is keyed per raw message (domain/corrections.py) — the same reason
+    a regroup records nothing.
+    """
+    threat = await _threat_with_events(session, threat_id)
+    if threat is None:
+        raise HTTPException(status_code=404, detail="threat not found")
+    if body.target_count is None:
+        threat.target_count_locked = False
+        threat.target_count = max(
+            (e.event_target_count or 1 for e in threat.events), default=1
+        )
+    else:
+        threat.target_count = body.target_count
+        threat.target_count_locked = True
+    inc = threat.incident
+    await session.commit()
+    results = [Broadcast("status", threat)]
+    # An attack's own target_count is summed over its member tracks at
+    # serialization time (api/serialize.py), so the banner is stale until the
+    # incident is re-sent too. Its TYPES are untouched — no recompute here.
     if inc is not None:
         results.append(Broadcast("attack", incident=inc))
     await broadcast_results(session, results)

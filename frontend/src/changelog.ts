@@ -32,12 +32,23 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.46.2";
+const LATEST = "0.47.0";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "ціль не губить свій тип",
+    date: "2026-09-02",
+    kind: "minor",
+    changes: [
+      "Ціль довше пам'ятає, чим вона є. Дрон, що кружляє над районом і про який спостерігачі мовчали кілька хвилин, більше не перетворюється на безіменну позначку — тип тримається на ньому весь час, поки його ведуть",
+      "Тип визначається точніше, коли атака йде одразу на кілька областей: ціль над вашою областю більше не читається крізь чужу хвилю за сотні кілометрів",
+      "У картці цілі найсвіжіші повідомлення спостерігачів тепер угорі — не треба гортати вниз, щоб побачити, де ціль зараз",
+    ],
+  },
+  {
+    version: "0.46.2",
     title: "мапа й банер більше не сперечаються",
     date: "2026-09-02",
     kind: "patch",

@@ -4529,6 +4529,26 @@
         "title": "ThreatAnalysisStateOut",
         "type": "object"
       },
+      "ThreatCountIn": {
+        "description": "PATCH /admin/threats/{id}/count — how many targets fly in this track.\n\nA separate route from the retype PATCH because the two answer different\nquestions and are corrected at different moments; and null here means\nsomething the retype body has no equivalent of — drop the operator's\noverride and go back to the count derived from the track's own sightings,\nthe same \"auto\" that an empty `IncidentTypeIn.target_types` expresses.",
+        "properties": {
+          "target_count": {
+            "anyOf": [
+              {
+                "maximum": 999.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Count"
+          }
+        },
+        "title": "ThreatCountIn",
+        "type": "object"
+      },
       "ThreatEventOut": {
         "properties": {
           "confidence": {
@@ -4849,6 +4869,11 @@
             "default": 1,
             "title": "Target Count",
             "type": "integer"
+          },
+          "target_count_locked": {
+            "default": false,
+            "title": "Target Count Locked",
+            "type": "boolean"
           },
           "target_type": {
             "enum": [
@@ -6877,6 +6902,72 @@
           }
         },
         "summary": "Admin Retype Threat"
+      }
+    },
+    "/admin/threats/{threat_id}/count": {
+      "patch": {
+        "description": "Set how many targets this track carries, or hand the number back.\n\nThe count is otherwise a running max over the group sizes spotters state\n(ingest.context._apply_update), which is exactly why the override has to\nLATCH: a correction of an inflated \"5\" down to \"2\" that didn't would be\nundone by the next message restating a bigger group.\n\nA null count clears the latch and re-derives the number from the sightings\nthe track actually holds — the same value the pipeline would have arrived\nat, so an operator can always undo themselves.\n\nNo ParserCorrection is recorded. The count is a fact assembled across\nseveral messages, not a verdict on any single raw row, and the correction\ndataset is keyed per raw message (domain/corrections.py) — the same reason\na regroup records nothing.",
+        "operationId": "admin_recount_threat_admin_threats__threat_id__count_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "threat_id",
+            "required": true,
+            "schema": {
+              "title": "Threat Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThreatCountIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreatOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Admin Recount Threat"
       }
     },
     "/admin/threats/{threat_id}/dismiss": {

@@ -71,6 +71,10 @@ class ThreatOut(BaseModel):
     region: Region = "kyiv"
     incident_id: int | None = None
     target_count: int = 1
+    # An operator set that count by hand — the admin track editor shows it as
+    # such and offers to hand it back to the parser. Defaulted for pre-field
+    # clients, like `kind` and `region` above.
+    target_count_locked: bool = False
     closed_at: datetime | None = None
     # A message stated a path between two places, so this track's events are one
     # trajectory even at a single timestamp — the map needs this to draw the

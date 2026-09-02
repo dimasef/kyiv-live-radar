@@ -5,6 +5,7 @@ import { CountBadge, typeLabel } from '@/threatDisplay'
 import { threatChip } from '@/threatLabels'
 import type { Threat } from '@/types'
 
+import AdminEditButton from './AdminEditButton'
 import { MONO } from './popupStyles'
 
 /** Target identity in one line: type, stated group size, lifecycle chip.
@@ -52,6 +53,9 @@ export default function PopupHeader({ threat }: { threat: Threat }) {
       >
         {t(chip.labelKey)}
       </span>
+      {/* Admin only, and deliberately last: it rides whatever room the line has
+          left rather than claiming a section of its own. */}
+      <AdminEditButton threat={threat} />
     </div>
   )
 }

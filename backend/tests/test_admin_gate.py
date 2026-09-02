@@ -64,6 +64,27 @@ async def test_raw_messages_requires_admin(client):
     assert r.status_code == 200
 
 
+async def test_threat_count_requires_admin(client):
+    """The newest write route, checked the same way — the gate is per-route
+    (api/admin/__init__.py), so a new one is a new opportunity to forget it."""
+    c, s = client
+    body = {"target_count": 2}
+
+    r = await c.patch("/admin/threats/1/count", json=body)
+    assert r.status_code == 401
+
+    user_tok = await _seed(s, role="user")
+    r = await c.patch("/admin/threats/1/count", json=body,
+                      headers={"Authorization": f"Bearer {user_tok}"})
+    assert r.status_code == 403
+
+    # Past the gate, into the handler: no such track, hence 404 (not 403).
+    admin_tok = await _seed(s, role="admin")
+    r = await c.patch("/admin/threats/1/count", json=body,
+                      headers={"Authorization": f"Bearer {admin_tok}"})
+    assert r.status_code == 404
+
+
 async def test_resolve_preserves_manual_admin_g(client):
     _c, s = client
     # An admin_g user whose email is NOT allowlisted: role resolution must leave

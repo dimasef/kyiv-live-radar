@@ -208,7 +208,8 @@ async def _maybe_llm_type(session, raw: RawMessage, parsed: ParseResult, when: d
         from ...parsing.type_llm import llm_target_type
 
         source = await session.get(Source, raw.source_id) if raw.source_id else None
-        context = await build_type_context(session, when, exclude_raw_id=raw.id)
+        context = await build_type_context(session, when, exclude_raw_id=raw.id,
+                                           region=region)
         # Stamped BEFORE the await, not after: llm_target_type swallows timeouts
         # and API errors into (None, None), so gating this on `usage` recorded
         # only the calls that SUCCEEDED. A timed-out call then looked byte-for-
