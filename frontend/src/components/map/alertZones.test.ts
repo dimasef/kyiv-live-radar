@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import type { AlertZone, Region } from '@/types'
+import type { Alert, AlertZone, Region } from '@/types'
 
 import {
   alertedZones,
   compactSinceLabel,
   inShownRegions,
   sinceParts,
+  withOfficialKyiv,
   zoneFitBounds,
   zoneTone,
 } from './alertZones'
@@ -198,5 +199,73 @@ describe('inShownRegions', () => {
     // The layer paints four oblasts; an empty set must not fall back to "all",
     // or the narrowing would silently stop applying.
     expect(inShownRegions({ a: zone({ zone_id: 'a' }) }, new Set<Region>())).toEqual({})
+  })
+})
+
+describe('withOfficialKyiv', () => {
+  const KYIV = 'kyiv-city'
+
+  const city = (over: Partial<AlertZone> = {}) =>
+    zone({ zone_id: KYIV, name_uk: 'м. Київ', oblast: 'м. Київ', ...over })
+
+  const alert = (over: Partial<Alert> = {}): Alert =>
+    ({
+      id: 1,
+      region: 'kyiv',
+      scope: 'city',
+      zone_id: null,
+      alert_type: 'air_raid',
+      started_at: '2026-09-02T20:00:00Z',
+      ended_at: null,
+      provider: 'telegram',
+      closed_reason: null,
+      ...over,
+    }) as Alert
+
+  it('lights the city from an open official alert, with its own start time', () => {
+    // The disagreement this removes: the banner reads the official channel and
+    // the polygon read the district provider, so the map could sit dark while
+    // the banner screamed.
+    const out = withOfficialKyiv({ [KYIV]: city({ alert: false }) }, [alert()], true)
+    expect(out[KYIV].alert).toBe(true)
+    expect(out[KYIV].changed_at).toBe('2026-09-02T20:00:00Z')
+  })
+
+  it('clears the city when the provider still believes in a siren', () => {
+    const provider = city({ alert: true, changed_at: '2026-09-02T19:00:00Z' })
+    const out = withOfficialKyiv({ [KYIV]: provider }, [], true)
+    expect(out[KYIV].alert).toBe(false)
+  })
+
+  it('counts a quiet city from the last відбій', () => {
+    const done = alert({ ended_at: '2026-09-02T21:30:00Z', closed_reason: 'official' })
+    expect(withOfficialKyiv({ [KYIV]: city() }, [done], true)[KYIV].changed_at).toBe(
+      '2026-09-02T21:30:00Z',
+    )
+  })
+
+  it('goes stale, never clear, when the listener is down', () => {
+    // An outage rendered as «відбій» is the one failure this whole layer is
+    // engineered against — and now Kyiv has only one source to lose.
+    const out = withOfficialKyiv({ [KYIV]: city({ alert: true }) }, [], false)
+    expect(zoneTone(out[KYIV])).toBe('stale')
+  })
+
+  it('leaves the provider alone when there is no Telegram feed at all', () => {
+    // Simulator / replay / a dev box: nothing better to prefer, and blanking
+    // the capital on every dev run would be a worse lie than the disagreement.
+    const provider = { [KYIV]: city({ alert: true, changed_at: '2026-09-02T19:00:00Z' }) }
+    expect(withOfficialKyiv(provider, [], null)).toEqual(provider)
+  })
+
+  it('never touches any other raion', () => {
+    const zones = { [KYIV]: city(), other: zone({ zone_id: 'other', alert: true }) }
+    expect(withOfficialKyiv(zones, [alert()], true).other).toEqual(zones.other)
+  })
+
+  it('ignores a raion alert and another region\'s city alert', () => {
+    const raion = alert({ id: 2, scope: 'raion', zone_id: 'kyiv-obl-brovarskyi' })
+    const sumy = alert({ id: 3, region: 'sumy' })
+    expect(withOfficialKyiv({ [KYIV]: city() }, [raion, sumy], true)[KYIV].alert).toBe(false)
   })
 })

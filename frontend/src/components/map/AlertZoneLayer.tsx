@@ -7,6 +7,7 @@ import { useShownRegions } from '@/store/useShownRegions'
 import { inShownRegions, zoneTone } from './alertZones'
 import { tagPath, taggedId } from './tagPath'
 import { useMapMoving } from './useMapMoving'
+import { useZoneStates } from './useZoneStates'
 import { ZONE_ALL_CLEAR, ZONE_GLOW, ZONE_LABEL_NUDGE, ZONE_STYLES } from './constants'
 import ZoneGlowDefs from './ZoneGlowDefs'
 import ZoneLabel from './ZoneLabel'
@@ -22,7 +23,7 @@ const ZONE_ATTR = 'data-zone'
  * Only the regions the reader follows are painted (see `inShownRegions`), so
  * the layer answers the same question as their feed does. */
 export default function AlertZoneLayer() {
-  const zones = useRadar((s) => s.zones)
+  const zones = useZoneStates()
   const allGeometry = useRadar((s) => s.zoneGeometry)
   const allClear = useRadar((s) => s.zoneAllClear)
   const shown = useShownRegions()

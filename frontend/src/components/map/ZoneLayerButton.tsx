@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { useRadar } from '@/store'
 import { useShownRegions } from '@/store/useShownRegions'
 
+import { useZoneStates } from './useZoneStates'
+
 import { alertedZones, inShownRegions } from './alertZones'
 import { ZONE_STYLES } from './constants'
 import { mapControlClass } from './controlStyles'
@@ -22,7 +24,7 @@ export default function ZoneLayerButton() {
   // Counted over the reader's own regions only, or the badge would advertise
   // sirens the layer does not draw — and pressing it would then show nothing.
   const shown = useShownRegions()
-  const count = alertedZones(inShownRegions(useRadar((s) => s.zones), shown)).length
+  const count = alertedZones(inShownRegions(useZoneStates(), shown)).length
 
   return (
     <button

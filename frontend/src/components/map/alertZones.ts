@@ -1,4 +1,53 @@
-import type { AlertZone, AlertZoneGeometry, Region } from '@/types'
+import type { Alert, AlertZone, AlertZoneGeometry, Region } from '@/types'
+
+/** The one raion whose siren does NOT come from the district provider. */
+export const KYIV_CITY_ZONE_ID = 'kyiv-city'
+
+/** Repaint Kyiv city from the official channel instead of the district
+ * provider, so the map and the banner can never contradict each other.
+ *
+ * They used to. The banner takes Kyiv's siren from the official channel (which
+ * is why nothing writes a `kyiv-city` alert from the provider — see the
+ * backend's `zone_alerts.eligible`), while the layer painted the same city from
+ * the provider. Two sources, one screen: the polygon could sit red with the
+ * banner silent, or the other way round, and there was no way for a reader to
+ * know which half to believe.
+ *
+ * The three cases are not symmetric, and that is the whole design:
+ *  - listener up  → the channel is the answer, including its own start time, so
+ *    the label counts from when the siren was actually announced.
+ *  - listener DOWN → `stale`, never `clear`. We know nothing about Kyiv, and
+ *    rendering that as «відбій» is the one failure this layer exists to avoid.
+ *  - no Telegram at all (`null` — simulator, replay, a dev box) → leave the
+ *    provider's state alone. There is no better source to prefer, and blanking
+ *    the capital on every dev run would be a worse lie than the disagreement
+ *    this function removes.
+ */
+export function withOfficialKyiv(
+  zones: Record<string, AlertZone>,
+  alerts: Alert[],
+  feedOk: boolean | null,
+): Record<string, AlertZone> {
+  const base = zones[KYIV_CITY_ZONE_ID]
+  if (!base || feedOk === null) return zones
+  if (feedOk === false) {
+    return { ...zones, [KYIV_CITY_ZONE_ID]: { ...base, stale: true } }
+  }
+  const city = alerts.filter((a) => a.scope === 'city' && a.region === 'kyiv' && a.zone_id == null)
+  const open = city.find((a) => !a.ended_at)
+  // `/alerts/recent` is newest-first, so the first ended one is the last відбій
+  // — what a quiet city counts "clear for N" from.
+  const ended = city.find((a) => a.ended_at)
+  return {
+    ...zones,
+    [KYIV_CITY_ZONE_ID]: {
+      ...base,
+      stale: false,
+      alert: open != null,
+      changed_at: open ? open.started_at : (ended?.ended_at ?? null),
+    },
+  }
+}
 
 /** Narrow a zone map — state or geometry — to the regions the reader follows.
  *

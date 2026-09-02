@@ -5,7 +5,7 @@ import { useMap } from "react-leaflet";
 import { useRadar } from "@/store";
 import { useShownRegions } from "@/store/useShownRegions";
 
-import { inShownRegions, zoneFitBounds } from "../alertZones";
+import { inShownRegions, withOfficialKyiv, zoneFitBounds } from "../alertZones";
 import { ZONE_FIT_MIN_ZOOM, ZONE_FIT_PADDING } from "../constants";
 
 /** Widens the view to take in every raion the alert layer lights up, once per
@@ -40,7 +40,11 @@ export default function ZoneAutoFit() {
     // in an oblast this reader does not follow would pan the map away from
     // their own.
     const geometry = inShownRegions(allGeometry, shown);
-    const bounds = zoneFitBounds(geometry, useRadar.getState().zones);
+    const live = useRadar.getState();
+    const bounds = zoneFitBounds(
+      geometry,
+      withOfficialKyiv(live.zones, live.alerts, live.feedOk),
+    );
     if (!bounds) return;
     answered.current = token;
     const lit = L.latLngBounds(bounds);
