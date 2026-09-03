@@ -99,6 +99,10 @@ describe('formatting', () => {
     expect(formatHours(90 * 60)).toBe('1 год 30 хв')
     expect(formatHours(2 * 3600)).toBe('2 год')
     expect(formatHours(40 * 3600)).toBe('40 год')
+    // Carries instead of printing an impossible minute count: rounding the
+    // remainder AFTER cutting the hours off produced «9 год 60 хв».
+    expect(formatHours(9 * 3600 + 3570)).toBe('10 год')
+    expect(formatHours(3570)).toBe('1 год')
   })
 
   it('formats percents at the requested precision', () => {

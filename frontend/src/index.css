@@ -781,6 +781,24 @@ body::after {
   }
 }
 
+/* «Рух на мапі» switched off in Settings (prefsSlice.mapMotion), as a class on
+   the map wrapper — the same idiom `.map-moving` already uses for the glow.
+   ThreatLayer handles its own motion in JS (it skips rendering the pulse rings
+   entirely, which is the expensive half), so this covers the layers it does not
+   own: the city-wide breath, the home-danger ring, the inspected track's glow.
+
+   Only the INFINITE loops. The one-shot enter/leave animations stay: they are
+   how an element finishes arriving or leaving, and freezing those would strand
+   a closing track at full opacity instead of removing it. */
+.motion-off .citywide-pulse,
+.motion-off .home-danger-pulse,
+.motion-off .track-inspect,
+.motion-off .pulse-ring,
+.motion-off .threat-drift,
+.motion-off .track-flow {
+  animation: none;
+}
+
 /* Leave animation: the tail of a closed track's linger, so it fades instead of
    blinking out — most visible on «Чисто»/«Дорозвідка», which close dozens of
    tracks in one message. Applied only while the store says the track is actually

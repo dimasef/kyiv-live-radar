@@ -209,7 +209,19 @@
     "feedSource": "Message source",
     "feedSourceShow": "Show",
     "feedSourceHide": "Hide",
-    "privacy": "Privacy"
+    "privacy": "Privacy",
+    "map": "Map",
+    "mapMarkers": "Target marker size",
+    "marker": {
+      "sm": "Small",
+      "md": "Standard",
+      "lg": "Large"
+    },
+    "mapMotion": "Animations",
+    "mapTrail": "Target trail",
+    "mapTrailHint": "When off, trails leave the map and appear only on the target you select.",
+    "mapTrackWidth": "Line thickness",
+    "mapMotionHint": "Pulsing on live targets and the crawling dash along a track. When off, colours and shapes stay — a live target still reads as dashed."
   },
   "game": {
     "settingsTitle": "Gamification",

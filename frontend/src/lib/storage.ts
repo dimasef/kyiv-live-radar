@@ -35,6 +35,13 @@ export const STORAGE_KEYS = {
   // mean Чернігівщина. Read once by store/feedRegions.ts and then removed.
   feedOtherRegions: 'klr-feed-other-regions',
   feedShowSource: 'klr-feed-source',
+  // How the map draws targets. Per-device, not per-account: the right answer
+  // differs between the phone in a corridor and the TV on the wall, and the
+  // same person uses both.
+  mapTrail: 'klr-map-trail',
+  mapTrackWidth: 'klr-map-track',
+  mapMarkerSize: 'klr-map-marker',
+  mapMotion: 'klr-map-motion',
   // Desktop only: the event feed collapsed to give the map the full width.
   // Mobile has the bottom sheet for the same job and ignores this.
   feedCollapsed: 'klr-feed-collapsed',

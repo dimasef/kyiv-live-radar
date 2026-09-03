@@ -32,12 +32,26 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.47.1";
+const LATEST = "0.48.0";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "мапа під себе",
+    date: "2026-09-04",
+    kind: "minor",
+    changes: [
+      "Нова секція «Мапа» в налаштуваннях — мапу тепер можна налаштувати під свій екран і свій спосіб дивитися",
+      "Шлях за ціллю можна вимкнути: мапа в спокої показуватиме лише самі цілі, там де вони зараз. Шлях повернеться, щойно ви оберете конкретну ціль — на мапі або у стрічці. Товщина лінії задається повзунком",
+      "Розмір позначок цілей — дрібні, стандартні або великі. Під час масованого нальоту десятки великих позначок зливаються, а на телевізорі дрібні не видно з дивана",
+      "Анімації можна вимкнути: пульсація й біжучий пунктир зупиняються, кольори та форми лишаються. Для слабких пристроїв, телевізора і всіх, кому рухома мапа заважає читати",
+      "Перемикачі в налаштуваннях стали більшими — у них простіше поцілити пальцем",
+      "Виправлено: у журналі сума тривалості тривог могла показувати «9г 60хв» замість «10г»",
+    ],
+  },
+  {
+    version: "0.47.1",
     title: "ТЕЦ — це адреса, а не кількість",
     date: "2026-09-02",
     kind: "patch",

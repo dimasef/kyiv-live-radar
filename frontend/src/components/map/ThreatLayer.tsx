@@ -4,6 +4,7 @@ import { CircleMarker, Marker, Polyline } from "react-leaflet";
 
 import { fadeFactor, showsLiveMotion } from "@/lib/threatFreshness";
 import { useRadar } from "@/store";
+import { MARKER_PX } from "@/store/prefsSlice";
 
 import { threatDivIcon } from "@/threatIcons";
 import type { Threat } from "@/types";
@@ -63,12 +64,27 @@ const ThreatLayer = memo(function ThreatLayer({
   // armed, every OTHER target is a destination rather than something to read.
   const regroupPick = useRadar((s) => s.regroupPick);
   const completeRegroupPick = useRadar((s) => s.completeRegroupPick);
+  // Reader's map settings. Selected as primitives, so changing one re-renders
+  // the threat layers and nothing else.
+  const showTrail = useRadar((s) => s.mapTrail);
+  const trackWidth = useRadar((s) => s.mapTrackWidth);
+  const markerSize = useRadar((s) => s.mapMarkerSize);
+  const motion = useRadar((s) => s.mapMotion);
+  // The trail setting quietens the DEFAULT view only. Asking about one target
+  // is the moment its path becomes the answer, so the inspected track and the
+  // one with its popup open keep theirs either way: this is about the map being
+  // quiet at rest, never about withholding a track's history from someone who
+  // just clicked it.
+  const popupOpen = useRadar((s) => s.openPopupThreatId === threat.id);
+  const trail = showTrail || highlighted || popupOpen;
+  const trailWeight = trackWidth + (highlighted ? 2 : 0);
   const pickable = regroupPick != null && regroupPick.sourceThreatId !== threat.id;
   const type = threat.target_type;
   const { pts, color, moved, heading, state } = threatVisual(threat);
 
-  // Motion is spent on the inspected track no matter how busy the map is.
-  const still = lean && !highlighted;
+  // Motion is spent on the inspected track no matter how busy the map is — but
+  // a reader who switched motion off means it, inspected track included.
+  const still = !motion || (lean && !highlighted);
   const pulse = useMemo(() => pulseIcon(color, still), [color, still]);
   // Computed before the early returns below so the hook order stays fixed — the
   // icon needs it, and it depends on the ticking clock.
@@ -79,13 +95,15 @@ const ThreatLayer = memo(function ThreatLayer({
         state,
         bearingDeg: heading ?? 0,
         color,
-        size: highlighted ? 30 : 26,
+        // +4 for the inspected one, whatever size the reader picked.
+        size: MARKER_PX[markerSize] + (highlighted ? 4 : 0),
         closing: leaving,
         count: threat.target_count,
         drift: live && !still,
         seed: threat.id,
       }),
-    [type, state, heading, color, highlighted, leaving, threat.target_count, threat.id, live, still],
+    [type, state, heading, color, highlighted, leaving, threat.target_count, threat.id, live,
+     still, markerSize],
   );
 
   if (pts.length === 0) return null;
@@ -109,7 +127,7 @@ const ThreatLayer = memo(function ThreatLayer({
 
   return (
     <>
-      {moved && latlngs.length > 1 && (
+      {trail && moved && latlngs.length > 1 && (
         <Polyline
           // className is applied at creation only — remount when activity (or
           // going quiet, which drops the flow animation) flips.
@@ -117,7 +135,7 @@ const ThreatLayer = memo(function ThreatLayer({
           positions={latlngs}
           pathOptions={{
             color,
-            weight: highlighted ? 5 : 3,
+            weight: trailWeight,
             opacity: (active ? 0.8 : highlighted ? 0.75 : 0.45) * dim,
             className:
               [
@@ -135,19 +153,20 @@ const ThreatLayer = memo(function ThreatLayer({
           }}
         />
       )}
-      {pts.slice(0, -1).map((p, i) => (
-        <CircleMarker
-          key={i}
-          center={[p.lat, p.lon]}
-          radius={highlighted ? 4 : 3}
-          pathOptions={{
-            color,
-            fillColor: color,
-            fillOpacity: 0.6 * dim,
-            weight: highlighted ? 2 : 1,
-          }}
-        />
-      ))}
+      {trail &&
+        pts.slice(0, -1).map((p, i) => (
+          <CircleMarker
+            key={i}
+            center={[p.lat, p.lon]}
+            radius={highlighted ? 4 : 3}
+            pathOptions={{
+              color,
+              fillColor: color,
+              fillOpacity: 0.6 * dim,
+              weight: highlighted ? 2 : 1,
+            }}
+          />
+        ))}
       {/* Corroboration halo — a faint ring behind the head when >= 2 independent
           sources agree, so a well-attested target reads as heavier at a glance. */}
       {corroborated && (
@@ -166,7 +185,7 @@ const ThreatLayer = memo(function ThreatLayer({
       )}
       {/* Pulsing rings on the live head of an active track — off once it goes
           quiet, so "pulsing" always means "someone is still reporting this". */}
-      {live && (
+      {live && motion && (
         <Marker
           position={[head.lat, head.lon]}
           icon={pulse}

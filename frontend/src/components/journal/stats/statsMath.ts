@@ -82,8 +82,11 @@ export function formatPercent(share: number, digits = 0): string {
 
 /** "5 год 20 хв" — compact and never zero-padded; hours-only past a day. */
 export function formatHours(seconds: number): string {
-  const h = Math.floor(seconds / 3600)
-  const m = Math.round((seconds % 3600) / 60)
+  // Minutes first, then split — see journalStats.formatDuration for the "60хв"
+  // this avoids.
+  const total = Math.round(seconds / 60)
+  const h = Math.floor(total / 60)
+  const m = total % 60
   if (h >= 24) return `${h} год`
   if (h && m) return `${h} год ${m} хв`
   if (h) return `${h} год`

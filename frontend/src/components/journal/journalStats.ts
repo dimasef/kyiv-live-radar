@@ -179,8 +179,13 @@ export function weekdayLabels(locale: string): string[] {
 }
 
 export function formatDuration(seconds: number): string {
-  const h = Math.floor(seconds / 3600)
-  const m = Math.round((seconds % 3600) / 60)
+  // Round to whole minutes FIRST, then split. Rounding the remainder after the
+  // hours have already been cut off can carry the minutes to 60 with nowhere to
+  // carry them to — «Σ 9г 60хв» on 2026-08-28, whose twelve alerts summed to
+  // 9 h 59.7 min. Same rule as lib/duration.durationLabel.
+  const total = Math.round(seconds / 60)
+  const h = Math.floor(total / 60)
+  const m = total % 60
   if (h && m) return `${h}г ${m}хв`
   if (h) return `${h}г`
   return `${m}хв`

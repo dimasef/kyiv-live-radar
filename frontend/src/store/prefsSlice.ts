@@ -65,6 +65,56 @@ function initialFeedShowSource(): boolean {
   return safeGet(STORAGE_KEYS.feedShowSource) !== '0'
 }
 
+/** Whether the map draws the trail behind a target at all — the line and the
+ * waypoint dots both.
+ *
+ * Off is a real reading of the map, not a degraded one: during a mass raid a
+ * hundred crossing trails are noise, and "where are they" is a different
+ * question from "where have they been". It only quietens the map AT REST —
+ * ThreatLayer still draws the trail of whichever target is being inspected or
+ * has its popup open, because asking about one target is the moment its path
+ * becomes the answer. */
+function initialMapTrail(): boolean {
+  return safeGet(STORAGE_KEYS.mapTrail) !== '0'
+}
+
+/** Stroke width of that trail in px, once it is drawn. A plain number rather
+ * than a thin/normal/thick enum: the reader is choosing a LOOK, and three
+ * names for it were both fewer choices and less clear than the thing itself —
+ * the slider shows the line it is setting. 3 is what the map always drew. */
+export const TRACK_WIDTH_MIN = 1
+export const TRACK_WIDTH_MAX = 8
+
+function initialMapTrackWidth(): number {
+  const saved = Number(safeGet(STORAGE_KEYS.mapTrackWidth))
+  return Number.isInteger(saved) && saved >= TRACK_WIDTH_MIN && saved <= TRACK_WIDTH_MAX
+    ? saved
+    : 3
+}
+
+/** Target marker size in px. `md` is the size the map has always drawn. */
+export type MapMarkerSize = 'sm' | 'md' | 'lg'
+
+const MAP_MARKER_SIZES: MapMarkerSize[] = ['sm', 'md', 'lg']
+
+export const MARKER_PX: Record<MapMarkerSize, number> = { sm: 20, md: 26, lg: 34 }
+
+function initialMapMarkerSize(): MapMarkerSize {
+  const saved = safeGet(STORAGE_KEYS.mapMarkerSize)
+  return MAP_MARKER_SIZES.includes(saved as MapMarkerSize) ? (saved as MapMarkerSize) : 'md'
+}
+
+/** Whether the map animates at all — pulsing heads, the crawling dash along a
+ * live track, the drift of a marker between reports. Defaults ON, because that
+ * motion is what tells a live target from a stale one at a glance. Turning it
+ * off keeps every SHAPE and every colour: a live track still reads as dashed,
+ * it just stops moving. For weak devices, the TV browser, and anyone who does
+ * not want a moving map (see MOTION_BUDGET, which does the same thing
+ * automatically once the map gets crowded). */
+function initialMapMotion(): boolean {
+  return safeGet(STORAGE_KEYS.mapMotion) !== '0'
+}
+
 export interface PrefsSlice {
   sheetHeight: SheetHeight
   setSheetHeight: (h: SheetHeight) => void
@@ -93,6 +143,17 @@ export interface PrefsSlice {
    * reopening it shows everything that happened while it was away. */
   feedCollapsed: boolean
   toggleFeed: () => void
+  /** How the map draws targets — trail width (or none), marker size, and
+   * whether anything animates. Per-device rather than per-account: the phone in
+   * a corridor and the TV on the wall want different answers. */
+  mapTrail: boolean
+  setMapTrail: (on: boolean) => void
+  mapTrackWidth: number
+  setMapTrackWidth: (px: number) => void
+  mapMarkerSize: MapMarkerSize
+  setMapMarkerSize: (s: MapMarkerSize) => void
+  mapMotion: boolean
+  setMapMotion: (on: boolean) => void
   /** Opt-in "gamification" card-analysis layer (off by default). Account-bound:
    * hydrated from the signed-in user on login (authSlice) and persisted to the
    * server on change, so it syncs across the user's devices. The map, alerts and
@@ -146,6 +207,26 @@ export const createPrefsSlice: StateCreator<RadarState, [], [], PrefsSlice> = (s
       safeSet(STORAGE_KEYS.feedCollapsed, collapsed ? '1' : '0')
       return { feedCollapsed: collapsed }
     }),
+  mapTrail: initialMapTrail(),
+  setMapTrail: (on) => {
+    safeSet(STORAGE_KEYS.mapTrail, on ? '1' : '0')
+    set({ mapTrail: on })
+  },
+  mapTrackWidth: initialMapTrackWidth(),
+  setMapTrackWidth: (px) => {
+    safeSet(STORAGE_KEYS.mapTrackWidth, String(px))
+    set({ mapTrackWidth: px })
+  },
+  mapMarkerSize: initialMapMarkerSize(),
+  setMapMarkerSize: (size) => {
+    safeSet(STORAGE_KEYS.mapMarkerSize, size)
+    set({ mapMarkerSize: size })
+  },
+  mapMotion: initialMapMotion(),
+  setMapMotion: (on) => {
+    safeSet(STORAGE_KEYS.mapMotion, on ? '1' : '0')
+    set({ mapMotion: on })
+  },
   gamification: false,
   setGamification: (on) => {
     set({ gamification: on })

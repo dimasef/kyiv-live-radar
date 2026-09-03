@@ -45,6 +45,10 @@ export default function MapView() {
   const zoneLayerOn = useRadar((s) => s.zoneLayerOn);
   const [map, setMap] = useState<L.Map | null>(null);
   const regions = useRadar((s) => s.regions);
+  // A class rather than a prop threaded through every layer: the map's other
+  // animations (the city-wide breath, the home-danger ring) live in CSS and
+  // belong to components that have no reason to know about a setting.
+  const mapMotion = useRadar((s) => s.mapMotion);
   const chosenRegion = useRadar((s) => s.chosenRegion);
 
   // What the map frames: the region the reader follows, or the whole country
@@ -111,7 +115,7 @@ export default function MapView() {
   const danger = home ? homeDangerFor(threats, home, homeRaionIds) : "none";
 
   return (
-    <div className="relative h-full w-full">
+    <div className={`relative h-full w-full ${mapMotion ? "" : "motion-off"}`}>
       <MapContainer
         ref={setMap}
         bounds={framing}

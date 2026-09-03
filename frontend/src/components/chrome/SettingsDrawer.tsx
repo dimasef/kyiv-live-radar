@@ -12,6 +12,7 @@ import GamificationControl from "./GamificationControl";
 import HomeControl from "./HomeControl";
 import InstallControl from "./InstallControl";
 import LanguageSwitcher from "./LanguageSwitcher";
+import MapSettings from "./MapSettings";
 import NotifyControl from "./NotifyControl";
 import PrivacyControl from "./PrivacyControl";
 import ReportBugControl from "./ReportBugControl";
@@ -69,6 +70,7 @@ function DrawerBody({ onClose }: { onClose: () => void }) {
           <CurrentRegionControl />
           <NotifyControl />
           <PrivacyControl />
+          <MapSettings />
           <FeedSettings />
           <GamificationControl />
           <InstallControl />

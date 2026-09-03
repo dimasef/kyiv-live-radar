@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { JournalDay, TargetType } from '@/types'
 
 import {
+  formatDuration,
   hasActivity,
   intensityBucket,
   intensityScore,
@@ -155,5 +156,22 @@ describe('TYPE_ORDER exhaustiveness', () => {
       'shahed', 'jet_drone', 'fpv', 'kab', 'missile', 'ballistic', 'unknown',
     ]
     expect([...TYPE_ORDER].sort()).toEqual([...all].sort())
+  })
+})
+
+describe('formatDuration', () => {
+  it('carries a rounded-up minute into the hour', () => {
+    // Live on 2026-08-28: twelve alerts summing to 9 h 59.7 min printed as
+    // «Σ 9г 60хв», because the minutes were rounded only AFTER the hours had
+    // been cut off and had nowhere left to carry to.
+    expect(formatDuration(9 * 3600 + 3570)).toBe('10г')
+    expect(formatDuration(3570)).toBe('1г')
+  })
+
+  it('keeps the parts it does have', () => {
+    expect(formatDuration(0)).toBe('0хв')
+    expect(formatDuration(90 * 60)).toBe('1г 30хв')
+    expect(formatDuration(2 * 3600)).toBe('2г')
+    expect(formatDuration(11 * 60)).toBe('11хв')
   })
 })
