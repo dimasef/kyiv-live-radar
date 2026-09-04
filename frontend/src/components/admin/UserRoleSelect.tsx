@@ -6,6 +6,7 @@ import { ROLE_BLOCKED_TEXT, roleChangeBlockedReason, roleLabel } from './userFor
 
 const OPTIONS: { value: AssignableRole; label: string }[] = [
   { value: 'user', label: 'Користувач' },
+  { value: 'observer', label: 'Спостерігач' },
   { value: 'admin_g', label: 'Адмін' },
 ]
 
@@ -16,6 +17,7 @@ const OPTIONS: { value: AssignableRole; label: string }[] = [
 const STALE = '__derived__'
 const CURRENT: Record<AdminUser['role'], string> = {
   user: 'user',
+  observer: 'observer',
   admin_g: 'admin_g',
   admin: STALE,
 }

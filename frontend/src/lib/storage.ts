@@ -11,6 +11,9 @@ export const STORAGE_KEYS = {
   // Whether the raion air-alert layer is switched on. Off by default: it's
   // extra context, and it costs a lazy 76 KB of polygons on first use.
   zoneLayer: 'klr-zone-layer',
+  // The impact layer's switch. Remembered like the zone layer's — but the data
+  // behind it is role-gated, so impactsSlice re-checks the role on every read.
+  impactLayer: 'klr-impact-layer',
   // The episode the status banner was collapsed on ({alert, incident} ids).
   // Survives reloads because an alert outlives the page — but only for that
   // episode; see banners/status.ts stillCollapsed.

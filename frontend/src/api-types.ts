@@ -1922,6 +1922,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/threats/impacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Live Impacts
+         * @description Where strikes landed, for the few accounts an operator has vouched for.
+         *
+         *     The single, deliberate hole in the rule `active_threats` above states: every
+         *     other live surface withholds impacts, and this route does not widen any of
+         *     them. It is a separate endpoint precisely so that stays true — the public
+         *     routes keep their unconditional filters and the five tests in
+         *     test_impact_privacy.py keep pinning them, rather than every one of them
+         *     growing a "unless the caller is…" branch that the next reader has to notice.
+         *
+         *     Dismissed impacts are excluded the same way tracks are: an operator who
+         *     cancelled a false positive cancelled it here too.
+         *
+         *     Declared BEFORE /threats/{threat_id}/events on purpose — FastAPI matches in
+         *     order, and "impacts" would otherwise be tried as a threat_id.
+         */
+        get: operations["live_impacts_threats_impacts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/threats/{threat_id}/events": {
         parameters: {
             query?: never;
@@ -2024,7 +2057,7 @@ export interface components {
              * Role
              * @enum {string}
              */
-            role: "admin" | "admin_g" | "user";
+            role: "admin" | "admin_g" | "observer" | "user";
             /**
              * Role Source
              * @enum {string}
@@ -2044,7 +2077,7 @@ export interface components {
              * Role
              * @enum {string}
              */
-            role: "user" | "admin_g";
+            role: "user" | "observer" | "admin_g";
         };
         /**
          * AlertOut
@@ -4224,7 +4257,7 @@ export interface components {
              * Role
              * @enum {string}
              */
-            role: "admin" | "admin_g" | "user";
+            role: "admin" | "admin_g" | "observer" | "user";
             /**
              * Share Presence
              * @default true
@@ -7356,6 +7389,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ThreatOut"][];
+                };
+            };
+        };
+    };
+    live_impacts_threats_impacts_get: {
+        parameters: {
+            query?: {
+                region?: ("kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro")[] | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThreatOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

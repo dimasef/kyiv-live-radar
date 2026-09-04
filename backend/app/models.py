@@ -190,9 +190,20 @@ GEOCODE_SOURCES: tuple[GeocodeSource, ...] = get_args(GeocodeSource)
 # only. 'admin' is derived from the env allowlists on every login; 'admin_g' is
 # a manual DB-only role that role resolution preserves (never auto-assigned,
 # never overwritten — see auth/service.resolve_and_set_role).
-UserRole = Literal["admin", "admin_g", "user"]
+UserRole = Literal["admin", "admin_g", "observer", "user"]
 USER_ROLES: tuple[UserRole, ...] = get_args(UserRole)
 ADMIN_ROLES: tuple[UserRole, ...] = ("admin", "admin_g")
+# Who may see WHERE a strike landed while the raid is still running.
+#
+# Everything else withholds that (tests/test_impact_privacy.py pins five exits:
+# map, feed, attack banner, lookup-by-id, journal-during-alert) because a live
+# "hit in Дарницький" is battle-damage assessment for whoever launched it. This
+# tuple is the single, deliberate exception — a person an operator has vouched
+# for by hand, reading it on their own map. It grants NOTHING else: 'observer'
+# is not an admin anywhere (see ADMIN_ROLES) and the public routes above are
+# untouched, so the only way the data leaves the server is the one route that
+# names this tuple.
+IMPACT_ROLES: tuple[UserRole, ...] = ("admin", "admin_g", "observer")
 # WHY a User.role holds the value it does — read-only provenance for the admin
 # console's «Юзери» tab (auth/service.role_source_for computes it). 'manual' is
 # the DB-only 'admin_g' that role resolution preserves; 'allowlist' means the env
@@ -209,7 +220,7 @@ ROLE_SOURCES: tuple[RoleSource, ...] = get_args(RoleSource)
 # recomputes it from the env allowlists on every login, so writing it to the DB
 # either changes nothing (the user is allowlisted anyway) or silently reverts to
 # 'user' at their next sign-in. Granting admin durably means 'admin_g'.
-AssignableRole = Literal["user", "admin_g"]
+AssignableRole = Literal["user", "observer", "admin_g"]
 ASSIGNABLE_ROLES: tuple[AssignableRole, ...] = get_args(AssignableRole)
 # Linked SSO providers on OAuthIdentity. Email+password is native on the User
 # row (password_hash), NOT an identity — so it's absent here.

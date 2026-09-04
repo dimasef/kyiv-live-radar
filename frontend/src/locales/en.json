@@ -221,7 +221,7 @@
     "mapTrail": "Target trail",
     "mapTrailHint": "When off, trails leave the map and appear only on the target you select.",
     "mapTrackWidth": "Line thickness",
-    "mapMotionHint": "Pulsing on live targets and the crawling dash along a track. When off, colours and shapes stay — a live target still reads as dashed."
+    "mapMotionHint": "When off, pulsing and the crawling dash stop; colours stay."
   },
   "game": {
     "settingsTitle": "Gamification",
@@ -572,5 +572,10 @@
     "text": "It decides which targets reach your feed, what the map opens on, and what may notify you. Changeable any time in settings.",
     "pending": "This oblast was only just added — its data is still being collected, so there will be no notifications yet.",
     "confirm": "Done"
+  },
+  "impacts": {
+    "title": "Impacts",
+    "show": "Show impacts",
+    "hide": "Hide impacts"
   }
 }

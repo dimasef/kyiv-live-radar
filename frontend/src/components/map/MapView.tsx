@@ -24,6 +24,7 @@ import {
   ZoneAutoFit,
 } from "./controllers";
 import DistrictLayer from "./DistrictLayer";
+import ImpactLayer from "./ImpactLayer";
 import FriendLayer from "./FriendLayer";
 import HomeCompass from "./HomeCompass";
 import HomeMarker from "./HomeMarker";
@@ -174,6 +175,9 @@ export default function MapView() {
 
         {/* Shared homes of friends (markers only — no radius, no danger). */}
         <FriendLayer />
+
+        {/* Strike locations — role-gated, off by default, its own request. */}
+        <ImpactLayer />
 
         {shown.map((th) => (
           <ThreatLayer

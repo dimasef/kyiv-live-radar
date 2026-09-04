@@ -1,47 +1,18 @@
 import { Radar } from 'lucide-react'
-import type { CSSProperties, ReactNode } from 'react'
+import type { CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useRadar } from '@/store'
 import { TRACK_WIDTH_MAX, TRACK_WIDTH_MIN, type MapMarkerSize } from '@/store/prefsSlice'
 
 import SettingsSection from './SettingsSection'
-import Switch from './Switch'
+import ToggleRow from './ToggleRow'
 
 const SIZES: MapMarkerSize[] = ['sm', 'md', 'lg']
 
 // Chrome comes from `.opt`, which reads the lit state off `aria-pressed`.
 const seg = 'opt flex-1 text-sm'
 const label = 'mb-1 block text-sm text-slate-500'
-
-/** A yes/no setting: name, always-visible explanation of what it does, switch.
- * The hint is not conditional — someone reading the drawer to decide needs it
- * BEFORE they flip anything, which is exactly when it would be hidden. */
-function ToggleRow({
-  title,
-  hint,
-  checked,
-  onChange,
-  children,
-}: {
-  title: string
-  hint: string
-  checked: boolean
-  onChange: (next: boolean) => void
-  /** Settings that only mean anything while this is on. */
-  children?: ReactNode
-}) {
-  return (
-    <div className="rounded-lg bg-white/[0.03] px-2.5 py-2">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-sm text-slate-300">{title}</div>
-        <Switch checked={checked} onChange={onChange} label={title} />
-      </div>
-      <p className="mt-0.5 text-sm leading-snug text-slate-500">{hint}</p>
-      {checked && children}
-    </div>
-  )
-}
 
 /** How the map draws targets: whether a trail follows one, how heavy it is,
  * how big the target itself is, and whether any of it moves.

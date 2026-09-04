@@ -143,6 +143,7 @@
             "enum": [
               "admin",
               "admin_g",
+              "observer",
               "user"
             ],
             "title": "Role",
@@ -175,6 +176,7 @@
           "role": {
             "enum": [
               "user",
+              "observer",
               "admin_g"
             ],
             "title": "Role",
@@ -5022,6 +5024,7 @@
             "enum": [
               "admin",
               "admin_g",
+              "observer",
               "user"
             ],
             "title": "Role",
@@ -10412,6 +10415,83 @@
           }
         },
         "summary": "Active Threats"
+      }
+    },
+    "/threats/impacts": {
+      "get": {
+        "description": "Where strikes landed, for the few accounts an operator has vouched for.\n\nThe single, deliberate hole in the rule `active_threats` above states: every\nother live surface withholds impacts, and this route does not widen any of\nthem. It is a separate endpoint precisely so that stays true — the public\nroutes keep their unconditional filters and the five tests in\ntest_impact_privacy.py keep pinning them, rather than every one of them\ngrowing a \"unless the caller is…\" branch that the next reader has to notice.\n\nDismissed impacts are excluded the same way tracks are: an operator who\ncancelled a false positive cancelled it here too.\n\nDeclared BEFORE /threats/{threat_id}/events on purpose — FastAPI matches in\norder, and \"impacts\" would otherwise be tried as a threat_id.",
+        "operationId": "live_impacts_threats_impacts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "kyiv",
+                      "chernihiv",
+                      "sumy",
+                      "kharkiv",
+                      "dnipro"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Region"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ThreatOut"
+                  },
+                  "title": "Response Live Impacts Threats Impacts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Live Impacts"
       }
     },
     "/threats/{threat_id}/events": {

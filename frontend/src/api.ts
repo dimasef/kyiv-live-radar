@@ -145,6 +145,14 @@ export const fetchBoundaries = () => get<DistrictBoundary[]>('/districts/boundar
 // table and carries trust weights and listener errors with it.
 export const fetchPublicSources = () => get<SourceLink[]>('/sources')
 export const fetchActiveThreats = () => get<Threat[]>('/threats/active')
+/** Strike locations, for the accounts allowed to see them while a raid is on
+ * (canSeeImpacts). Its OWN route rather than a widened /threats/active — the
+ * public one keeps its unconditional filter, see the backend docstring. */
+export const fetchImpacts = (regions?: readonly Region[]) =>
+  get<Threat[]>(
+    '/threats/impacts?' +
+      (regions ?? []).map((r) => `&region=${encodeURIComponent(r)}`).join(''),
+  )
 export const fetchActiveIncidents = () => get<Incident[]>('/incidents/active')
 export const fetchRecentIncidents = (limit = 20) =>
   get<Incident[]>(`/incidents/recent?limit=${limit}`)
@@ -429,6 +437,13 @@ export const setGamificationPref = (enabled: boolean) =>
 export const ADMIN_ROLES = ['admin', 'admin_g']
 export const isAdminRole = (role?: string | null): boolean =>
   role != null && ADMIN_ROLES.includes(role)
+/** Roles an operator has vouched for to see WHERE strikes landed while the raid
+ * is still on. Mirrors the backend models.IMPACT_ROLES; the server is the
+ * authority (the route 403s regardless of this), so it only decides whether the
+ * map offers the switch at all. */
+export const IMPACT_ROLES = ['admin', 'admin_g', 'observer']
+export const canSeeImpacts = (role?: string | null): boolean =>
+  role != null && IMPACT_ROLES.includes(role)
 export type TokenPair = Schemas['TokenPairOut']
 /** The Telegram Login Widget payload (forwarded verbatim so the backend can
  * re-verify the HMAC over exactly the fields Telegram signed). */

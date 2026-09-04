@@ -14,10 +14,12 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.api.serialize import incident_out
+from app.auth.security import encode_access
+from app.config import settings
 from app.db import Base, get_session
 from app.domain.journal import KYIV
 from app.main import app
-from app.models import Alert, District, Incident, Threat, ThreatEvent
+from app.models import Alert, District, Incident, Threat, ThreatEvent, User
 
 
 @pytest_asyncio.fixture
@@ -162,3 +164,80 @@ async def test_journal_hides_todays_impacts_only_while_the_alert_is_open(client)
 
     after = _impacts((await c.get("/journal/days")).json())
     assert after[today_key.isoformat()] == 1
+
+
+# --- The one deliberate exception: GET /threats/impacts (models.IMPACT_ROLES).
+# Everything above stays true for everyone else, which is why the hole is its
+# own route rather than a branch inside the public ones.
+
+
+async def _token(session, role: str) -> str:
+    settings.auth_jwt_secret = "impact-privacy-secret"
+    user = User(email=f"{role}@x.com", role=role, password_hash="x")
+    session.add(user)
+    await session.commit()
+    return encode_access(user)
+
+
+async def _an_impact(session) -> Threat:
+    d = District(name_uk="Дарницький", name_en="Darnytskyi", lat=50.4, lon=30.6)
+    session.add(d)
+    await session.commit()
+    th = Threat(target_type="shahed", status="impact", kind="impact",
+                closed_at=datetime.now(UTC))
+    session.add(th)
+    await session.commit()
+    session.add(ThreatEvent(threat_id=th.id, district_id=d.id, raw_text="влучання"))
+    await session.commit()
+    return th
+
+
+async def test_impact_layer_is_closed_to_everyone_but_vouched_accounts(client):
+    c, s = client
+    await _an_impact(s)
+
+    assert (await c.get("/threats/impacts")).status_code == 401
+
+    user = await _token(s, "user")
+    r = await c.get("/threats/impacts", headers={"Authorization": f"Bearer {user}"})
+    assert r.status_code == 403
+
+    for role in ("observer", "admin", "admin_g"):
+        tok = await _token(s, role)
+        r = await c.get("/threats/impacts", headers={"Authorization": f"Bearer {tok}"})
+        assert r.status_code == 200, role
+        assert len(r.json()) == 1, role
+
+
+async def test_the_impact_layer_widens_nothing_else(client):
+    """An observer is not an admin, and the public map stays public-shaped."""
+    c, s = client
+    await _an_impact(s)
+    tok = await _token(s, "observer")
+    h = {"Authorization": f"Bearer {tok}"}
+
+    # The live map still withholds it, token or not.
+    assert (await c.get("/threats/active", headers=h)).json() == []
+    assert (await c.get("/events/recent", headers=h)).json() == []
+    # And the console stays shut.
+    assert (await c.get("/raw_messages", headers=h)).status_code == 403
+
+
+async def test_a_dismissed_impact_is_not_served_to_the_layer(client):
+    c, s = client
+    th = await _an_impact(s)
+    th.closed_reason = "dismissed"
+    await s.commit()
+    tok = await _token(s, "observer")
+    r = await c.get("/threats/impacts", headers={"Authorization": f"Bearer {tok}"})
+    assert r.status_code == 200 and r.json() == []
+
+
+async def test_the_layer_only_reaches_back_its_window(client):
+    c, s = client
+    th = await _an_impact(s)
+    th.created_at = datetime.now(UTC) - timedelta(hours=settings.impact_layer_hours + 1)
+    await s.commit()
+    tok = await _token(s, "observer")
+    r = await c.get("/threats/impacts", headers={"Authorization": f"Bearer {tok}"})
+    assert r.status_code == 200 and r.json() == []

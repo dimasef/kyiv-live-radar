@@ -32,12 +32,28 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.48.0";
+const LATEST = "0.49.0";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
+    // Deliberately says nothing about what shipped. The release adds a
+    // hand-granted role and a map layer that only it can open, and the data
+    // behind that layer is withheld from every other surface on purpose — so
+    // naming the feature here would advertise both that the data exists and
+    // that some accounts read it live, to exactly the audience the rule exists
+    // for. The version still bumps as the real release it is (see SKILL.md,
+    // "the changelog is visible to EVERY user").
     version: LATEST,
+    title: "технічне оновлення",
+    date: "2026-09-04",
+    kind: "minor",
+    changes: [
+      "Оновлення без змін в інтерфейсі — мапа, стрічка й журнал працюють як раніше",
+    ],
+  },
+  {
+    version: "0.48.0",
     title: "мапа під себе",
     date: "2026-09-04",
     kind: "minor",

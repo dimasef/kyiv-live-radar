@@ -1,4 +1,5 @@
 import FullscreenButton from './FullscreenButton'
+import ImpactLayerButton from './ImpactLayerButton'
 import MapLegend from './MapLegend'
 import ZoneLayerButton from './ZoneLayerButton'
 
@@ -13,6 +14,7 @@ export default function MapControls() {
     <div className="pointer-events-auto absolute bottom-[4.2rem] left-3 z-[900] flex items-end gap-2 lg:bottom-3">
       <MapLegend />
       <ZoneLayerButton />
+      <ImpactLayerButton />
       <FullscreenButton />
     </div>
   )

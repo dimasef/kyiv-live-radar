@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import settings
 from ..db import get_session
 from ..domain.presence import needs_stamp
-from ..models import ADMIN_ROLES, User, utcnow
+from ..models import ADMIN_ROLES, IMPACT_ROLES, User, utcnow
 from .security import AuthError, decode_access
 
 
@@ -78,6 +78,18 @@ async def get_optional_user(
     if not token:
         return None
     return await _load_user_from_token(token, session)
+
+
+async def require_impact_access(user: User = Depends(get_current_user)) -> User:
+    """401 unauthenticated, 403 for anyone an operator has not vouched for.
+
+    Guards the one route that publishes strike locations while a raid is still
+    running (models.IMPACT_ROLES). Deliberately its own dependency rather than a
+    parameter on require_admin: this is not console access, and the day someone
+    widens what 'admin' means, that must not silently widen this too."""
+    if user.role not in IMPACT_ROLES:
+        raise HTTPException(status_code=403, detail="Impact access only")
+    return user
 
 
 async def require_admin(user: User = Depends(get_current_user)) -> User:

@@ -53,6 +53,15 @@ export function roleLabel(user: AdminUser): RoleLabel {
   if (user.role === 'user') {
     return { text: 'Користувач', title: 'Звичайний акаунт без доступу до адмінки.', stale: false }
   }
+  if (user.role === 'observer') {
+    return {
+      text: 'Спостерігач',
+      title:
+        'Бачить місця влучань на своїй мапі під час тривоги — те, що для решти ' +
+        'зʼявляється лише в журналі після відбою. Доступу до адмінки не дає.',
+      stale: false,
+    }
+  }
   const admin = user.role === 'admin_g' ? 'Адмін (вручну)' : 'Адмін'
   if (user.role_source === 'manual') {
     return {

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useRadar } from '@/store'
 import type { NotifyPrefs } from '@/store/notifySlice'
 import { threatGlyphSvg } from '@/threatIcons'
-import Switch from './Switch'
+import ToggleRow from './ToggleRow'
 
 /** The prefs' type toggles reuse the map/feed glyph family — "Дрони" covers
  * both drone target types, so it wears the shahed glyph. */
@@ -41,23 +41,14 @@ export default function NotifyPrefsControl() {
     icon: React.ReactNode,
     hint?: string,
   ) => (
-    <div
+    <ToggleRow
       key={key}
-      className="flex items-center justify-between gap-3 rounded-lg bg-white/[0.03] px-2.5 py-2"
-    >
-      <div className="flex min-w-0 items-center gap-2.5">
-        {icon}
-        <div className="min-w-0">
-          <div className="text-sm text-slate-300">{label}</div>
-          {hint && <div className="mt-0.5 text-sm leading-snug text-slate-500">{hint}</div>}
-        </div>
-      </div>
-      <Switch
-        checked={Boolean(prefs[key])}
-        onChange={(next) => setPrefs({ [key]: next })}
-        label={label}
-      />
-    </div>
+      title={label}
+      hint={hint}
+      icon={icon}
+      checked={Boolean(prefs[key])}
+      onChange={(next) => setPrefs({ [key]: next })}
+    />
   )
 
   return (
