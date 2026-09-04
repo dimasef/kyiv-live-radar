@@ -48,6 +48,7 @@ from .vocab import (
     _FORECAST_TIMEFRAME,
     _FORECAST_VERB,
     _FPV,
+    _GROUND_WAR,
     _HEDGE_MODAL_RE,
     _HYPERSONIC,
     _IMPACT,
@@ -74,6 +75,7 @@ from .vocab import (
     _PATH_CONNECTIVE,
     _PATH_COUNT_BREAK,
     _PATH_FILLER,
+    _PERSONAL_POST,
     _PHONE_RE,
     _POWER_OUTAGE,
     _PREPOSITION_BEFORE_DISTRICT,
@@ -176,6 +178,15 @@ class ParseResult:
     # відмітки єППО X, Y") — the named districts are unverified app marks, not
     # live targets. Suppressed like civic_notice (see rules._eppo_marks).
     eppo_marks: bool = field(default=False)
+    # Ground-war / disinformation news naming a border village ("нібито
+    # захоплення села Х", "ФЕЙК рф") — about who holds the ground, never about
+    # the sky. Suppressed like civic_notice (see rules._ground_war).
+    ground_war: bool = field(default=False)
+    # Personal prose from the channel admin (reminiscence, a birthday post) that
+    # names places in passing. Suppressed like aftermath — NOT gated on
+    # target_type, because the one in the corpus reads `missile` off "про
+    # ракети" (see rules._personal_post).
+    personal_post: bool = field(default=False)
     day_recap: bool = field(default=False)
     # Talk that NAMES a weapon without one being in the sky: spotter buzz-slang
     # ("бджілки"/"бджоли" = our drones) and explainer posts ("що таке
@@ -519,6 +530,44 @@ def _reportage(norm: str, districts, status: str) -> bool:
     return any(k in norm for k in _REPORTAGE) and not districts and status == "destroyed"
 
 
+def _ground_war(target_type: str, status: str, norm: str, impact: bool) -> bool:
+    """Ground-war / disinformation news ("Інформація про нібито захоплення села
+    Храпівщина … не відповідає дійсності", "Великий Прикіл та Садки під
+    контролем Сил оборони") — it names border villages the gazetteer matches,
+    but it is about the LAND front or about a russian claim, not about anything
+    flying. Four such posts in the corpus each raised phantom air tracks; one
+    raised four raions at once.
+
+    Guarded exactly like civic_notice — type-unknown only, with the
+    clear/destroyed/impact carve-out — so a real callout that happens to use one
+    of these words keeps its districts. See _GROUND_WAR for the corpus sweep."""
+    return (
+        target_type == "unknown"
+        and status not in ("clear", "destroyed")
+        and not impact
+        and any(k in norm for k in _GROUND_WAR)
+    )
+
+
+def _personal_post(norm: str, status: str, impact: bool) -> bool:
+    """Personal prose from the channel admin — reminiscence, a birthday
+    thank-you — that names places in passing.
+
+    Deliberately NOT gated on target_type, unlike _ground_war: a personal post is
+    one by register, not by whether it happens to name a weapon — the birthday
+    post in the corpus (raw 3611) reads `missile` off its "не думати щодня про
+    ракети". That is a design choice rather than a measured one: 3611 also reads
+    status=clear (its "а не відбій після тривоги"), so the carve-out lets it
+    through anyway and the two messages this actually suppresses are both
+    type-unknown. Carve-out is the aftermath one, so a clear/destroyed or a
+    confirmed impact still wins."""
+    return (
+        any(k in norm for k in _PERSONAL_POST)
+        and status not in ("clear", "destroyed")
+        and not impact
+    )
+
+
 def _siren_only(target_type: str, status: str, districts, norm: str) -> bool:
     """Siren-status echo: names a district, mentions "тривога", but states no
     target type at all — the technical "alarm is on here" notice, not a
@@ -644,6 +693,8 @@ class Suppressors:
     ad_action: bool
     civic_notice: bool
     eppo_marks: bool
+    ground_war: bool
+    personal_post: bool
     promo: bool
     reportage: bool
     day_recap: bool
@@ -667,6 +718,8 @@ class Suppressors:
             or self.ad_action
             or self.civic_notice
             or self.eppo_marks
+            or self.ground_war
+            or self.personal_post
             or self.promo
         )
 
@@ -688,6 +741,8 @@ class Suppressors:
             or self.promo
             or self.civic_notice
             or self.eppo_marks
+            or self.ground_war
+            or self.personal_post
             or self.reportage
         )
 
@@ -708,6 +763,8 @@ class Suppressors:
             or self.promo
             or self.civic_notice
             or self.eppo_marks
+            or self.ground_war
+            or self.personal_post
         )
 
 
@@ -1020,6 +1077,8 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
     siren_only = _siren_only(target_type, status, districts, norm)
     civic_notice = _civic_notice(target_type, status, norm, impact)
     eppo_marks = _eppo_marks(target_type, status, norm, impact)
+    ground_war = _ground_war(target_type, status, norm, impact)
+    personal_post = _personal_post(norm, status, impact)
     day_recap = _day_recap(target_type, status, districts, norm)
     if day_recap:
         conf = min(conf, 0.35)
@@ -1038,6 +1097,8 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
         ad_action=ad_action,
         civic_notice=civic_notice,
         eppo_marks=eppo_marks,
+        ground_war=ground_war,
+        personal_post=personal_post,
         promo=promo,
         reportage=reportage,
         day_recap=day_recap,
@@ -1088,6 +1149,8 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
         siren_only=siren_only,
         civic_notice=civic_notice,
         eppo_marks=eppo_marks,
+        ground_war=ground_war,
+        personal_post=personal_post,
         day_recap=day_recap,
         chatter=chatter,
         political_quote=political_quote,

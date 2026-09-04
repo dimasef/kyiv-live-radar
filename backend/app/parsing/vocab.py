@@ -579,6 +579,38 @@ _BUZZ_CHATTER = ("бджілк", "бджол")
 # the sky. ---
 _EXPLAINER = ("що таке", "шо таке")
 
+# --- Ground-war / disinformation news ("нібито захоплення села Х", "ФЕЙК рф",
+# "під контролем Сил оборони"). These name border villages the Сумщина
+# gazetteer matches, so each one raised phantom air tracks over them — 14738
+# raised four at once (Садки, Храпівщина, Писарівка, Хотінь). The class is about
+# the GROUND front or about what russian channels claim, never about the sky.
+#
+# Corpus sweep (19 328 messages): "захопленн" 5 hits, "фейк" 4, "пропагандист" 3,
+# "дезінформац" 3, the rest 1 each — and not one sits in a real callout. A
+# spotter announcing a target has no reason to talk about who holds a village. ---
+_GROUND_WAR = ("захопленн", "фейк", "пропагандист", "дезінформац", "іпсо",
+               "не відповідає дійсності", "прориву оборони", "критично ставит")
+
+# --- Personal prose from the channel admin — reminiscence, a birthday
+# thank-you, a mood post. Long-form, names places in passing, and nothing else
+# reads it as anything but a sighting.
+#
+# Corpus: the bare stem "памятаю" is 3 messages in 19 328 and none is a callout.
+# Only 21133 ("Пам'ятаю, як колись їздив по Храпівщині, Соснівці, Кияниці")
+# actually raised tracks — two Сумщина villages. The birthday post 3611 matches
+# too and reads `missile` + Подільський/«Щасливе» (the homonym GAZETTEER.md kept
+# the entry despite), but its "а не відбій після тривоги" makes it status=clear,
+# so the carve-out below lets it through as a scoped missile stand-down. Nothing
+# was open when it arrived, so it cost nothing — noted because it means this
+# suppressor does NOT cover that shape, not because it is handled.
+#
+# The stem, NOT "памятаю, як": normalize() strips the apostrophe but KEEPS the
+# comma, so the phrase form would miss a variant written without one. And NOT
+# "хочеться вірити", checked and dropped — 2 hits, one of them a real відбій
+# ("Перший за сьогоднішню добу та осінь відбій…"), which the clear carve-out
+# would save but for no gain the stem doesn't already give. ---
+_PERSONAL_POST = ("памятаю",)
+
 # --- Political/official quote naming a place ("У Вишневому був склад
 # боєприпасів... — Зеленський") — a news repost, not a sighting; about WHO is
 # speaking, unlike siren_only/day_recap. Marker: dash + named official. Corpus:

@@ -101,7 +101,8 @@ def should_triage(parsed: ParseResult, decision_source: str, llm_response: dict 
     if llm_response is not None:       # inline call ran, didn't localize — reuse it
         return True
     suppressed = (parsed.aftermath or parsed.negated or parsed.civic_notice
-                  or parsed.eppo_marks or parsed.siren_only
+                  or parsed.eppo_marks or parsed.ground_war or parsed.personal_post
+                  or parsed.siren_only
                   or parsed.political_quote or parsed.day_recap)
     threat_flavored = parsed.target_type != "unknown" or parsed.status in ("confirmed", "unconfirmed")
     if suppressed and threat_flavored:

@@ -140,10 +140,20 @@ def _note_and_inherit_type(
     # target — a donation post's "до останнього Шахеда та ракети", a recap, a
     # quoted official — and on 07-18 such a mention poisoned a channel's
     # context mid-salvo. These classes neither record nor consume a type.
+    # `aftermath` belongs here for the same reason and was missing until
+    # 2026-09-04: consequence news carries a weapon name («…розташований
+    # російський зенітно-ракетний комплекс С-300 або С-400», a strike on Sochi)
+    # and it was setting the channel's live type. That one post typed the next
+    # two Сумщина callouts `ballistic` — a fake-debunk post and a reminiscence,
+    # neither of them a target at all — and each inheritance restarted the
+    # window, so a guess about Krasnodar Krai rode 22 minutes over Sumy.
+    # Measured on the stored corpus: exactly 4 messages inherit from an
+    # aftermath post, 3 of them that night, so this costs nothing elsewhere.
     if (parsed.promo or parsed.ad_action or parsed.political_quote
             or parsed.civic_notice or parsed.eppo_marks or parsed.siren_only
             or parsed.negated or parsed.summary or parsed.day_recap
-            or parsed.chatter):
+            or parsed.chatter or parsed.aftermath
+            or parsed.ground_war or parsed.personal_post):
         return False
     # Same reasoning, one step earlier in the attack: a message typed only by
     # the CARRIER ("З оленя злетіли тушки") is about bombers hours from their

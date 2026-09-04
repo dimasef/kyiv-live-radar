@@ -124,6 +124,60 @@ async def test_context_excludes_the_message_being_classified(db):
     assert "Троєщина" not in ctx
 
 
+async def test_context_drops_consequence_news_carrying_a_weapon_name(db):
+    """The 2026-09-04 07:18 case: an `aftermath` post about a strike on an
+    air-defence unit near Sochi carried «С-300 або С-400» — the prompt's own
+    ballistic vocabulary, and the only ballistic token in that night's feed.
+    The classifier typed a Бориспіль callout `ballistic`, which then rode two
+    more tracks. It is consequence news about another country; it says nothing
+    about what is over Kyiv, and it must not reach the prompt."""
+    session, matcher = db
+    now = utcnow()
+    session.add_all([
+        RawMessage(source_id=1, message_id=1,
+                   text="🔥 Сили оборони вдарили по російському дивізіону ППО біля Сочі.\n\n"
+                        "Місцеві жителі вночі повідомляли про численні вибухи в районі "
+                        "Сочі, після чого в небі було видно заграву.\n\nЗа результатами "
+                        "OSINT-аналізу відео очевидців, пожежа виникла поблизу селища "
+                        "Сіріус.\n\nАналітики припускають, що саме в цьому районі "
+                        "розташований російський зенітно-ракетний комплекс С-300 або С-400.",
+                   event_time=now - timedelta(minutes=30)),
+        RawMessage(source_id=2, message_id=2, text="Реактивний на Бровари",
+                   event_time=now - timedelta(minutes=20)),
+    ])
+    await session.commit()
+    ctx = await build_type_context(session, now, exclude_raw_id=None, matcher=matcher)
+    assert "С-300" not in ctx
+    # Only the aftermath line goes: the live callout still anchors the answer.
+    assert "Реактивний на Бровари" in ctx
+
+
+async def test_context_keeps_suppressed_lines_that_describe_the_sky(db):
+    """Deliberately NOT "drop every suppressed line". Replayed over the 406
+    stored classifier calls, the wide filter costs five verdicts whose only type
+    evidence was a `negated` or `summary` line that described the sky correctly;
+    the narrow one costs none. See _not_about_the_sky."""
+    session, matcher = db
+    now = utcnow()
+    session.add_all([
+        RawMessage(source_id=1, message_id=1,
+                   text="На жаль, пуски реактивних цілей з півночі постійно тривають, "
+                        "локаційно не фіксується.",
+                   event_time=now - timedelta(minutes=10)),
+        RawMessage(source_id=2, message_id=2,
+                   text="Вечірній звіт по ситуації: відбулися чергові запуски "
+                        "реактивних БПЛА з півночі.",
+                   event_time=now - timedelta(minutes=5)),
+    ])
+    await session.commit()
+    parsed = [parse_message(r.text, matcher) for r in
+              (await session.scalars(select(RawMessage))).all()]
+    assert any(p.negated or p.summary for p in parsed), "fixtures must be suppressed"
+    ctx = await build_type_context(session, now, exclude_raw_id=None, matcher=matcher)
+    assert "реактивних цілей" in ctx
+    assert "реактивних БПЛА" in ctx
+
+
 # --- applying the verdict ---------------------------------------------------
 
 async def _ingest(session, matcher, text, when=None, **kw):

@@ -119,6 +119,24 @@ def test_bare_toponym_inherits_recent_ballistic_type_same_channel():
     assert vyshneve.target_type == "ballistic"
 
 
+def test_consequence_news_does_not_set_the_channel_type():
+    """Real leak (2026-09-04, «Sumyregion △»): a post about a strike on a
+    russian air-defence unit near Sochi parses `ballistic` off its "С-300 або
+    С-400" and is suppressed as `aftermath` — but `aftermath` was missing from
+    the skip list, so it became the channel's live type. The next two messages,
+    a fake-debunk and a reminiscence, both inherited `ballistic` over Сумщина
+    villages, and each inheritance restarted the window."""
+    sochi = _feed(
+        "🔥 Сили оборони вдарили по російському дивізіону ППО біля Сочі. "
+        "Місцеві жителі повідомляли про численні вибухи, пожежа виникла "
+        "поблизу селища Сіріус. Аналітики припускають, що там розташований "
+        "російський зенітно-ракетний комплекс С-300 або С-400.",
+        source_id=1, when=T0)
+    assert sochi.aftermath and sochi.target_type == "ballistic"
+    later = _feed("Троя", source_id=1, when=T0 + timedelta(minutes=5))
+    assert later.target_type == "unknown"
+
+
 def test_no_inheritance_across_different_channels():
     _feed("Балістика!", source_id=1, when=T0)
     other = _feed("Троя", source_id=2, when=T0 + timedelta(minutes=1))

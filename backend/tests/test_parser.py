@@ -1872,3 +1872,64 @@ def test_the_binding_does_not_import_the_norths_word_collisions():
         assert "Березна" in names(parse_message(text, chernihiv)), text
     for text in ("Ще 1 зі Славутича на водосховище", "На Славутич ще 5 летить"):
         assert "Славутич" in names(parse_message(text, north)), text
+
+
+def test_ground_war_disinfo_news_is_suppressed():
+    # Real FP class (raw 21096, 2026-09-04, «Sumyregion △»): a debunk of a
+    # russian claim that a border village was captured. It names Храпівщина, so
+    # it raised a live air track over it; raw 14738 raised FOUR that way.
+    r = parse_message(
+        "⚠️ ОБЕРЕЖНО. ФЕЙК рф.\n\nІнформація про нібито захоплення села "
+        "Храпівщина на Сумщині не відповідає дійсності. Деякі російські "
+        "пропагандистські пабліки поширюють цю дезінформацію. Прориву оборони "
+        "не було. Просимо критично ставитися до будь-яких ІПСО ворога.", _SUMY_M)
+    assert r.ground_war
+    assert r.districts == []
+    assert not r.matched
+    assert not should_fallback(r)
+
+
+def test_ground_war_words_do_not_silence_a_real_callout():
+    # The gate is type-unknown + no impact, same as civic_notice: a stated type
+    # means this is a sighting whatever else the sentence says.
+    r = parse_message("Реактивний шахед на Хотінь", _SUMY_M)
+    assert not r.ground_war
+    assert r.matched
+
+
+def test_personal_post_is_suppressed():
+    # Real FP (raw 21133, reply to the debunk above): the admin reminiscing
+    # about villages he used to drive through. Two Сумщина tracks.
+    r = parse_message(
+        "Пам’ятаю, як колись їздив по Храпівщині та Соснівці, Кияниці. Це були "
+        "тихі, гарні села з неймовірними краєвидами.", _SUMY_M)
+    assert r.personal_post
+    assert r.districts == []
+    assert not r.matched
+
+
+def test_personal_post_is_not_gated_on_target_type():
+    # A personal post is one by register, not by whether it names a weapon:
+    # raw 3611, a birthday thank-you, types `missile` off "не думати щодня про
+    # ракети" and matches Подільський + «Щасливе» (the homonym in "щоб воно було
+    # щасливим"). A civic_notice-style `target_type == "unknown"` gate would let
+    # exactly this shape through.
+    r = parse_message(
+        "Не пам’ятаю, як це — жити й не думати щодня про ракети. "
+        "Дуже хочу, щоб життя було щасливим, а район Подільський — тихим.", M)
+    assert r.target_type == "missile"
+    assert r.personal_post
+    assert r.districts == []
+    assert not r.matched
+
+
+def test_personal_post_does_not_override_an_all_clear():
+    # The carve-out's cost, stated so it isn't rediscovered as a bug: raw 3611
+    # says "а не відбій після тривоги", which reads as status=clear, so the real
+    # message escapes this suppressor. That is the aftermath carve-out working
+    # as designed — a coincidental word must never silence a genuine all-clear.
+    r = parse_message(
+        "Не памʼятаю, як це — планувати щось на місяці вперед, "
+        "а не відбій після тривоги.", M)
+    assert r.status == "clear"
+    assert not r.personal_post

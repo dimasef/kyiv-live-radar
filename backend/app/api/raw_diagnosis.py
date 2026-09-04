@@ -23,6 +23,8 @@ _SUPPRESSION_LABELS: list[tuple[str, str]] = [
     ("promo", "реклама/донат"),
     ("civic_notice", "міська новина"),
     ("eppo_marks", "марки єППО"),
+    ("ground_war", "новина з фронту"),
+    ("personal_post", "особистий пост"),
     ("negated", "заперечення"),
     ("siren_only", "лише сирена"),
     ("political_quote", "цитата/політика"),

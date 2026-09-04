@@ -32,10 +32,21 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.49.0";
+const LATEST = "0.49.1";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
+  {
+    version: LATEST,
+    title: "новина — не ціль",
+    date: "2026-09-04",
+    kind: "patch",
+    changes: [
+      "Новина про далекий удар більше не фарбує місцеві цілі. Допис про знищений за сотні кілометрів зенітний комплекс називає зброю — і наступні виклики спостерігачів через це показувалися балістикою, і над областю, звідки прийшла новина, і над Києвом",
+      "Повідомлення про наземний фронт — спростування ворожих фейків, заяви про «захоплення» сіл — більше не ставлять повітряну ціль над названим селом. Одне таке підіймало чотири позначки одразу",
+      "Особистий допис спостерігача — спогад, привітання — більше не стає ціллю через випадково згадану назву села",
+    ],
+  },
   {
     // Deliberately says nothing about what shipped. The release adds a
     // hand-granted role and a map layer that only it can open, and the data
@@ -44,7 +55,7 @@ export const CHANGELOG: Release[] = [
     // that some accounts read it live, to exactly the audience the rule exists
     // for. The version still bumps as the real release it is (see SKILL.md,
     // "the changelog is visible to EVERY user").
-    version: LATEST,
+    version: "0.49.0",
     title: "технічне оновлення",
     date: "2026-09-04",
     kind: "minor",

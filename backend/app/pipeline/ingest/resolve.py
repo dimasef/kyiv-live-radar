@@ -40,6 +40,10 @@ def should_fallback(parsed: ParseResult) -> bool:
         return False
     if parsed.eppo_marks:  # dismissed єППО app marks — not a live target
         return False
+    if parsed.ground_war:  # ground-front / disinfo news — not a live target
+        return False
+    if parsed.personal_post:  # channel admin's personal prose — not a live target
+        return False
     if parsed.political_quote:  # official statement repost — not a live target
         return False
     if parsed.chatter:  # buzz-slang reassurance chatter — nothing to localize

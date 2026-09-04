@@ -153,7 +153,8 @@ async def _infer_incident_type(session, parsed: ParseResult, when: datetime,
 
 async def _maybe_llm_type(session, raw: RawMessage, parsed: ParseResult, when: datetime,
                           *, allow_llm: bool, region: str, source_llm_enabled: bool = True,
-                          window_minutes: int | None = None) -> str | None:
+                          window_minutes: int | None = None,
+                          matcher: DistrictMatcher | None = None) -> str | None:
     """Fourth and last type tier: ask the LLM what is in the sky right now.
 
     Reached only when the message names a place, produced something to record,
@@ -209,7 +210,7 @@ async def _maybe_llm_type(session, raw: RawMessage, parsed: ParseResult, when: d
 
         source = await session.get(Source, raw.source_id) if raw.source_id else None
         context = await build_type_context(session, when, exclude_raw_id=raw.id,
-                                           region=region)
+                                           region=region, matcher=matcher)
         # Stamped BEFORE the await, not after: llm_target_type swallows timeouts
         # and API errors into (None, None), so gating this on `usage` recorded
         # only the calls that SUCCEEDED. A timed-out call then looked byte-for-
@@ -362,7 +363,8 @@ async def process_parsed(
         type_from_llm = await _maybe_llm_type(session, raw, parsed, when, allow_llm=allow_llm,
                                               region=region,
                                               source_llm_enabled=source_llm_enabled,
-                                              window_minutes=inherit_window)
+                                              window_minutes=inherit_window,
+                                              matcher=matcher)
         # …and its answer becomes this channel's context, so the next bare
         # toponym inherits it for free instead of re-asking (see
         # note_inferred_type for the measurement). The incident prior is

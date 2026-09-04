@@ -19,7 +19,7 @@ from sqlalchemy import select
 
 from ...config import settings
 from ...models import RawMessage, Source
-from ...parsing import ParseResult
+from ...parsing import DistrictMatcher, ParseResult, parse_message
 from ...regions import HOME_REGION, label
 from ...timeutil import naive
 
@@ -57,8 +57,43 @@ def _age_minutes(when: datetime, then: datetime) -> int:
     return max(0, int((naive(when) - naive(then)).total_seconds() // 60))
 
 
+def _not_about_the_sky(text: str, matcher: DistrictMatcher | None) -> bool:
+    """Whether a candidate context line is consequence news rather than a report
+    of what is flying — the one class that must not reach the prompt.
+
+    Narrow on purpose, and the width was measured. The obvious version of this
+    filter is "drop every line the parser suppressed", and it is wrong: the
+    suppressor flags answer «should this raise a TRACK?», not «does this
+    describe the current sky». Replayed over the 406 stored classifier calls,
+    dropping every suppressed line removes 4.7% of the feed and takes five
+    verdicts with it whose only type evidence was a `negated` or `summary` line
+    — «На жаль, пуски реактивних цілей з півночі постійно тривають», «Вечірній
+    звіт …: чергові запуски реактивних БПЛА» — all of which describe the sky
+    perfectly well. Dropping only `aftermath` removes 0.4% of the feed and costs
+    ZERO verdicts.
+
+    The case it exists for, 2026-09-04 07:18: a Сумщина post about a strike on
+    an air-defence unit near Sochi carried «зенітно-ракетний комплекс С-300 або
+    С-400» — literally the prompt's own ballistic vocabulary — and was the only
+    ballistic token anywhere in that night's feed. The classifier read it and
+    typed a Бориспіль/Трипілля callout `ballistic` 0.75, which then became the
+    Kyiv channel's context and rode two more tracks. A second instance running
+    a wider channel roster, whose 25-line window pushed that post out, answered
+    `jet_drone` 0.85 on the same message in the same second.
+
+    `matcher` is the reporting channel's own, so foreign-oblast lines can lose
+    the impact carve-out and read as aftermath here when they would not under
+    their own matcher. Measured at 25 messages in 19 356 (0.1%), all of them
+    strike reports we would rather not prompt with anyway.
+    """
+    if matcher is None:
+        return False
+    return parse_message(text or "", matcher).aftermath
+
+
 async def build_type_context(
-    session, when: datetime, *, exclude_raw_id: int | None, region: str | None = None
+    session, when: datetime, *, exclude_raw_id: int | None, region: str | None = None,
+    matcher: DistrictMatcher | None = None,
 ) -> str:
     """The recent feed, as the classifier sees it: the last
     `llm_type_context_messages` messages from every channel within
@@ -115,6 +150,10 @@ async def build_type_context(
         rows.extend(r for r in own if r[0] not in seen)
     # One chronological transcript, however the two queries interleaved.
     rows.sort(key=lambda r: (r[2], r[0]))
+    # Filtered AFTER the limit, not folded into the query, so the window stays
+    # the same 25+20 messages the sizing above was measured on — over-fetching
+    # to refill the dropped slots would quietly widen it.
+    rows = [r for r in rows if not _not_about_the_sky(r[1], matcher)]
     return "\n".join(
         f"[-{_age_minutes(when, event_time)}хв {label(row_region or HOME_REGION)}"
         f"/{name or 'канал'}] "

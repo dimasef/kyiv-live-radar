@@ -46,7 +46,8 @@ from ..parsing.toponyms import rank_candidates, unknown_toponyms
 # would bury the real ones, which is the failure mode a ranked list can't
 # recover from.
 _SUPPRESSORS = (
-    "aftermath", "promo", "civic_notice", "eppo_marks", "negated", "siren_only",
+    "aftermath", "promo", "civic_notice", "eppo_marks", "ground_war",
+    "personal_post", "negated", "siren_only",
     "political_quote", "reportage", "day_recap", "lost_signal", "summary",
 )
 
