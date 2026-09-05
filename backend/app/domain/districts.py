@@ -14,6 +14,7 @@ from ..models import HOME_REGION, District, Source
 
 _citywide_id: int | None = None
 _regions: dict[int, str] | None = None
+_geo: dict[int, tuple[float, float, int | None]] | None = None
 
 
 async def citywide_district_id(session) -> int | None:
@@ -55,7 +56,19 @@ async def resolve_region(session, district_ids: Iterable[int], source_id: int | 
     return HOME_REGION
 
 
+async def district_geo(session) -> dict[int, tuple[float, float, int | None]]:
+    """{district_id: (lat, lon, raion_id)} for every gazetteer row."""
+    global _geo
+    if _geo is None:
+        rows = await session.execute(
+            select(District.id, District.lat, District.lon, District.raion_id)
+        )
+        _geo = {did: (lat, lon, raion) for did, lat, lon, raion in rows}
+    return _geo
+
+
 def reset_cache() -> None:
-    global _citywide_id, _regions
+    global _citywide_id, _regions, _geo
     _citywide_id = None
     _regions = None
+    _geo = None

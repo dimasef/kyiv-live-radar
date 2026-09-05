@@ -28,6 +28,9 @@ from pathlib import Path
 NEWER_FIELDS = ("suppressed_by", "parsed", "ingested_at", "reply_parent_raw_id")
 
 
+STALE_MINUTES = 20  # config.track_stale_minutes
+
+
 def _load(path: Path) -> list[dict]:
     data = json.loads(path.read_text("utf-8"))
     if isinstance(data, dict):
@@ -195,6 +198,36 @@ def section_ingest_order(messages: list[dict]) -> None:
             print(f"    raw {m['id']}: stored {lag:.0f} min after it was posted")
     else:
         print("\n  (export predates `ingested_at` — lag can only be inferred from id order)")
+
+    # Step 0 of .claude/plans/target-fanout.md: the association gate is directed
+    # (a track's latest event must precede the incoming one), so what matters
+    # is how often a LOCALIZED message is stored after a newer localized one.
+    localized = [m for m in rows if m.get("events")]
+    if localized:
+        newest = None
+        bins = Counter()
+        over_3 = 0
+        for m in localized:
+            posted = _time(m["event_time"])
+            if newest is not None and posted < newest:
+                behind = (newest - posted).total_seconds() / 60
+                bins["<0.5 min" if behind < 0.5 else "0.5-3 min" if behind < 3
+                     else "3-10 min" if behind < 10 else ">10 min"] += 1
+                over_3 += behind >= 3
+            newest = posted if newest is None else max(newest, posted)
+        inverted = sum(bins.values())
+        print(f"\n  localized messages: {len(localized)}; stored behind a newer localized one:"
+              f" {inverted} ({_pct(inverted, len(localized))}), over 3 min: {over_3}"
+              f" ({_pct(over_3, len(localized))})")
+        for key in ("<0.5 min", "0.5-3 min", "3-10 min", ">10 min"):
+            if bins[key]:
+                print(f"    {key:<10}{bins[key]}")
+        lag_rows = [(lag, m) for lag, m in lags if m.get("events")]
+        if lag_rows:
+            slow = sum(1 for lag, _ in lag_rows if lag > 0.5)
+            late = sum(1 for lag, _ in lag_rows if lag > STALE_MINUTES)
+            print(f"  localized with lag >30 s: {slow} ({_pct(slow, len(lag_rows))});"
+                  f" >{STALE_MINUTES} min (is_late veto): {late} ({_pct(late, len(lag_rows))})")
 
 
 def section_reply_chains(messages: list[dict]) -> None:

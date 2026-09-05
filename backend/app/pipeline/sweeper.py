@@ -23,6 +23,7 @@ from ..feeds.health import feed_health, get_status
 from ..models import Threat, ThreatAxis, utcnow
 from ..observability import metrics
 from ..schemas import WSMessage
+from . import lock
 from .broadcast import broadcast_results
 from .results import Broadcast
 
@@ -38,6 +39,8 @@ async def run_sweeper() -> None:
     global _last_feed_ok
     while True:
         await asyncio.sleep(settings.sweeper_interval_s)
+        if lock.reprocess_running:
+            continue
         try:
             async with SessionLocal() as session:
                 now = utcnow()

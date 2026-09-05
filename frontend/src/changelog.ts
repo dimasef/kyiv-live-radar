@@ -32,12 +32,23 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.49.1";
+const LATEST = "0.50.0";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "шлях веде одне джерело",
+    date: "2026-09-05",
+    kind: "minor",
+    changes: [
+      "Лінію треку тепер малюють повідомлення одного каналу — того, що веде ціль. Дописи інших каналів про ту саму ціль лишаються на треку, але більше не ламають її лінію зигзагом: їх видно пунктирними кружечками, коли відкриваєш трек",
+      "Сповіщення «прямує у ваш бік» рахує напрямок по цій самій лінії",
+      "Треки за попередні тижні вирівняні за тим самим правилом",
+    ],
+  },
+  {
+    version: "0.49.1",
     title: "новина — не ціль",
     date: "2026-09-04",
     kind: "patch",

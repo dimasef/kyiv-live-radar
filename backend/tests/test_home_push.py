@@ -508,3 +508,23 @@ async def test_a_homeless_subscription_gets_nothing(ctx, sent):
     await evaluate_regional_ballistic(s, await _mk_notice(s, await _mk_source(s, "sumy")))
 
     assert sent == []
+
+
+async def test_warning_push_names_the_path_head(ctx, sent):
+    s, sub = ctx
+    far = await _mk_district(s, 20)
+    approaching = await _mk_district(s, 15)
+    echo_d = await _mk_district(s, 14, 9)
+    echo_d.name_uk = "Луна"
+    approaching.name_uk = "Шлях"
+    await s.commit()
+    t = await _mk_threat(s)
+    t.path_source_id = 5
+    await s.commit()
+    for d, minute, sid in ((far, 0, 5), (approaching, 5, 5), (echo_d, 6, 12)):
+        s.add(ThreatEvent(threat_id=t.id, district_id=d.id, source_id=sid,
+                          event_time=BASE + timedelta(minutes=minute)))
+    await s.commit()
+    await evaluate_home_danger(s, await _load_threat(s, t.id))
+    assert [p["level"] for p in sent] == ["warning"]
+    assert "Шлях" in sent[0]["body"] and "Луна" not in sent[0]["body"]

@@ -45,6 +45,9 @@ class ThreatEventOut(BaseModel):
     # uses it as the card headline, raw_text collapsed beneath. NULL for
     # rule-only events (the feed falls back to raw_text).
     llm_summary: str | None = None
+    # An operator placed this sighting on the track by hand; it is drawn with
+    # the path whichever source it came from.
+    manual: bool = False
     # Denormalized point for convenient map rendering.
     lat: float | None = None
     lon: float | None = None
@@ -80,6 +83,9 @@ class ThreatOut(BaseModel):
     # trajectory even at a single timestamp — the map needs this to draw the
     # vector (track.ts::hasMovement). Defaulted for pre-field clients.
     movement_stated: bool = False
+    # The source whose sightings draw the path (domain/path.py); the rest are
+    # echo. NULL = every event.
+    path_source_id: int | None = None
     # Derived multi-source fusion signals.
     corroboration_count: int = 1
     has_conflict: bool = False

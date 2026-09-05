@@ -1,11 +1,26 @@
 import { bearing, type Pt } from '@/lib/geo'
 import type { Threat, ThreatEvent } from '@/types'
 
-/** Ordered, de-duplicated track points for a threat (consecutive repeats dropped). */
-export function trackPoints(threat: Threat): Pt[] {
+type Located = ThreatEvent & { lat: number; lon: number }
+
+function located(threat: Threat): Located[] {
+  return (threat.events as ThreatEvent[]).filter(
+    (ev): ev is Located => ev.lat != null && ev.lon != null,
+  )
+}
+
+/** The sightings that draw the path: the path source's own plus any an operator
+ * placed by hand. With no path source (pre-0.50 history) every sighting draws. */
+export function pathEvents(threat: Threat): Located[] {
+  const psid = threat.path_source_id
+  const all = located(threat)
+  if (psid == null) return all
+  return all.filter((ev) => ev.source_id === psid || ev.manual)
+}
+
+function dedupe(events: Located[]): Pt[] {
   const pts: Pt[] = []
-  for (const ev of threat.events as ThreatEvent[]) {
-    if (ev.lat == null || ev.lon == null) continue
+  for (const ev of events) {
     const last = pts[pts.length - 1]
     if (last && last.lat === ev.lat && last.lon === ev.lon) continue
     pts.push({ lat: ev.lat, lon: ev.lon })
@@ -13,7 +28,19 @@ export function trackPoints(threat: Threat): Pt[] {
   return pts
 }
 
-/** A track "moves" if its located sightings span ≥2 DISTINCT timestamps, or if
+/** Ordered, de-duplicated path points for a threat (consecutive repeats dropped). */
+export function trackPoints(threat: Threat): Pt[] {
+  return dedupe(pathEvents(threat))
+}
+
+/** Sightings from the other sources — corroboration, not trajectory. */
+export function echoPoints(threat: Threat): Pt[] {
+  const psid = threat.path_source_id
+  if (psid == null) return []
+  return dedupe(located(threat).filter((ev) => ev.source_id !== psid && !ev.manual))
+}
+
+/** A track "moves" if its path sightings span ≥2 DISTINCT timestamps, or if
  * the parser saw a path STATED in one message.
  *
  * The timestamp rule alone is what keeps an enumeration from drawing a vector:
@@ -26,8 +53,7 @@ export function trackPoints(threat: Threat): Pt[] {
 export function hasMovement(threat: Threat): boolean {
   if (threat.movement_stated && trackPoints(threat).length > 1) return true
   const times = new Set<string>()
-  for (const ev of threat.events as ThreatEvent[]) {
-    if (ev.lat == null || ev.lon == null) continue
+  for (const ev of pathEvents(threat)) {
     times.add(ev.event_time)
     if (times.size >= 2) return true
   }

@@ -4098,6 +4098,11 @@ export interface components {
             llm_summary?: string | null;
             /** Lon */
             lon?: number | null;
+            /**
+             * Manual
+             * @default false
+             */
+            manual: boolean;
             /** Raw Text */
             raw_text: string;
             /** Source Id */
@@ -4159,6 +4164,8 @@ export interface components {
              * @default false
              */
             movement_stated: boolean;
+            /** Path Source Id */
+            path_source_id?: number | null;
             /**
              * Region
              * @default kyiv

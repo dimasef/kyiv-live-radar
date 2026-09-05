@@ -43,6 +43,11 @@ class District(Base):
     aliases: Mapped[list] = mapped_column(JSON, default=list)
     lat: Mapped[float] = mapped_column(Float)
     lon: Mapped[float] = mapped_column(Float)
+    # The raion (a district row with a boundary) this point falls in; a raion
+    # row points at itself. NULL outside every boundary. Set by seed_districts.
+    raion_id: Mapped[int | None] = mapped_column(
+        ForeignKey("districts.id"), nullable=True
+    )
     # Which watched region this entry belongs to (see REGIONS). Region is a
     # property of the PLACE, not of the channel that named it, so one channel
     # reporting both sides of the oblast border still lands each sighting in the
@@ -125,6 +130,13 @@ CLOSED_REASONS: tuple[ClosedReason, ...] = get_args(ClosedReason)
 # 'llm' (the inline sync fallback that runs while ingest holds the lock).
 DecisionSource = Literal["rule", "llm", "sim", "triage"]
 DECISION_SOURCES: tuple[DecisionSource, ...] = get_args(DecisionSource)
+# How a sighting landed on its track (domain/tracking.py tiers, plus an
+# operator's regroup). Provenance only; the API publishes just `manual`.
+AttachedBy = Literal["reply", "district", "proximity", "new", "inherited", "manual"]
+ATTACHED_BY: tuple[AttachedBy, ...] = get_args(AttachedBy)
+# 'path' = the message stated a route between its places («Мамекине на Смяч»).
+EventFrame = Literal["path", "sector"]
+EVENT_FRAMES: tuple[EventFrame, ...] = get_args(EventFrame)
 # Async-triage bookkeeping on a raw message (app/pipeline/triage.py). state =
 # where the message is in the triage queue's lifecycle; action = what routing
 # ultimately did with the verdict. Both NULL for messages never enqueued.
@@ -695,8 +707,15 @@ class Threat(Base):
     # they all share a single timestamp. Display-only: it never affects which
     # track a sighting joins, it tells the map a one-message track is a real
     # vector (track.ts::hasMovement, which otherwise needs 2+ distinct times).
-    # Latches on — a path once stated is not un-stated by a later bare callout.
+    # Write-through of `ThreatEvent.frame == 'path'` over the path source's
+    # events (domain/path.py::refresh_path).
     movement_stated: Mapped[bool] = mapped_column(default=False)
+    # The one source whose sightings draw the polyline: the reply-chain
+    # narrator, else the source with the most events (domain/path.py). Other
+    # sources' sightings are echo. NULL = every event (pre-column history).
+    path_source_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sources.id"), nullable=True
+    )
     # --- Derived multi-source fusion signals ---
     corroboration_count: Mapped[int] = mapped_column(default=1)  # distinct independent sources
     has_conflict: Mapped[bool] = mapped_column(default=False)    # sources disagree
@@ -950,6 +969,9 @@ class ThreatEvent(Base):
     # raw text collapsed beneath. NULL for rule-only events (the vast majority);
     # the feed falls back to raw_text.
     llm_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attached_by: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    frame: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    frame_group: Mapped[int | None] = mapped_column(nullable=True)
 
     threat: Mapped[Threat] = relationship(back_populates="events")
     district: Mapped[District] = relationship()

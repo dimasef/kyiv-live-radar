@@ -150,3 +150,30 @@ def test_stale_at_can_be_in_the_past():
     long_ago = datetime(2026, 8, 18, 20, 0)
     t = _threat(events=[_event(long_ago, message_id=1)])
     assert stale_at(t, **WINDOWS) < datetime(2026, 8, 18, 22, 0)
+
+
+T0 = datetime(2026, 8, 18, 22, 0)
+
+
+def _at(minute):
+    return T0 + timedelta(minutes=minute)
+
+
+def test_per_source_rule_lets_the_echo_go_stale_on_its_own_window():
+    """Narrator (5) threads and goes quiet; echo (12) posts every 1.5 min. The
+    track outlives the echo's last post by the ORPHAN window, not the narrator's
+    tracked one measured from the echo."""
+    t = _threat(events=[
+        _event(_at(0), source_id=5, message_id=1),
+        _event(_at(2), source_id=5, message_id=2, reply_to=1),
+        _event(_at(3), source_id=12), _event(_at(4), source_id=12), _event(_at(6), source_id=12),
+    ])
+    assert stale_at(t, rule="legacy", **WINDOWS) == _at(6 + 15)
+    assert stale_at(t, rule="per_source", **WINDOWS) == _at(2 + 15)
+    t.events.append(_event(_at(14), source_id=12))
+    assert stale_at(t, rule="per_source", **WINDOWS) == _at(14 + 5)
+
+
+def test_per_source_rule_treats_an_unthreaded_dominant_source_as_orphan():
+    t = _threat(events=[_event(_at(m), source_id=12) for m in (0, 1, 2)])
+    assert stale_at(t, rule="per_source", **WINDOWS) == _at(2 + 5)

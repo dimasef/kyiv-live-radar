@@ -6,7 +6,9 @@ import pytest_asyncio
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from app.config import settings
 from app.db import Base
+from app.domain.districts import reset_cache
 from app.gazetteer import SOURCES
 from app.models import (
     District,
@@ -1319,3 +1321,224 @@ async def test_a_reply_naming_a_covered_village_continues_its_parents_track(ctx)
         for e in events
     ]
     assert names == ["Рогівка", "Смяч"]
+
+
+async def test_reply_narrator_draws_the_path_and_echo_stays_echo(ctx):
+    """30.08 09:41: Місто Кия threads a target; two echo channels corroborate the
+    same districts seconds later. The polyline is the narrator's; the echo is
+    kept on the track but not drawn."""
+    s, m, src = ctx
+    narrator, echo = src[0].id, src[1].id
+    await ingest_message(s, text="Шахед над Оболонню", matcher=m, when=BASE,
+                         source_id=narrator, message_id=1)
+    await ingest_message(s, text="Оболонь", matcher=m, when=BASE + timedelta(seconds=30),
+                         source_id=echo, message_id=101)
+    await ingest_message(s, text="Троєщина", matcher=m, when=BASE + timedelta(minutes=3),
+                         source_id=narrator, message_id=2, reply_to_message_id=1)
+    await ingest_message(s, text="Троєщина", matcher=m, when=BASE + timedelta(minutes=3, seconds=20),
+                         source_id=echo, message_id=102)
+    threat = (await s.scalars(select(Threat))).one()
+    await s.refresh(threat, ["events"])
+    assert threat.path_source_id == narrator
+    assert [e.attached_by for e in threat.events] == ["new", "district", "reply", "district"]
+    assert threat.corroboration_count == 2
+
+
+async def test_without_a_narrator_the_busier_source_leads(ctx):
+    s, m, src = ctx
+    a, b = src[0].id, src[1].id
+    await ingest_message(s, text="Оболонь", matcher=m, when=BASE, source_id=b, message_id=1)
+    await ingest_message(s, text="Оболонь", matcher=m, when=BASE + timedelta(seconds=20),
+                         source_id=a, message_id=2)
+    threat = (await s.scalars(select(Threat))).one()
+    assert threat.path_source_id == b
+    await ingest_message(s, text="Оболонь", matcher=m, when=BASE + timedelta(minutes=1),
+                         source_id=a, message_id=3)
+    await s.refresh(threat)
+    assert threat.path_source_id == b
+    await ingest_message(s, text="Оболонь", matcher=m, when=BASE + timedelta(minutes=2),
+                         source_id=a, message_id=4)
+    await s.refresh(threat)
+    assert threat.path_source_id == a
+
+
+async def test_a_stated_path_from_an_echo_source_does_not_draw_a_vector(ctx):
+    s, m, src = ctx
+    narrator, echo = src[0].id, src[1].id
+    await ingest_message(s, text="Троєщина", matcher=m, when=BASE, source_id=narrator, message_id=1)
+    await ingest_message(s, text="Троєщина", matcher=m, when=BASE + timedelta(minutes=1),
+                         source_id=narrator, message_id=2, reply_to_message_id=1)
+    await ingest_message(s, text="Троєщина курсом на Оболонь", matcher=m,
+                         when=BASE + timedelta(minutes=1, seconds=30), source_id=echo,
+                         message_id=101)
+    threat = (await s.scalars(select(Threat))).one()
+    await s.refresh(threat, ["events"])
+    assert threat.path_source_id == narrator
+    assert any(e.frame == "path" for e in threat.events)
+    assert threat.movement_stated is False
+
+
+# --- Tier 3: proximity gate (release B) ---
+
+async def _gate(monkeypatch, city=4.0, oblast=12.0, margin=0.3, raion=True):
+    monkeypatch.setattr(settings, "association_radius_km_city", city)
+    monkeypatch.setattr(settings, "association_radius_km_oblast", oblast)
+    monkeypatch.setattr(settings, "ambiguity_margin", margin)
+    monkeypatch.setattr(settings, "same_raion_enabled", raion)
+
+
+async def _district(s, name):
+    return (await s.scalars(select(District).where(District.name_uk == name, District.region == "kyiv"))).first()
+
+
+async def _set_raion(s, raion_name, *members):
+    raion = await _district(s, raion_name)
+    raion.raion_id = raion.id
+    for m in members:
+        (await _district(s, m)).raion_id = raion.id
+    await s.commit()
+    reset_cache()
+
+
+async def test_echo_over_a_neighbouring_place_joins_the_narrated_track(ctx, monkeypatch):
+    """Позняки is 1.5 km from Дарницький: an echo channel's «Позняки» 30 s after
+    the narrator's «Дарниця» is the same target, not a second dot."""
+    s, m, src = ctx
+    await _gate(monkeypatch)
+    await ingest_message(s, text="Дарниця 🔴", matcher=m, when=BASE, source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Позняки", matcher=m, when=BASE + timedelta(seconds=30),
+                         source_id=src[1].id, message_id=101)
+    assert await _count_threats(s) == 1
+    ev = (await s.scalars(select(ThreatEvent).where(ThreatEvent.source_message_id == 101))).one()
+    assert ev.attached_by == "proximity"
+
+
+async def test_gate_off_keeps_todays_behaviour(ctx, monkeypatch):
+    s, m, src = ctx
+    await _gate(monkeypatch, city=0.0, oblast=0.0)
+    await ingest_message(s, text="Дарниця 🔴", matcher=m, when=BASE, source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Позняки", matcher=m, when=BASE + timedelta(seconds=30),
+                         source_id=src[1].id, message_id=101)
+    assert await _count_threats(s) == 2
+
+
+async def test_same_raion_is_not_a_radius(ctx, monkeypatch):
+    """Конча-Заспа and Деміївка share Голосіївський but sit 12.3 km apart —
+    the raion breaks ties, it never stretches the city radius."""
+    s, m, src = ctx
+    await _gate(monkeypatch)
+    await _set_raion(s, "Голосіївський", "Деміївка", "Конча-Заспа")
+    await ingest_message(s, text="Деміївка 🔴", matcher=m, when=BASE, source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Конча-Заспа", matcher=m, when=BASE + timedelta(seconds=40),
+                         source_id=src[1].id, message_id=101)
+    assert await _count_threats(s) == 2
+
+
+async def test_oblast_zone_uses_the_oblast_radius(ctx, monkeypatch):
+    """Українка / Обухів: 10.4 km apart, 36+ km from the centre — oblast zone."""
+    s, m, src = ctx
+    await _gate(monkeypatch, city=4.0, oblast=12.0)
+    await ingest_message(s, text="Обухів 🔴", matcher=m, when=BASE, source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Українка", matcher=m, when=BASE + timedelta(seconds=40),
+                         source_id=src[1].id, message_id=101)
+    assert await _count_threats(s) == 1
+
+
+async def test_oblast_radius_below_the_gap_opens_a_new_track(ctx, monkeypatch):
+    s, m, src = ctx
+    await _gate(monkeypatch, city=4.0, oblast=8.0)
+    await ingest_message(s, text="Обухів 🔴", matcher=m, when=BASE, source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Українка", matcher=m, when=BASE + timedelta(seconds=40),
+                         source_id=src[1].id, message_id=101)
+    assert await _count_threats(s) == 2
+
+
+async def test_ambiguous_pick_goes_to_the_candidate_in_the_same_raion(ctx, monkeypatch):
+    """Two tracks equally near Позняки; only Дарницький's shares its raion."""
+    s, m, src = ctx
+    await _gate(monkeypatch, city=6.0, margin=1.0)
+    await _set_raion(s, "Дарницький", "Позняки")
+    await ingest_message(s, text="Дарниця 🔴", matcher=m, when=BASE, source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Ще один Осокорки 🔴", matcher=m, when=BASE, source_id=src[0].id, message_id=2)
+    assert await _count_threats(s) == 2
+    await ingest_message(s, text="Позняки", matcher=m, when=BASE + timedelta(seconds=30),
+                         source_id=src[1].id, message_id=101)
+    assert await _count_threats(s) == 2
+    ev = (await s.scalars(select(ThreatEvent).where(ThreatEvent.source_message_id == 101))).one()
+    darnytsia = (await s.scalars(select(ThreatEvent).where(ThreatEvent.source_message_id == 1))).one()
+    assert ev.threat_id == darnytsia.threat_id
+
+
+async def test_ambiguous_pick_without_a_raion_opens_a_new_track(ctx, monkeypatch):
+    s, m, src = ctx
+    await _gate(monkeypatch, city=6.0, margin=1.0)
+    await ingest_message(s, text="Дарниця 🔴", matcher=m, when=BASE, source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Ще один Осокорки 🔴", matcher=m, when=BASE, source_id=src[0].id, message_id=2)
+    await ingest_message(s, text="Позняки", matcher=m, when=BASE + timedelta(seconds=30),
+                         source_id=src[1].id, message_id=101)
+    assert await _count_threats(s) == 3
+
+
+async def test_a_stated_new_target_never_joins_by_proximity(ctx, monkeypatch):
+    s, m, src = ctx
+    await _gate(monkeypatch)
+    await ingest_message(s, text="Дарниця 🔴", matcher=m, when=BASE, source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Ще один Позняки", matcher=m, when=BASE + timedelta(seconds=30),
+                         source_id=src[1].id, message_id=101)
+    assert await _count_threats(s) == 2
+
+
+async def test_ballistic_never_joins_by_proximity(ctx, monkeypatch):
+    s, m, src = ctx
+    await _gate(monkeypatch)
+    await ingest_message(s, text="Балістика Дарниця 🔴", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Позняки", matcher=m, when=BASE + timedelta(seconds=30),
+                         source_id=src[1].id, message_id=101)
+    await ingest_message(s, text="Шахед Дарниця", matcher=m, when=BASE + timedelta(minutes=10),
+                         source_id=src[0].id, message_id=2)
+    await ingest_message(s, text="Балістика Позняки", matcher=m, when=BASE + timedelta(minutes=10, seconds=30),
+                         source_id=src[1].id, message_id=102)
+    assert await _count_threats(s) == 4
+
+
+async def test_distinct_type_families_do_not_merge_by_proximity(ctx, monkeypatch):
+    s, m, src = ctx
+    await _gate(monkeypatch)
+    await ingest_message(s, text="Шахед Дарниця 🔴", matcher=m, when=BASE, source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Ракета Позняки", matcher=m, when=BASE + timedelta(seconds=30),
+                         source_id=src[1].id, message_id=101)
+    assert await _count_threats(s) == 2
+
+
+async def test_a_sighting_older_than_the_head_does_not_join(ctx, monkeypatch):
+    s, m, src = ctx
+    await _gate(monkeypatch)
+    await ingest_message(s, text="Дарниця 🔴", matcher=m, when=BASE, source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Позняки", matcher=m, when=BASE - timedelta(seconds=30),
+                         source_id=src[1].id, message_id=101)
+    assert await _count_threats(s) == 2
+
+
+async def test_a_proximity_join_does_not_retype_or_recount(ctx, monkeypatch):
+    s, m, src = ctx
+    await _gate(monkeypatch)
+    await ingest_message(s, text="Дарниця 🔴", matcher=m, when=BASE, source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Шахед Позняки 3х", matcher=m, when=BASE + timedelta(seconds=30),
+                         source_id=src[1].id, message_id=101)
+    threat = (await s.scalars(select(Threat))).one()
+    assert threat.target_type == "unknown"
+    assert threat.target_count == 1
+    assert threat.corroboration_count == 2
+
+
+async def test_a_stood_down_neighbour_is_not_revived_by_proximity(ctx, monkeypatch):
+    s, m, src = ctx
+    await _gate(monkeypatch)
+    await ingest_message(s, text="Дарниця 🔴", matcher=m, when=BASE, source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Дорозвідка", matcher=m, when=BASE + timedelta(seconds=20),
+                         source_id=src[0].id, message_id=2)
+    await ingest_message(s, text="Позняки", matcher=m, when=BASE + timedelta(seconds=40),
+                         source_id=src[1].id, message_id=101)
+    tracks = list(await s.scalars(select(Threat).order_by(Threat.id)))
+    assert [t.closed_reason for t in tracks] == ["stand_down", None]

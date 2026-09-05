@@ -23,6 +23,7 @@ from ...domain.tracking import (
     apply_fusion,
     close_all_active,
     find_corroborating_track,
+    find_nearby_track,
     find_open_citywide,
     find_open_track,
     find_recent_impact,
@@ -175,7 +176,8 @@ async def _handle_lost_signal(ctx: IngestContext) -> list[Broadcast]:
         hit = _last_district_hit(t)
         ev = None
         if hit is not None:
-            ev = _make_event(ctx, t.id, hit, target_count=t.target_count)
+            ev = _make_event(ctx, t.id, hit, target_count=t.target_count,
+                             attached_by="inherited")
             session.add(ev)
         pairs.append((t, ev))
     if any(ev is not None for _, ev in pairs):
@@ -243,7 +245,8 @@ async def _handle_target_pulse(ctx: IngestContext) -> list[Broadcast] | None:
         return await _pulse_corroborates_axis(ctx)
     # A pulse corroborates the city alert but never promotes it (too terse).
     _apply_update(parsed, city, promote=False)
-    ev = _make_event(ctx, city.id, DistrictHit(did, "", 0), target_count=city.target_count)
+    ev = _make_event(ctx, city.id, DistrictHit(did, "", 0), target_count=city.target_count,
+                     attached_by="district")
     session.add(ev)
     await session.commit()
     await apply_fusion(session, city)
@@ -280,6 +283,7 @@ async def _handle_destroyed(ctx: IngestContext) -> list[Broadcast]:
     district, not merely the newest (see find_open_track)."""
     session, parsed, when = ctx.session, ctx.parsed, ctx.when
     track = await find_track_by_reply(session, ctx.source_id, ctx.reply_to_message_id)
+    attached_by = "reply" if track is not None else "district"
     if track is None:
         prefer = {h.district_id for h in parsed.districts} or None
         # A destroyed message can land later than the normal grouping gap
@@ -306,7 +310,8 @@ async def _handle_destroyed(ctx: IngestContext) -> list[Broadcast]:
         if retired is None:
             await ctx.done()
             return []
-        ev = _make_event(ctx, retired.id, parsed.districts[0], target_count=retired.target_count)
+        ev = _make_event(ctx, retired.id, parsed.districts[0], target_count=retired.target_count,
+                         attached_by="district")
         session.add(ev)
         relabel_close(retired, "destroyed")
         await session.commit()
@@ -332,7 +337,8 @@ async def _handle_destroyed(ctx: IngestContext) -> list[Broadcast]:
     hit = parsed.districts[0] if parsed.districts else _last_district_hit(track)
     ev = None
     if hit is not None:
-        ev = _make_event(ctx, track.id, hit, target_count=track.target_count)
+        ev = _make_event(ctx, track.id, hit, target_count=track.target_count,
+                         attached_by=attached_by if parsed.districts else "inherited")
         session.add(ev)
     close_track(track, when, "destroyed")
     await session.commit()
@@ -366,6 +372,7 @@ async def _handle_impact(ctx: IngestContext) -> list[Broadcast]:
     tracks_seen: list[Threat] = []
     for hit in parsed.districts:
         track = await find_recent_impact(session, hit.district_id, when)
+        attached_by = "new" if track is None else "district"
         if track is None:
             track = Threat(
                 target_type=parsed.target_type,
@@ -383,7 +390,8 @@ async def _handle_impact(ctx: IngestContext) -> list[Broadcast]:
             track.target_type = upgrade_type(track.target_type, parsed.target_type)
         if track not in tracks_seen:
             tracks_seen.append(track)
-        ev = _make_event(ctx, track.id, hit, target_count=track.target_count)
+        ev = _make_event(ctx, track.id, hit, target_count=track.target_count,
+                         attached_by=attached_by)
         session.add(ev)
         # apply_fusion autoflushes the new track+event and commits them together.
         await apply_fusion(session, track)
@@ -425,14 +433,17 @@ async def _handle_citywide(ctx: IngestContext) -> list[Broadcast]:
         stood = await find_stood_down_citywide(session, when)
         if stood is not None:
             track = reopen_track(stood)
+    attached_by = "district"
     if track is None:
         track = _new_track(parsed, when, scope="city", region=HOME_REGION)
         session.add(track)
         await session.commit()
+        attached_by = "new"
         log.info("track %s created (scope=city, target_type=%s)", track.id, track.target_type)
     else:
         _apply_update(parsed, track)
-    ev = _make_event(ctx, track.id, DistrictHit(did, "", 0), target_count=track.target_count)
+    ev = _make_event(ctx, track.id, DistrictHit(did, "", 0), target_count=track.target_count,
+                     attached_by=attached_by)
     session.add(ev)
     await session.commit()
     await apply_fusion(session, track)
@@ -461,6 +472,7 @@ async def _handle_sighting(ctx: IngestContext) -> list[Broadcast]:
             and not ctx.type_inferred):
         return await _handle_multi_targets(ctx)
     track = await find_track_by_reply(session, ctx.source_id, ctx.reply_to_message_id)
+    attached_by = "reply" if track is not None else "district"
     if track is None and not parsed.is_new_target:
         district_ids = {h.district_id for h in parsed.districts}
         track = await find_corroborating_track(session, when, district_ids, as_of=ctx.as_of,
@@ -469,16 +481,32 @@ async def _handle_sighting(ctx: IngestContext) -> list[Broadcast]:
             stood = await find_stood_down_track(session, when, district_ids, region=ctx.region)
             if stood is not None:
                 track = reopen_track(stood)
+        # A triage rescue is evaluated at its original time; by then nearly
+        # every open track is newer than it, so the directed gate has nothing
+        # to offer it — and must not be handed a stale `when` to reason about.
+        if track is None and ctx.as_of is None:
+            near = await find_nearby_track(
+                session, when, [h.district_id for h in parsed.districts], parsed.target_type,
+                region=ctx.region,
+            )
+            ctx.association_ambiguous = near.ambiguous
+            if near.track is not None:
+                track = near.track
+                attached_by = "proximity"
     if track is None:
         track = _new_track(parsed, when, region=ctx.region)
         session.add(track)
         await session.commit()
+        attached_by = "new"
         log.info("track %s created (target_type=%s, region=%s)",
                  track.id, track.target_type, track.region)
-    else:
-        # Group size only grows within a chain (2х -> "їх вже 3х").
+    elif attached_by != "proximity":
+        # Group size only grows within a chain (2х -> "їх вже 3х"). A proximity
+        # join corroborates and refreshes; it does not retype, recount or hand
+        # the track over — the narrator's chain owns those.
         _apply_update(parsed, track)
         _hand_over_region(ctx, track)
+    ctx.grouping_tier = attached_by
 
     broadcasts: list[Broadcast] = []
     # One event per mentioned district, in movement order. Add them all, then
@@ -487,7 +515,8 @@ async def _handle_sighting(ctx: IngestContext) -> list[Broadcast]:
     # (fewer writes under the ingest lock; final track state is identical since
     # fusion recomputes from all events regardless).
     for hit in parsed.districts:
-        ev = _make_event(ctx, track.id, hit, target_count=track.target_count)
+        ev = _make_event(ctx, track.id, hit, target_count=track.target_count,
+                         attached_by=attached_by)
         session.add(ev)
         broadcasts.append(Broadcast("event", track, ev))
     await apply_fusion(session, track)
@@ -520,6 +549,7 @@ async def _handle_multi_targets(ctx: IngestContext) -> list[Broadcast]:
                                                     region=region)
                 if stood is not None:
                     track = reopen_track(stood)
+        attached_by = "new" if track is None else "district"
         if track is None:
             # Each named district is ONE target here — the enumeration itself is
             # the count (N districts = N targets). A stated group size in the
@@ -536,7 +566,8 @@ async def _handle_multi_targets(ctx: IngestContext) -> list[Broadcast]:
         else:
             _apply_update(parsed, track, grow_count=False)
             track.region = region
-        ev = _make_event(ctx, track.id, hit, target_count=track.target_count)
+        ev = _make_event(ctx, track.id, hit, target_count=track.target_count,
+                         attached_by=attached_by)
         session.add(ev)
         # apply_fusion autoflushes the new track+event and commits them together.
         await apply_fusion(session, track)
@@ -703,9 +734,10 @@ def _last_district_hit(track: Threat) -> DistrictHit | None:
     return DistrictHit(district_id=last.district_id, name="", position=0)
 
 
-def _make_event(ctx: IngestContext, threat_id, hit, *, target_count: int = 1) -> ThreatEvent:
-    """A ThreatEvent for `hit` on `threat_id`. Every field except the target and
-    its count is read straight off `ctx`, so callers pass only what varies."""
+def _make_event(ctx: IngestContext, threat_id, hit, *, target_count: int = 1,
+                attached_by: str) -> ThreatEvent:
+    """A ThreatEvent for `hit` on `threat_id`. Every field except the target,
+    its count and the tracking tier is read straight off `ctx`."""
     parsed = ctx.parsed
     return ThreatEvent(
         threat_id=threat_id,
@@ -722,4 +754,6 @@ def _make_event(ctx: IngestContext, threat_id, hit, *, target_count: int = 1) ->
         event_target_type=parsed.target_type,
         event_target_count=target_count,
         llm_summary=ctx.llm_summary,
+        attached_by=attached_by,
+        frame="path" if parsed.movement else None,
     )

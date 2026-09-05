@@ -54,3 +54,32 @@ def test_tracking_meets_track_level_floors(monkeypatch):
         import asyncio
 
         asyncio.run(engine.dispose())
+
+
+def test_score_gt_counts_foreign_events_and_splits():
+    score_gt = _load_track_eval().score_gt
+    gt = {
+        "sessions": [
+            {"session_id": "w1_a", "window": "w1", "message_keys": [["S", 1], ["S", 2]]},
+            {"session_id": "w1_b", "window": "w1", "message_keys": [["S", 3]]},
+        ],
+        "mixed": [{"message_key": ["S", 4]}],
+        "not_a_target": [{"message_key": ["S", 5]}],
+    }
+    rows = [
+        (10, ("S", 1), "new", "shahed"),
+        (10, ("S", 2), "reply", "shahed"),
+        (10, ("S", 3), "district", "shahed"),   # w1_b landed on a's track
+        (10, ("S", 5), "inherited", "shahed"),  # stand-down bookkeeping
+        (11, ("S", 4), "new", "shahed"),        # mixed only: unlabeled track
+        (12, ("S", 9), "new", "shahed"),        # outside the windows
+    ]
+    r = score_gt(gt, rows)
+    t = r["total"]
+    assert t["labeled_tracks"] == 1
+    assert t["contaminated_tracks"] == 1
+    assert t["foreign_events"] == 1
+    assert t["not_a_target_events"] == 1
+    assert t["split_sessions"] == 0
+    assert r["tiers"] == {"new": 1, "reply": 1, "district": 1, "inherited": 1}
+    assert r["contaminated_detail"] == {10: ["w1_a", "w1_b"]}

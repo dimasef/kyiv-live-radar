@@ -401,6 +401,8 @@ async def process_parsed(
         broadcasts = result + triage_extra
         outcome = _ingest_outcome(broadcasts)
         span.set_attribute("outcome", outcome)
+        span.set_attribute("grouping_tier", ctx.grouping_tier or "")
+        span.set_attribute("association_ambiguous", ctx.association_ambiguous)
 
         # Domain metrics (survive head-sampling; feed rate/hit-rate dashboards).
         metrics.record_ingest(outcome, decision_source)

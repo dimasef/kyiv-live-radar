@@ -31,6 +31,7 @@ from ..config import settings
 from ..models import District, Threat, ThreatEvent
 from ..timeutil import naive
 from .geometry import angdiff_deg, bearing_deg, haversine_km, offset_km, point_in_geom
+from .path import path_events
 
 
 class DangerLevel(IntEnum):
@@ -57,11 +58,13 @@ class TrackPoint:
     event_time: datetime
 
 
-def track_points(events: Sequence[ThreatEvent]) -> list[TrackPoint]:
-    """Ordered track points with consecutive repeats dropped (mirror of
-    frontend trackPoints). Requires events with district eager-loaded."""
+def track_points(
+    events: Sequence[ThreatEvent], path_source_id: int | None = None
+) -> list[TrackPoint]:
+    """Ordered points of the PATH source's sightings, consecutive repeats
+    dropped (mirror of frontend trackPoints). Requires districts loaded."""
     pts: list[TrackPoint] = []
-    for ev in events:
+    for ev in path_events(events, path_source_id):
         d = ev.district
         if d is None:
             continue
@@ -71,12 +74,18 @@ def track_points(events: Sequence[ThreatEvent]) -> list[TrackPoint]:
     return pts
 
 
-def has_movement(events: Sequence[ThreatEvent]) -> bool:
-    """True only if located sightings span >=2 DISTINCT timestamps (mirror of
-    frontend hasMovement): one message enumerating several districts produces
-    same-time events — an enumeration, not a trajectory."""
+def has_movement(
+    events: Sequence[ThreatEvent], path_source_id: int | None = None,
+    *, movement_stated: bool = False,
+) -> bool:
+    """True if the path's located sightings span >=2 DISTINCT timestamps, or a
+    stated route gave it two points (mirror of frontend hasMovement): one
+    message enumerating several districts produces same-time events — an
+    enumeration, not a trajectory."""
+    if movement_stated and len(track_points(events, path_source_id)) > 1:
+        return True
     times = set()
-    for ev in events:
+    for ev in path_events(events, path_source_id):
         if ev.district is None:
             continue
         times.add(naive(ev.event_time))
@@ -138,7 +147,11 @@ def assess(threat: Threat, home: HomeZone) -> DangerLevel:
         for ev in events:
             if ev.district_id in home.raion_district_ids:
                 return DangerLevel.DANGER
-    if has_movement(events) and vector_threatens(track_points(events), home):
+    psid = threat.path_source_id
+    if (
+        has_movement(events, psid, movement_stated=threat.movement_stated)
+        and vector_threatens(track_points(events, psid), home)
+    ):
         return DangerLevel.WARNING
     return DangerLevel.NONE
 

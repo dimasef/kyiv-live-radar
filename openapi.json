@@ -4655,6 +4655,11 @@
             ],
             "title": "Lon"
           },
+          "manual": {
+            "default": false,
+            "title": "Manual",
+            "type": "boolean"
+          },
           "raw_text": {
             "title": "Raw Text",
             "type": "string"
@@ -4820,6 +4825,17 @@
             "default": false,
             "title": "Movement Stated",
             "type": "boolean"
+          },
+          "path_source_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path Source Id"
           },
           "region": {
             "default": "kyiv",

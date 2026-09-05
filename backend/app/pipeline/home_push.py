@@ -31,11 +31,11 @@ from ..config import settings
 from ..domain.geometry import haversine_km
 from ..domain.home_danger import DangerLevel, HomeZone, assess
 from ..domain.origins import ORIGIN_BY_KEY
+from ..domain.path import path_head
 from ..models import HOME_REGION, Notice, PushSubscription, Threat, utcnow
 from ..parsing.matcher import normalize
 from ..parsing.vocab import _LEVEL_AHEAD_RE
 from ..regions import label as region_label
-from ..timeutil import naive
 from .webpush import send_push
 
 log = logging.getLogger("home_push")
@@ -180,7 +180,7 @@ def _cooldown_passed(pushed_at_iso: str | None) -> bool:
 
 
 def build_payload(level: DangerLevel, threat: Threat, home: HomeZone) -> dict:
-    head = _head_event(threat)
+    head = path_head(threat.events, threat.path_source_id)
     label = _TYPE_LABEL.get(threat.target_type, _TYPE_LABEL["unknown"])
     # Type leads the TITLE so it reads at a glance on a lock screen — the body
     # then carries only WHERE/how close.
@@ -398,10 +398,3 @@ async def _clear_regional_ballistic(session, region: str) -> None:
             any_changed = True
     if any_changed:
         await session.commit()
-
-
-def _head_event(threat: Threat):
-    located = [ev for ev in threat.events if ev.district is not None]
-    # naive(): a live track mixes DB-loaded (naive) and just-added (aware)
-    # event times — a raw max() across the two raises TypeError.
-    return max(located, key=lambda ev: naive(ev.event_time)) if located else None

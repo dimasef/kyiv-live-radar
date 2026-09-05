@@ -37,7 +37,8 @@ async def main() -> None:
     result = await run_reprocess(no_llm=no_llm, limit=limit)
     print(
         f"\ndone: {result['messages']} messages replayed, {result['matched']} produced events\n"
-        f"tracks rebuilt: {result['tracks']}, events rebuilt: {result['events']}"
+        f"tracks rebuilt: {result['tracks']}, events rebuilt: {result['events']}\n"
+        f"nearby: {result['nearby']}"
     )
 
 

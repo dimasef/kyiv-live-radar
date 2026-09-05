@@ -19,7 +19,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import app.pipeline.reprocess as reprocess
 from app.db import Base
-from app.models import Alert, District, Incident, Notice, RawMessage, Threat, ThreatEvent
+from app.models import Alert, District, Incident, Notice, RawMessage, Source, Threat, ThreatEvent
+from app.pipeline import lock
 
 T0 = datetime(2026, 8, 18, 20, 0)
 
@@ -150,3 +151,60 @@ async def test_wipe_since_prunes_push_state_without_choking_on_citywide_keys(wir
         # Both keys for the deleted track go; the unrelated one and the bare
         # cooldown stamp stay.
         assert set(sub.danger_state) == {"city_last_push", "999"}
+
+
+async def test_wipes_keep_raion_sirens(wired_db):
+    Session = wired_db
+    async with Session() as s:
+        s.add(Alert(scope="raion", zone_id="kyiv-obukhiv", started_at=T0, region="kyiv"))
+        s.add(Alert(scope="city", started_at=T0, region="kyiv"))
+        await s.commit()
+
+    await reprocess._wipe_tracks()
+    async with Session() as s:
+        left = list(await s.scalars(select(Alert)))
+        assert [a.zone_id for a in left] == ["kyiv-obukhiv"]
+        s.add(Alert(scope="city", started_at=T0 + timedelta(minutes=5), region="kyiv"))
+        await s.commit()
+
+    await reprocess._wipe_since(T0 + timedelta(minutes=1))
+    async with Session() as s:
+        left = list(await s.scalars(select(Alert)))
+        assert [a.zone_id for a in left] == ["kyiv-obukhiv"]
+
+
+async def test_scope_cutoff_ignores_an_open_raion_siren(wired_db):
+    Session = wired_db
+    async with Session() as s:
+        for i in range(10):
+            s.add(RawMessage(text=f"m{i}", event_time=T0 + timedelta(minutes=i)))
+        s.add(Alert(scope="raion", zone_id="z", started_at=T0, region="kyiv"))
+        await s.commit()
+        assert await reprocess.scope_cutoff(s, 5) == T0 + timedelta(minutes=5)
+
+
+async def test_replay_sweeps_by_message_time(wired_db):
+    """Two callouts over one district an hour apart are two targets: the first
+    track must be stale-closed BEFORE the second message is grouped."""
+    Session = wired_db
+    async with Session() as s:
+        d = District(name_uk="Оболонь", name_en="Obolon", lat=50.5, lon=30.5, aliases=[],
+                     region="kyiv")
+        src = Source(channel_key="s", name="S", region="kyiv")
+        s.add_all([d, src])
+        await s.commit()
+        raws = [
+            RawMessage(source_id=src.id, message_id=1, text="Шахед над Оболонню", event_time=T0),
+            RawMessage(source_id=src.id, message_id=2, text="Шахед над Оболонню",
+                       event_time=T0 + timedelta(hours=1)),
+        ]
+        s.add_all(raws)
+        await s.commit()
+
+    assert lock.reprocess_running is False
+    assert await reprocess.replay_raw_messages(raws) == 2
+    async with Session() as s:
+        tracks = list(await s.scalars(select(Threat).order_by(Threat.id)))
+        assert len(tracks) == 2
+        assert tracks[0].closed_reason == "stale"
+        assert tracks[1].closed_at is None

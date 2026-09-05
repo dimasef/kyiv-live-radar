@@ -36,6 +36,7 @@ def event_out(ev: ThreatEvent) -> ThreatEventOut:
         out.lon = ev.district.lon
     if ev.source is not None:
         out.source_name = ev.source.name
+    out.manual = ev.attached_by == "manual"
     return out
 
 
@@ -57,6 +58,7 @@ def threat_out(th: Threat) -> ThreatOut:
             orphan_windows=settings.stale_minutes_orphan,
             tracked_windows=settings.stale_minutes_tracked,
             default_minutes=settings.track_stale_minutes,
+            rule=settings.stale_rule,
         )
     )
     return out

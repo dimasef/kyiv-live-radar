@@ -128,6 +128,9 @@ class Settings(BaseSettings):
     # message replying to a previous OPEN post joins THAT post's track
     # (transitively). This is the fix for busy-alert "mega-track" zigzags.
     reply_grouping_enabled: bool = True
+    # One source draws a track's path (domain/path.py); off = every event is
+    # drawn, as before 0.50.
+    path_rule_enabled: bool = True
     # For a non-reply (or broken-reply) sighting we no longer continue "the newest
     # open track" — that re-merged independent targets from non-threaded channels
     # into one zigzag. Instead we only continue a track that this sighting
@@ -143,6 +146,25 @@ class Settings(BaseSettings):
     # baseline; real cross-channel corroborations in the dataset land within
     # ~1-2 min). Below 3 the metric reverses — starts cutting genuine matches.
     corroboration_window_minutes: int = 3
+    # Tier 3 of track grouping (domain/tracking.py::find_nearby_track): a
+    # non-reply sighting joins an open track whose latest cluster lies within
+    # this many km of the named place, inside the corroboration window. The
+    # radius is picked by the zone of the INCOMING message — inside
+    # `association_city_zone_km` of the region centre it is the city radius,
+    # else the oblast one. 0 disables the tier (today's behaviour). Values are
+    # chosen by the rebuild grid in eval/sweep_rebuilds.sh, not by hand.
+    association_radius_km_city: float = 0.0
+    association_radius_km_oblast: float = 0.0
+    association_city_zone_km: float = 25.0
+    # A second candidate whose score (d/radius + age/window) lies within this
+    # of the best makes the choice ambiguous: then only the raion discriminator
+    # may decide, else the sighting opens its own track.
+    ambiguity_margin: float = 0.3
+    same_raion_enabled: bool = True
+    # 'legacy': one stale window from the track's last event; 'per_source': the
+    # track stays open while ANY source still writes within its own window,
+    # the reply narrator's being the long one (domain/staleness.py).
+    stale_rule: str = "legacy"
 
     # A stand-down ("Дорозвідка!", "Чисто!") closes the city-wide alert — but
     # during a multi-wave ballistic night the next salvo follows within a

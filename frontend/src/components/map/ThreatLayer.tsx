@@ -80,7 +80,7 @@ const ThreatLayer = memo(function ThreatLayer({
   const trailWeight = trackWidth + (highlighted ? 2 : 0);
   const pickable = regroupPick != null && regroupPick.sourceThreatId !== threat.id;
   const type = threat.target_type;
-  const { pts, color, moved, heading, state } = threatVisual(threat);
+  const { pts, echoPts, color, moved, heading, state } = threatVisual(threat);
 
   // Motion is spent on the inspected track no matter how busy the map is — but
   // a reader who switched motion off means it, inspected track included.
@@ -165,6 +165,16 @@ const ThreatLayer = memo(function ThreatLayer({
               fillOpacity: 0.6 * dim,
               weight: highlighted ? 2 : 1,
             }}
+          />
+        ))}
+      {(highlighted || popupOpen) &&
+        echoPts.map((p, i) => (
+          <CircleMarker
+            key={`echo-${i}`}
+            center={[p.lat, p.lon]}
+            radius={3}
+            interactive={false}
+            pathOptions={{ color, weight: 1, opacity: 0.5 * dim, fill: false, dashArray: "2 2" }}
           />
         ))}
       {/* Corroboration halo — a faint ring behind the head when >= 2 independent

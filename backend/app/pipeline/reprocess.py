@@ -18,6 +18,7 @@ from sqlalchemy.orm import selectinload
 
 from ..config import settings
 from ..db import SessionLocal
+from ..domain.tracking import close_stale_tracks, nearby_stats
 from ..feeds.common import RegionMatchers
 from ..gazetteer import DISTRICTS
 from ..migrate import upgrade_to_head
@@ -36,6 +37,7 @@ from ..models import (
 )
 from ..seed import seed_districts
 from ..timeutil import naive
+from . import lock
 from .ingest import process_parsed, process_parsed_alert
 
 log = logging.getLogger("reprocess")
@@ -61,7 +63,9 @@ async def _wipe_tracks() -> None:
         await s.execute(delete(Threat))
         await s.execute(delete(Incident))
         await s.execute(delete(Notice))
-        await s.execute(delete(Alert))
+        # Raion sirens come from the ubilling poller, not from raw messages —
+        # the replay cannot recreate them.
+        await s.execute(delete(Alert).where(Alert.zone_id.is_(None)))
         await s.execute(delete(ThreatAxis))
         # Rebuilt tracks reuse ids from 1 — per-track push bookkeeping keyed by
         # the OLD ids would wrongly suppress pushes for unrelated new tracks.
@@ -97,7 +101,7 @@ async def scope_cutoff(s, last: int) -> datetime | None:
         stamps = [naive(e.event_time) for e in t.events]
         if stamps:
             spans.append((min(stamps), max(stamps)))
-    for a in await s.scalars(select(Alert)):
+    for a in await s.scalars(select(Alert).where(Alert.zone_id.is_(None))):
         # An open alert (ended_at NULL) runs to now, so it spans any cutoff
         # after its start.
         end = naive(a.ended_at) if a.ended_at is not None else datetime.max
@@ -152,7 +156,9 @@ async def _wipe_since(cutoff: datetime) -> None:
         # Leaf tables with a plain time predicate — delete them in SQL instead
         # of reading every row ever stored just to discard most of them.
         await s.execute(delete(Notice).where(Notice.event_time >= cutoff))
-        await s.execute(delete(Alert).where(Alert.started_at >= cutoff))
+        await s.execute(
+            delete(Alert).where(Alert.started_at >= cutoff, Alert.zone_id.is_(None))
+        )
         await s.execute(delete(ThreatAxis).where(ThreatAxis.created_at >= cutoff))
 
         # Rebuilt tracks can reuse a freed id (SQLite hands back max+1), and
@@ -165,6 +171,61 @@ async def _wipe_since(cutoff: datetime) -> None:
                 if len(kept) != len(state):
                     sub.danger_state = kept
         await s.commit()
+
+
+async def replay_raw_messages(raws: list[RawMessage]) -> int:
+    """Push stored messages through the live pipeline in order, returning how
+    many produced a broadcast.
+
+    Before each message the stale sweep runs AT THAT MESSAGE'S TIME — the
+    rebuild has no wall clock, and without it a track that fell silent for an
+    hour is still open when the next night's first callout over the same
+    district arrives, and swallows it."""
+    async with SessionLocal() as s:
+        districts = list(await s.scalars(select(District)))
+        sources = list(await s.scalars(select(Source)))
+    # Per-source matchers, restricted to each channel's own region binding —
+    # the rebuild must see exactly what the live listener saw, homonyms and
+    # out-of-region names alike.
+    matchers = RegionMatchers(districts)
+    role_by_source_id = {src.id: src.role for src in sources}
+    binding_by_source_id = {
+        src.id: (src.region, list(src.extra_regions or [])) for src in sources
+    }
+    matched = 0
+    for i, raw in enumerate(raws, 1):
+        text = (raw.text or "").strip()
+        if not text:
+            continue
+        role = role_by_source_id.get(raw.source_id, "spotter")
+        async with SessionLocal() as s:
+            await close_stale_tracks(s, raw.event_time)
+            r = await s.get(RawMessage, raw.id)
+            if role == "alert":
+                broadcasts = await process_parsed_alert(
+                    s, raw=r, text=text, when=raw.event_time, source_id=raw.source_id,
+                )
+            else:
+                broadcasts = await process_parsed(
+                    s, raw=r, text=text,
+                    matcher=matchers.for_source(
+                        *binding_by_source_id.get(raw.source_id, (HOME_REGION, []))
+                    ),
+                    when=raw.event_time,
+                    source_id=raw.source_id, message_id=raw.message_id,
+                    forwarded_from_id=raw.forwarded_from_id,
+                    forwarded_from_channel_id=raw.forwarded_from_channel_id,
+                    reply_to_message_id=raw.reply_to_message_id,
+                    # Replay stored LLM triage verdicts deterministically (no
+                    # API, no queue) so a reprocess rebuilds axes/notices/
+                    # rescues exactly, at each message's own position.
+                    triage="replay",
+                )
+            if broadcasts:
+                matched += 1
+        if i % 100 == 0:
+            log.info("reprocess %d/%d...", i, len(raws))
+    return matched
 
 
 async def run_reprocess(
@@ -208,8 +269,6 @@ async def run_reprocess(
             await _wipe_since(cutoff)
 
         async with SessionLocal() as s:
-            districts = list(await s.scalars(select(District)))
-            sources = list(await s.scalars(select(Source)))
             stmt = select(RawMessage).order_by(RawMessage.event_time)
             if cutoff is not None:
                 stmt = stmt.where(RawMessage.event_time >= cutoff)
@@ -218,55 +277,22 @@ async def run_reprocess(
             if limit:
                 stmt = stmt.limit(limit)
             raws = list(await s.scalars(stmt))
-        # Per-source matchers, restricted to each channel's own region binding —
-        # the rebuild must see exactly what the live listener saw, homonyms and
-        # out-of-region names alike.
-        matchers = RegionMatchers(districts)
-        role_by_source_id = {src.id: src.role for src in sources}
-        binding_by_source_id = {
-            src.id: (src.region, list(src.extra_regions or [])) for src in sources
-        }
 
         log.info("reprocess: replaying %d raw messages", len(raws))
-        matched = 0
-        for i, raw in enumerate(raws, 1):
-            text = (raw.text or "").strip()
-            if not text:
-                continue
-            role = role_by_source_id.get(raw.source_id, "spotter")
-            async with SessionLocal() as s:
-                r = await s.get(RawMessage, raw.id)
-                if role == "alert":
-                    broadcasts = await process_parsed_alert(
-                        s, raw=r, text=text, when=raw.event_time, source_id=raw.source_id,
-                    )
-                else:
-                    broadcasts = await process_parsed(
-                        s, raw=r, text=text,
-                        matcher=matchers.for_source(
-                            *binding_by_source_id.get(raw.source_id, (HOME_REGION, []))
-                        ),
-                        when=raw.event_time,
-                        source_id=raw.source_id, message_id=raw.message_id,
-                        forwarded_from_id=raw.forwarded_from_id,
-                        forwarded_from_channel_id=raw.forwarded_from_channel_id,
-                        reply_to_message_id=raw.reply_to_message_id,
-                        # Replay stored LLM triage verdicts deterministically (no
-                        # API, no queue) so a reprocess rebuilds axes/notices/
-                        # rescues exactly, at each message's own position.
-                        triage="replay",
-                    )
-                if broadcasts:
-                    matched += 1
-            if i % 100 == 0:
-                log.info("reprocess %d/%d...", i, len(raws))
+        nearby_stats.clear()
+        lock.reprocess_running = True
+        try:
+            matched = await replay_raw_messages(raws)
+        finally:
+            lock.reprocess_running = False
 
         async with SessionLocal() as s:
             n_threats = await s.scalar(select(func.count()).select_from(Threat))
             n_events = await s.scalar(select(func.count()).select_from(ThreatEvent))
         result = {"messages": len(raws), "matched": matched,
                   "tracks": n_threats, "events": n_events,
-                  "from": cutoff.isoformat() if cutoff else None}
+                  "from": cutoff.isoformat() if cutoff else None,
+                  "nearby": dict(nearby_stats)}
         log.info("reprocess done: %s", result)
         return result
     finally:

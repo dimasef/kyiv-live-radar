@@ -34,3 +34,5 @@ ds-bundle/
 .design-sync/node_modules
 frontend/.ds-entry.tsx
 frontend/.ds-app.css
+backend/eval/sweep_out/
+backend/eval/sweep_out.log

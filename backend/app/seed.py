@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 
 from .config import settings
 from .db import SessionLocal
-from .domain.geometry import centroid
+from .domain.geometry import centroid, point_in_geom
 from .gazetteer import DISTRICTS, SOURCES
 from .models import HOME_REGION, District, Source, ThreatEvent
 
@@ -120,8 +120,24 @@ async def seed_districts() -> int:
             ))
         session.add_all(rows)
         await session.commit()
+        await _assign_raions(session)
         await _retire_orphan_districts(session)
         return len(rows)
+
+
+async def _assign_raions(session) -> None:
+    rows = list(await session.scalars(select(District)))
+    raions = [d for d in rows if d.boundary]
+    changed = False
+    for d in rows:
+        rid = d.id if d.boundary else next(
+            (r.id for r in raions if point_in_geom(d.lat, d.lon, r.boundary)), None
+        )
+        if d.raion_id != rid:
+            d.raion_id = rid
+            changed = True
+    if changed:
+        await session.commit()
 
 
 async def _retire_orphan_districts(session) -> None:

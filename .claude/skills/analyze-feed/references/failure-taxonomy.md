@@ -73,6 +73,19 @@ match-latest-only behaviour were tuned empirically against
   зайшов» → «На Смяч», and 08-20 «БпЛА біля Рогівки» before it).
 - **Merge**: several targets in one track. The failure mode the current design
   exists to prevent; regressions show up as `TRACK PURITY` falling.
+- **Zigzag on a multi-source track** is usually echo, not a merge: two channels
+  re-reporting one target with different place names seconds apart. Since 0.50
+  only `Threat.path_source_id`'s sightings draw the polyline (`domain/path.py`);
+  the rest are echo, shown on inspection only. Check the stored path source
+  before calling it a grouping bug; `eval/fanout_report.py` measures the
+  tortuosity the rule removes.
+- **Fan-out** (one target, many tracks from echo channels) is what tier 3
+  (`find_nearby_track`, `attached_by='proximity'`) exists for. Read the ingest
+  span's `grouping_tier` / `association_ambiguous` before touching radii: the
+  values come from the rebuild grid (`eval/sweep_rebuilds.sh` against
+  `eval/ground_truth_kyiv_2026-09.json`), and a hand-tuned radius is a
+  regression waiting for the next night. `eval/track_eval.py --gt` prints the
+  tier share; after B most decisions should be `proximity`, not `new`.
 - **Type churn** inside one track (the report lists these) comes from
   `context.py::_note_and_inherit_type` (per-channel, 5 min) and
   `core.py::_infer_incident_type` (incident-level). Fusion surfaces genuine

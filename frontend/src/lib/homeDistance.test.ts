@@ -19,6 +19,7 @@ function event(lat: number | null, lon: number | null, at: number): ThreatEvent 
     raw_text: '',
     confidence: 0.8,
     decision_source: 'rule',
+    manual: false,
   }
 }
 

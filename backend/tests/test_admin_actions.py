@@ -511,6 +511,8 @@ async def test_split_moves_a_sighting_onto_a_track_of_its_own(client):
     assert [e["id"] for e in new_track["events"]] == [move.id]
     # The event's own reading wins on a split — that is the point of splitting.
     assert new_track["target_type"] == "jet_drone"
+    assert new_track["events"][0]["manual"] is True
+    assert body["source_threat"]["events"][0]["manual"] is False
 
 
 async def test_a_split_inherits_the_lifecycle_of_the_track_it_left(client):

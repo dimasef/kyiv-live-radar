@@ -13,6 +13,14 @@ command), then:
 
     cd backend
     DATABASE_URL="sqlite+aiosqlite:///./eval_backfill.db" .venv/bin/python eval/track_eval.py [--verbose]
+
+The exhaustive per-window ground truth (eval/ground_truth_kyiv_2026-09.json,
+plan .claude/plans/target-fanout.md §4.1) is scored by `--gt FILE`: counters,
+not fractions — foreign events in labeled tracks, split sessions, the share of
+grouping decisions per tier — gated by `_meta.gates` of the file when present.
+`--json PATH` dumps the counters for eval/sweep_rebuilds.sh.
+
+    DATABASE_URL="sqlite+aiosqlite:///./copy.db" .venv/bin/python eval/track_eval.py --gt eval/ground_truth_kyiv_2026-09.json [--verbose] [--json out.json]
 """
 
 from __future__ import annotations
@@ -20,7 +28,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -95,8 +103,144 @@ async def _load_maps():
     return key_to_threat_ids
 
 
+async def _load_events():
+    async with SessionLocal() as s:
+        sources = list(await s.scalars(select(Source)))
+        events = list(await s.scalars(select(ThreatEvent)))
+        threats = {t.id: t for t in await s.scalars(select(Threat))}
+    name_by_source_id = {src.id: src.name for src in sources}
+    rows = []
+    for e in events:
+        t = threats.get(e.threat_id)
+        if t is None or t.scope == "city":
+            continue
+        name = name_by_source_id.get(e.source_id)
+        key = (name, e.source_message_id) if name and e.source_message_id is not None else None
+        rows.append((e.threat_id, key, e.attached_by, t.target_type))
+    return rows
+
+
+GT_COUNTERS = (
+    "sessions", "unscored_sessions", "split_sessions", "extra_tracks", "labeled_tracks",
+    "contaminated_tracks", "foreign_events", "not_a_target_events", "mixed_events",
+    "outside_events", "ballistic_events",
+)
+
+
+def score_gt(gt: dict, rows: list) -> dict:
+    """Counters for an exhaustive ground truth over event rows
+    (threat_id, (source_name, message_id) | None, attached_by, target_type)."""
+    label: dict[tuple, str] = {}
+    window_of: dict[str, str] = {}
+    for sess in gt["sessions"]:
+        window_of[sess["session_id"]] = sess["window"]
+        for k in sess["message_keys"]:
+            label[tuple(k)] = sess["session_id"]
+    for m in gt.get("mixed", []):
+        label[tuple(m["message_key"])] = "mixed"
+    for m in gt.get("not_a_target", []):
+        label[tuple(m["message_key"])] = "not_a_target"
+
+    by_track: dict[int, list] = defaultdict(list)
+    for tid, key, tier, ttype in rows:
+        by_track[tid].append((label.get(key, "outside") if key else "outside", tier, ttype))
+
+    per_window: dict[str, Counter] = defaultdict(Counter)
+    session_tracks: dict[str, set[int]] = defaultdict(set)
+    track_sessions: dict[int, set[str]] = {}
+    tiers: Counter = Counter()
+    for tid, evs in by_track.items():
+        sessions = Counter(lbl for lbl, _, _ in evs if lbl in window_of)
+        if not sessions:
+            continue
+        majority = sessions.most_common(1)[0][0]
+        w = window_of[majority]
+        track_sessions[tid] = set(sessions)
+        for sid in sessions:
+            session_tracks[sid].add(tid)
+        c = per_window[w]
+        c["labeled_tracks"] += 1
+        if len(sessions) > 1:
+            c["contaminated_tracks"] += 1
+        for lbl, tier, ttype in evs:
+            if lbl in window_of and lbl != majority:
+                c["foreign_events"] += 1
+            elif lbl == "not_a_target":
+                c["not_a_target_events"] += 1
+            elif lbl == "mixed":
+                c["mixed_events"] += 1
+            elif lbl == "outside":
+                c["outside_events"] += 1
+            if lbl in window_of or lbl in ("mixed", "not_a_target"):
+                tiers[tier or "null"] += 1
+                if ttype == "ballistic":
+                    c["ballistic_events"] += 1
+    for sess in gt["sessions"]:
+        c = per_window[sess["window"]]
+        n = len(session_tracks.get(sess["session_id"], ()))
+        c["sessions"] += 1
+        if n == 0:
+            c["unscored_sessions"] += 1
+        elif n > 1:
+            c["split_sessions"] += 1
+            c["extra_tracks"] += n - 1
+    total: Counter = Counter()
+    for c in per_window.values():
+        total.update(c)
+    return {
+        "windows": {w: {k: c[k] for k in GT_COUNTERS} for w, c in sorted(per_window.items())},
+        "total": {k: total[k] for k in GT_COUNTERS},
+        "tiers": dict(tiers),
+        "split_detail": {
+            sid: sorted(t) for sid, t in session_tracks.items() if len(t) > 1
+        },
+        "contaminated_detail": {
+            tid: sorted(ss) for tid, ss in track_sessions.items() if len(ss) > 1
+        },
+    }
+
+
+def run_gt(gt_path: Path, verbose: bool, json_out: Path | None) -> int:
+    gt = json.loads(gt_path.read_text("utf-8"))
+    result = score_gt(gt, asyncio.run(_load_events()))
+    cols = GT_COUNTERS
+    short = ("sess", "unsc", "split", "+trk", "trks", "contam", "foreign", "n_a_t", "mixed",
+             "outside", "ballist")
+    print(f"\n=== GT EVAL — {gt_path.name}: {len(gt['sessions'])} sessions ===\n")
+    print(f"{'window':<8}" + "".join(f"{h:>8}" for h in short))
+    for w, c in list(result["windows"].items()) + [("TOTAL", result["total"])]:
+        print(f"{w:<8}" + "".join(f"{c.get(k, 0):>8}" for k in cols))
+    tiers = result["tiers"]
+    n = sum(tiers.values()) or 1
+    print("\n  grouping tier of labeled events: " + ", ".join(
+        f"{k} {v} ({100 * v / n:.0f}%)" for k, v in sorted(tiers.items(), key=lambda kv: -kv[1])))
+    if verbose:
+        print("\n--- split sessions ---")
+        for sid, tids in result["split_detail"].items():
+            print(f"  {sid} -> tracks {tids}")
+        print("\n--- contaminated tracks ---")
+        for tid, sids in result["contaminated_detail"].items():
+            print(f"  track {tid} <- {sids}")
+    if json_out is not None:
+        json_out.write_text(json.dumps(result, ensure_ascii=False, indent=1))
+    gates = gt.get("_meta", {}).get("gates") or {}
+    failures = [
+        f"{k} {result['total'].get(k, 0)} > {limit}"
+        for k, limit in gates.items()
+        if result["total"].get(k, 0) > limit
+    ]
+    if failures:
+        print("  REGRESSION: " + "; ".join(failures))
+        return 1
+    print("  gates: " + (", ".join(f"{k} <= {v}" for k, v in gates.items()) if gates else "none recorded"))
+    return 0
+
+
 def main() -> int:
     verbose = "--verbose" in sys.argv
+    if "--gt" in sys.argv:
+        json_out = Path(sys.argv[sys.argv.index("--json") + 1]) if "--json" in sys.argv else None
+        return run_gt(Path(sys.argv[sys.argv.index("--gt") + 1]), verbose, json_out)
     gt = json.loads(GT_FILE.read_text("utf-8"))
     sessions = gt["sessions"]
 

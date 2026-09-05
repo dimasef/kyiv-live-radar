@@ -63,6 +63,14 @@ def _origin_keys(events: list[ThreatEvent]) -> set:
     return keys
 
 
+def claimed_families(events: Iterable) -> set[str]:
+    """Distinct STATED type families across events; `unknown` claims nothing."""
+    return {
+        family(ev.event_target_type) for ev in events
+        if ev.event_target_type and ev.event_target_type != "unknown"
+    }
+
+
 def compute_fusion(events: Iterable[ThreatEvent]) -> FusionResult:
     """Derive corroboration, conflict, and fused confidence for a track.
 
@@ -83,11 +91,7 @@ def compute_fusion(events: Iterable[ThreatEvent]) -> FusionResult:
     # "8 балістичних ракет С-400" and another "8 ракет" describe the SAME salvo
     # at different specificity — NOT a disagreement. Collapse them to one family
     # before counting, else every ballistic salvo flags a false source conflict.
-    claimed = {
-        family(ev.event_target_type) for ev in events
-        if ev.event_target_type and ev.event_target_type != "unknown"
-    }
-    has_conflict = len(claimed) > 1
+    has_conflict = len(claimed_families(events)) > 1
 
     if corroboration <= 1:
         base = settings.fusion_conf_one_source

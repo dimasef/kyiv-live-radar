@@ -243,3 +243,30 @@ async def test_zone_barely_clipping_neighbour_ignores_it(session):
 async def test_zone_outside_all_raions(session):
     s, *_ = session
     assert await raion_ids_for_zone(s, 49.0, 29.0, 3.0) == []
+
+
+# --- path source ---
+
+def sourced(source_id: int, km_south: float, km_east: float, minute: int) -> ThreatEvent:
+    e = ev(km_south, km_east, minute)
+    e.source_id = source_id
+    return e
+
+
+def test_warning_follows_the_path_source_not_the_echo():
+    # Narrator (5) walks due north at home; echo (12) zigzags off to the east.
+    t = track(
+        sourced(5, 20, 0, 0), sourced(12, 18, 9, 1), sourced(5, 15, 0, 5), sourced(12, 14, -9, 6),
+    )
+    t.path_source_id = 5
+    assert assess(t, HOME) == DangerLevel.WARNING
+    # All events (legacy NULL): the last leg is the echo's, pointing away.
+    t.path_source_id = None
+    assert assess(t, HOME) == DangerLevel.NONE
+
+
+def test_echo_only_movement_is_not_a_vector():
+    t = track(sourced(5, 20, 0, 0), sourced(12, 18, 0, 1), sourced(12, 15, 0, 5))
+    t.path_source_id = 5
+    assert not has_movement(t.events, 5)
+    assert assess(t, HOME) == DangerLevel.NONE

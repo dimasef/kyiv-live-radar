@@ -432,6 +432,7 @@ async def admin_regroup_event(
     # both in-memory `events` collections right, so the fusion recompute below
     # sees the post-move membership instead of the stale pre-move one.
     event.threat = target
+    event.attached_by = "manual"
     await session.flush()
 
     # An emptied source track is a track that no longer describes anything.
