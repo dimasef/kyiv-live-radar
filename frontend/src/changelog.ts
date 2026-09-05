@@ -32,12 +32,24 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.51.0";
+const LATEST = "0.52.0";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "де ціль зараз",
+    date: "2026-09-05",
+    kind: "minor",
+    changes: [
+      "«Небезпека біля дому» рахується від свіжих повідомлень кожного каналу окремо: якщо один канал ще веде ціль, а інший уже давно про неї мовчав, старе положення не тримає тривогу і не ховає нову. Повідомлення називає район, з якого прийшов сигнал",
+      "Коли сигнал небезпеки дав не той канал, що веде лінію треку, його точку видно окремим червоним маркером на мапі",
+      "Відстань до дому в картці цілі рахується від її поточного положення, а для вже закритої цілі — від останнього відомого",
+      "Балістика, названа сектором через скісну — «Обухів/Вишеньки/Бориспіль» — це одна ціль над сектором, а не три позначки",
+    ],
+  },
+  {
+    version: "0.51.0",
     title: "одна ціль — одна позначка",
     date: "2026-09-05",
     kind: "minor",

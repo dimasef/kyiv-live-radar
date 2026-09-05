@@ -24,6 +24,7 @@ BASE = datetime(2026, 7, 18, 12, 0, tzinfo=UTC)
 KM_PER_DEG_LAT = math.pi / 180 * 6371.0
 
 HOME_LAT, HOME_LON = 50.5, 30.5
+_CLOCK = {"now": BASE}
 
 
 def _latlon(km_south: float, km_east: float = 0.0) -> tuple[float, float]:
@@ -36,6 +37,11 @@ def _latlon(km_south: float, km_east: float = 0.0) -> tuple[float, float]:
 async def ctx(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "vapid_public_key", "test-pub")
     monkeypatch.setattr(settings, "vapid_private_key", "test-priv")
+    # The fixtures place sightings at BASE + 0..8 min; "now" for the per-source
+    # position rule must sit just after the newest of them, not in the real
+    # present — `_add_event` advances this clock.
+    _CLOCK["now"] = BASE
+    monkeypatch.setattr(home_push, "utcnow", lambda: _CLOCK["now"])
     engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -86,6 +92,7 @@ async def _add_event(s, threat: Threat, district: District, minute: int) -> None
         event_time=BASE + timedelta(minutes=minute),
     ))
     await s.commit()
+    _CLOCK["now"] = max(_CLOCK["now"], BASE + timedelta(minutes=minute, seconds=1))
 
 
 async def _load_threat(s, threat_id: int) -> Threat:
@@ -178,7 +185,7 @@ async def test_reescalation_after_cooldown_repushes(ctx, sent):
     # clock is wall time, unlike the synthetic event times)
     state = dict(sub.danger_state)
     entry = dict(state[str(t.id)])
-    entry["pushed_at"] = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
+    entry["pushed_at"] = (home_push.utcnow() - timedelta(hours=1)).isoformat()
     state[str(t.id)] = entry
     sub.danger_state = state
     await s.commit()
@@ -528,3 +535,26 @@ async def test_warning_push_names_the_path_head(ctx, sent):
     await evaluate_home_danger(s, await _load_threat(s, t.id))
     assert [p["level"] for p in sent] == ["warning"]
     assert "Шлях" in sent[0]["body"] and "Луна" not in sent[0]["body"]
+
+
+async def test_danger_push_names_the_echo_district_when_the_echo_is_near(ctx, sent):
+    s, sub = ctx
+    far = await _mk_district(s, 20)
+    narrator_d = await _mk_district(s, 7)
+    echo_d = await _mk_district(s, 1)
+    echo_d.name_uk = "Луна"
+    narrator_d.name_uk = "Нарратор"
+    await s.commit()
+    t = await _mk_threat(s)
+    s.add_all([
+        ThreatEvent(threat_id=t.id, district_id=far.id, source_id=5, source_message_id=1,
+                    event_time=home_push.utcnow() - timedelta(minutes=3)),
+        ThreatEvent(threat_id=t.id, district_id=narrator_d.id, source_id=5, source_message_id=2,
+                    reply_to_message_id=1, event_time=home_push.utcnow() - timedelta(minutes=1)),
+        ThreatEvent(threat_id=t.id, district_id=echo_d.id, source_id=12, source_message_id=7,
+                    event_time=home_push.utcnow() - timedelta(seconds=20)),
+    ])
+    await s.commit()
+    await evaluate_home_danger(s, await _load_threat(s, t.id))
+    assert [p["level"] for p in sent] == ["danger"]
+    assert "Луна" in sent[0]["body"]

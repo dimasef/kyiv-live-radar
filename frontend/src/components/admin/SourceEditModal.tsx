@@ -33,6 +33,7 @@ export default function SourceEditModal({
     source.type_inherit_minutes === null ? '' : String(source.type_inherit_minutes),
   )
   const [llmEnabled, setLlmEnabled] = useState(source.llm_enabled)
+  const [sectorNotation, setSectorNotation] = useState(source.sector_notation)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
 
@@ -49,6 +50,7 @@ export default function SourceEditModal({
         extra_regions: extraRegions.filter((r) => r !== region),
         trust_weight: Number(weight),
         llm_enabled: llmEnabled,
+        sector_notation: sectorNotation,
         ...(inheritMinutes === '' ? {} : { type_inherit_minutes: Number(inheritMinutes) }),
       })
       onSaved(updated)
@@ -116,6 +118,21 @@ export default function SourceEditModal({
                   value={weight}
                   onChange={(e) => setWeight(e.target.value)}
                 />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-[11px] text-slate-500">
+                  Запис сектора: чи «Обухів/Вишеньки/Бориспіль» через скісну — це одна ціль
+                  над сектором, а не три
+                </span>
+                <select
+                  className={field}
+                  value={sectorNotation}
+                  onChange={(e) => setSectorNotation(e.target.value as Source['sector_notation'])}
+                >
+                  <option value="none">ні — кожна назва окремо</option>
+                  <option value="slash">так — А/Б/В = один сектор</option>
+                </select>
               </label>
 
               <label className="block">

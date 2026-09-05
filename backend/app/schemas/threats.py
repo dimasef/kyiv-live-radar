@@ -48,11 +48,16 @@ class ThreatEventOut(BaseModel):
     # An operator placed this sighting on the track by hand; it is drawn with
     # the path whichever source it came from.
     manual: bool = False
+    # Until when this sighting still says where the target is — its time plus
+    # its source's window (domain/staleness.py::position_valid_until). The map
+    # reads a target's current position off the fixes still valid now. NULL on
+    # feed rows.
+    position_valid_until: datetime | None = None
     # Denormalized point for convenient map rendering.
     lat: float | None = None
     lon: float | None = None
 
-    _tz_event_time = field_validator("event_time", mode="before")(_as_utc)
+    _tz_event_time = field_validator("event_time", "position_valid_until", mode="before")(_as_utc)
 
 
 class ThreatOut(BaseModel):

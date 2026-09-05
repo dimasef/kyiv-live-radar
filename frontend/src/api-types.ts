@@ -3774,6 +3774,12 @@ export interface components {
              * @enum {string}
              */
             role: "spotter" | "alert";
+            /**
+             * Sector Notation
+             * @default none
+             * @enum {string}
+             */
+            sector_notation: "none" | "slash";
             stats: components["schemas"]["SourceStatsOut"];
             /** Subscribe Ref */
             subscribe_ref: string | null;
@@ -3900,6 +3906,8 @@ export interface components {
             region?: ("kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro") | null;
             /** Role */
             role?: ("spotter" | "alert") | null;
+            /** Sector Notation */
+            sector_notation?: ("none" | "slash") | null;
             /** Trust Weight */
             trust_weight?: number | null;
             /** Type Inherit Minutes */
@@ -4103,6 +4111,8 @@ export interface components {
              * @default false
              */
             manual: boolean;
+            /** Position Valid Until */
+            position_valid_until?: string | null;
             /** Raw Text */
             raw_text: string;
             /** Source Id */

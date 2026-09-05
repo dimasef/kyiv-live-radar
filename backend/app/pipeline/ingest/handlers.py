@@ -470,7 +470,14 @@ async def _handle_sighting(ctx: IngestContext) -> list[Broadcast]:
     # and ballistic tracks never draw vectors anyway, so nothing is lost there.
     if (parsed.multi_targets and parsed.target_type == "ballistic"
             and not ctx.type_inferred):
-        return await _handle_multi_targets(ctx)
+        # A sector channel replying into its own open chain names where THAT
+        # target is; the chain outranks the split.
+        chain = (
+            await find_track_by_reply(session, ctx.source_id, ctx.reply_to_message_id)
+            if ctx.sector_notation == "slash" else None
+        )
+        if chain is None:
+            return await _handle_multi_targets(ctx)
     track = await find_track_by_reply(session, ctx.source_id, ctx.reply_to_message_id)
     attached_by = "reply" if track is not None else "district"
     if track is None and not parsed.is_new_target:
@@ -538,15 +545,15 @@ async def _handle_multi_targets(ctx: IngestContext) -> list[Broadcast]:
     session, parsed, when = ctx.session, ctx.parsed, ctx.when
     broadcasts: list[Broadcast] = []
     attack_bc = None
-    for hit in parsed.districts:
-        region = ctx.region_of(hit.district_id)
+    for group_no, group in enumerate(_target_groups(ctx)):
+        ids = {h.district_id for h in group}
+        region = ctx.region_of(group[-1].district_id)
         track = None
         if not parsed.is_new_target:
-            track = await find_corroborating_track(session, when, {hit.district_id},
-                                                   as_of=ctx.as_of, region=region)
+            track = await find_corroborating_track(session, when, ids, as_of=ctx.as_of,
+                                                   region=region)
             if track is None:
-                stood = await find_stood_down_track(session, when, {hit.district_id},
-                                                    region=region)
+                stood = await find_stood_down_track(session, when, ids, region=region)
                 if stood is not None:
                     track = reopen_track(stood)
         attached_by = "new" if track is None else "district"
@@ -566,18 +573,40 @@ async def _handle_multi_targets(ctx: IngestContext) -> list[Broadcast]:
         else:
             _apply_update(parsed, track, grow_count=False)
             track.region = region
-        ev = _make_event(ctx, track.id, hit, target_count=track.target_count,
-                         attached_by=attached_by)
-        session.add(ev)
-        # apply_fusion autoflushes the new track+event and commits them together.
+        for hit in group:
+            ev = _make_event(ctx, track.id, hit, target_count=track.target_count,
+                             attached_by=attached_by)
+            if len(group) > 1:
+                ev.frame, ev.frame_group = "sector", group_no
+            session.add(ev)
+            broadcasts.append(Broadcast("event", track, ev))
+        # apply_fusion autoflushes the new track+events and commits them together.
         await apply_fusion(session, track)
-        broadcasts.append(Broadcast("event", track, ev))
         attack_bc = await _incident_broadcast(ctx, track) or attack_bc
     if attack_bc is not None:
         broadcasts.append(attack_bc)
     await _append_axis(ctx, broadcasts)
     await ctx.done()
     return broadcasts
+
+
+def _target_groups(ctx: IngestContext) -> list[list[DistrictHit]]:
+    """The separate targets an enumeration names: one place each, except that
+    on a sector channel a slash-joined run («Обухів/Вишеньки/Бориспіль») is one
+    target's area — one track, its events tagged frame='sector'."""
+    hits = ctx.parsed.districts
+    if ctx.sector_notation != "slash":
+        return [[h] for h in hits]
+    in_run = {i: run for run in ctx.parsed.slash_runs for i in run}
+    groups: list[list[DistrictHit]] = []
+    seen: set[int] = set()
+    for i in range(len(hits)):
+        if i in seen:
+            continue
+        run = in_run.get(i, [i])
+        seen.update(run)
+        groups.append([hits[j] for j in run])
+    return groups
 
 
 def _ingest_outcome(broadcasts: list[Broadcast]) -> str:

@@ -20,7 +20,7 @@ from app.models import (
     ThreatAxis,
     ThreatEvent,
 )
-from app.parsing import DistrictMatcher
+from app.parsing import DistrictMatcher, parse_message
 from app.pipeline.ingest import ingest_alert_message, ingest_message
 from app.pipeline.ingest.resolve import in_promo_thread
 from tests.conftest import district_rows
@@ -1542,3 +1542,58 @@ async def test_a_stood_down_neighbour_is_not_revived_by_proximity(ctx, monkeypat
                          source_id=src[1].id, message_id=101)
     tracks = list(await s.scalars(select(Threat).order_by(Threat.id)))
     assert [t.closed_reason for t in tracks] == ["stand_down", None]
+
+
+# --- Sector notation (release C) ---
+
+async def _sector_source(s, src):
+    src.sector_notation = "slash"
+    await s.commit()
+
+
+async def test_slash_run_is_one_target_on_a_sector_channel(ctx):
+    """«Другий Обухів/Вишеньки/Бориспіль» from Місто Кия is one ballistic over
+    a sector, not three — the enumeration split cut it into three tracks."""
+    s, m, src = ctx
+    await _sector_source(s, src[0])
+    await ingest_message(s, text="Балістика Обухів/Вишеньки/Бориспіль 🔴", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    threat = (await s.scalars(select(Threat))).one()
+    await s.refresh(threat, ["events"])
+    assert threat.target_type == "ballistic" and threat.target_count == 1
+    assert [(e.frame, e.frame_group) for e in threat.events] == [("sector", 0)] * 3
+    assert threat.region == "kyiv"
+
+
+async def test_the_same_message_splits_on_a_channel_without_the_notation(ctx):
+    s, m, src = ctx
+    await ingest_message(s, text="Балістика Обухів/Вишеньки/Бориспіль 🔴", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    assert await _count_threats(s) == 3
+
+
+async def test_a_space_separated_enumeration_still_splits_on_a_sector_channel(ctx):
+    s, m, src = ctx
+    await _sector_source(s, src[0])
+    await ingest_message(s, text="Балістика Вишневе Жуляни", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    assert await _count_threats(s) == 2
+    frames = {e.frame for e in await s.scalars(select(ThreatEvent))}
+    assert frames == {None}
+
+
+async def test_a_reply_into_the_chain_beats_the_split_on_a_sector_channel(ctx):
+    s, m, src = ctx
+    await _sector_source(s, src[0])
+    await ingest_message(s, text="Балістика Яготин 🔴", matcher=m, when=BASE,
+                         source_id=src[0].id, message_id=1)
+    await ingest_message(s, text="Обухів Вишеньки 🔴", matcher=m, when=BASE + timedelta(minutes=1),
+                         source_id=src[0].id, message_id=2, reply_to_message_id=1)
+    assert await _count_threats(s) == 1
+
+
+def test_parser_reports_slash_runs(ctx):
+    _s, m, _src = ctx
+    parsed = parse_message("Балістика Обухів/Вишеньки/Бориспіль, Яготин", m)
+    assert [h.name for h in parsed.districts][:3]
+    assert parsed.slash_runs == [[0, 1, 2]]

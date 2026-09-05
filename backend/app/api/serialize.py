@@ -10,7 +10,7 @@ from ..config import settings
 from ..domain.attack import classify
 from ..domain.journal import DayStat
 from ..domain.origins import ORIGIN_BY_KEY, bearing_for
-from ..domain.staleness import last_event_at, stale_at
+from ..domain.staleness import last_event_at, position_valid_until, reply_tracked_sources, stale_at
 from ..models import Alert, Incident, Notice, Threat, ThreatAxis, ThreatEvent
 from ..schemas import (
     AlertOut,
@@ -43,6 +43,14 @@ def event_out(ev: ThreatEvent) -> ThreatEventOut:
 def threat_out(th: Threat) -> ThreatOut:
     out = ThreatOut.model_validate(th)
     out.events = [event_out(ev) for ev in th.events]
+    narrators = reply_tracked_sources(th)
+    for ev, ev_out in zip(th.events, out.events, strict=True):
+        ev_out.position_valid_until = _utc(position_valid_until(
+            th, ev, narrators=narrators,
+            orphan_windows=settings.stale_minutes_orphan,
+            tracked_windows=settings.stale_minutes_tracked,
+            default_minutes=settings.track_stale_minutes,
+        ))
     # Freshness is derived, not stored: one rule, shared with the sweeper that
     # will actually do the closing (domain/staleness.py).
     #

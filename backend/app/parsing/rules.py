@@ -246,6 +246,11 @@ class ParseResult:
     # for a movement frame ("через Бровари", "курсом на Троєщину") — that's a
     # route and stays one track (the vector case).
     multi_targets: bool = field(default=False)
+    # Runs of 2+ consecutive district indices joined by nothing but «/»
+    # («Обухів/Вишеньки/Бориспіль» -> [[0, 1, 2]]). Whether a run is one
+    # target's sector or an enumeration is the channel's notation
+    # (Source.sector_notation), decided at ingest, not here.
+    slash_runs: list[list[int]] = field(default_factory=list)
     # A path was STATED between two named places in this one message («Мамекине
     # на Смяч») — the districts are waypoints of one trajectory, in text order,
     # not an enumeration. Display metadata only: it never changes which track a
@@ -969,6 +974,19 @@ def _drop_standby_districts(districts, norm: str):
     return [h for i, h in enumerate(districts) if i not in standby]
 
 
+def _slash_runs(districts, norm: str) -> list[list[int]]:
+    runs: list[list[int]] = []
+    for i, h in enumerate(districts):
+        if runs and i == runs[-1][-1] + 1:
+            prev = districts[i - 1]
+            gap = norm[(prev.end or prev.position + prev.stem_len):h.position]
+            if gap.strip() and set(gap.strip()) <= {"/"}:
+                runs[-1].append(i)
+                continue
+        runs.append([i])
+    return [r for r in runs if len(r) > 1]
+
+
 def _multi_targets(districts, norm: str) -> bool:
     """Bare enumeration of 2+ districts = simultaneous separate targets (see
     ParseResult.multi_targets). Any movement cue, or any district sitting in a
@@ -1168,5 +1186,6 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
         origin_key=origin.key if origin_present and origin is not None else None,
         origin_sector=origin.sector if origin_present and origin is not None else None,
         multi_targets=multi_targets,
+        slash_runs=_slash_runs(reported_districts, norm) if multi_targets else [],
         movement=movement,
     )

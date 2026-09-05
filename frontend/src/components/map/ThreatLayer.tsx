@@ -6,6 +6,7 @@ import { fadeFactor, showsLiveMotion } from "@/lib/threatFreshness";
 import { useRadar } from "@/store";
 import { MARKER_PX } from "@/store/prefsSlice";
 
+import { HOME_DANGER_COLORS } from "@/theme";
 import { threatDivIcon } from "@/threatIcons";
 import type { Threat } from "@/types";
 import ThreatPopup from "./ThreatPopup";
@@ -43,9 +44,14 @@ const ThreatLayer = memo(function ThreatLayer({
   threat,
   highlighted = false,
   lean = false,
+  dangerTriggerEventId = null,
 }: {
   threat: Threat;
   highlighted?: boolean;
+  /** The sighting that put the home at DANGER, when it is this track's. Drawn
+   * as its own marker if it is not the head — an echo channel's fix near home
+   * while the narrator's path is elsewhere. A primitive, so the memo holds. */
+  dangerTriggerEventId?: number | null;
   /** The map is over MOTION_BUDGET: keep every shape, drop the motion. The
    * inspected track is exempt — it is the one the operator is reading. */
   lean?: boolean;
@@ -113,6 +119,15 @@ const ThreatLayer = memo(function ThreatLayer({
 
   const latlngs = pts.map((p) => [p.lat, p.lon] as [number, number]);
   const head = pts[pts.length - 1];
+  const trigger =
+    dangerTriggerEventId != null
+      ? (threat.events.find((ev) => ev.id === dangerTriggerEventId) ?? null)
+      : null;
+  const triggerPt =
+    trigger && trigger.lat != null && trigger.lon != null &&
+    (trigger.lat !== head.lat || trigger.lon !== head.lon)
+      ? { lat: trigger.lat, lon: trigger.lon }
+      : null;
   const active = !threat.closed_at;
   // Confidence is a VISUAL WEIGHT, not just popup text: a one-source guess reads
   // fainter than a multi-source confirmation. Floor at 0.5 so a low-confidence
@@ -177,6 +192,20 @@ const ThreatLayer = memo(function ThreatLayer({
             pathOptions={{ color, weight: 1, opacity: 0.5 * dim, fill: false, dashArray: "2 2" }}
           />
         ))}
+      {triggerPt && (
+        <CircleMarker
+          center={[triggerPt.lat, triggerPt.lon]}
+          radius={highlighted ? 9 : 7}
+          interactive={false}
+          pathOptions={{
+            color: HOME_DANGER_COLORS.danger,
+            weight: 2,
+            opacity: 0.95,
+            fillColor: HOME_DANGER_COLORS.danger,
+            fillOpacity: 0.35,
+          }}
+        />
+      )}
       {/* Corroboration halo — a faint ring behind the head when >= 2 independent
           sources agree, so a well-attested target reads as heavier at a glance. */}
       {corroborated && (

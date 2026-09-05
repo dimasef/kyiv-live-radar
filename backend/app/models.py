@@ -172,6 +172,10 @@ NOTICE_KINDS: tuple[NoticeKind, ...] = get_args(NoticeKind)
 # today), parsed by alert_parser.py into Alert rows — routed separately so an
 # official "Відбій…" never trips the spotter parser's all-clear and closes
 # tracks prematurely (see telegram_listener.py).
+# How a channel writes a sector: 'slash' = «Обухів/Вишеньки/Бориспіль» names ONE
+# target's area, not three targets (Місто Кия). 'none' = every place is a place.
+SectorNotation = Literal["none", "slash"]
+SECTOR_NOTATIONS: tuple[SectorNotation, ...] = get_args(SectorNotation)
 SourceRole = Literal["spotter", "alert"]
 SOURCE_ROLES: tuple[SourceRole, ...] = get_args(SourceRole)
 # 'city'/'oblast' = an official Telegram announcement, which names no smaller
@@ -331,6 +335,7 @@ class Source(Base):
     # is the one place where a reprocess deliberately does NOT reproduce
     # history — see pipeline/ingest/core._maybe_llm_type.
     llm_enabled: Mapped[bool] = mapped_column(default=True)
+    sector_notation: Mapped[str] = mapped_column(String(10), default="none")
     # Raw string the listener resolves this channel by (username without @, a
     # numeric id, or a t.me/+ invite link). NULL -> resolve by channel_key.
     subscribe_ref: Mapped[str | None] = mapped_column(String(200), nullable=True)

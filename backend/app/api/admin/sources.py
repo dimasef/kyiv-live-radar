@@ -42,6 +42,7 @@ def _source_admin_out(src: Source, stats: dict[int, SourceStats]) -> SourceAdmin
         trust_weight=src.trust_weight,
         type_inherit_minutes=src.type_inherit_minutes,
         llm_enabled=src.llm_enabled,
+        sector_notation=src.sector_notation,
         last_listener_error=src.last_listener_error,
         created_at=src.created_at,
         stats=SourceStatsOut(
@@ -127,6 +128,8 @@ async def admin_update_source(
         src.type_inherit_minutes = body.type_inherit_minutes
     if body.llm_enabled is not None:
         src.llm_enabled = body.llm_enabled
+    if body.sector_notation is not None:
+        src.sector_notation = body.sector_notation
     if body.is_active is not None and body.is_active != src.is_active:
         src.is_active = body.is_active
         reload_needed = True

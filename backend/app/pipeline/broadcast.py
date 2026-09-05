@@ -11,7 +11,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from ..api.serialize import alert_out, axis_out, event_out, incident_out, notice_out, threat_out
+from ..api.serialize import alert_out, axis_out, incident_out, notice_out, threat_out
 from ..api.ws import manager
 from ..domain.districts import citywide_district_id
 from ..models import Incident, Notice, Threat, ThreatEvent
@@ -92,14 +92,11 @@ async def broadcast_results(session, results: list[Broadcast]) -> None:
         # code path that broadcasts an impact can't reintroduce the leak.
         if threat.kind == "impact":
             continue
+        t_out = threat_out(threat)
         ev_out = None
         if b.event is not None:
-            match = next((e for e in threat.events if e.id == b.event.id), None)
-            if match is not None:
-                ev_out = event_out(match)
-        await manager.broadcast(
-            WSMessage(type=b.type, threat=threat_out(threat), event=ev_out)
-        )
+            ev_out = next((e for e in t_out.events if e.id == b.event.id), None)
+        await manager.broadcast(WSMessage(type=b.type, threat=t_out, event=ev_out))
         if threat.id in danger_seen:
             continue
         danger_seen.add(threat.id)

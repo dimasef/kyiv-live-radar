@@ -358,6 +358,7 @@ export type SourcePatch = Partial<
     | 'trust_weight'
     | 'type_inherit_minutes'
     | 'llm_enabled'
+    | 'sector_notation'
     | 'is_active'
   >
 >

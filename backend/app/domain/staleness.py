@@ -146,5 +146,26 @@ def stale_at(
     )
 
 
+def position_valid_until(
+    threat,
+    event,
+    *,
+    orphan_windows: dict[str, int],
+    tracked_windows: dict[str, int],
+    default_minutes: int,
+    narrators: set[int] | None = None,
+) -> datetime:
+    """How long this sighting still says where the target is: its time plus its
+    SOURCE's window — the reply narrator's tracked one, anyone else's orphan."""
+    if narrators is None:
+        narrators = reply_tracked_sources(threat)
+    minutes = stale_window_minutes(
+        threat.target_type, threat.scope, tracked=event.source_id in narrators,
+        orphan_windows=orphan_windows, tracked_windows=tracked_windows,
+        default_minutes=default_minutes,
+    )
+    return event.event_time + timedelta(minutes=minutes)
+
+
 def _naive(dt: datetime) -> datetime:
     return dt.replace(tzinfo=None) if dt.tzinfo is not None else dt

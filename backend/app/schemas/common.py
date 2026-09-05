@@ -7,7 +7,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from ..models import Region, SourceRole
+from ..models import Region, SectorNotation, SourceRole
 from .base import _as_utc
 
 
@@ -77,6 +77,8 @@ class SourceAdminOut(BaseModel):
     # Whether this channel's messages go through the LLM step at all — all three
     # consumers at once (see Source.llm_enabled).
     llm_enabled: bool
+    # 'slash' = «А/Б/В» names one target's sector (see models.SectorNotation).
+    sector_notation: SectorNotation = "none"
     last_listener_error: str | None
     created_at: datetime | None
     stats: SourceStatsOut
@@ -113,6 +115,7 @@ class SourceUpdateIn(BaseModel):
     # False takes this channel off the LLM step entirely (localization, target
     # type, triage) — the per-channel counterpart to the global llm_* settings.
     llm_enabled: bool | None = None
+    sector_notation: SectorNotation | None = None
     is_active: bool | None = None
 
 

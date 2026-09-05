@@ -26,9 +26,10 @@ export default function HomeDistance({
 }) {
   const { t } = useTranslation()
   const home = useRadar((s) => s.home)
+  const now = useRadar((s) => s.nowMs + s.clockSkewMs)
   if (home == null) return null
 
-  const distance = homeDistanceOf(threat, home)
+  const distance = homeDistanceOf(threat, home, now)
   if (distance == null) return null
 
   const tone = distance.nearHome

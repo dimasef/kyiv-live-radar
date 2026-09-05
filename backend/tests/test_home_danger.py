@@ -23,6 +23,7 @@ from app.domain.home_danger import (
     raion_ids_for_zone,
 )
 from app.models import District, Threat, ThreatEvent
+from app.timeutil import naive
 
 BASE = datetime(2026, 7, 18, 12, 0, tzinfo=UTC)
 KM_PER_DEG_LAT = math.pi / 180 * 6371.0  # ~111.19
@@ -51,6 +52,13 @@ def track(*events: ThreatEvent, target_type: str = "shahed", scope: str = "distr
     return t
 
 
+def level(t: Threat, home: HomeZone, now: datetime | None = None) -> DangerLevel:
+    """`assess` at the instant right after the track's newest sighting."""
+    if now is None and t.events:
+        now = max(naive(e.event_time) for e in t.events) + timedelta(seconds=1)
+    return assess(t, home, now)[0]
+
+
 # --- geometry primitives ---
 
 def test_haversine_known_values():
@@ -77,54 +85,54 @@ def test_angdiff_wraps():
 
 def test_event_inside_radius_plus_buffer_is_danger():
     # radius 3 + buffer 2 = 5 km threshold; 4 km out -> DANGER
-    assert assess(track(ev(4, 0, 0)), HOME) == DangerLevel.DANGER
+    assert level(track(ev(4, 0, 0)), HOME) == DangerLevel.DANGER
 
 
 def test_event_just_outside_buffer_is_not_danger():
-    assert assess(track(ev(6, 0, 0)), HOME) == DangerLevel.NONE
+    assert level(track(ev(6, 0, 0)), HOME) == DangerLevel.NONE
 
 
 # --- WARNING: vector ---
 
 def test_track_heading_straight_at_home_warns():
     # 20 km south -> 15 km south: due north, straight at home
-    assert assess(track(ev(20, 0, 0), ev(15, 0, 5)), HOME) == DangerLevel.WARNING
+    assert level(track(ev(20, 0, 0), ev(15, 0, 5)), HOME) == DangerLevel.WARNING
 
 
 def test_track_heading_away_is_none():
     # moving due east while home is due north of the head
-    assert assess(track(ev(15, -10, 0), ev(15, 0, 5)), HOME) == DangerLevel.NONE
+    assert level(track(ev(15, -10, 0), ev(15, 0, 5)), HOME) == DangerLevel.NONE
 
 
 def test_home_behind_track_is_none():
     # track passed home heading north: head is 13 km NORTH of home, still going north
-    assert assess(track(ev(-8, 0, 0), ev(-13, 0, 5)), HOME) == DangerLevel.NONE
+    assert level(track(ev(-8, 0, 0), ev(-13, 0, 5)), HOME) == DangerLevel.NONE
 
 
 def test_track_that_left_home_area_is_no_longer_danger():
     """Proximity is about the CURRENT position: a track that flew through the
     home area and moved on (head now far, heading away) drops out of DANGER."""
-    assert assess(track(ev(4, 0, 0), ev(-13, 0, 5)), HOME) == DangerLevel.NONE
+    assert level(track(ev(4, 0, 0), ev(-13, 0, 5)), HOME) == DangerLevel.NONE
 
 
 def test_passing_10km_abeam_is_none():
     # due-north ray 10 km west of home: cross-track 10 > 3+3, angle ~33.7deg > 20
-    assert assess(track(ev(20, -10, 0), ev(15, -10, 5)), HOME) == DangerLevel.NONE
+    assert level(track(ev(20, -10, 0), ev(15, -10, 5)), HOME) == DangerLevel.NONE
 
 
 def test_passing_4km_abeam_warns_via_slack():
     # cross-track 4 <= radius 3 + slack 3
-    assert assess(track(ev(20, -4, 0), ev(15, -4, 5)), HOME) == DangerLevel.WARNING
+    assert level(track(ev(20, -4, 0), ev(15, -4, 5)), HOME) == DangerLevel.WARNING
 
 
 def test_on_course_beyond_horizon_is_none():
     # straight at home but 30 km out (> projection horizon 20)
-    assert assess(track(ev(35, 0, 0), ev(30, 0, 5)), HOME) == DangerLevel.NONE
+    assert level(track(ev(35, 0, 0), ev(30, 0, 5)), HOME) == DangerLevel.NONE
 
 
 def test_horizon_configurable(monkeypatch):
     monkeypatch.setattr(settings, "home_danger_projection_km", 40.0)
-    assert assess(track(ev(35, 0, 0), ev(30, 0, 5)), HOME) == DangerLevel.WARNING
+    assert level(track(ev(35, 0, 0), ev(30, 0, 5)), HOME) == DangerLevel.WARNING
 
 
 def test_same_time_enumeration_never_warns():
@@ -132,7 +140,7 @@ def test_same_time_enumeration_never_warns():
     enumeration, not a trajectory (mirror of frontend hasMovement)."""
     t = track(ev(20, 0, 0), ev(15, 0, 0), ev(10, 0, 0))
     assert not has_movement(t.events)
-    assert assess(t, HOME) == DangerLevel.NONE
+    assert level(t, HOME) == DangerLevel.NONE
 
 
 def test_mixed_naive_and_aware_event_times():
@@ -144,7 +152,7 @@ def test_mixed_naive_and_aware_event_times():
     naive_ev = ev(4, 0, 0)
     naive_ev.event_time = naive_ev.event_time.replace(tzinfo=None)
     t = track(naive_ev, ev(20, 0, 5))  # aware, latest, far away
-    assert assess(t, HOME) == DangerLevel.NONE  # old 4-km point is not "now"
+    assert level(t, HOME) == DangerLevel.NONE  # old 4-km point is not "now"
 
     same_instant_naive = ev(20, 0, 0)
     same_instant_naive.event_time = same_instant_naive.event_time.replace(tzinfo=None)
@@ -157,7 +165,7 @@ def test_mixed_naive_and_aware_event_times():
 def test_ballistic_on_home_raion_is_danger_even_far():
     home = HomeZone(lat=HOME.lat, lon=HOME.lon, radius_km=3.0, raion_district_ids=(7, 8))
     t = track(ev(12, 0, 0, district_id=7), target_type="ballistic")
-    assert assess(t, home) == DangerLevel.DANGER
+    assert level(t, home) == DangerLevel.DANGER
 
 
 def test_ballistic_on_second_overlapped_raion_is_danger():
@@ -165,26 +173,26 @@ def test_ballistic_on_second_overlapped_raion_is_danger():
     containing the home point."""
     home = HomeZone(lat=HOME.lat, lon=HOME.lon, radius_km=3.0, raion_district_ids=(7, 8))
     t = track(ev(12, 0, 0, district_id=8), target_type="ballistic")
-    assert assess(t, home) == DangerLevel.DANGER
+    assert level(t, home) == DangerLevel.DANGER
 
 
 def test_ballistic_on_other_raion_is_not_danger():
     home = HomeZone(lat=HOME.lat, lon=HOME.lon, radius_km=3.0, raion_district_ids=(7,))
     t = track(ev(12, 0, 0, district_id=8), target_type="ballistic")
-    assert assess(t, home) == DangerLevel.NONE
+    assert level(t, home) == DangerLevel.NONE
 
 
 def test_non_ballistic_on_home_raion_is_not_danger():
     home = HomeZone(lat=HOME.lat, lon=HOME.lon, radius_km=3.0, raion_district_ids=(7,))
     t = track(ev(12, 0, 0, district_id=7), target_type="shahed")
-    assert assess(t, home) == DangerLevel.NONE
+    assert level(t, home) == DangerLevel.NONE
 
 
 # --- citywide excluded ---
 
 def test_citywide_ballistic_is_none():
     t = track(ev(0, 0, 0), target_type="ballistic", scope="city")
-    assert assess(t, HOME) == DangerLevel.NONE
+    assert level(t, HOME) == DangerLevel.NONE
 
 
 # --- zone -> raion resolution (DB) ---
@@ -259,14 +267,75 @@ def test_warning_follows_the_path_source_not_the_echo():
         sourced(5, 20, 0, 0), sourced(12, 18, 9, 1), sourced(5, 15, 0, 5), sourced(12, 14, -9, 6),
     )
     t.path_source_id = 5
-    assert assess(t, HOME) == DangerLevel.WARNING
+    assert level(t, HOME) == DangerLevel.WARNING
     # All events (legacy NULL): the last leg is the echo's, pointing away.
     t.path_source_id = None
-    assert assess(t, HOME) == DangerLevel.NONE
+    assert level(t, HOME) == DangerLevel.NONE
 
 
 def test_echo_only_movement_is_not_a_vector():
     t = track(sourced(5, 20, 0, 0), sourced(12, 18, 0, 1), sourced(12, 15, 0, 5))
     t.path_source_id = 5
     assert not has_movement(t.events, 5)
-    assert assess(t, HOME) == DangerLevel.NONE
+    assert level(t, HOME) == DangerLevel.NONE
+
+
+# --- per-source current position (release E) ---
+
+def sourced_at(source_id, km_south, km_east, minute, *, msg=None, reply=None):
+    e = ev(km_south, km_east, minute)
+    e.source_id, e.source_message_id, e.reply_to_message_id = source_id, msg, reply
+    return e
+
+
+def narrated(*events, target_type="shahed"):
+    """Source 5 threads (a resolved reply), so it carries the tracked window."""
+    return track(*events, target_type=target_type)
+
+
+def test_narrator_near_home_is_danger_whatever_the_echo_says_later():
+    t = narrated(sourced_at(5, 20, 0, 0, msg=1), sourced_at(5, 1, 0, 5, msg=2, reply=1),
+                 sourced_at(12, 7, 0, 5))
+    t.events[-1].event_time = BASE + timedelta(minutes=5, seconds=40)
+    lvl, trigger = assess(t, HOME, BASE + timedelta(minutes=6))
+    assert lvl == DangerLevel.DANGER and trigger is t.events[1]
+
+
+def test_echo_near_home_is_danger_and_the_echo_is_the_trigger():
+    t = narrated(sourced_at(5, 20, 0, 0, msg=1), sourced_at(5, 7, 0, 5, msg=2, reply=1),
+                 sourced_at(12, 1, 0, 5))
+    lvl, trigger = assess(t, HOME, BASE + timedelta(minutes=6))
+    assert lvl == DangerLevel.DANGER and trigger is t.events[2]
+
+
+def test_quiet_narrator_fix_still_places_a_shahed_five_minutes_on():
+    t = narrated(sourced_at(5, 20, 0, 0, msg=1), sourced_at(5, 1, 0, 5, msg=2, reply=1),
+                 sourced_at(12, 7, 0, 10))
+    assert level(t, HOME, BASE + timedelta(minutes=10, seconds=30)) == DangerLevel.DANGER
+
+
+def test_stale_echo_fix_near_home_no_longer_counts():
+    # Echo (orphan, shahed window 5 min) was near home 8 min ago; narrator is 7 km out now.
+    t = narrated(sourced_at(5, 20, 0, 0, msg=1), sourced_at(12, 1, 0, 2),
+                 sourced_at(5, 7, 0, 10, msg=2, reply=1))
+    assert level(t, HOME, BASE + timedelta(minutes=10, seconds=30)) == DangerLevel.NONE
+
+
+def test_narrator_near_home_then_silence_stays_danger_within_its_window():
+    t = narrated(sourced_at(5, 20, 0, 0, msg=1), sourced_at(5, 1, 0, 5, msg=2, reply=1))
+    assert level(t, HOME, BASE + timedelta(minutes=10)) == DangerLevel.DANGER
+    # Past the narrator's window the fix no longer places it — only the vector
+    # still warns.
+    assert level(t, HOME, BASE + timedelta(minutes=21)) == DangerLevel.WARNING
+
+
+def test_an_echo_that_moved_on_overwrites_its_own_fix():
+    t = track(sourced_at(12, 1, 0, 0), sourced_at(12, 7, 0, 2))
+    assert level(t, HOME) == DangerLevel.NONE
+
+
+def test_legacy_rule_reads_the_newest_cluster_only(monkeypatch):
+    monkeypatch.setattr(settings, "danger_rule", "legacy")
+    t = narrated(sourced_at(5, 20, 0, 0, msg=1), sourced_at(5, 1, 0, 5, msg=2, reply=1),
+                 sourced_at(12, 7, 0, 6))
+    assert level(t, HOME) == DangerLevel.NONE

@@ -3870,6 +3870,15 @@
             "title": "Role",
             "type": "string"
           },
+          "sector_notation": {
+            "default": "none",
+            "enum": [
+              "none",
+              "slash"
+            ],
+            "title": "Sector Notation",
+            "type": "string"
+          },
           "stats": {
             "$ref": "#/components/schemas/SourceStatsOut"
           },
@@ -4263,6 +4272,21 @@
               }
             ],
             "title": "Role"
+          },
+          "sector_notation": {
+            "anyOf": [
+              {
+                "enum": [
+                  "none",
+                  "slash"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sector Notation"
           },
           "trust_weight": {
             "anyOf": [
@@ -4659,6 +4683,18 @@
             "default": false,
             "title": "Manual",
             "type": "boolean"
+          },
+          "position_valid_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position Valid Until"
           },
           "raw_text": {
             "title": "Raw Text",

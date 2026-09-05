@@ -31,8 +31,7 @@ from ..config import settings
 from ..domain.geometry import haversine_km
 from ..domain.home_danger import DangerLevel, HomeZone, assess
 from ..domain.origins import ORIGIN_BY_KEY
-from ..domain.path import path_head
-from ..models import HOME_REGION, Notice, PushSubscription, Threat, utcnow
+from ..models import HOME_REGION, Notice, PushSubscription, Threat, ThreatEvent, utcnow
 from ..parsing.matcher import normalize
 from ..parsing.vocab import _LEVEL_AHEAD_RE
 from ..regions import label as region_label
@@ -116,6 +115,7 @@ async def evaluate_home_danger(session, threat: Threat) -> None:
         )
     )
     any_changed = False
+    now = utcnow()
     for sub in subs:
         min_level, allowed_types, _ = _sub_prefs(sub)
         if threat.target_type not in allowed_types:
@@ -126,7 +126,7 @@ async def evaluate_home_danger(session, threat: Threat) -> None:
             radius_km=sub.home_radius_km,
             raion_district_ids=tuple(sub.home_district_ids or ()),
         )
-        level = assess(threat, home)
+        level, trigger = assess(threat, home, now)
         key = str(threat.id)
         state = _danger_state(sub)
         prev = state.get(key, {})
@@ -148,7 +148,7 @@ async def evaluate_home_danger(session, threat: Threat) -> None:
                 and (level > max_pushed or _cooldown_passed(prev.get("pushed_at")))
             )
             if should_push:
-                payload = build_payload(level, threat, home)
+                payload = build_payload(level, threat, home, trigger)
                 await send_push(session, sub, payload)
                 sub.last_push_at = utcnow()
                 state[key] = {
@@ -179,8 +179,10 @@ def _cooldown_passed(pushed_at_iso: str | None) -> bool:
     return utcnow() - pushed_at > timedelta(minutes=settings.home_push_cooldown_minutes)
 
 
-def build_payload(level: DangerLevel, threat: Threat, home: HomeZone) -> dict:
-    head = path_head(threat.events, threat.path_source_id)
+def build_payload(
+    level: DangerLevel, threat: Threat, home: HomeZone, trigger: ThreatEvent | None
+) -> dict:
+    head = trigger if trigger is not None and trigger.district is not None else None
     label = _TYPE_LABEL.get(threat.target_type, _TYPE_LABEL["unknown"])
     # Type leads the TITLE so it reads at a glance on a lock screen — the body
     # then carries only WHERE/how close.

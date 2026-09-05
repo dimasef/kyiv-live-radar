@@ -106,9 +106,11 @@ def _apply_llm_to_raw(raw: RawMessage, attempted: bool, usage: LlmUsage | None,
         raw.llm_response = response
 
 
-async def _source_settings(session, source_id: int | None) -> tuple[bool, int | None]:
+async def _source_settings(
+    session, source_id: int | None
+) -> tuple[bool, int | None, str]:
     """This channel's per-source pipeline knobs: (may it use the LLM step, its
-    type-inheritance window — None for the global default).
+    type-inheritance window — None for the global default, its sector notation).
 
     A primary-key get per message, which is free enough here: ingestion is
     serialized behind one lock, so there is no concurrency to amortize over, and
@@ -120,11 +122,11 @@ async def _source_settings(session, source_id: int | None) -> tuple[bool, int | 
     switch is something an operator turns OFF for a named channel, never a
     default that an absent row could silently apply."""
     if source_id is None:
-        return True, None
+        return True, None, "none"
     src = await session.get(Source, source_id)
     if src is None:
-        return True, None
-    return src.llm_enabled, src.type_inherit_minutes
+        return True, None, "none"
+    return src.llm_enabled, src.type_inherit_minutes, src.sector_notation or "none"
 
 
 async def _infer_incident_type(session, parsed: ParseResult, when: datetime,
@@ -331,7 +333,9 @@ async def process_parsed(
         # operator's switch for the whole LLM step; `allow_llm` narrows it by
         # the promo-thread veto, which is about THIS message rather than the
         # channel.
-        source_llm_enabled, inherit_window = await _source_settings(session, source_id)
+        source_llm_enabled, inherit_window, sector_notation = await _source_settings(
+            session, source_id
+        )
         allow_llm = source_llm_enabled and not await in_promo_thread(
             session, source_id, reply_to_message_id, matcher
         )
@@ -392,6 +396,7 @@ async def process_parsed(
             enforce_age=enforce_age,
             region=region,
             region_by_id=await district_regions(session),
+            sector_notation=sector_notation,
         )
         span.set_attribute("region", ctx.region)
 

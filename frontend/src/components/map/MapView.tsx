@@ -4,7 +4,7 @@ import { MapContainer, ScaleControl, TileLayer } from "react-leaflet";
 
 import { homeStyleOf } from "@/lib/contactMarker";
 import { framingBounds } from "@/lib/regions";
-import { homeDangerFor, raionIdsForZone } from "@/lib/homeDanger";
+import { NO_DANGER, homeDangerFor, raionIdsForZone } from "@/lib/homeDanger";
 import { useRadar } from "@/store";
 import AdminTrackEditor from "./AdminTrackEditor";
 import AlertZoneLayer from "./AlertZoneLayer";
@@ -112,8 +112,13 @@ export default function MapView() {
   );
   // Deliberately the FULL set, not `shown`: a target closing on the home raion
   // is exactly the one worth warning about while the map is looking elsewhere.
-  // Culling decides what is drawn, never what is known.
-  const danger = home ? homeDangerFor(threats, home, homeRaionIds) : "none";
+  // Culling decides what is drawn, never what is known. Ticks with the clock
+  // because a fix ages out of "where the target is" on its own.
+  const dangerNow = useRadar((s) => s.nowMs + s.clockSkewMs);
+  const danger = useMemo(
+    () => (home ? homeDangerFor(threats, home, homeRaionIds, dangerNow) : NO_DANGER),
+    [threats, home, homeRaionIds, dangerNow],
+  );
 
   return (
     <div className={`relative h-full w-full ${mapMotion ? "" : "motion-off"}`}>
@@ -170,7 +175,7 @@ export default function MapView() {
         {/* Hidden while arming a new position — HomePlacement shows the single
             house being placed (cursor ghost / center pin) instead. */}
         {home && !placingHome && (
-          <HomeMarker home={home} homeStyle={homeStyle} danger={danger} />
+          <HomeMarker home={home} homeStyle={homeStyle} danger={danger.worst} />
         )}
 
         {/* Shared homes of friends (markers only — no radius, no danger). */}
@@ -185,6 +190,11 @@ export default function MapView() {
             threat={th}
             highlighted={inspectedThreat?.id === th.id}
             lean={overBudget}
+            dangerTriggerEventId={
+              danger.byThreat[th.id]?.level === "danger"
+                ? danger.byThreat[th.id].triggerEventId
+                : null
+            }
           />
         ))}
         {/* The inspected track isn't currently live (closed/evicted) — render

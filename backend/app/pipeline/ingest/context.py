@@ -531,6 +531,9 @@ class IngestContext:
     # ambiguity margin — both go on the ingest span.
     grouping_tier: str | None = None
     association_ambiguous: bool = False
+    # The channel's sector notation (models.SectorNotation): with 'slash' a
+    # slash-joined run of places is one target's sector, not an enumeration.
+    sector_notation: str = "none"
 
     def arrived_late(self) -> bool:
         return self.enforce_age and is_late(self.when)

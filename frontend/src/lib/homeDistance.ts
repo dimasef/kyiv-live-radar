@@ -1,6 +1,6 @@
 import { hasMovement, trackPoints } from "@/components/map/track";
 import { bearing, haversineKm, type Pt } from "@/lib/geo";
-import { HOME_DANGER } from "@/lib/homeDanger";
+import { HOME_DANGER, currentPositionEvents } from "@/lib/homeDanger";
 import type { Home } from "@/store/homeSlice";
 import type { Threat, ThreatEvent } from "@/types";
 
@@ -26,18 +26,19 @@ export interface HomeDistance {
  * Uses only the LATEST sighting cluster, like homeDanger: one message can name
  * several districts, and where the target IS is the newest of them — the
  * nearest, so the number never understates how close it got. */
-export function homeDistanceOf(threat: Threat, home: Home): HomeDistance | null {
+export function homeDistanceOf(threat: Threat, home: Home, nowMs?: number): HomeDistance | null {
   // A city-wide threat has no position; a distance to it would be invented.
   if (threat.scope === "city") return null;
-  const located = threat.events.filter((ev) => ev.lat != null && ev.lon != null);
-  if (located.length === 0) return null;
+  // The fixes still valid now; when every fix has aged out (a closed track being
+  // read after the fact), the last known position is still the honest answer.
+  const current = currentPositionEvents(threat, nowMs);
+  const fixes = current.length > 0 ? current : currentPositionEvents(threat);
+  if (fixes.length === 0) return null;
 
-  const latest = located.reduce((max, ev) => (ev.event_time > max ? ev.event_time : max), "");
   let nearest: Pt | null = null;
   let km = Infinity;
-  for (const ev of located) {
-    if (ev.event_time !== latest) continue;
-    const p = { lat: ev.lat!, lon: ev.lon! };
+  for (const ev of fixes) {
+    const p = { lat: ev.lat, lon: ev.lon };
     const d = haversineKm(p, home);
     if (d < km) {
       km = d;

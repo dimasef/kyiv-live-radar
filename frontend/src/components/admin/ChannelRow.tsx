@@ -61,6 +61,7 @@ export default function ChannelRow({
         {source.type_inherit_minutes !== null && (
           <> · успадкування типу: {source.type_inherit_minutes} хв</>
         )}
+        {source.sector_notation === 'slash' && <> · А/Б/В = сектор</>}
       </div>
     </li>
   )

@@ -18,10 +18,11 @@ import { row } from './popupStyles'
 export default function MovementSection({ threat }: { threat: Threat }) {
   const { t } = useTranslation()
   const home = useRadar((s) => s.home)
+  const now = useRadar((s) => s.nowMs + s.clockSkewMs)
   // Recomputed here even though HomeDistance does its own: the section needs to
   // know whether that line will appear at all. A cheap pure call beats threading
   // the result through a component the feed also uses.
-  const distance = home ? homeDistanceOf(threat, home) : null
+  const distance = home ? homeDistanceOf(threat, home, now) : null
   const range = speedRangeOf(threat)
   if (range == null && distance == null) return null
 

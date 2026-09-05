@@ -169,6 +169,12 @@ class Settings(BaseSettings):
     # track stays open while ANY source still writes within its own window,
     # the reply narrator's being the long one (domain/staleness.py).
     stale_rule: str = "per_source"
+    # Where a target IS for the home-danger check: 'legacy' = the track's latest
+    # sighting cluster whatever its age; 'per_source' = every source's own
+    # latest cluster while that source's position is still valid (the same
+    # windows as stale_at), so a quiet narrator's fix does not outlive its
+    # window behind a chattier echo, and an echo's fix near home counts.
+    danger_rule: str = "per_source"
 
     # A stand-down ("Дорозвідка!", "Чисто!") closes the city-wide alert — but
     # during a multi-wave ballistic night the next salvo follows within a
