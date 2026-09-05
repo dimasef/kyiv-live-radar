@@ -6,12 +6,12 @@ import type { Threat } from '@/types'
 import type { Pt } from '@/lib/geo'
 
 import { KYIV_PT } from './constants'
-import { echoPoints, hasMovement, headingOf, inboundHeading, trackPoints } from './track'
+import { type EchoPt, echoPoints, hasMovement, headingOf, inboundHeading, trackPoints } from './track'
 
 export interface ThreatVisual {
   pts: Pt[]
   /** Other sources' sightings of the same target — shown only on inspection. */
-  echoPts: Pt[]
+  echoPts: EchoPt[]
   color: string
   /** Did the target actually travel, i.e. should the map draw a vector at all? */
   moved: boolean

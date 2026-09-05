@@ -33,11 +33,27 @@ export function trackPoints(threat: Threat): Pt[] {
   return dedupe(pathEvents(threat))
 }
 
+export interface EchoPt extends Pt {
+  /** When this fix stops saying where the target is (ms), null for history. */
+  validUntilMs: number | null
+}
+
 /** Sightings from the other sources — corroboration, not trajectory. */
-export function echoPoints(threat: Threat): Pt[] {
+export function echoPoints(threat: Threat): EchoPt[] {
   const psid = threat.path_source_id
   if (psid == null) return []
-  return dedupe(located(threat).filter((ev) => ev.source_id !== psid && !ev.manual))
+  const pts: EchoPt[] = []
+  for (const ev of located(threat)) {
+    if (ev.source_id === psid || ev.manual) continue
+    const validUntilMs = ev.position_valid_until ? Date.parse(ev.position_valid_until) : null
+    const last = pts[pts.length - 1]
+    if (last && last.lat === ev.lat && last.lon === ev.lon) {
+      last.validUntilMs = validUntilMs
+      continue
+    }
+    pts.push({ lat: ev.lat, lon: ev.lon, validUntilMs })
+  }
+  return pts
 }
 
 /** A track "moves" if its path sightings span ≥2 DISTINCT timestamps, or if

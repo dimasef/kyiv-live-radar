@@ -7,16 +7,24 @@ import type { Threat } from '@/types'
 
 import PopupSection from './PopupSection'
 import { row } from './popupStyles'
+import { sourceSplit } from './sources'
 
 /** How much this target is worth believing: who reported it, how confident the
  * fusion is, how old that is, and whether the sources contradict each other. */
 export default function DataSection({ threat }: { threat: Threat }) {
   const { t } = useTranslation()
   const now = useRadar((s) => s.nowMs + s.clockSkewMs)
+  const { lead, echoCount, echoSources } = sourceSplit(threat)
 
   return (
     <PopupSection label={t('popup.data')}>
       <CorroborationLine threat={threat} as="div" style={row} />
+      {lead && (
+        <div style={row}>
+          {t('popup.leads', { source: lead })}
+          {echoCount > 0 && <> · {t('popup.echo', { n: echoCount, sources: echoSources.join(', ') })}</>}
+        </div>
+      )}
       {/* Names the reason a target looks faded — "seen 14 min ago" is the fade
           in words, and the number is what an operator actually acts on. */}
       {isQuiet(threat, now) && (

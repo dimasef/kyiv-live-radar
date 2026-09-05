@@ -1,4 +1,4 @@
-import { MUTED_COLOR, TYPE_COLORS } from '@/theme'
+import { HOME_DANGER_COLORS, MUTED_COLOR, TYPE_COLORS } from '@/theme'
 import { launcherGlyphSvg, threatGlyphSvg } from '@/threatIcons'
 import { DOWN_LABEL_KEY } from '@/threatLabels'
 import type { TargetType } from '@/types'
@@ -56,6 +56,22 @@ export function legendRows(): LegendRow[] {
       html: threatGlyphSvg(ty, { size: GLYPH_PX, state: 'destroyed', color: MUTED_COLOR }),
     },
   }))
+  rows.push({
+    id: 'echo',
+    labelKey: 'legend.echo',
+    html:
+      `<svg width="${GLYPH_PX}" height="${GLYPH_PX}" viewBox="0 0 16 16">` +
+      `<circle cx="8" cy="8" r="4" fill="none" stroke="${TYPE_COLORS.shahed}" ` +
+      `stroke-width="1.4" stroke-dasharray="2 2" stroke-opacity="0.85"/></svg>`,
+  })
+  rows.push({
+    id: 'trigger',
+    labelKey: 'legend.trigger',
+    html:
+      `<svg width="${GLYPH_PX}" height="${GLYPH_PX}" viewBox="0 0 16 16">` +
+      `<circle cx="8" cy="8" r="5" fill="${HOME_DANGER_COLORS.danger}" fill-opacity="0.35" ` +
+      `stroke="${HOME_DANGER_COLORS.danger}" stroke-width="1.8"/></svg>`,
+  })
   rows.push({
     id: 'launcher',
     labelKey: 'legend.launcher',

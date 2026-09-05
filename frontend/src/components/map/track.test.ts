@@ -86,7 +86,7 @@ describe('path source', () => {
   })
 
   it('keeps the other sources as echo', () => {
-    expect(echoPoints(narrated)).toEqual([
+    expect(echoPoints(narrated).map(({ lat, lon }) => ({ lat, lon }))).toEqual([
       { lat: 50.48, lon: 30.62 },
       { lat: 50.3, lon: 30.7 },
     ])

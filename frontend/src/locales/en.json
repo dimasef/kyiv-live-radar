@@ -95,6 +95,8 @@
     "clear": "All-clear",
     "conflict": "Sources disagree",
     "home": "Home",
+    "echo": "Echo — other channels on the same target",
+    "trigger": "Home-danger trigger",
     "launcher": "Ballistic launch (OTRK)",
     "down": {
       "shahed": "UAV shot down",
@@ -539,7 +541,9 @@
   "popup": {
     "movement": "Movement",
     "data": "Data",
-    "messages": "Messages"
+    "messages": "Messages",
+    "leads": "Led by {{source}}",
+    "echo": "+{{n}} from {{sources}}"
   },
   "speed": {
     "kmh": "km/h",

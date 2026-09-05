@@ -182,16 +182,28 @@ const ThreatLayer = memo(function ThreatLayer({
             }}
           />
         ))}
+      {/* Echo dots: a fix still valid now reads solid, one that has aged out
+          reads faint — "where the other channels saw it just now" versus
+          "where they saw it earlier". */}
       {(highlighted || popupOpen) &&
-        echoPts.map((p, i) => (
-          <CircleMarker
-            key={`echo-${i}`}
-            center={[p.lat, p.lon]}
-            radius={3}
-            interactive={false}
-            pathOptions={{ color, weight: 1, opacity: 0.5 * dim, fill: false, dashArray: "2 2" }}
-          />
-        ))}
+        echoPts.map((p, i) => {
+          const fresh = p.validUntilMs == null || p.validUntilMs > now;
+          return (
+            <CircleMarker
+              key={`echo-${i}`}
+              center={[p.lat, p.lon]}
+              radius={fresh ? 3.5 : 2.5}
+              interactive={false}
+              pathOptions={{
+                color,
+                weight: fresh ? 1.5 : 1,
+                opacity: (fresh ? 0.85 : 0.3) * dim,
+                fill: false,
+                dashArray: "2 2",
+              }}
+            />
+          );
+        })}
       {triggerPt && (
         <CircleMarker
           center={[triggerPt.lat, triggerPt.lon]}
