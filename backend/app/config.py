@@ -152,9 +152,13 @@ class Settings(BaseSettings):
     # radius is picked by the zone of the INCOMING message — inside
     # `association_city_zone_km` of the region centre it is the city radius,
     # else the oblast one. 0 disables the tier (today's behaviour). Values are
-    # chosen by the rebuild grid in eval/sweep_rebuilds.sh, not by hand.
-    association_radius_km_city: float = 0.0
-    association_radius_km_oblast: float = 0.0
+    # chosen by the rebuild grid in eval/sweep_rebuilds.sh, not by hand:
+    # 2026-09-05, city {3,4,5} x oblast {8,12,16} on a week of real messages —
+    # 4/12 is the largest pair that stays within the contamination gates
+    # (peak simultaneous tracks 21 -> 15; 5 km already merges distinct targets,
+    # oblast 16 changes nothing over 12).
+    association_radius_km_city: float = 4.0
+    association_radius_km_oblast: float = 12.0
     association_city_zone_km: float = 25.0
     # A second candidate whose score (d/radius + age/window) lies within this
     # of the best makes the choice ambiguous: then only the raion discriminator
@@ -164,7 +168,7 @@ class Settings(BaseSettings):
     # 'legacy': one stale window from the track's last event; 'per_source': the
     # track stays open while ANY source still writes within its own window,
     # the reply narrator's being the long one (domain/staleness.py).
-    stale_rule: str = "legacy"
+    stale_rule: str = "per_source"
 
     # A stand-down ("Дорозвідка!", "Чисто!") closes the city-wide alert — but
     # during a multi-wave ballistic night the next salvo follows within a

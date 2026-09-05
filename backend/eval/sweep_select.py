@@ -4,7 +4,8 @@ ran (.claude/plans/target-fanout.md §4.1):
 
   among configurations whose contamination counters stay within the gates
   recorded in the ground truth (`_meta.gates`), take the lowest peak of
-  simultaneous open tracks; tie-break on the smaller ambiguity margin.
+  simultaneous open tracks; tie-break on the smaller ambiguity margin, then the
+  smaller radii (a wider gate that buys nothing is not chosen).
 
 Prints every configuration as one row, then the pick — or "none passed", in
 which case release B ships with radius 0 and the per-source stale rule only if
@@ -88,7 +89,7 @@ def main(out: Path) -> int:
     if not passed:
         print("none passed -> release B with radius 0; per_source only if baseline_ps passes")
         return 1
-    best = min(passed, key=lambda r: (r["peak"], r["margin"], r["extra_tracks"]))
+    best = min(passed, key=lambda r: (r["peak"], r["margin"], r["city"], r["oblast"], r["extra_tracks"]))
     print(f"pick: {best['name']}  city={best['city']} oblast={best['oblast']} "
           f"margin={best['margin']} stale={best['stale']}  peak={best['peak']} "
           f"foreign={best['foreign_events']} contaminated={best['contaminated_tracks']}")

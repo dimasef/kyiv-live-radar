@@ -35,4 +35,4 @@ ds-bundle/
 frontend/.ds-entry.tsx
 frontend/.ds-app.css
 backend/eval/sweep_out/
-backend/eval/sweep_out.log
+backend/eval/sweep_out*.log
