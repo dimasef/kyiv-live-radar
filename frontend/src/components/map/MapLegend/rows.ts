@@ -1,4 +1,4 @@
-import { HOME_DANGER_COLORS, MUTED_COLOR, TYPE_COLORS } from '@/theme'
+import { HOME_DANGER_COLORS, MUTED_COLOR, STATUS_COLORS, TYPE_COLORS } from '@/theme'
 import { launcherGlyphSvg, threatGlyphSvg } from '@/threatIcons'
 import { DOWN_LABEL_KEY } from '@/threatLabels'
 import type { TargetType } from '@/types'
@@ -44,7 +44,7 @@ const TYPES: TargetType[] = [
  * Homes are deliberately absent: the user picked their own marker and labelled
  * every contact's, so a legend entry explains nothing they don't already know
  * by looking. */
-export function legendRows(): LegendRow[] {
+export function legendRows({ impacts = false }: { impacts?: boolean } = {}): LegendRow[] {
   const rows: LegendRow[] = TYPES.map((ty) => ({
     id: ty,
     labelKey: `target.${ty}`,
@@ -82,6 +82,19 @@ export function legendRows(): LegendRow[] {
   // one thing it could have explained: what that siren button in the corner
   // would put on the map. Everything else here is a marker the operator has
   // already seen; this is the only row that can be news.
+  // Same rule as the raion-alert row below: listed while the layer is off,
+  // so the flame button in the corner is explained before it is pressed. Only
+  // for the accounts that have that button at all — the legend is what every
+  // reader sees, and the layer's existence is withheld from the rest.
+  if (impacts) {
+    rows.push({
+      id: 'impact',
+      labelKey: 'impacts.title',
+      html: threatGlyphSvg('unknown', {
+        size: GLYPH_PX, state: 'impact', color: STATUS_COLORS.impact,
+      }),
+    })
+  }
   rows.push({
     id: 'zone',
     labelKey: 'zones.alert',

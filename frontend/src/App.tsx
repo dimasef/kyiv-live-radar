@@ -1,7 +1,7 @@
 import { Analytics } from "@vercel/analytics/react";
 import { useEffect, useState } from "react";
 
-import { HomeNudge, RegionLayerHint, StatusBanner, ZoneLayerNotice } from "@/components/banners";
+import { HomeNudge, ImpactLayerNotice, RegionLayerHint, StatusBanner, ZoneLayerNotice } from "@/components/banners";
 import {
   AppStatus,
   DisclaimerModal,
@@ -53,6 +53,7 @@ export default function App() {
         <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex flex-col items-center gap-2 px-3 pt-3">
           <StatusBanner />
           <ZoneLayerNotice />
+          <ImpactLayerNotice />
           <RegionLayerHint />
         </div>
         {/* Bottom of the map: the first-run invitation to place a home. Gated

@@ -32,12 +32,25 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.52.1";
+const LATEST = "0.52.2";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
+    // The rest of this release is for vouched-for accounts only (a legend row
+    // and a toast for a layer the changelog deliberately does not name — see
+    // 0.49.0), so the visible text stops at the label fix.
     version: LATEST,
+    title: "легенда вміщається",
+    date: "2026-09-05",
+    kind: "patch",
+    changes: [
+      "Підписи нових рядків легенди вкорочено, щоб не обрізались на вузькому екрані",
+      "Перемикання шарів мапи підтверджується коротким повідомленням угорі",
+    ],
+  },
+  {
+    version: "0.52.1",
     title: "легенда для нових позначок",
     date: "2026-09-05",
     kind: "patch",

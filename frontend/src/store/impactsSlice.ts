@@ -20,6 +20,10 @@ export interface ImpactsSlice {
    * layer never asks the server for them at all. */
   impacts: Threat[]
   impactLayerOn: boolean
+  /** Set for IMPACT_NOTICE_MS after a toggle so the top-centre stack can say
+   * what just happened (banners/ImpactLayerNotice) — the same rule as the
+   * raion-alert layer: only a gesture announces, a remembered switch does not. */
+  impactLayerNotice: 'on' | 'off' | null
   toggleImpactLayer: () => void
   /** Re-read the layer. Called on toggle-on, at boot when the remembered switch
    * is on, and on the refresh tick. A failure (403 after a role was revoked,
@@ -27,14 +31,20 @@ export interface ImpactsSlice {
   refreshImpacts: () => void
 }
 
+export const IMPACT_NOTICE_MS = 5000
+let noticeTimer: ReturnType<typeof setTimeout> | undefined
+
 export const createImpactsSlice: StateCreator<RadarState, [], [], ImpactsSlice> = (set, get) => ({
   impacts: [],
   impactLayerOn: safeGet(STORAGE_KEYS.impactLayer) === '1',
+  impactLayerNotice: null,
 
   toggleImpactLayer: () => {
     const on = !get().impactLayerOn
     safeSet(STORAGE_KEYS.impactLayer, on ? '1' : '0')
-    set({ impactLayerOn: on, ...(on ? {} : { impacts: [] }) })
+    set({ impactLayerOn: on, impactLayerNotice: on ? 'on' : 'off', ...(on ? {} : { impacts: [] }) })
+    clearTimeout(noticeTimer)
+    noticeTimer = setTimeout(() => set({ impactLayerNotice: null }), IMPACT_NOTICE_MS)
     if (on) get().refreshImpacts()
   },
 

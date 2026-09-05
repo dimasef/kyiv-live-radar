@@ -2,7 +2,9 @@ import { Info } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { canSeeImpacts } from "@/api";
 import { safeGet, safeSet, STORAGE_KEYS } from "@/lib/storage";
+import { useRadar } from "@/store";
 
 import { mapControlClass } from "../controlStyles";
 import { legendRows, type LegendRow } from "./rows";
@@ -56,6 +58,7 @@ function Row({ row }: { row: LegendRow }) {
 export default function MapLegend() {
   const { t } = useTranslation();
   const [open, setOpen] = useState(initialOpen);
+  const impacts = useRadar((s) => canSeeImpacts(s.user?.role));
 
   const toggle = () => {
     safeSet(STORAGE_KEYS.legendOpen, open ? "0" : "1");
@@ -78,7 +81,7 @@ export default function MapLegend() {
           <div className="panel popover-up p-3 text-slate-300">
             <span className="panel-title mb-2 block px-1.5">{t("legend.title")}</span>
             <ul className="space-y-0.5">
-              {legendRows().map((row) => (
+              {legendRows({ impacts }).map((row) => (
                 <Row key={row.id} row={row} />
               ))}
             </ul>
