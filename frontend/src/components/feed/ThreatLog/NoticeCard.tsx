@@ -1,4 +1,4 @@
-import { CloudLightning, Compass, Info, Radio, ShieldCheck, Sparkles } from 'lucide-react'
+import { CloudLightning, Compass, Info, Radio, ShieldCheck, Siren, Sparkles } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -16,6 +16,12 @@ import ClampText from './ClampText'
 const STYLE: Record<NoticeKind, { icon: LucideIcon; color: string }> = {
   clear: { icon: ShieldCheck, color: STATUS_COLORS.clear },
   summary: { icon: Info, color: HOME_COLOR },
+  // The threat level moving inside a running alert. Deliberately neither of the
+  // two level colours: the move can go either way (a червоний alert can drop
+  // back to жовтий), and the card's body is the channel's own announcement,
+  // which opens with its own 🟡/🔴. What this accent has to say is "something
+  // about the alert you are already under has changed".
+  alert_level: { icon: Siren, color: STATUS_COLORS.conflict },
   directional: { icon: Compass, color: TYPE_COLORS.jet_drone },
   forecast: { icon: CloudLightning, color: TYPE_COLORS.shahed },
   status: { icon: Radio, color: TYPE_COLORS.unknown },

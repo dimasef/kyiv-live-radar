@@ -383,9 +383,9 @@ async def test_an_alert_adopts_only_its_own_regions_incident(ctx):
     await s.commit()
     sumy_inc = await attach_to_incident(s, t, BASE)
 
-    alert = await apply_alert_signal(
+    opened = await apply_alert_signal(
         s, AlertSignal(scope="city", action="start", when=BASE + timedelta(minutes=1),
                        region="kyiv"))
-    assert alert is not None
+    assert opened is not None
     await s.refresh(sumy_inc)
     assert sumy_inc.alert_id is None

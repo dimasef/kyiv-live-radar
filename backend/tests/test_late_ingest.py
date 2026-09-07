@@ -12,6 +12,11 @@ those as if they were fresh:
   It hung for two hours and was "dismissed", recording a real alert as a false
   positive.
 
+The ALERT channel is gated on supersession rather than on age, and 2026-09-07 is
+why: a siren that started 67 minutes before the listener reconnected is still
+sounding, and dropping its start left Kyiv painted clear through a red alert.
+Only a later ВІДБІЙ invalidates a start — see ingest/alert._stood_down_since.
+
 `enforce_age` is deliberately opt-in (live Telegram only): reprocess and the
 replay feed re-run whole old corpora at their own timestamps, where every
 message is late by construction.
@@ -50,6 +55,7 @@ async def ctx(tmp_path):
 
 def _late(minutes: int = 45) -> datetime:
     return utcnow() - timedelta(minutes=minutes)
+
 
 
 async def _counts(s) -> tuple[int, int]:
@@ -108,23 +114,93 @@ async def test_late_stand_down_still_closes_open_tracks(ctx):
     assert track.closed_reason == "stand_down"
 
 
-async def test_late_alert_start_is_ignored_but_a_late_end_is_honoured(ctx):
-    s, _matcher = ctx
-    start = "‼️УВАГА! У Києві оголошена повітряна тривога!"
-    end = "❕Відбій повітряної тривоги!"
+START = "‼️УВАГА! У Києві оголошена повітряна тривога!"
+END = "❕Відбій повітряної тривоги!"
 
-    await ingest_alert_message(s, text=start, when=_late(), source_id=1, message_id=1,
+
+async def test_a_still_running_alert_backfilled_late_is_opened(ctx):
+    """2026-09-07: the listener reconnected 67 minutes into a live siren, the
+    backfill replayed its start, and the age gate threw it away — so the banner
+    stayed silent and Kyiv sat clear on the map for the rest of the attack."""
+    s, _matcher = ctx
+    began = _late(67)
+    await ingest_alert_message(s, text=START, when=began, source_id=1, message_id=1,
+                               enforce_age=True)
+    alert = await s.scalar(select(Alert))
+    assert alert is not None and alert.ended_at is None
+    # Dated when the siren actually sounded, so the banner shows its true age
+    # rather than restarting the clock at the reconnect.
+    assert alert.started_at.replace(tzinfo=UTC) == began
+
+
+async def test_a_start_the_siren_has_already_outlived_is_ignored(ctx):
+    """The 07-31 shape: the відбій landed first, so the start it belonged to must
+    not open an alert nothing can ever close. The end left no `alerts` row behind
+    (there was nothing open to close), which is why this reads the channel's own
+    messages rather than the table."""
+    s, _matcher = ctx
+    await ingest_alert_message(s, text=END, when=_late(30), source_id=1, message_id=1,
+                               enforce_age=True)
+    await ingest_alert_message(s, text=START, when=_late(90), source_id=1, message_id=2,
                                enforce_age=True)
     assert await s.scalar(select(func.count()).select_from(Alert)) == 0
 
-    # A real, live alert — then its відбій arrives late (the 07-31 shape).
-    await ingest_alert_message(s, text=start, when=utcnow(), source_id=1, message_id=2,
+
+async def test_a_later_start_does_not_supersede_an_earlier_one(ctx):
+    """An escalation is the SAME siren announcing a new level (the channel sounds
+    no відбій between threat kinds), so replaying both in order has to give the
+    true start time and the current level — not a window that begins at the
+    escalation."""
+    s, _matcher = ctx
+    began = _late(67)
+    await ingest_alert_message(s, text="🟡 УВАГА! У Києві оголошена дронова небезпека!",
+                               when=began, source_id=1, message_id=1, enforce_age=True)
+    await ingest_alert_message(
+        s, text="🔴 УВАГА! У Києві оголошена нова загроза — ракетна загроза!",
+        when=_late(64), source_id=1, message_id=2, enforce_age=True)
+    alert = await s.scalar(select(Alert))
+    assert await s.scalar(select(func.count()).select_from(Alert)) == 1
+    assert alert.level == "red" and alert.threat == "missile"
+    assert alert.started_at.replace(tzinfo=UTC) == began
+
+
+async def test_a_late_end_is_still_honoured(ctx):
+    """The recovery case a backfill exists for: a real siren whose відбій we
+    missed during the dropout. Both messages are late — the whole window is —
+    and the відбій still has to land, dated when it was posted."""
+    s, _matcher = ctx
+    ended = _late(45)
+    await ingest_alert_message(s, text=START, when=_late(90), source_id=1, message_id=2,
                                enforce_age=True)
-    await ingest_alert_message(s, text=end, when=_late(), source_id=1, message_id=3,
+    await ingest_alert_message(s, text=END, when=ended, source_id=1, message_id=3,
                                enforce_age=True)
     alert = await s.scalar(select(Alert))
-    assert alert.ended_at is not None
+    assert alert.ended_at.replace(tzinfo=UTC) == ended
     assert alert.closed_reason == "official"
+
+
+async def test_replaying_a_stored_message_repairs_a_state_it_never_wrote(ctx):
+    """A backfill re-reads what it already stored, and that is now how a missed
+    transition heals: the raw row exists, so the old dedup returned early and the
+    alert stayed lost forever. Idempotent, so the repeat writes nothing new."""
+    s, _matcher = ctx
+    began = _late(67)
+    await ingest_alert_message(s, text=START, when=began, source_id=1, message_id=1,
+                               enforce_age=True)
+    # Wipe what the first pass wrote, keeping the raw message — the shape a
+    # vetoed or half-committed pass leaves behind.
+    for a in list(await s.scalars(select(Alert))):
+        await s.delete(a)
+    await s.commit()
+
+    await ingest_alert_message(s, text=START, when=began, source_id=1, message_id=1,
+                               enforce_age=True)
+    assert await s.scalar(select(func.count()).select_from(Alert)) == 1
+    # …and replaying it once more changes nothing.
+    await ingest_alert_message(s, text=START, when=began, source_id=1, message_id=1,
+                               enforce_age=True)
+    assert await s.scalar(select(func.count()).select_from(Alert)) == 1
+    assert await s.scalar(select(func.count()).select_from(RawMessage)) == 1
 
 
 async def test_late_alert_start_still_replays_under_reprocess(ctx):

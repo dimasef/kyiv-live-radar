@@ -44,6 +44,10 @@ export function withOfficialKyiv(
       ...base,
       stale: false,
       alert: open != null,
+      // The channel names the threat outright («дронова небезпека» /
+      // «ракетна загроза»), so its level beats the district provider's for the
+      // capital the same way its timing does.
+      level: open ? open.level : 'unknown',
       changed_at: open ? open.started_at : (ended?.ended_at ?? null),
     },
   }
@@ -70,11 +74,28 @@ export function inShownRegions<T extends { region: Region }>(
 /** How a zone should be painted. `stale` is its own tone on purpose: when the
  * provider is unreachable we know nothing, and drawing that as "відбій" would
  * turn an outage into a false all-clear. */
-export type ZoneTone = 'alert' | 'clear' | 'stale'
+export type ZoneTone = 'yellow' | 'red' | 'clear' | 'stale'
 
+/** An UNGRADED siren is painted red, not given a third alert colour.
+ *
+ * Only alerts.in.ua grades a raion; the roster source reports a bare boolean,
+ * and Kyiv city is graded by the official channel. So 'unknown' means a siren
+ * nobody has graded — and on an air-raid map the two mistakes are not equal:
+ * showing a drone alert as a missile one costs a reader nothing, showing a
+ * missile alert as a drone one is the failure this layer exists to prevent.
+ * The distinction survives in words instead: an ungraded zone names no threat
+ * kind in its label. */
 export function zoneTone(zone: AlertZone): ZoneTone {
   if (zone.stale) return 'stale'
-  return zone.alert ? 'alert' : 'clear'
+  if (!zone.alert) return 'clear'
+  return zone.level === 'yellow' ? 'yellow' : 'red'
+}
+
+/** Whether this tone is a siren, whatever its level — what the glow pass and
+ * the auto-frame ask. One function so the two can't drift apart the day a third
+ * level appears. */
+export function isAlerting(tone: ZoneTone): boolean {
+  return tone === 'yellow' || tone === 'red'
 }
 
 /** How long the zone has held its current state, split into hours+minutes.
@@ -134,7 +155,7 @@ export function zoneFitBounds(
   geometry: AlertZoneGeometry,
   zones: Record<string, AlertZone>,
 ): [[number, number], [number, number]] | null {
-  const lit = Object.keys(geometry).filter((id) => zones[id] && zoneTone(zones[id]) === 'alert')
+  const lit = Object.keys(geometry).filter((id) => zones[id] && isAlerting(zoneTone(zones[id])))
   const ids = lit.length > 0 ? lit : Object.keys(geometry)
   let south = Infinity
   let west = Infinity

@@ -44,7 +44,7 @@ from ..domain.alert_zones import (
 )
 from ..domain.alerts import AlertSignal, apply_alert_signal
 from ..domain.zone_alerts import Pending, confirm_changes, signal_time
-from ..models import Alert, utcnow
+from ..models import Alert, AlertLevel, utcnow
 from ..pipeline.broadcast import broadcast_results
 from ..pipeline.results import Broadcast
 from ..schemas import AlertZoneOut, WSMessage
@@ -143,9 +143,20 @@ def parse_aiu(payload: dict) -> dict[str, ZoneState]:
             began = None
         states[zone.id] = ZoneState(
             zone_id=zone.id, name_uk=zone.name_uk, oblast=zone.oblast,
-            alert=True, changed_at=began,
+            alert=True, changed_at=began, level=_level(row.get("alert_level")),
         )
     return states
+
+
+def _level(value: object) -> AlertLevel:
+    """The source's own level word, or 'unknown' for anything else — including
+    the levels it uses for the alert types this map ignores. A value we don't
+    recognise must not be guessed at."""
+    if value == "yellow":
+        return "yellow"
+    if value == "red":
+        return "red"
+    return "unknown"
 
 
 def latest_transition(payload: dict) -> datetime | None:
@@ -255,7 +266,8 @@ def _zone_out(state: ZoneState, stale: bool) -> AlertZoneOut:
     return AlertZoneOut(
         zone_id=state.zone_id, name_uk=state.name_uk, oblast=state.oblast,
         region=OBLAST_REGION[state.oblast],
-        alert=state.alert, changed_at=state.changed_at, stale=stale,
+        alert=state.alert, changed_at=state.changed_at, level=state.level,
+        stale=stale,
     )
 
 
@@ -295,6 +307,11 @@ def merge_states(roster: dict[str, ZoneState],
             # Take the confirming source's start time too — the roster's
             # `changed_at` describes the clear it wrongly still believes in.
             merged[zone_id] = replace(hot, alert=True)
+        else:
+            # Both agree the siren is on: keep the roster's start time (it dates
+            # transitions rather than only listing what is live) and take the
+            # level, which is the one thing only this source knows.
+            merged[zone_id] = replace(base, level=hot.level)
     return merged
 
 
@@ -371,7 +388,10 @@ async def persist_once() -> list[Alert]:
         open_rows = list(await session.scalars(
             select(Alert).where(Alert.zone_id.is_not(None), Alert.ended_at.is_(None))
         ))
-        committed = {a.zone_id: True for a in open_rows}
+        # The level is part of what is committed, not a detail hanging off it —
+        # a raion whose siren goes from drone to missile has to move its row the
+        # same way one that starts sounding does.
+        committed = {a.zone_id: a.level for a in open_rows}
         observed = {s.zone_id: s for s in current_states()}
         _pending, confirmed = confirm_changes(
             _pending, committed, observed, settings.alert_zones_confirm_ticks
@@ -382,16 +402,17 @@ async def persist_once() -> list[Alert]:
         changed: list[Alert] = []
         for state in confirmed:
             zone = ZONE_BY_ID[state.zone_id]
-            alert = await apply_alert_signal(session, AlertSignal(
+            outcome = await apply_alert_signal(session, AlertSignal(
                 scope="raion",
                 action="start" if state.alert else "end",
                 when=signal_time(state, now),
                 region=region_of(zone),
                 provider=settings.alert_zones_source,
                 zone_id=zone.id,
+                level=state.level,
             ))
-            if alert is not None:
-                changed.append(alert)
+            if outcome is not None:
+                changed.append(outcome.alert)
         if changed:
             await broadcast_results(session, [Broadcast("alert", alert=a) for a in changed])
         return changed

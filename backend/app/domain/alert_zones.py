@@ -27,6 +27,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
+from ..models import AlertLevel
 from ..regions import REGION_SPECS, SPEC_BY_ID, Region
 
 # Oblast names exactly as the provider spells them, taken from the region
@@ -161,6 +162,11 @@ class ZoneState:
     # sends a 1970 epoch sentinel for a zone whose state it has never seen
     # change) — the UI then shows the state without a duration.
     changed_at: datetime | None
+    # Threat level, since the differentiated alerting of 06.09.2026. Only the
+    # active-alert source carries it; the roster source reports a bare boolean,
+    # so a raion held up by the roster alone stays 'unknown' — which the map
+    # paints as red rather than downgrading a siren it cannot grade.
+    level: AlertLevel = "unknown"
 
 
 def unknown_state(zone: Zone) -> ZoneState:

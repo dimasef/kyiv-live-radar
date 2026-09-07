@@ -34,10 +34,11 @@ VYSHHOROD = "kyiv-obl-vyshhorodskyi"
 NIZHYN = "chernihiv-obl-nizhynskyi"
 
 
-def state(zone_id: str, alert: bool, changed_at: datetime | None = None) -> ZoneState:
+def state(zone_id: str, alert: bool, changed_at: datetime | None = None,
+          level: str = "unknown") -> ZoneState:
     zone = ZONE_BY_ID[zone_id]
     return ZoneState(zone_id=zone.id, name_uk=zone.name_uk, oblast=zone.oblast,
-                     alert=alert, changed_at=changed_at)
+                     alert=alert, changed_at=changed_at, level=level)
 
 
 def observed(*states: ZoneState) -> dict[str, ZoneState]:
@@ -67,7 +68,7 @@ def test_an_inactive_regions_raions_are_skipped():
 def test_a_sustained_change_confirms_after_the_required_ticks():
     pending, confirmed = confirm_changes({}, {}, observed(state(BROVARY, True)), 2)
     assert confirmed == []
-    assert pending[BROVARY] == Pending(alert=True, ticks=1)
+    assert pending[BROVARY] == Pending(alert=True, level="unknown", ticks=1)
 
     pending, confirmed = confirm_changes(pending, {}, observed(state(BROVARY, True)), 2)
     assert [s.zone_id for s in confirmed] == [BROVARY]
@@ -87,12 +88,13 @@ def test_a_single_tick_blink_never_confirms():
 
 
 def test_an_observation_matching_what_is_stored_is_not_a_change():
-    pending, confirmed = confirm_changes({}, {BROVARY: True}, observed(state(BROVARY, True)), 2)
+    pending, confirmed = confirm_changes(
+        {}, {BROVARY: "yellow"}, observed(state(BROVARY, True, level="yellow")), 2)
     assert confirmed == [] and pending == {}
 
 
 def test_a_clear_confirms_the_same_way_a_start_does():
-    committed = {BROVARY: True}
+    committed = {BROVARY: "yellow"}
     pending, confirmed = confirm_changes({}, committed, observed(state(BROVARY, False)), 2)
     assert confirmed == []
     pending, confirmed = confirm_changes(pending, committed, observed(state(BROVARY, False)), 2)
@@ -110,6 +112,38 @@ def test_zones_are_debounced_independently():
     assert NIZHYN not in pending
 
 
+def test_a_level_change_confirms_like_any_other_change():
+    """Жовтий -> червоний inside a running siren is a real transition: the raion
+    is still alerting, but what it is alerting about has changed."""
+    committed = {BROVARY: "yellow"}
+    snapshot = observed(state(BROVARY, True, level="red"))
+    pending, confirmed = confirm_changes({}, committed, snapshot, 2)
+    assert confirmed == []
+    assert pending[BROVARY] == Pending(alert=True, level="red", ticks=1)
+    pending, confirmed = confirm_changes(pending, committed, snapshot, 2)
+    assert [s.level for s in confirmed] == ["red"]
+
+
+def test_a_level_flicker_never_confirms():
+    committed = {BROVARY: "yellow"}
+    pending, _ = confirm_changes({}, committed, observed(state(BROVARY, True, level="red")), 2)
+    pending, confirmed = confirm_changes(
+        pending, committed, observed(state(BROVARY, True, level="yellow")), 2)
+    assert confirmed == [] and pending == {}
+
+
+def test_losing_the_level_source_does_not_downgrade_an_open_alert():
+    """Only alerts.in.ua grades a siren. When it drops a raion the roster still
+    holds up, the state arrives as 'unknown' — which is the level-carrying source
+    going quiet, not a de-escalation, and must not repaint a red raion."""
+    committed = {BROVARY: "red"}
+    snapshot = observed(state(BROVARY, True, level="unknown"))
+    pending, confirmed = confirm_changes({}, committed, snapshot, 2)
+    assert confirmed == [] and pending == {}
+    pending, confirmed = confirm_changes(pending, committed, snapshot, 2)
+    assert confirmed == [] and pending == {}
+
+
 def test_one_tick_is_enough_when_the_guard_is_disabled():
     _, confirmed = confirm_changes({}, {}, observed(state(BROVARY, True)), 1)
     assert [s.zone_id for s in confirmed] == [BROVARY]
@@ -117,7 +151,7 @@ def test_one_tick_is_enough_when_the_guard_is_disabled():
 
 def test_a_zone_missing_from_the_snapshot_is_left_alone():
     """Silence about a raion is not evidence about it."""
-    pending, confirmed = confirm_changes({}, {BROVARY: True}, {}, 2)
+    pending, confirmed = confirm_changes({}, {BROVARY: "red"}, {}, 2)
     assert confirmed == [] and pending == {}
 
 

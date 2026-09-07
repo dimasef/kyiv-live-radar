@@ -54,7 +54,19 @@
       "oblast": "Область",
       "raion": "Район"
     },
-    "staleSource": "Дані про тривогу застаріли"
+    "staleSource": "Дані про тривогу застаріли",
+    "threat": {
+      "drone": "Дронова небезпека",
+      "massed_drone": "Масована дронова загроза",
+      "missile": "Ракетна загроза",
+      "missile_drone": "Ракетно-дронова загроза",
+      "unspecified": "Повітряна тривога"
+    },
+    "where": {
+      "city": "м. Київ",
+      "oblast": "Київська область"
+    },
+    "scopeThreat": "{{threat}} — {{where}}"
   },
   "attack": {
     "classification": {
@@ -147,12 +159,13 @@
     "clearTail3": "у небі над містом чисто.",
     "clearTail4": "бережіть себе.",
     "alertStart": "Повітряна тривога",
-    "alertStartBody": "Оголошено повітряну тривогу — {{where}}. Пройдіть в укриття.",
+    "alertStartBody": "Оголошено: {{threat}} — {{where}}. Пройдіть в укриття.",
     "alertEnded": "Відбій тривоги",
     "alertEndedBody": "Тривогу скасовано — {{where}}.",
     "alertWhereCity": "м. Київ",
     "alertWhereOblast": "область",
-    "alertOngoing": "триває"
+    "alertOngoing": "триває",
+    "alert_level": "Рівень загрози змінено"
   },
   "status": {
     "impact": "інцидент",
@@ -310,7 +323,9 @@
     "ariaCount_one": "гудить {{count}} район",
     "ariaCount_few": "гудять {{count}} райони",
     "ariaCount_many": "гудять {{count}} районів",
-    "noticeOn": "Шар тривог активовано"
+    "noticeOn": "Шар тривог активовано",
+    "levelYellow": "Жовтий рівень",
+    "levelRed": "Червоний рівень"
   },
   "zonesCtl": {
     "show": "Показати тривоги по районах",

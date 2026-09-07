@@ -95,10 +95,20 @@ export function legendRows({ impacts = false }: { impacts?: boolean } = {}): Leg
       }),
     })
   }
+  // Two rows, because the layer now paints two levels and they are the one
+  // thing about it a reader has to be told rather than shown: amber and red
+  // side by side on the map mean nothing until the legend names them. The
+  // all-clear flash stays on the red row rather than getting a third — it is
+  // the same «відбій» whichever level preceded it.
+  rows.push({
+    id: 'zone-yellow',
+    labelKey: 'zones.levelYellow',
+    html: zoneEdgeSwatch(ZONE_STYLES.yellow.color, ZONE_GLOW.yellow.opacity),
+  })
   rows.push({
     id: 'zone',
-    labelKey: 'zones.alert',
-    html: zoneEdgeSwatch(ZONE_STYLES.alert.color, ZONE_GLOW.opacity),
+    labelKey: 'zones.levelRed',
+    html: zoneEdgeSwatch(ZONE_STYLES.red.color, ZONE_GLOW.red.opacity),
     flipped: {
       labelKey: 'zones.clear',
       html: zoneEdgeSwatch(ZONE_ALL_CLEAR.color, ZONE_ALL_CLEAR.opacity),

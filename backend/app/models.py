@@ -163,9 +163,10 @@ AXIS_STATES: tuple[AxisState, ...] = get_args(AxisState)
 # (surfaced with an "AI · неперевірено" badge in the feed).
 NoticeGenerator = Literal["rule", "llm"]
 NOTICE_GENERATORS: tuple[NoticeGenerator, ...] = get_args(NoticeGenerator)
-# What a Notice is about — an all-clear, a retrospective attack summary, or one
-# of the three LLM-triage context notices.
-NoticeKind = Literal["clear", "summary", "directional", "forecast", "status"]
+# What a Notice is about — an all-clear, a retrospective attack summary, a
+# threat level changing inside a running alert, or one of the three LLM-triage
+# context notices.
+NoticeKind = Literal["clear", "summary", "alert_level", "directional", "forecast", "status"]
 NOTICE_KINDS: tuple[NoticeKind, ...] = get_args(NoticeKind)
 # 'spotter' = volunteer sighting channel, parsed by parser.py into
 # threats/tracks. 'alert' = official air-raid alert channel (@KyivCityOfficial
@@ -190,6 +191,19 @@ ALERT_SCOPES: tuple[AlertScope, ...] = get_args(AlertScope)
 # ate the відбій, not a real day-long siren) — see app/alerts.py.
 AlertClosedReason = Literal["official", "failsafe", "dismissed"]
 ALERT_CLOSED_REASONS: tuple[AlertClosedReason, ...] = get_args(AlertClosedReason)
+# Threat level of an alert, per the differentiated alerting the government
+# introduced in Kyiv at 06:00 on 2026-09-06 (published verbatim by the official
+# channel — see parsing/alert_parser.py). 'unknown' is not a gap in the data: it
+# is every alert announced without a level, which is every alert before that
+# date, every channel outside Kyiv, and every raion the level-carrying provider
+# is not currently listing.
+AlertLevel = Literal["yellow", "red", "unknown"]
+ALERT_LEVELS: tuple[AlertLevel, ...] = get_args(AlertLevel)
+# What is actually flying, as the official taxonomy names it. Only the city
+# channel says this; a raion provider reports a level and no kind, so a raion
+# alert stays 'unspecified' whatever its level.
+AlertThreat = Literal["drone", "massed_drone", "missile", "missile_drone", "unspecified"]
+ALERT_THREATS: tuple[AlertThreat, ...] = get_args(AlertThreat)
 # Why an Incident (attack) ended: a spotter's "Відбій" ('all_clear'), the
 # official city alert ending ('alert_end'), or the stale sweeper timing it out
 # ('stale'). NULL while active — see app/incidents.py.
@@ -391,6 +405,19 @@ class Alert(Base):
     # raions of one oblast must be able to alert independently.
     zone_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
     alert_type: Mapped[str] = mapped_column(String(20), default="air_raid")
+    # How bad, and of what — see ALERT_LEVELS / ALERT_THREATS. These MUTATE
+    # during an alert instead of ending it: the official channel announces no
+    # separate «Відбій» between threat kinds, a new announcement simply replaces
+    # the previous one, so a yellow drone alert turning red is the same siren
+    # window with a different level (see domain/alerts.apply_alert_signal).
+    level: Mapped[str] = mapped_column(String(10), default="unknown")
+    threat: Mapped[str] = mapped_column(String(20), default="unspecified")
+    # When the CURRENT level was set. NULL while it is the one the alert opened
+    # with — the banner then counts the level's age from `started_at`, and only
+    # an alert that actually escalated carries a second clock.
+    level_changed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     ended_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, index=True

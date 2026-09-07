@@ -51,6 +51,14 @@ def _aiu_live() -> dict:
     return json.loads((DATA / "alert_zones_aiu_live.json").read_text("utf-8"))
 
 
+def _aiu_levels() -> dict:
+    """A real 2026-09-07 20:38 capture, the first with `alert_level` — Kyiv and
+    Броварський під червоним, every other watched raion під жовтим. The 08-19
+    fixture above deliberately still has no level field at all, which is what
+    keeps the "source says nothing" path honest."""
+    return json.loads((DATA / "alert_zones_aiu_levels.json").read_text("utf-8"))
+
+
 @pytest.fixture(autouse=True)
 def _clean_state():
     az.reset_state()
@@ -129,6 +137,24 @@ def test_aiu_reads_iso_utc_timestamps():
     assert state.changed_at == datetime(2026, 8, 19, 13, 9, 49, tzinfo=UTC)
 
 
+def test_aiu_reads_the_threat_level():
+    states = az.parse_aiu(_aiu_levels())
+    assert states["kyiv-obl-brovarskyi"].level == "red"
+    assert states["kyiv-obl-vyshhorodskyi"].level == "yellow"
+
+
+def test_a_payload_without_levels_is_ungraded_not_guessed():
+    """The pre-06.09 shape, and anything upstream stops sending. 'unknown' is
+    read as "nobody graded this", which the map paints at the higher level."""
+    assert all(s.level == "unknown" for s in az.parse_aiu(_aiu()).values())
+
+
+def test_the_roster_source_grades_nothing():
+    """skog reports a bare boolean — the level can only come from the other
+    source, which is why merge_states has to carry it across."""
+    assert all(s.level == "unknown" for s in az.parse_skog(_skog()).values())
+
+
 # --- merging the two sources ---
 
 def test_a_live_alert_the_roster_missed_still_shows():
@@ -158,6 +184,36 @@ def test_the_merge_never_cancels_an_alert():
     roster = az.parse_skog(_skog())
     assert roster["kyiv-city"].alert is True
     assert az.merge_states(roster, {})["kyiv-city"].alert is True
+
+
+def test_the_level_crosses_over_to_a_zone_the_roster_already_has_alerting():
+    """Both sources agree the siren is on. The roster keeps the start time — it
+    dates transitions, the other only lists what is live — but the level is the
+    one thing only alerts.in.ua knows, so it has to survive the merge."""
+    zone = "kyiv-obl-vyshhorodskyi"
+    roster = az.parse_skog(_skog())
+    assert roster[zone].alert is True and roster[zone].level == "unknown"
+    active = az.parse_aiu(_aiu_levels())
+
+    merged = az.merge_states(roster, active)
+    assert merged[zone].level == "yellow"
+    assert merged[zone].changed_at == roster[zone].changed_at
+
+
+def test_a_zone_only_the_active_source_sees_keeps_its_level():
+    zone = "kyiv-obl-brovarskyi"
+    roster = az.parse_skog(_skog())
+    assert roster[zone].alert is False
+    merged = az.merge_states(roster, az.parse_aiu(_aiu_levels()))
+    assert merged[zone].alert is True and merged[zone].level == "red"
+
+
+def test_a_quiet_zone_is_never_graded():
+    """A level describes a siren. A raion neither source is alerting has none,
+    and the merge must not invent one from a neighbour's."""
+    merged = az.merge_states(az.parse_skog(_skog()), az.parse_aiu(_aiu_levels()))
+    quiet = merged["sumy-obl-konotopskyi"]
+    assert quiet.alert is False and quiet.level == "unknown"
 
 
 # --- diffing ---

@@ -22,6 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+from ..models import AlertLevel
 from ..regions import active_regions
 from ..timeutil import naive
 from .alert_zones import KYIV_CITY_ZONE_ID, ZONES, Zone, ZoneState, region_of
@@ -38,6 +39,10 @@ class Pending:
     """A state the provider is reporting that we have not committed yet."""
 
     alert: bool
+    # The level that came with it. Part of the candidate, so a raion flickering
+    # between two levels has to hold ONE of them to earn the write, exactly as
+    # it has to hold on/off.
+    level: AlertLevel
     ticks: int
 
 
@@ -57,20 +62,27 @@ def eligible(zone: Zone) -> bool:
 
 def confirm_changes(
     pending: dict[str, Pending],
-    committed: dict[str, bool],
+    committed: dict[str, AlertLevel | None],
     observed: dict[str, ZoneState],
     ticks_required: int,
 ) -> tuple[dict[str, Pending], list[ZoneState]]:
     """One tick of the debounce.
 
-    `committed` is what the DB says is open per raion, `observed` this poll's
-    snapshot. Returns the pending map to carry into the next tick, and the states
-    whose change has now been confirmed and should be written.
+    `committed` is what the DB says per raion — the open alert's level, or None
+    where nothing is open — and `observed` this poll's snapshot. Returns the
+    pending map to carry into the next tick, and the states whose change has now
+    been confirmed and should be written.
 
     A zone whose observation matches what is committed simply drops out of
     `pending` — that is what makes a blink free: the return leg cancels the
     candidate raised by the outbound one, and the counter starts from zero when
     it comes back.
+
+    An open alert whose level is merely UNKNOWN this tick is left alone. That is
+    not a de-escalation, it is the level-carrying source having dropped the raion
+    from its list while the roster still holds the siren up, and forgetting a
+    known level over it would repaint a red raion for no gain (`alerts._relevel`
+    refuses the same write one layer down).
     """
     next_pending: dict[str, Pending] = {}
     confirmed: list[ZoneState] = []
@@ -80,14 +92,18 @@ def confirm_changes(
         state = observed.get(zone.id)
         if state is None:
             continue
-        if state.alert == committed.get(zone.id, False):
+        current = committed.get(zone.id)
+        if state.alert == (current is not None) and (
+            state.level == current or state.level == "unknown"
+        ):
             continue
         prev = pending.get(zone.id)
-        ticks = prev.ticks + 1 if prev is not None and prev.alert == state.alert else 1
+        same = prev is not None and prev.alert == state.alert and prev.level == state.level
+        ticks = prev.ticks + 1 if same else 1
         if ticks >= ticks_required:
             confirmed.append(state)
         else:
-            next_pending[zone.id] = Pending(alert=state.alert, ticks=ticks)
+            next_pending[zone.id] = Pending(alert=state.alert, level=state.level, ticks=ticks)
     return next_pending, confirmed
 
 

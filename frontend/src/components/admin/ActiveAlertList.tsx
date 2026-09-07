@@ -1,4 +1,5 @@
 import { dismissAlert } from '@/api'
+import { alertLevelColor } from '@/lib/alertLevel'
 import { useRadar } from '@/store'
 
 import AdminActionButton from './AdminActionButton'
@@ -30,6 +31,13 @@ export default function ActiveAlertList() {
             >
               <span className="font-mono text-slate-300">Тривога #{alert.id}</span>
               <span className="text-slate-500">{alert.scope === 'city' ? 'місто' : 'область'}</span>
+              {/* Which level is running right now — an alert can be re-levelled
+                  in place without ever closing, so this is not readable from the
+                  row's start time. */}
+              <span className="font-mono" style={{ color: alertLevelColor(alert) }}>
+                {alert.level}
+                {alert.threat !== 'unspecified' && ` · ${alert.threat}`}
+              </span>
               <div className="ml-auto">
                 <AdminActionButton
                   label="Скасувати тривогу"

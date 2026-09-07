@@ -228,6 +228,28 @@
             "title": "Id",
             "type": "integer"
           },
+          "level": {
+            "default": "unknown",
+            "enum": [
+              "yellow",
+              "red",
+              "unknown"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "level_changed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level Changed At"
+          },
           "provider": {
             "title": "Provider",
             "type": "string"
@@ -255,6 +277,18 @@
           "started_at": {
             "format": "date-time",
             "title": "Started At",
+            "type": "string"
+          },
+          "threat": {
+            "default": "unspecified",
+            "enum": [
+              "drone",
+              "massed_drone",
+              "missile",
+              "missile_drone",
+              "unspecified"
+            ],
+            "title": "Threat",
             "type": "string"
           },
           "zone_id": {
@@ -334,6 +368,16 @@
               }
             ],
             "title": "Changed At"
+          },
+          "level": {
+            "default": "unknown",
+            "enum": [
+              "yellow",
+              "red",
+              "unknown"
+            ],
+            "title": "Level",
+            "type": "string"
           },
           "name_uk": {
             "title": "Name Uk",
@@ -2410,6 +2454,7 @@
             "enum": [
               "clear",
               "summary",
+              "alert_level",
               "directional",
               "forecast",
               "status"
@@ -3307,6 +3352,7 @@
             "enum": [
               "clear",
               "summary",
+              "alert_level",
               "directional",
               "forecast",
               "status"

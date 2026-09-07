@@ -4,11 +4,17 @@ import { GeoJSON, Tooltip, useMap } from 'react-leaflet'
 import { useRadar } from '@/store'
 import { useShownRegions } from '@/store/useShownRegions'
 
-import { inShownRegions, zoneTone } from './alertZones'
+import { inShownRegions, isAlerting, zoneTone } from './alertZones'
 import { tagPath, taggedId } from './tagPath'
 import { useMapMoving } from './useMapMoving'
 import { useZoneStates } from './useZoneStates'
 import { ZONE_ALL_CLEAR, ZONE_GLOW, ZONE_LABEL_NUDGE, ZONE_STYLES } from './constants'
+import {
+  ensureZonePanes,
+  ZONE_ALL_CLEAR_PANE,
+  ZONE_GLOW_PANE,
+  ZONE_OUTLINE_PANE,
+} from './zonePanes'
 import ZoneGlowDefs from './ZoneGlowDefs'
 import ZoneLabel from './ZoneLabel'
 
@@ -32,6 +38,8 @@ export default function AlertZoneLayer() {
   // sirens drawn over the map they came for.
   const geometry = inShownRegions(allGeometry, shown)
   const map = useMap()
+  // Before any child GeoJSON asks Leaflet for a renderer — see zonePanes.ts.
+  ensureZonePanes(map)
   // Parks the glow filters for the length of a drag — see `.map-moving`.
   useMapMoving()
   /** Zone whose name is currently revealed — hovered, or focused. */
@@ -64,18 +72,27 @@ export default function AlertZoneLayer() {
   return (
     <>
       <ZoneGlowDefs />
-      {/* Every glow first, then every outline — not glow+outline per zone. In
-          one pass a neighbour's glow lands on top of the border drawn just
-          before it, and alerted raions are almost always neighbours. */}
+      {/* Stacking is owned by the panes (zonePanes.ts), not by the order these
+          are written in: every glow sits under every outline, and a червоний
+          raion's border is drawn over its жовтий neighbour's whichever of them
+          lit up last. */}
       {shapes
-        .filter(([zoneId]) => toneOf(zoneId) === 'alert')
-        .map(([zoneId, shape]) => (
-          <GeoJSON
-            key={`glow-${zoneId}`}
-            data={shape.geojson}
-            style={{ ...ZONE_GLOW.style, className: 'zone-glow zone-enter' }}
-          />
-        ))}
+        .filter(([zoneId]) => isAlerting(toneOf(zoneId)))
+        .map(([zoneId, shape]) => {
+          // 'yellow' | 'red' — isAlerting has already excluded the quiet tones.
+          const level = toneOf(zoneId) as 'yellow' | 'red'
+          return (
+            <GeoJSON
+              key={`glow-${zoneId}-${level}`}
+              pane={ZONE_GLOW_PANE[level]}
+              data={shape.geojson}
+              style={{
+                ...ZONE_GLOW[level].style,
+                className: `zone-glow zone-glow--${level} zone-enter`,
+              }}
+            />
+          )
+        })}
       {/* «Відбій»: the raion has already gone quiet in every other layer — this
           is the announcement of the change, mounted by the store for exactly as
           long as its animation runs. A separate non-interactive path on purpose:
@@ -86,6 +103,7 @@ export default function AlertZoneLayer() {
         .map(([zoneId, shape]) => (
           <GeoJSON
             key={`allclear-${zoneId}`}
+            pane={ZONE_ALL_CLEAR_PANE}
             data={shape.geojson}
             style={{ ...ZONE_ALL_CLEAR.style, className: 'zone-allclear' }}
           />
@@ -98,6 +116,7 @@ export default function AlertZoneLayer() {
           // mount (same trick as CitywidePulse).
           <GeoJSON
             key={`${zoneId}-${tone}`}
+            pane={ZONE_OUTLINE_PANE[tone]}
             ref={(layer) => tagPath(layer, ZONE_ATTR, zoneId)}
             data={shape.geojson}
             style={{ ...ZONE_STYLES[tone], className: 'zone-hit zone-enter' }}

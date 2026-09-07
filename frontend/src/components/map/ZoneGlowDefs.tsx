@@ -2,7 +2,10 @@ import { createPortal } from 'react-dom'
 
 import { ZONE_ALL_CLEAR, ZONE_GLOW } from './constants'
 
-export const ZONE_GLOW_FILTER_ID = 'zone-inner-glow'
+export const ZONE_GLOW_FILTER_ID = {
+  yellow: 'zone-inner-glow-yellow',
+  red: 'zone-inner-glow-red',
+} as const
 export const ZONE_ALL_CLEAR_FILTER_ID = 'zone-inner-glow-clear'
 
 /** Blur the shape's own alpha, then subtract that blur FROM the alpha
@@ -11,8 +14,9 @@ export const ZONE_ALL_CLEAR_FILTER_ID = 'zone-inner-glow-clear'
  * fades inward. Flooding that band with a colour leaves the fill gone entirely —
  * the filter's output IS the glow, not the shape.
  *
- * Two instances of it exist, because an SVG filter cannot take a colour as a
- * parameter: red for a siren, green for the all-clear flash. */
+ * One instance per colour, because an SVG filter cannot take a colour as a
+ * parameter: amber for a drone alert, red for a missile one (and for a siren
+ * nobody graded), green for the all-clear flash. */
 function InnerGlow({
   id,
   color,
@@ -63,10 +67,16 @@ export default function ZoneGlowDefs() {
     >
       <defs>
         <InnerGlow
-          id={ZONE_GLOW_FILTER_ID}
-          color={ZONE_GLOW.color}
-          opacity={ZONE_GLOW.opacity}
-          spreadPx={ZONE_GLOW.spreadPx}
+          id={ZONE_GLOW_FILTER_ID.yellow}
+          color={ZONE_GLOW.yellow.color}
+          opacity={ZONE_GLOW.yellow.opacity}
+          spreadPx={ZONE_GLOW.yellow.spreadPx}
+        />
+        <InnerGlow
+          id={ZONE_GLOW_FILTER_ID.red}
+          color={ZONE_GLOW.red.color}
+          opacity={ZONE_GLOW.red.opacity}
+          spreadPx={ZONE_GLOW.red.spreadPx}
         />
         <InnerGlow
           id={ZONE_ALL_CLEAR_FILTER_ID}

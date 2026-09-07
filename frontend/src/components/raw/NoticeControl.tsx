@@ -5,18 +5,24 @@ import { addRawNotice } from '@/api'
 import AdminActionButton from '@/components/admin/AdminActionButton'
 import type { NoticeKind, RawMessage } from '@/types'
 
-/** Kind -> translation key. A Record (not an array) so a new backend notice kind
- * fails to compile here instead of quietly missing from the picker. Ordered by
- * how often it's the right answer by hand: a forecast is the classic thing the
- * suppression filters drop and an operator wants published anyway. */
-const KIND_LABEL: Record<NoticeKind, string> = {
+/** Kind -> translation key, or null for a kind that must not be published by
+ * hand. A Record (not an array) so a new backend notice kind fails to compile
+ * here instead of quietly missing from the picker. Ordered by how often it's the
+ * right answer by hand: a forecast is the classic thing the suppression filters
+ * drop and an operator wants published anyway. */
+const KIND_LABEL: Record<NoticeKind, string | null> = {
   forecast: 'notice.forecast',
   status: 'notice.status',
   summary: 'notice.summary',
   clear: 'notice.clear',
   directional: 'notice.directional',
+  // Raised only by an alert whose level actually moved (backend
+  // pipeline/ingest/alert.py). Published by hand it would announce an
+  // escalation of an alert that never changed.
+  alert_level: null,
 }
-const KINDS = Object.keys(KIND_LABEL) as NoticeKind[]
+const KINDS = (Object.entries(KIND_LABEL) as [NoticeKind, string | null][])
+  .filter((entry): entry is [NoticeKind, string] => entry[1] !== null)
 
 export type NoticeSet = (messageId: number, notice: { id: number; kind: string } | null) => void
 
@@ -58,9 +64,9 @@ export default function NoticeControl({
         className="rounded-md border border-white/15 bg-ink-900 px-1.5 py-0.5 text-[11px] text-slate-200"
         aria-label="Тип нотіса"
       >
-        {KINDS.map((k) => (
+        {KINDS.map(([k, labelKey]) => (
           <option key={k} value={k}>
-            {t(KIND_LABEL[k])}
+            {t(labelKey)}
           </option>
         ))}
       </select>

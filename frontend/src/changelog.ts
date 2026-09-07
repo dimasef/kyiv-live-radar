@@ -32,15 +32,29 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.52.2";
+const LATEST = "0.53.0";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
+    version: LATEST,
+    title: "два рівні тривоги",
+    date: "2026-09-07",
+    kind: "minor",
+    changes: [
+      "Київ від 6 вересня оголошує тривогу за рівнями загрози — застосунок тепер їх розрізняє: жовтий (дронова небезпека) і червоний (ракетна, масована дронова та ракетно-дронова загроза)",
+      "Райони на мапі світяться кольором свого рівня; червоний завжди малюється поверх жовтого на спільному кордоні",
+      "Смуга тривоги вгорі забарвлюється за рівнем і називає вид загрози, а не просто «Повітряна тривога»",
+      "Якщо рівень змінюється всередині тривоги, у стрічці подій зʼявляється окрема картка — окремого «Відбою» між видами загроз місто не оголошує, тому тривога лишається однією",
+      "У легенді мапи додано обидва рівні",
+      "Тривога, що вже тривала на момент відкриття застосунку, підхоплюється з часом свого справжнього початку — лічильник не починається заново",
+    ],
+  },
+  {
     // The rest of this release is for vouched-for accounts only (a legend row
     // and a toast for a layer the changelog deliberately does not name — see
     // 0.49.0), so the visible text stops at the label fix.
-    version: LATEST,
+    version: "0.52.2",
     title: "легенда вміщається",
     date: "2026-09-05",
     kind: "patch",

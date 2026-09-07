@@ -9,7 +9,9 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from ..models import (
     HOME_REGION,
     AlertClosedReason,
+    AlertLevel,
     AlertScope,
+    AlertThreat,
     AxisState,
     IncidentEndedReason,
     NoticeGenerator,
@@ -109,13 +111,24 @@ class AlertOut(BaseModel):
     # should speak. NULL is the official channel's city/oblast announcement.
     zone_id: str | None = None
     alert_type: str
+    # Threat level and what is flying — see ALERT_LEVELS / ALERT_THREATS. These
+    # move DURING an alert (the official channel replaces one announcement with
+    # the next and never sounds a відбій between them), so a client rendering
+    # them must re-read them on every alert frame, not only on the opening one.
+    level: AlertLevel = "unknown"
+    threat: AlertThreat = "unspecified"
+    # Set only once the level has actually moved; NULL while it is the one the
+    # alert opened with.
+    level_changed_at: datetime | None = None
     started_at: datetime
     ended_at: datetime | None = None
     provider: str
     # NULL while the alert is still open.
     closed_reason: AlertClosedReason | None = None
 
-    _tz_alert = field_validator("started_at", "ended_at", mode="before")(_as_utc)
+    _tz_alert = field_validator(
+        "started_at", "ended_at", "level_changed_at", mode="before"
+    )(_as_utc)
 
 
 class AxisOut(BaseModel):

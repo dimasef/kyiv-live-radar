@@ -10,7 +10,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db import Base
-from app.domain.alerts import AlertSignal, apply_alert_signal, close_stale_alerts
+from app.domain.alerts import AlertSignal, close_stale_alerts
+from app.domain.alerts import apply_alert_signal as _apply_signal
 from app.models import Alert, Notice, RawMessage, Threat
 from app.pipeline.ingest import ingest_alert_message
 
@@ -30,6 +31,14 @@ async def session(tmp_path):
 
 async def _count(session, model) -> int:
     return await session.scalar(select(func.count()).select_from(model))
+
+
+async def apply_alert_signal(session, signal: AlertSignal) -> Alert | None:
+    """`domain.alerts.apply_alert_signal` unwrapped to the Alert row — most of
+    this file is about the row itself. `AlertOutcome.kind` (opened / escalated /
+    closed) has its own tests in the level section below."""
+    outcome = await _apply_signal(session, signal)
+    return outcome.alert if outcome is not None else None
 
 
 # --- apply_alert_signal idempotency ---
@@ -271,3 +280,137 @@ async def test_the_failsafe_leaves_raion_alerts_alone(session):
     assert [a.scope for a in closed] == ["city"]
     still_open = list(await session.scalars(select(Alert).where(Alert.ended_at.is_(None))))
     assert [a.zone_id for a in still_open] == ["sumy-obl-sumskyi"]
+
+
+# --- differentiated levels (migration 0046) ---
+#
+# «Окремий "Відбій" між різними видами загроз не оголошується» — the official
+# channel replaces one announcement with the next, so a level moving inside a
+# running siren must move the ROW, never open a second one.
+
+async def test_a_start_carries_its_level_and_threat(session):
+    a = await apply_alert_signal(session, AlertSignal(
+        scope="city", action="start", when=BASE, level="yellow", threat="drone"))
+    assert a.level == "yellow" and a.threat == "drone" and a.level_changed_at is None
+
+
+async def test_an_escalation_moves_the_open_alert_instead_of_opening_one(session):
+    opened = await _apply_signal(session, AlertSignal(
+        scope="city", action="start", when=BASE, level="yellow", threat="drone"))
+    escalated = await _apply_signal(session, AlertSignal(
+        scope="city", action="start", when=BASE + timedelta(minutes=20),
+        level="red", threat="missile"))
+    assert escalated is not None and escalated.kind == "escalated"
+    assert escalated.alert.id == opened.alert.id
+    assert await _count(session, Alert) == 1
+    assert escalated.alert.level == "red" and escalated.alert.threat == "missile"
+    assert escalated.alert.level_changed_at == BASE + timedelta(minutes=20)
+    # The siren is one continuous window — the journal and the banner both read
+    # its duration off this.
+    assert escalated.alert.started_at.replace(tzinfo=UTC) == BASE
+    assert escalated.alert.ended_at is None
+
+
+async def test_a_de_escalation_moves_the_row_the_same_way(session):
+    await _apply_signal(session, AlertSignal(
+        scope="city", action="start", when=BASE, level="red", threat="missile"))
+    back = await _apply_signal(session, AlertSignal(
+        scope="city", action="start", when=BASE + timedelta(minutes=30),
+        level="yellow", threat="drone"))
+    assert back is not None and back.kind == "escalated"
+    assert back.alert.level == "yellow"
+    assert await _count(session, Alert) == 1
+
+
+async def test_repeating_the_same_level_is_still_a_noop(session):
+    await _apply_signal(session, AlertSignal(
+        scope="city", action="start", when=BASE, level="red", threat="missile"))
+    again = await _apply_signal(session, AlertSignal(
+        scope="city", action="start", when=BASE + timedelta(minutes=5),
+        level="red", threat="missile"))
+    assert again is None
+
+
+async def test_a_levelless_start_never_erases_a_known_level(session):
+    """A provider that grades nothing must not overwrite one that does — the
+    district roster carrying a raion alerts.in.ua has stopped listing, or a
+    non-Kyiv channel still posting the undifferentiated announcement."""
+    await _apply_signal(session, AlertSignal(
+        scope="city", action="start", when=BASE, level="red", threat="missile"))
+    assert await _apply_signal(session, AlertSignal(
+        scope="city", action="start", when=BASE + timedelta(minutes=5))) is None
+    open_alert = (await session.scalars(select(Alert))).one()
+    assert open_alert.level == "red" and open_alert.threat == "missile"
+
+
+async def test_the_official_start_message_sets_the_level(session):
+    await ingest_alert_message(
+        session, text="🟡 УВАГА! У Києві оголошена дронова небезпека!",
+        when=BASE, message_id=901)
+    alert = (await session.scalars(select(Alert))).one()
+    assert alert.level == "yellow" and alert.threat == "drone"
+
+
+async def test_an_escalation_message_raises_a_feed_notice(session):
+    await ingest_alert_message(
+        session, text="🟡 УВАГА! У Києві оголошена дронова небезпека!",
+        when=BASE, message_id=902)
+    out = await ingest_alert_message(
+        session, text="🔴 УВАГА! У Києві оголошена нова загроза — ракетна загроза!",
+        when=BASE + timedelta(minutes=12), message_id=903)
+    assert [b.type for b in out] == ["alert", "notice"]
+    notice = (await session.scalars(
+        select(Notice).where(Notice.kind == "alert_level"))).one()
+    assert "ракетна загроза" in notice.text.lower()
+    assert await _count(session, Alert) == 1
+
+
+# --- replaying history must not disturb a running alert ---
+#
+# A reconnect backfill replays a whole window of the channel, so the messages of
+# a siren that finished days ago arrive while tonight's is running. On
+# 2026-09-07 that put three alerts in the live DB, two of them stamped
+# `ended_at` earlier than their own `started_at`.
+
+async def test_an_old_stand_down_cannot_close_tonights_alert(session):
+    live = await _apply_signal(session, AlertSignal(
+        scope="city", action="start", when=BASE, level="red", threat="missile"))
+    stale = await _apply_signal(session, AlertSignal(
+        scope="city", action="end", when=BASE - timedelta(days=2)))
+    assert stale is None
+    await session.refresh(live.alert)
+    assert live.alert.ended_at is None
+
+
+async def test_a_raion_provider_may_still_close_what_it_opened(session):
+    """The exemption: the district provider is polled, never replayed, so a
+    timestamp disagreement there is its clock — and refusing would leave the
+    siren burning with the reconciler retrying every 20 s."""
+    await _apply_signal(session, AlertSignal(
+        scope="raion", action="start", when=BASE, region="kyiv",
+        zone_id="kyiv-obl-brovarskyi", level="yellow"))
+    closed = await _apply_signal(session, AlertSignal(
+        scope="raion", action="end", when=BASE - timedelta(hours=3), region="kyiv",
+        zone_id="kyiv-obl-brovarskyi"))
+    assert closed is not None and closed.alert.ended_at is not None
+
+
+async def test_replaying_the_opening_announcement_does_not_undo_an_escalation(session):
+    await _apply_signal(session, AlertSignal(
+        scope="city", action="start", when=BASE, level="yellow", threat="drone"))
+    await _apply_signal(session, AlertSignal(
+        scope="city", action="start", when=BASE + timedelta(minutes=3),
+        level="red", threat="missile"))
+
+    # …and now the backfill hands us the жовтий announcement again.
+    assert await _apply_signal(session, AlertSignal(
+        scope="city", action="start", when=BASE, level="yellow", threat="drone")) is None
+    # Re-delivering the escalation itself is just as stale — a second feed card
+    # for one escalation is exactly what this prevents.
+    assert await _apply_signal(session, AlertSignal(
+        scope="city", action="start", when=BASE + timedelta(minutes=3),
+        level="red", threat="missile")) is None
+
+    alert = (await session.scalars(select(Alert))).one()
+    assert alert.level == "red" and alert.threat == "missile"
+    assert alert.started_at.replace(tzinfo=UTC) == BASE

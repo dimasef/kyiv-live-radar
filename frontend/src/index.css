@@ -1009,8 +1009,15 @@ body::after {
    ZoneGlowDefs). Non-interactive: the outline path below it owns the cursor and
    the tooltip, and two stacked hit areas would fight over both. */
 .zone-glow {
-  filter: url(#zone-inner-glow);
   pointer-events: none;
+}
+/* One filter per level — an SVG filter cannot take a colour as a parameter, so
+   амбер and червоний are two separate defs (see ZoneGlowDefs). */
+.zone-glow--yellow {
+  filter: url(#zone-inner-glow-yellow);
+}
+.zone-glow--red {
+  filter: url(#zone-inner-glow-red);
 }
 
 /* Both glow layers go away while the map is being dragged or zoomed.
@@ -1139,7 +1146,12 @@ body::after {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
 }
-.zone-chip--alert {
+/* Жовтий рівень — дронова небезпека. */
+.zone-chip--yellow {
+  color: #fcd34d;
+}
+/* Червоний рівень, and any siren nobody graded. */
+.zone-chip--red {
   color: #fca5a5;
 }
 .zone-chip--clear {

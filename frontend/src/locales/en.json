@@ -54,7 +54,19 @@
       "oblast": "Oblast",
       "raion": "Raion"
     },
-    "staleSource": "Alert data is out of date"
+    "staleSource": "Alert data is out of date",
+    "threat": {
+      "drone": "Drone danger",
+      "massed_drone": "Massed drone threat",
+      "missile": "Missile threat",
+      "missile_drone": "Missile & drone threat",
+      "unspecified": "Air raid alert"
+    },
+    "where": {
+      "city": "Kyiv",
+      "oblast": "Kyiv oblast"
+    },
+    "scopeThreat": "{{threat}} — {{where}}"
   },
   "attack": {
     "classification": {
@@ -147,12 +159,13 @@
     "clearTail3": "the sky over the city is clear.",
     "clearTail4": "take care.",
     "alertStart": "Air raid alert",
-    "alertStartBody": "An air-raid alert has been declared — {{where}}. Take shelter.",
+    "alertStartBody": "Announced: {{threat}} — {{where}}. Take shelter.",
     "alertEnded": "All clear",
     "alertEndedBody": "The alert is over — {{where}}.",
     "alertWhereCity": "Kyiv",
     "alertWhereOblast": "the oblast",
-    "alertOngoing": "ongoing"
+    "alertOngoing": "ongoing",
+    "alert_level": "Threat level changed"
   },
   "status": {
     "impact": "incident",
@@ -309,7 +322,9 @@
     "noticeOff": "Alert layer off",
     "ariaCount_one": "{{count}} raion under siren",
     "ariaCount_other": "{{count}} raions under siren",
-    "noticeOn": "Alert layer on"
+    "noticeOn": "Alert layer on",
+    "levelYellow": "Yellow level",
+    "levelRed": "Red level"
   },
   "zonesCtl": {
     "show": "Show air alerts by raion",

@@ -10,6 +10,7 @@ const zone = (over: Partial<AlertZone> = {}): AlertZone => ({
   oblast: 'Київська область',
   region: 'kyiv',
   alert: false,
+  level: 'unknown',
   changed_at: null,
   stale: false,
   ...over,

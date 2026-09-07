@@ -1,6 +1,7 @@
 import { CloudOff, Siren } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { alertLevelColor, alertThreatKey } from '@/lib/alertLevel'
 import { useRadar } from '@/store'
 import type { Alert } from '@/types'
 import Collapsible from './Collapsible'
@@ -28,7 +29,19 @@ export default function AlertSegment({
       ? compact
         ? zone.name_uk.replace(/\s+район$/, '')
         : t('alert.scope.raion', { name: zone.name_uk })
-      : t(compact ? `alert.short.${alert.scope}` : `alert.scope.${alert.scope}`)
+      : compact
+        ? t(`alert.short.${alert.scope}`)
+        // Wide enough for words: name the threat the channel actually announced
+        // («Ракетна загроза — м. Київ») rather than the generic «Повітряна
+        // тривога». An ungraded alert falls back to exactly that generic wording.
+        : t('alert.scopeThreat', {
+            threat: t(alertThreatKey(alert)),
+            where: t(`alert.where.${alert.scope}`),
+          })
+
+  // The banner takes the level's colour, so a червоний alert is visible as one
+  // before a word of it is read.
+  const color = alertLevelColor(alert)
 
   // The district provider has gone quiet. The siren may well still be running,
   // but the running clock beside it is no longer something we can vouch for, so
@@ -36,7 +49,7 @@ export default function AlertSegment({
   const staleSource = zone?.stale === true
 
   return (
-    <div className="flex flex-none items-center">
+    <div className="flex flex-none items-center" style={{ color }}>
       <Siren size={15} className="flex-none animate-pulse" />
       <Collapsible open={open}>
         <span className="pl-1.5 uppercase tracking-wide sm:pl-2">{label}</span>

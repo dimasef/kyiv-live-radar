@@ -1,0 +1,470 @@
+{
+ "source": "alerts.in.ua API",
+ "cachedat": "2026-09-07 20:53:12",
+ "raw": [
+  {
+   "id": 257515,
+   "location_title": "Корюківський район",
+   "location_type": "raion",
+   "started_at": "2026-09-07T13:47:46.181Z",
+   "finished_at": null,
+   "updated_at": "2026-09-07T13:47:48.957Z",
+   "alert_type": "air_raid",
+   "location_oblast": "Чернігівська область",
+   "location_uid": "144",
+   "notes": null,
+   "country": null,
+   "alert_level": "yellow",
+   "location_title_en": "Koriukivka raion",
+   "threats": [
+    {
+     "threat_type": "drones",
+     "level": "yellow",
+     "started_at": "2026-09-07T13:47:46.181Z",
+     "source_message": "Дронова загроза (жовтий рівень)"
+    }
+   ],
+   "location_oblast_uid": 144
+  },
+  {
+   "id": 257516,
+   "location_title": "Чернігівський район",
+   "location_type": "raion",
+   "started_at": "2026-09-07T13:47:46.360Z",
+   "finished_at": null,
+   "updated_at": "2026-09-07T13:47:48.974Z",
+   "alert_type": "air_raid",
+   "location_oblast": "Чернігівська область",
+   "location_uid": "140",
+   "notes": null,
+   "country": null,
+   "alert_level": "yellow",
+   "location_title_en": "Chernihiv raion",
+   "threats": [
+    {
+     "threat_type": "drones",
+     "level": "yellow",
+     "started_at": "2026-09-07T13:47:46.360Z",
+     "source_message": "Дронова загроза (жовтий рівень)"
+    }
+   ],
+   "location_oblast_uid": 140
+  },
+  {
+   "id": 257529,
+   "location_title": "Броварський район",
+   "location_type": "raion",
+   "started_at": "2026-09-07T14:11:55.141Z",
+   "finished_at": null,
+   "updated_at": "2026-09-07T14:48:14.110Z",
+   "alert_type": "air_raid",
+   "location_oblast": "Київська область",
+   "location_uid": "79",
+   "notes": null,
+   "country": null,
+   "alert_level": "red",
+   "location_title_en": "Brovary raion",
+   "threats": [
+    {
+     "threat_type": "unspecified_missiles",
+     "level": "red",
+     "started_at": "2026-09-07T16:35:26.960Z",
+     "source_message": "Ракетна загроза (червоний рівень)"
+    },
+    {
+     "threat_type": "drones",
+     "level": "yellow",
+     "started_at": "2026-09-07T14:11:55.141Z",
+     "source_message": "Дронова загроза (жовтий рівень)"
+    }
+   ],
+   "location_oblast_uid": 79
+  },
+  {
+   "id": 257531,
+   "location_title": "Вишгородський район",
+   "location_type": "raion",
+   "started_at": "2026-09-07T14:11:55.790Z",
+   "finished_at": null,
+   "updated_at": "2026-09-07T14:12:03.280Z",
+   "alert_type": "air_raid",
+   "location_oblast": "Київська область",
+   "location_uid": "74",
+   "notes": null,
+   "country": null,
+   "alert_level": "yellow",
+   "location_title_en": "Vyshhorod raion",
+   "threats": [
+    {
+     "threat_type": "drones",
+     "level": "yellow",
+     "started_at": "2026-09-07T14:11:55.790Z",
+     "source_message": "Дронова загроза (жовтий рівень)"
+    }
+   ],
+   "location_oblast_uid": 74
+  },
+  {
+   "id": 257533,
+   "location_title": "Бориспільський район",
+   "location_type": "raion",
+   "started_at": "2026-09-07T14:18:06.913Z",
+   "finished_at": null,
+   "updated_at": "2026-09-07T14:18:16.809Z",
+   "alert_type": "air_raid",
+   "location_oblast": "Київська область",
+   "location_uid": "78",
+   "notes": null,
+   "country": null,
+   "alert_level": "yellow",
+   "location_title_en": "Boryspil raion",
+   "threats": [
+    {
+     "threat_type": "drones",
+     "level": "yellow",
+     "started_at": "2026-09-07T14:18:06.913Z",
+     "source_message": "Дронова загроза (жовтий рівень)"
+    }
+   ],
+   "location_oblast_uid": 78
+  },
+  {
+   "id": 257534,
+   "location_title": "Прилуцький район",
+   "location_type": "raion",
+   "started_at": "2026-09-07T14:18:07.004Z",
+   "finished_at": null,
+   "updated_at": "2026-09-07T14:18:16.829Z",
+   "alert_type": "air_raid",
+   "location_oblast": "Чернігівська область",
+   "location_uid": "143",
+   "notes": null,
+   "country": null,
+   "alert_level": "yellow",
+   "location_title_en": "Pryluky raion",
+   "threats": [
+    {
+     "threat_type": "drones",
+     "level": "yellow",
+     "started_at": "2026-09-07T14:18:07.004Z",
+     "source_message": "Дронова загроза (жовтий рівень)"
+    }
+   ],
+   "location_oblast_uid": 143
+  },
+  {
+   "id": 257542,
+   "location_title": "Фастівський район",
+   "location_type": "raion",
+   "started_at": "2026-09-07T14:35:02.527Z",
+   "finished_at": null,
+   "updated_at": "2026-09-07T14:35:04.466Z",
+   "alert_type": "air_raid",
+   "location_oblast": "Київська область",
+   "location_uid": "77",
+   "notes": null,
+   "country": null,
+   "alert_level": "yellow",
+   "location_title_en": "Fastiv raion",
+   "threats": [
+    {
+     "threat_type": "drones",
+     "level": "yellow",
+     "started_at": "2026-09-07T14:35:02.527Z",
+     "source_message": "Дронова загроза (жовтий рівень)"
+    }
+   ],
+   "location_oblast_uid": 77
+  },
+  {
+   "id": 257543,
+   "location_title": "Бучанський район",
+   "location_type": "raion",
+   "started_at": "2026-09-07T14:35:02.755Z",
+   "finished_at": null,
+   "updated_at": "2026-09-07T14:35:04.485Z",
+   "alert_type": "air_raid",
+   "location_oblast": "Київська область",
+   "location_uid": "75",
+   "notes": null,
+   "country": null,
+   "alert_level": "yellow",
+   "location_title_en": "Bucha district raion",
+   "threats": [
+    {
+     "threat_type": "drones",
+     "level": "yellow",
+     "started_at": "2026-09-07T14:35:02.755Z",
+     "source_message": "Дронова загроза (жовтий рівень)"
+    }
+   ],
+   "location_oblast_uid": 75
+  },
+  {
+   "id": 257545,
+   "location_title": "Обухівський район",
+   "location_type": "raion",
+   "started_at": "2026-09-07T14:39:28.974Z",
+   "finished_at": null,
+   "updated_at": "2026-09-07T14:39:38.274Z",
+   "alert_type": "air_raid",
+   "location_oblast": "Київська область",
+   "location_uid": "76",
+   "notes": null,
+   "country": null,
+   "alert_level": "yellow",
+   "location_title_en": "Obukhiv raion",
+   "threats": [
+    {
+     "threat_type": "drones",
+     "level": "yellow",
+     "started_at": "2026-09-07T14:39:28.974Z",
+     "source_message": "Дронова загроза (жовтий рівень)"
+    }
+   ],
+   "location_oblast_uid": 76
+  },
+  {
+   "id": 257548,
+   "location_title": "Білоцерківський район",
+   "location_type": "raion",
+   "started_at": "2026-09-07T14:44:56.906Z",
+   "finished_at": null,
+   "updated_at": "2026-09-07T14:45:01.733Z",
+   "alert_type": "air_raid",
+   "location_oblast": "Київська область",
+   "location_uid": "73",
+   "notes": null,
+   "country": null,
+   "alert_level": "yellow",
+   "location_title_en": "Bila Tserkva raion",
+   "threats": [
+    {
+     "threat_type": "drones",
+     "level": "yellow",
+     "started_at": "2026-09-07T14:44:56.906Z",
+     "source_message": "Дронова загроза (жовтий рівень)"
+    }
+   ],
+   "location_oblast_uid": 73
+  },
+  {
+   "id": 257549,
+   "location_title": "Ніжинський район",
+   "location_type": "raion",
+   "started_at": "2026-09-07T14:44:57.228Z",
+   "finished_at": null,
+   "updated_at": "2026-09-07T14:45:01.752Z",
+   "alert_type": "air_raid",
+   "location_oblast": "Чернігівська область",
+   "location_uid": "142",
+   "notes": null,
+   "country": null,
+   "alert_level": "yellow",
+   "location_title_en": "Nizhyn raion",
+   "threats": [
+    {
+     "threat_type": "drones",
+     "level": "yellow",
+     "started_at": "2026-09-07T14:44:57.228Z",
+     "source_message": "Дронова загроза (жовтий рівень)"
+    }
+   ],
+   "location_oblast_uid": 142
+  },
+  {
+   "id": 257610,
+   "location_title": "м. Київ",
+   "location_type": "oblast",
+   "started_at": "2026-09-07T16:39:09.398Z",
+   "finished_at": null,
+   "updated_at": "2026-09-07T16:42:33.428Z",
+   "alert_type": "air_raid",
+   "location_oblast": "м. Київ",
+   "location_uid": "31",
+   "notes": null,
+   "country": null,
+   "alert_level": "red",
+   "location_title_en": "Kyiv city",
+   "threats": [
+    {
+     "threat_type": "drones",
+     "level": "yellow",
+     "started_at": "2026-09-07T16:39:07.008Z",
+     "source_message": "Дронова загроза (жовтий рівень) Деснянський район"
+    },
+    {
+     "threat_type": "drones",
+     "level": "yellow",
+     "started_at": "2026-09-07T16:39:07.465Z",
+     "source_message": "Дронова загроза (жовтий рівень) Дніпровський район"
+    },
+    {
+     "threat_type": "drones",
+     "level": "yellow",
+     "started_at": "2026-09-07T16:39:08.464Z",
+     "source_message": "Дронова загроза (жовтий рівень) Шевченківський район"
+    },
+    {
+     "threat_type": "drones",
+     "level": "yellow",
+     "started_at": "2026-09-07T16:39:08.655Z",
+     "source_message": "Дронова загроза (жовтий рівень) Печерський район"
+    },
+    {
+     "threat_type": "drones",
+     "level": "yellow",
+     "started_at": "2026-09-07T16:39:08.803Z",
+     "source_message": "Дронова загроза (жовтий рівень) Святошинський район"
+    },
+    {
+     "threat_type": "drones",
+     "level": "yellow",
+     "started_at": "2026-09-07T16:39:08.893Z",
+     "source_message": "Дронова загроза (жовтий рівень) Солом’янський район"
+    },
+    {
+     "threat_type": "drones",
+     "level": "yellow",
+     "started_at": "2026-09-07T16:39:08.958Z",
+     "source_message": "Дронова загроза (жовтий рівень) Дарницький район"
+    },
+    {
+     "threat_type": "drones",
+     "level": "yellow",
+     "started_at": "2026-09-07T16:39:09.046Z",
+     "source_message": "Дронова загроза (жовтий рівень) Голосіївський район"
+    },
+    {
+     "threat_type": "drones",
+     "level": "yellow",
+     "started_at": "2026-09-07T16:39:09.104Z",
+     "source_message": "Дронова загроза (жовтий рівень) Подільський район"
+    },
+    {
+     "threat_type": "drones",
+     "level": "yellow",
+     "started_at": "2026-09-07T16:39:09.398Z",
+     "source_message": "Дронова загроза (жовтий рівень) Оболонський район"
+    },
+    {
+     "threat_type": "unspecified_missiles",
+     "level": "red",
+     "started_at": "2026-09-07T16:42:32.594Z",
+     "source_message": "Ракетна загроза (червоний рівень) Деснянський район"
+    },
+    {
+     "threat_type": "unspecified_missiles",
+     "level": "red",
+     "started_at": "2026-09-07T16:42:33.179Z",
+     "source_message": "Ракетна загроза (червоний рівень) Печерський район"
+    },
+    {
+     "threat_type": "unspecified_missiles",
+     "level": "red",
+     "started_at": "2026-09-07T16:42:33.336Z",
+     "source_message": "Ракетна загроза (червоний рівень) Святошинський район"
+    },
+    {
+     "threat_type": "unspecified_missiles",
+     "level": "red",
+     "started_at": "2026-09-07T16:42:33.507Z",
+     "source_message": "Ракетна загроза (червоний рівень) Шевченківський район"
+    },
+    {
+     "threat_type": "unspecified_missiles",
+     "level": "red",
+     "started_at": "2026-09-07T16:42:33.696Z",
+     "source_message": "Ракетна загроза (червоний рівень) Солом’янський район"
+    },
+    {
+     "threat_type": "unspecified_missiles",
+     "level": "red",
+     "started_at": "2026-09-07T16:42:33.927Z",
+     "source_message": "Ракетна загроза (червоний рівень) Голосіївський район"
+    },
+    {
+     "threat_type": "unspecified_missiles",
+     "level": "red",
+     "started_at": "2026-09-07T16:42:34.033Z",
+     "source_message": "Ракетна загроза (червоний рівень) Подільський район"
+    },
+    {
+     "threat_type": "unspecified_missiles",
+     "level": "red",
+     "started_at": "2026-09-07T16:42:34.111Z",
+     "source_message": "Ракетна загроза (червоний рівень) Дарницький район"
+    },
+    {
+     "threat_type": "unspecified_missiles",
+     "level": "red",
+     "started_at": "2026-09-07T16:42:34.299Z",
+     "source_message": "Ракетна загроза (червоний рівень) Оболонський район"
+    },
+    {
+     "threat_type": "unspecified_missiles",
+     "level": "red",
+     "started_at": "2026-09-07T16:42:34.438Z",
+     "source_message": "Ракетна загроза (червоний рівень) Дніпровський район"
+    }
+   ],
+   "location_oblast_uid": 31
+  },
+  {
+   "id": 257653,
+   "location_title": "Сумський район",
+   "location_type": "raion",
+   "started_at": "2026-09-07T17:47:58.917Z",
+   "finished_at": null,
+   "updated_at": "2026-09-07T17:48:03.161Z",
+   "alert_type": "air_raid",
+   "location_oblast": "Сумська область",
+   "location_uid": "114",
+   "notes": null,
+   "country": null,
+   "alert_level": "yellow",
+   "location_title_en": "Sumy raion",
+   "threats": [
+    {
+     "threat_type": "drones",
+     "level": "yellow",
+     "started_at": "2026-09-07T17:47:58.917Z",
+     "source_message": "Дронова загроза (жовтий рівень)"
+    }
+   ],
+   "location_oblast_uid": 114
+  },
+  {
+   "id": 8757,
+   "location_title": "Луганська область",
+   "location_type": "oblast",
+   "started_at": "2022-04-04T16:45:39.000Z",
+   "finished_at": null,
+   "updated_at": "2023-10-29T18:22:37.357Z",
+   "alert_type": "air_raid",
+   "location_oblast": "Луганська область",
+   "location_uid": "16",
+   "notes": null,
+   "country": null,
+   "alert_level": "red",
+   "location_title_en": "Luhansk Oblast",
+   "location_oblast_uid": 16
+  },
+  {
+   "id": 28288,
+   "location_title": "Автономна Республіка Крим",
+   "location_type": "oblast",
+   "started_at": "2022-12-10T22:22:00.000Z",
+   "finished_at": null,
+   "updated_at": "2023-10-29T16:56:12.340Z",
+   "alert_type": "air_raid",
+   "location_oblast": "Автономна Республіка Крим",
+   "location_uid": "29",
+   "notes": "Згідно інформації з Офіційних карт тривог",
+   "country": null,
+   "alert_level": "red",
+   "location_title_en": "Autonomous Republic of Crimea",
+   "location_oblast_uid": 29
+  }
+ ]
+}

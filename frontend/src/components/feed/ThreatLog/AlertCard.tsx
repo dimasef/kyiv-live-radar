@@ -1,6 +1,7 @@
 import { Clock, ShieldCheck, Siren } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { alertLevelColor, alertThreatKey } from '@/lib/alertLevel'
 import { durationLabel } from '@/lib/duration'
 import { useRadar } from '@/store'
 import { STATUS_COLORS } from '@/theme'
@@ -25,7 +26,23 @@ export default function AlertCard({ alert, ended }: { alert: Alert; ended: boole
   const { t } = useTranslation()
   const zone = useRadar((s) => (alert.zone_id ? s.zones[alert.zone_id] : undefined))
 
-  const color = ended ? STATUS_COLORS.clear : STATUS_COLORS.confirmed
+  // The opening card is coloured by the level it announced — жовтий for a drone
+  // alert, червоний for a missile one — so the feed reads the same way the map
+  // does when scrolled back later.
+  //
+  // …unless the level has since MOVED. `Alert.level` is the level running now,
+  // not the one this card's moment announced (an escalation rewrites the row
+  // rather than opening a second alert — see the backend's `_relevel`), and a
+  // card sitting at 21:00 must not retroactively claim a missile threat that
+  // was declared at 21:12. The change has its own card; this one falls back to
+  // the level-less wording rather than name a threat it cannot vouch for.
+  const relevelled = alert.level_changed_at != null
+  const threatKey = relevelled ? 'alert.threat.unspecified' : alertThreatKey(alert)
+  const color = ended
+    ? STATUS_COLORS.clear
+    : relevelled
+      ? STATUS_COLORS.confirmed
+      : alertLevelColor(alert)
   const Icon = ended ? ShieldCheck : Siren
   const where =
     zone?.name_uk ??
@@ -48,7 +65,7 @@ export default function AlertCard({ alert, ended }: { alert: Alert; ended: boole
               className="text-[12.5px] font-bold uppercase tracking-[0.09em]"
               style={{ color }}
             >
-              {t(ended ? 'notice.alertEnded' : 'notice.alertStart')}
+              {ended ? t('notice.alertEnded') : t(threatKey)}
             </div>
             <div className="mt-px truncate text-[10.5px] text-slate-400">{where}</div>
           </div>
@@ -60,7 +77,9 @@ export default function AlertCard({ alert, ended }: { alert: Alert; ended: boole
       </div>
 
       <p className="mt-2 break-words leading-snug text-slate-300">
-        {t(ended ? 'notice.alertEndedBody' : 'notice.alertStartBody', { where })}
+        {ended
+          ? t('notice.alertEndedBody', { where })
+          : t('notice.alertStartBody', { where, threat: t(threatKey) })}
       </p>
 
       {ended && (

@@ -6,7 +6,24 @@ import type { AlertZone } from '@/types'
 
 import { compactSinceLabel, sinceParts, type ZoneTone } from './alertZones'
 
-const TONE_ICON = { alert: Siren, clear: ShieldCheck, stale: CloudOff } as const
+const TONE_ICON = { yellow: Siren, red: Siren, clear: ShieldCheck, stale: CloudOff } as const
+
+/** What the chip says out loud.
+ *
+ * Read off the zone's LEVEL, not off the tone it is painted in: an ungraded
+ * siren is drawn red as a floor (see `zoneTone`) and must still say only
+ * «тривога» rather than claim a red level nobody declared.
+ *
+ * The LEVEL, not the threat kind: the district provider grades a raion and
+ * never says what is flying, and «червоний» covers a massed drone raid as much
+ * as a missile one. Only the city channel names a kind. */
+function stateKey(tone: ZoneTone, zone: AlertZone | undefined): string {
+  if (tone === 'clear') return 'zones.clear'
+  if (tone === 'stale') return 'zones.noData'
+  if (zone?.level === 'yellow') return 'zones.levelYellow'
+  if (zone?.level === 'red') return 'zones.levelRed'
+  return 'zones.alert'
+}
 
 /** What a raion permanently says about itself: its state as a glyph, and how
  * long it has held it.
@@ -51,7 +68,7 @@ export default function ZoneLabel({
         {held && <span className="zone-chip-time">{t(held.key, held.vars)}</span>}
         {/* The glyph alone is not a label — say the state in words for a screen
             reader, and for anyone who has not learned the three icons yet. */}
-        <span className="sr-only">{t(`zones.${tone === 'stale' ? 'noData' : tone}`)}</span>
+        <span className="sr-only">{t(stateKey(tone, zone))}</span>
       </span>
       {named && <span className="zone-label-name">{name}</span>}
     </>

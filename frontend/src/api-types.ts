@@ -2092,6 +2092,14 @@ export interface components {
             ended_at?: string | null;
             /** Id */
             id: number;
+            /**
+             * Level
+             * @default unknown
+             * @enum {string}
+             */
+            level: "yellow" | "red" | "unknown";
+            /** Level Changed At */
+            level_changed_at?: string | null;
             /** Provider */
             provider: string;
             /**
@@ -2109,6 +2117,12 @@ export interface components {
              * Format: date-time
              */
             started_at: string;
+            /**
+             * Threat
+             * @default unspecified
+             * @enum {string}
+             */
+            threat: "drone" | "massed_drone" | "missile" | "missile_drone" | "unspecified";
             /** Zone Id */
             zone_id?: string | null;
         };
@@ -2142,6 +2156,12 @@ export interface components {
             alert: boolean;
             /** Changed At */
             changed_at?: string | null;
+            /**
+             * Level
+             * @default unknown
+             * @enum {string}
+             */
+            level: "yellow" | "red" | "unknown";
             /** Name Uk */
             name_uk: string;
             /** Oblast */
@@ -3205,7 +3225,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "clear" | "summary" | "directional" | "forecast" | "status";
+            kind: "clear" | "summary" | "alert_level" | "directional" | "forecast" | "status";
             /** Origin */
             origin?: string | null;
             /**
@@ -3514,7 +3534,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "clear" | "summary" | "directional" | "forecast" | "status";
+            kind: "clear" | "summary" | "alert_level" | "directional" | "forecast" | "status";
             /** Text */
             text?: string | null;
         };

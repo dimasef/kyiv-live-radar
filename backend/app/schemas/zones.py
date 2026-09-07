@@ -8,7 +8,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, field_validator
 
-from ..models import Region
+from ..models import AlertLevel, Region
 from .base import _as_utc
 
 
@@ -24,6 +24,10 @@ class AlertZoneOut(BaseModel):
     # keeping its own copy of the oblast→region table.
     region: Region
     alert: bool
+    # Threat level, since the differentiated alerting of 06.09.2026. 'unknown'
+    # means no source graded this siren — the map paints that as the higher
+    # level rather than downgrading what it cannot grade.
+    level: AlertLevel = "unknown"
     # When this state began, per the provider. NULL when it never reported a
     # change for this zone — the UI then shows the state without a duration.
     changed_at: datetime | None = None

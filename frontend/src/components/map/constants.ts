@@ -112,7 +112,17 @@ export const ZONE_STYLES = {
   // painted fill, so `fill: false` (or a flat 0) would leave the raion reachable
   // by its 1.4px border alone — and hovering the middle is how its name and how
   // long the siren has been up are read. At 1% on a dark basemap it is invisible.
-  alert: {
+  // Жовтий рівень — дронова небезпека. Amber rather than a paler red so the two
+  // levels differ in HUE, not just in brightness: side by side on the same map
+  // (Броварський red next to a yellow Вишгородський is the ordinary case) two
+  // shades of one colour read as "the same thing, slightly different".
+  yellow: {
+    color: '#f59e0b', weight: 1.4, opacity: 0.9,
+    fillColor: '#f59e0b', fillOpacity: 0.01,
+  },
+  // Червоний рівень — ракетна / масована дронова / ракетно-дронова загроза, and
+  // any siren nobody graded (see zoneTone).
+  red: {
     color: '#ef4444', weight: 1.4, opacity: 0.9,
     fillColor: '#ef4444', fillOpacity: 0.01,
   },
@@ -151,11 +161,19 @@ export const ZONE_LABEL_NUDGE: Record<string, [number, number]> = {
  * is narrower than the glow and simply lights up whole, which is the right
  * reading at that scale anyway. */
 export const ZONE_GLOW = {
-  color: '#ef4444',
-  opacity: 0.55,
-  spreadPx: 6,
-  /** Full-alpha source for the filter to eat; never seen as a fill itself. */
-  style: { fillColor: '#ef4444', fillOpacity: 1, stroke: false, interactive: false },
+  yellow: {
+    color: '#f59e0b',
+    opacity: 0.5,
+    spreadPx: 6,
+    /** Full-alpha source for the filter to eat; never seen as a fill itself. */
+    style: { fillColor: '#f59e0b', fillOpacity: 1, stroke: false, interactive: false },
+  },
+  red: {
+    color: '#ef4444',
+    opacity: 0.55,
+    spreadPx: 6,
+    style: { fillColor: '#ef4444', fillOpacity: 1, stroke: false, interactive: false },
+  },
 } as const
 
 /** The all-clear flash: the same lit edge in green, shown for a few seconds when

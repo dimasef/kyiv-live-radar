@@ -44,7 +44,7 @@ export default function ZoneLayerButton() {
           className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold text-white"
           // The zone red, not rose-500: the badge counts the very raions this
           // layer paints, and two reds a shade apart read as a mistake.
-          style={{ background: ZONE_STYLES.alert.color }}
+          style={{ background: ZONE_STYLES.red.color }}
         >
           {count}
         </span>

@@ -6,6 +6,7 @@ import {
   alertedZones,
   compactSinceLabel,
   inShownRegions,
+  isAlerting,
   sinceParts,
   withOfficialKyiv,
   zoneFitBounds,
@@ -18,6 +19,7 @@ const zone = (over: Partial<AlertZone> = {}): AlertZone => ({
   oblast: 'Київська область',
   region: 'kyiv',
   alert: false,
+  level: 'unknown',
   changed_at: null,
   stale: false,
   ...over,
@@ -31,8 +33,32 @@ describe('zoneTone', () => {
   })
 
   it('paints a live siren and a live all-clear apart', () => {
-    expect(zoneTone(zone({ alert: true }))).toBe('alert')
+    expect(zoneTone(zone({ alert: true }))).toBe('red')
     expect(zoneTone(zone({ alert: false }))).toBe('clear')
+  })
+
+  it('paints the two threat levels apart', () => {
+    expect(zoneTone(zone({ alert: true, level: 'yellow' }))).toBe('yellow')
+    expect(zoneTone(zone({ alert: true, level: 'red' }))).toBe('red')
+  })
+
+  it('paints an UNGRADED siren red, never amber', () => {
+    // Only alerts.in.ua grades a raion. When nothing has, the higher level is
+    // the safe reading — understating a siren is the failure that matters.
+    expect(zoneTone(zone({ alert: true, level: 'unknown' }))).toBe('red')
+  })
+
+  it('never grades a quiet raion', () => {
+    expect(zoneTone(zone({ alert: false, level: 'red' }))).toBe('clear')
+  })
+})
+
+describe('isAlerting', () => {
+  it('is true for both levels and neither quiet tone', () => {
+    expect(isAlerting('yellow')).toBe(true)
+    expect(isAlerting('red')).toBe(true)
+    expect(isAlerting('clear')).toBe(false)
+    expect(isAlerting('stale')).toBe(false)
   })
 })
 
@@ -215,6 +241,9 @@ describe('withOfficialKyiv', () => {
       scope: 'city',
       zone_id: null,
       alert_type: 'air_raid',
+      level: 'unknown',
+      threat: 'unspecified',
+      level_changed_at: null,
       started_at: '2026-09-02T20:00:00Z',
       ended_at: null,
       provider: 'telegram',
@@ -261,6 +290,17 @@ describe('withOfficialKyiv', () => {
   it('never touches any other raion', () => {
     const zones = { [KYIV]: city(), other: zone({ zone_id: 'other', alert: true }) }
     expect(withOfficialKyiv(zones, [alert()], true).other).toEqual(zones.other)
+  })
+
+  it('takes the level from the official channel, which names the threat', () => {
+    const out = withOfficialKyiv({ [KYIV]: city() }, [alert({ level: 'yellow' })], true)
+    expect(zoneTone(out[KYIV])).toBe('yellow')
+  })
+
+  it('drops the level with the siren', () => {
+    // A закінчена тривога leaves no level behind for the quiet city to keep.
+    const done = alert({ level: 'red', ended_at: '2026-09-02T21:30:00Z' })
+    expect(withOfficialKyiv({ [KYIV]: city() }, [done], true)[KYIV].level).toBe('unknown')
   })
 
   it('ignores a raion alert and another region\'s city alert', () => {

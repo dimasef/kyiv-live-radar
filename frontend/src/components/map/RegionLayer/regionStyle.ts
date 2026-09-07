@@ -6,7 +6,7 @@ const PHOSPHOR = '#22d3ee'
 
 /** Outline style for one oblast on the region layer.
  *
- * The fill is a HIT AREA, not a colour — the same trick ZONE_STYLES.alert
+ * The fill is a HIT AREA, not a colour — the same trick ZONE_STYLES.red
  * documents. SVG hit-testing only sees a painted fill, so `fill: false` would
  * leave an oblast clickable by its border alone, and clicking the middle is the
  * whole interaction. At 1–2% on a dark basemap it is invisible.
