@@ -32,12 +32,22 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.53.0";
+const LATEST = "0.53.1";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "попередження — не відбій",
+    date: "2026-09-08",
+    kind: "patch",
+    changes: [
+      "Попередження спостерігача про те, що балістика ще може полетіти, більше не читається як відбій по балістиці. Одне таке закрило картку атаки і опублікувало у стрічці «Відбій» — посеред відкритої тривоги",
+      "Відбій зараховується лише тоді, коли тип названо як його предмет («Відбій по балістиці», «Відбій загрози балістики»), а не будь-де в повідомленні: згадка про те, за чим спостерігатимуть уночі, більше не закриває цілі",
+    ],
+  },
+  {
+    version: "0.53.0",
     title: "два рівні тривоги",
     date: "2026-09-07",
     kind: "minor",

@@ -954,6 +954,43 @@ def test_waiting_for_all_clear_is_not_a_clear():
         assert parse_message(txt, M).status == "clear", txt
 
 
+def test_a_stand_down_is_scoped_only_by_the_type_it_names_as_its_object():
+    """«Відбій по балістиці» stands ballistics down. A message that merely
+    MENTIONS ballistics somewhere else does not — and on 2026-09-07 20:43 one
+    that warned of them was read as their stand-down: it ended the running
+    attack and published a «Відбій» card while the city's червона тривога was
+    still open.
+
+    The discriminator is grammatical, not a list of alarming phrases: every one
+    of the 29 real scoped stand-downs in the corpus puts the type in the same
+    clause as the word «відбій».
+    """
+    for txt in ["Відбій по балістиці",
+                "По балістиці відбій, до речі.",
+                "Відбій загрози балістики.",
+                "Відбій балістичної загрози з Криму.",
+                "Приємна новина — відбій по балістиці з Брянщини та Курщини.",
+                "Був відбій по балістиці з району Ростова та Курщини. "
+                "По Брянщині активність ще зберігається.",
+                "Відбій загрози Бандеролій та Балістиці"]:
+        assert parse_message(txt, M).clear_scope == "ballistic", txt
+
+    # The live false positive: ballistics are the thing still COMING.
+    r = parse_message(
+        "Поки відбій, займіть безпечні місця, балістика може полетіти в будь-який момент", M
+    )
+    assert r.clear_scope is None
+    # …and with no scope it is an unscoped spotter відбій, which the dispatch
+    # treats as inert — so it closes nothing and announces nothing.
+
+    # A watch statement two hundred characters past the відбій is not its scope.
+    r = parse_message(
+        "Збився з рахунок, який відбій, але наче 12-ий, тобто 12-ий раз стаємо 🟢 за "
+        "сьогодні. Протягом ночі пильнуватимемо балістичні загрози. Поки відпочивайте.", M
+    )
+    assert r.clear_scope is None
+
+
 def test_past_strike_aggregate_is_a_summary_not_a_live_target():
     # "6 балістичних ВДАРИЛО по Києву" recaps what already hit (aggregate, past,
     # no raion) — a summary, not 6 live incoming ballistic targets.

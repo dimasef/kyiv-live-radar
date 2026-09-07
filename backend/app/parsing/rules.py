@@ -67,6 +67,7 @@ from .vocab import (
     _MASC_ONE_RE,
     _MISSILE,
     _MISSILE_CARRIER,
+    _MISSILE_WEAPON,
     _MOVEMENT_CUE,
     _NEGATION,
     _NEW_TARGET,
@@ -417,19 +418,49 @@ def _status(text: str, norm: str) -> tuple[str, float]:
 # inline computation exactly — do not reorder without re-running the eval gate. ---
 
 
+# Where the "відбій of WHAT" relation ends. A stand-down names its scope right
+# next to the word — «відбій по балістиці», «відбій загрози балістики» — and a
+# clause boundary is what separates that from a type the message merely
+# mentions. Em dashes are deliberately absent: «Приємна новина — відбій по
+# балістиці» is one statement, not two.
+_CLAUSE_SPLIT_RE = re.compile(r"[,.;:!?\n]+")
+
+
 def _clear_scope(status: str, target_type: str, norm: str) -> str | None:
     """A clear/відбій is scoped to just the named type when the message states a
     missile-family type ("Відбій балістичної загрози" -> ballistic; a cruise
     "відбій ракетної небезпеки" -> missile) and doesn't ALSO say the siren
     itself ended. A ballistic stand-down must not close active cruise/shahed
     tracks, and vice versa. See _UNSCOPED_CLEAR_WORD's comment for the real
-    example this guards."""
-    return (
-        target_type
-        if status == "clear" and target_type in ("ballistic", "missile")
-        and _UNSCOPED_CLEAR_WORD not in norm
-        else None
-    )
+    example this guards.
+
+    The type has to be the OBJECT of the stand-down, in the same clause as the
+    word that made this a clear at all — not merely somewhere in the message.
+    All 29 real scoped stand-downs in the corpus put it there («Відбій по
+    балістиці», «По балістиці відбій», «Відбій загрози балістики»); the two the
+    old rule also matched were both saying the opposite of a stand-down:
+
+      «Поки відбій, займіть безпечні місця, балістика МОЖЕ ПОЛЕТІТИ в будь-який
+       момент» — a warning that ballistics are still coming, read as their
+       stand-down. Live 2026-09-07 20:43: it ended the running attack
+       (incident 483, `all_clear`) and published a «Відбій» card in the feed
+       while the city's червона тривога was still open.
+      «…Протягом ночі ПИЛЬНУВАТИМЕМО балістичні загрози…» — a watch statement
+       two hundred characters further on.
+
+    Without a scope the message is an unscoped spotter відбій, which the
+    dispatch deliberately treats as inert (see handlers._dispatch 2a) — so a
+    hedged «поки відбій» closes nothing and announces nothing.
+    """
+    if status != "clear" or target_type not in ("ballistic", "missile"):
+        return None
+    if _UNSCOPED_CLEAR_WORD in norm:
+        return None
+    weapons = _BALLISTIC if target_type == "ballistic" else _MISSILE_WEAPON
+    for clause in _CLAUSE_SPLIT_RE.split(norm):
+        if any(c in clause for c in _CLEAR) and any(w in clause for w in weapons):
+            return target_type
+    return None
 
 
 def _impact(districts, norm: str, status: str) -> bool:
