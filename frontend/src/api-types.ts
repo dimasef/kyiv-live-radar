@@ -752,11 +752,14 @@ export interface paths {
         head?: never;
         /**
          * Admin Set User Role
-         * @description Grant or revoke console access.
+         * @description Grant or revoke console access, or the consequence layer.
          *
-         *     Only 'user' and 'admin_g' are assignable (see models.AssignableRole): plain
-         *     'admin' is derived from the env allowlists on every login, so it cannot be
-         *     granted here in a way that survives.
+         *     Only `models.AssignableRole` values ('user', 'observer', 'admin_g') are
+         *     assignable: plain 'admin' is derived from the env allowlists on every login,
+         *     so it cannot be granted here in a way that survives. The other two can,
+         *     because resolution preserves them (models.MANUAL_ROLES) — 'observer' did not
+         *     until 2026-09-08, which made granting the consequence layer impossible in
+         *     practice: it was reset at the person's next sign-in.
          *
          *     Revoking is refused while the env allowlist still names the person — role
          *     resolution would hand the role straight back at their next sign-in, and a
@@ -780,6 +783,43 @@ export interface paths {
          * @description No guards here — unblocking is the recovery direction.
          */
         post: operations["admin_unblock_user_admin_users__user_id__unblock_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/aftermath": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Aftermath
+         * @description What a strike DID to a raion — fires, damage, casualties, rescue work.
+         *
+         *     The same door as `/threats/impacts` above, and for the same reason: on the
+         *     night of a raid «горить багатоповерхівка в Дарницькому» is damage assessment
+         *     for whoever launched it, exactly as a strike pin is. So the two share one
+         *     role gate (IMPACT_ROLES), one time window (`consequence_layer_hours`) and
+         *     one layer in the client — the reader is asking one question, "what did this
+         *     night do to these streets", and the two answers differ only in whether
+         *     anyone confirmed the hit itself.
+         *
+         *     A separate route from the impacts one rather than a merged payload: they are
+         *     different shapes (a report has no target type, no count, no vector), and the
+         *     public routes stay untouched either way — which is the property the whole
+         *     arrangement exists to protect.
+         *
+         *     No websocket counterpart, deliberately. A report does not move, and the
+         *     absence of a broadcast is the cheapest guarantee that it cannot reach a
+         *     frame everyone receives.
+         */
+        get: operations["aftermath_aftermath_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2080,6 +2120,49 @@ export interface components {
             role: "user" | "observer" | "admin_g";
         };
         /**
+         * AftermathOut
+         * @description One report, one raion. Everything here is already visible to the caller
+         *     by the time they can call this route (see api/public/threats.py::aftermath),
+         *     so nothing is withheld the way `IncidentOut` withholds an impact count — the
+         *     withholding happens at the door, not per field.
+         */
+        AftermathOut: {
+            /**
+             * Categories
+             * @default []
+             */
+            categories: ("casualties" | "rescue" | "fire" | "damage")[];
+            /** District Id */
+            district_id: number;
+            /** District Name */
+            district_name?: string | null;
+            /** Id */
+            id: number;
+            /** Lat */
+            lat?: number | null;
+            /** Lon */
+            lon?: number | null;
+            /**
+             * Region
+             * @enum {string}
+             */
+            region: "kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro";
+            /**
+             * Reported At
+             * Format: date-time
+             */
+            reported_at: string;
+            /** Source Id */
+            source_id?: number | null;
+            /** Source Name */
+            source_name?: string | null;
+            /**
+             * Text
+             * @default
+             */
+            text: string;
+        };
+        /**
          * AlertOut
          * @description An official air-raid alert window (тривога -> відбій).
          */
@@ -3002,6 +3085,18 @@ export interface components {
          *     the client from these fields (the frontend owns the weighting).
          */
         JournalDayOut: {
+            /**
+             * Aftermath Count
+             * @default 0
+             */
+            aftermath_count: number;
+            /**
+             * Aftermath Counts
+             * @default {}
+             */
+            aftermath_counts: {
+                [key: string]: number;
+            };
             /**
              * Alert Count
              * @default 0
@@ -5607,6 +5702,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminUserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    aftermath_aftermath_get: {
+        parameters: {
+            query?: {
+                region?: ("kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro")[] | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AftermathOut"][];
                 };
             };
             /** @description Validation Error */

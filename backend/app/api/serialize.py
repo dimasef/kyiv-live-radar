@@ -11,8 +11,9 @@ from ..domain.attack import classify
 from ..domain.journal import DayStat
 from ..domain.origins import ORIGIN_BY_KEY, bearing_for
 from ..domain.staleness import last_event_at, position_valid_until, reply_tracked_sources, stale_at
-from ..models import Alert, Incident, Notice, Threat, ThreatAxis, ThreatEvent
+from ..models import AftermathReport, Alert, Incident, Notice, Threat, ThreatAxis, ThreatEvent
 from ..schemas import (
+    AftermathOut,
     AlertOut,
     AxisOut,
     FeedEntryOut,
@@ -130,6 +131,20 @@ def _incident_district_ids(inc: Incident, sentinel_district_id: int | None) -> l
             if ev.district_id != sentinel_district_id and ev.district_id not in seen:
                 seen.append(ev.district_id)
     return seen
+
+
+def aftermath_out(r: AftermathReport) -> AftermathOut:
+    """Requires `district` and `source` eagerly loaded (see the one call site
+    in api/public/threats.py). Denormalizes the point the same way `event_out`
+    does for a sighting, so a marker needs no second lookup."""
+    out = AftermathOut.model_validate(r)
+    if r.district is not None:
+        out.district_name = r.district.name_uk
+        out.lat = r.district.lat
+        out.lon = r.district.lon
+    if r.source is not None:
+        out.source_name = r.source.name
+    return out
 
 
 def alert_out(a: Alert) -> AlertOut:

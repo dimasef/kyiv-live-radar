@@ -15,7 +15,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.auth.security import encode_access
+from app.auth.security import encode_access, hash_password
 from app.auth.service import role_source_for
 from app.config import settings
 from app.db import Base, get_session
@@ -240,10 +240,16 @@ async def test_block_unknown_user_404(env):
     "role,email,verified,tg,expected",
     [
         ("admin_g", "any@x.com", True, None, "manual"),
-        # 'manual' wins even when the allowlist would ALSO back it: admin_g is
-        # the role resolution never recomputes, and that is the fact worth
-        # showing.
+        # 'manual' wins even when the allowlist would ALSO back it: a role in
+        # MANUAL_ROLES is one resolution never recomputes, and that is the fact
+        # worth showing.
         ("admin_g", "boss@x.com", True, None, "manual"),
+        # 'observer' is manual too — it is stored intent nothing in the env
+        # computes. Reporting it as 'default' (which this did until 2026-09-08)
+        # said the exact opposite: 'default' is the console's stale-role
+        # warning, and it was shown for a grant that had just been made.
+        ("observer", "any@x.com", True, None, "manual"),
+        ("observer", "boss@x.com", True, None, "manual"),
         ("admin", "boss@x.com", True, None, "allowlist"),
         ("admin", "boss@x.com", False, None, "default"),
         ("user", None, False, "777", "allowlist"),
@@ -409,3 +415,49 @@ async def test_delete_unknown_user_404(env):
     c, s = env
     admin = await _seed(s, role="admin")
     assert (await c.delete("/admin/users/999999", headers=_headers(admin))).status_code == 404
+
+
+async def test_granting_observer_survives_the_next_login(env):
+    """The whole point of the grant, end to end: the console hands someone the
+    consequence layer, they sign in again, and they still have it.
+
+    This is the regression that shipped. `observer` is the only role that opens
+    GET /threats/impacts and GET /aftermath (models.IMPACT_ROLES) and it has
+    always been assignable here — but role resolution recomputed it away on the
+    next login, so the grant lasted exactly one session and nothing said so.
+    Driven through the real login route rather than calling resolution directly:
+    the failure was only ever visible from the outside.
+    """
+    c, s = env
+    admin = await _seed(s, role="admin")
+    target = await _seed(s, role="user", email="vouched@x.com")
+    target.password_hash = hash_password("layer-pass-1234")
+    await s.commit()
+
+    r = await c.patch(
+        f"/admin/users/{target.id}/role", json={"role": "observer"}, headers=_headers(admin)
+    )
+    assert r.status_code == 200
+    assert r.json()["role"] == "observer"
+    # Not 'default' — that is the console's stale-role warning, and showing it
+    # for a grant just made was how the bug hid in plain sight.
+    assert r.json()["role_source"] == "manual"
+
+    r = await c.post(
+        "/auth/login", json={"email": "vouched@x.com", "password": "layer-pass-1234"}
+    )
+    assert r.status_code == 200
+    fresh = r.json()["access"]
+
+    await s.refresh(target)
+    assert target.role == "observer"
+    assert (await c.get("/aftermath", headers={"Authorization": f"Bearer {fresh}"})).status_code == 200
+
+
+async def test_an_observer_is_still_not_an_admin(env):
+    """Preserving the role must not widen it. `observer` unlocks two read
+    routes and nothing else — see models.ADMIN_ROLES."""
+    c, s = env
+    observer = await _seed(s, role="observer", email="obs@x.com")
+    assert (await c.get("/admin/users", headers=_headers(observer))).status_code == 403
+    assert (await c.get("/raw_messages", headers=_headers(observer))).status_code == 403

@@ -1,4 +1,5 @@
 import type {
+  Aftermath,
   Alert,
   AlertZone,
   AlertZoneAt,
@@ -152,6 +153,14 @@ export const fetchImpacts = (regions?: readonly Region[]) =>
   get<Threat[]>(
     '/threats/impacts?' +
       (regions ?? []).map((r) => `&region=${encodeURIComponent(r)}`).join(''),
+  )
+/** The other half of the same layer, behind the same role gate — see
+ * `fetchImpacts` above. Its own request rather than a widened one: the two are
+ * different shapes (a report has no target type, no count, no vector), and
+ * keeping them apart is what lets the public routes stay untouched. */
+export const fetchAftermath = (regions?: readonly Region[]) =>
+  get<Aftermath[]>(
+    '/aftermath?' + (regions ?? []).map((r) => `&region=${encodeURIComponent(r)}`).join(''),
   )
 export const fetchActiveIncidents = () => get<Incident[]>('/incidents/active')
 export const fetchRecentIncidents = (limit = 20) =>

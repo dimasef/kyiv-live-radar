@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from ..models import TARGET_TYPES
+from ..models import AFTERMATH_CATEGORIES, TARGET_TYPES
 from ..timeutil import KYIV, kyiv_date, naive
 
 
@@ -29,6 +29,10 @@ class DayStat:
     track_count: int = 0  # inbound tracks (excludes impacts and citywide banners)
     target_count: int = 0  # sum of stated group sizes over those tracks
     impact_count: int = 0  # confirmed strikes
+    # What the strikes DID, keyed by AFTERMATH_CATEGORIES — a report can name
+    # several, so the values sum to more than `aftermath_count`.
+    aftermath_counts: dict = field(default_factory=lambda: dict.fromkeys(AFTERMATH_CATEGORIES, 0))
+    aftermath_count: int = 0  # reports, not categories
     type_counts: dict = field(default_factory=lambda: dict.fromkeys(TARGET_TYPES, 0))
     alert_count: int = 0
     alert_seconds: int = 0  # Σ duration of complete city alerts
@@ -52,6 +56,7 @@ def build_journal(
     threats,
     incidents,
     alerts,
+    aftermath,
     district_events,
     sentinel_district_id: int | None = None,
     tz: ZoneInfo = KYIV,
@@ -69,6 +74,14 @@ def build_journal(
     an air-raid alert is still open, so an ongoing raid's strike locations
     aren't published live. Everything else about those days is reported
     normally.
+
+    Aftermath reports are held back by the same date for the same reason: «три
+    пожежі в Дарницькому» during a running raid is the assessment a strike pin
+    would be. Once the відбій lands they are history — and history that was
+    published by the source channels themselves — so the journal reports them,
+    exactly as it already does for `impact_count`. Counts only: this never
+    publishes WHICH raion burned, which is what keeps a day's numbers from
+    becoming the strike map they are aggregated to avoid.
     """
     days: dict[date, DayStat] = {}
     d = start
@@ -110,6 +123,18 @@ def build_journal(
         else:
             s.track_count += 1
             s.target_count += th.target_count or 1
+
+    for report in aftermath:
+        day = kyiv_date(report.reported_at, tz)
+        s = days.get(day)
+        if s is None:
+            continue
+        if impacts_hidden(day):
+            continue
+        s.aftermath_count += 1
+        for category in report.categories:
+            if category in s.aftermath_counts:
+                s.aftermath_counts[category] += 1
 
     districts_per_day: dict[date, dict[int, int]] = {}
     for event_time, district_id, is_impact in district_events:

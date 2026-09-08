@@ -32,6 +32,15 @@ class JournalDayOut(BaseModel):
     track_count: int = 0
     target_count: int = 0
     impact_count: int = 0
+    # What those strikes DID — reports of fires / damage / rescue work /
+    # casualties, keyed by AFTERMATH_CATEGORIES. Held back by the same rule as
+    # `impact_count` while a city alert is running (see domain/journal.py), and
+    # counts only: the journal never says WHICH raion burned, which is what
+    # keeps a day's numbers from becoming the strike map they exist instead of.
+    aftermath_counts: dict[str, int] = {}
+    # Reports, not categories — one report can name several, so the values above
+    # sum to more than this.
+    aftermath_count: int = 0
     # Per-target-type threat counts, keyed by TARGET_TYPES (shahed/jet_drone/
     # missile/ballistic/unknown) — feeds the day's type-breakdown bar.
     type_counts: dict[str, int] = {}

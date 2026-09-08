@@ -55,6 +55,11 @@ DISTRICTS: list[dict] = [
 
 
     # --- Kyiv microdistricts spotters name directly ---
+    # All four short forms are whole-word aliases (_WHOLE_WORD_ALIASES): as
+    # stems they reach «троянди»/«троянський», and «троєю» stems to "троє" —
+    # the numeral. Kept rather than deleted: «над Троєю» is the grammatical
+    # instrumental (test_alias_troya), which the July corpus sample happens not
+    # to contain. As a whole word it cannot reach «троє людей».
     {"name_uk": "Троєщина", "name_en": "Troieshchyna", "lat": 50.515, "lon": 30.600,
      "aliases": ["троя", "трої", "трою", "троєю", "троєщино"]},
     {"name_uk": "Оболонь", "name_en": "Obolon", "lat": 50.510, "lon": 30.498,

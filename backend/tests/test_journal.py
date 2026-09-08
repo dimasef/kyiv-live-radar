@@ -33,6 +33,7 @@ def _run(start, end, **kw):
     kw.setdefault("threats", [])
     kw.setdefault("incidents", [])
     kw.setdefault("alerts", [])
+    kw.setdefault("aftermath", [])
     kw.setdefault("district_events", [])
     days = build_journal(start, end, **kw)
     return {d.date: d for d in days}
@@ -129,3 +130,95 @@ def test_unknown_target_type_bucketed():
     weird = _threat(datetime(2026, 7, 11, 1, 0), target_type="something_new")
     by_date = _run(date(2026, 7, 11), date(2026, 7, 11), threats=[weird])
     assert by_date["2026-07-11"].type_counts["unknown"] == 1
+
+
+def _report(reported_at, *, categories=("fire",)):
+    return SimpleNamespace(reported_at=reported_at, categories=list(categories))
+
+
+def test_aftermath_counted_per_category_and_per_report():
+    """A report can name several things at once (7 of the 22 real ones do), so
+    the two numbers answer different questions: how many reports, and how much
+    of each kind. The categories therefore sum to MORE than the report count,
+    and a UI reading either alone must not be surprised by the other."""
+    by_date = _run(
+        date(2026, 7, 6), date(2026, 7, 6),
+        aftermath=[
+            _report(datetime(2026, 7, 6, 4, 10), categories=("damage", "rescue", "casualties")),
+            _report(datetime(2026, 7, 6, 5, 30), categories=("fire",)),
+            _report(datetime(2026, 7, 6, 9, 0), categories=("fire", "damage")),
+        ],
+    )
+    day = by_date["2026-07-06"]
+    assert day.aftermath_count == 3
+    assert day.aftermath_counts == {
+        "casualties": 1, "rescue": 1, "fire": 2, "damage": 2,
+    }
+
+
+def test_aftermath_buckets_on_the_kyiv_day_it_was_reported():
+    """Not the day of the strike it describes — we do not know that. A report
+    filed at 00:30 Kyiv about the night before belongs to the new day, the same
+    rule every other row in this file follows."""
+    by_date = _run(
+        date(2026, 7, 6), date(2026, 7, 7),
+        # 21:40 UTC on the 6th is 00:40 Kyiv on the 7th.
+        aftermath=[_report(datetime(2026, 7, 6, 21, 40), categories=("rescue",))],
+    )
+    assert by_date["2026-07-06"].aftermath_count == 0
+    assert by_date["2026-07-07"].aftermath_count == 1
+
+
+def test_aftermath_hidden_while_the_alert_is_still_on():
+    """Same rule as impacts, same reason: «три пожежі в Дарницькому» during a
+    running raid is the assessment a strike pin would be. Yesterday is reported
+    normally — the withholding is about the raid in progress, not about the
+    data."""
+    by_date = _run(
+        date(2026, 7, 5), date(2026, 7, 6),
+        aftermath=[
+            _report(datetime(2026, 7, 5, 10, 0), categories=("fire",)),
+            _report(datetime(2026, 7, 6, 4, 0), categories=("fire", "casualties")),
+        ],
+        hide_impacts_from=date(2026, 7, 6),
+    )
+    assert by_date["2026-07-05"].aftermath_count == 1
+    assert by_date["2026-07-06"].aftermath_count == 0
+    assert by_date["2026-07-06"].aftermath_counts == {
+        "casualties": 0, "rescue": 0, "fire": 0, "damage": 0,
+    }
+
+
+def test_aftermath_outside_the_range_is_ignored():
+    by_date = _run(
+        date(2026, 7, 6), date(2026, 7, 6),
+        aftermath=[_report(datetime(2026, 7, 1, 12, 0), categories=("fire",))],
+    )
+    assert by_date["2026-07-06"].aftermath_count == 0
+
+
+def test_an_unknown_category_is_dropped_not_counted():
+    """The enum is the server's own, but a row written by an older build (or a
+    category since removed) must not appear as a key nothing can render."""
+    by_date = _run(
+        date(2026, 7, 6), date(2026, 7, 6),
+        aftermath=[_report(datetime(2026, 7, 6, 4, 0), categories=("fire", "power"))],
+    )
+    day = by_date["2026-07-06"]
+    assert day.aftermath_count == 1
+    assert "power" not in day.aftermath_counts
+    assert day.aftermath_counts["fire"] == 1
+
+
+def test_aftermath_does_not_touch_the_target_tallies():
+    """A consequence is not a target. It must not reach track_count,
+    target_count, the type mix or the district ranking — a day with three fires
+    and no sighting is a day with no targets."""
+    by_date = _run(
+        date(2026, 7, 6), date(2026, 7, 6),
+        aftermath=[_report(datetime(2026, 7, 6, 4, 0), categories=("fire", "damage"))],
+    )
+    day = by_date["2026-07-06"]
+    assert (day.track_count, day.target_count, day.impact_count) == (0, 0, 0)
+    assert day.district_count == 0
+    assert sum(day.type_counts.values()) == 0

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -12,7 +13,7 @@ from app.auth.service import resolve_and_set_role, role_for
 from app.config import settings
 from app.db import Base, get_session
 from app.main import app
-from app.models import User
+from app.models import MANUAL_ROLES, User
 
 
 @pytest_asyncio.fixture
@@ -85,15 +86,38 @@ async def test_threat_count_requires_admin(client):
     assert r.status_code == 404
 
 
-async def test_resolve_preserves_manual_admin_g(client):
+@pytest.mark.parametrize("role", MANUAL_ROLES)
+async def test_resolve_preserves_a_manual_role(client, role):
+    """A role nothing in the env computes must survive resolution, or it can
+    only ever be destroyed by the person signing in.
+
+    That is not hypothetical for 'observer': it is the ONLY role that unlocks
+    the consequence layer (models.IMPACT_ROLES), it has always been assignable
+    from the console (models.AssignableRole), and until 2026-09-08 resolution
+    reset it to 'user' on the very next login — so the operator's grant lasted
+    exactly one session and the console reported source='default' meanwhile.
+    Parametrized over MANUAL_ROLES so a role added there without teaching
+    resolution about it fails here."""
     _c, s = client
-    # An admin_g user whose email is NOT allowlisted: role resolution must leave
-    # admin_g intact (it's manual/DB-only), not downgrade it to 'user'.
-    user = User(email="not-allowlisted@x.com", role="admin_g", password_hash="x")
+    user = User(email=f"not-allowlisted-{role}@x.com", role=role, password_hash="x")
     s.add(user)
     await s.commit()
     await resolve_and_set_role(s, user)
-    assert user.role == "admin_g"
+    assert user.role == role
+
+
+async def test_resolve_still_recomputes_a_derived_role(client):
+    """The other half: preserving manual roles must not turn resolution into a
+    no-op. A plain user whose email has since been allowlisted becomes admin at
+    their next sign-in, which is the whole reason resolution runs."""
+    _c, s = client
+    settings.admin_emails = "promoted@x.com"
+    user = User(email="promoted@x.com", role="user", password_hash="x",
+                email_verified=True)
+    s.add(user)
+    await s.commit()
+    await resolve_and_set_role(s, user)
+    assert user.role == "admin"
 
 
 def test_role_for_allowlist(monkeypatch):

@@ -24,6 +24,7 @@ from ..gazetteer import DISTRICTS
 from ..migrate import upgrade_to_head
 from ..models import (
     HOME_REGION,
+    AftermathReport,
     Alert,
     District,
     Incident,
@@ -67,6 +68,9 @@ async def _wipe_tracks() -> None:
         # the replay cannot recreate them.
         await s.execute(delete(Alert).where(Alert.zone_id.is_(None)))
         await s.execute(delete(ThreatAxis))
+        # Same reason as notices: the ingest replay re-records every aftermath
+        # report, so without this each reprocess doubles the layer.
+        await s.execute(delete(AftermathReport))
         # Rebuilt tracks reuse ids from 1 — per-track push bookkeeping keyed by
         # the OLD ids would wrongly suppress pushes for unrelated new tracks.
         for sub in await s.scalars(select(PushSubscription)):
@@ -160,6 +164,12 @@ async def _wipe_since(cutoff: datetime) -> None:
             delete(Alert).where(Alert.started_at >= cutoff, Alert.zone_id.is_(None))
         )
         await s.execute(delete(ThreatAxis).where(ThreatAxis.created_at >= cutoff))
+        # Keyed on `reported_at` (the message's own time), which is what the
+        # replay window is cut on — `created_at` would be insert time and would
+        # leave last night's reports behind while re-recording them.
+        await s.execute(
+            delete(AftermathReport).where(AftermathReport.reported_at >= cutoff)
+        )
 
         # Rebuilt tracks can reuse a freed id (SQLite hands back max+1), and
         # per-track push bookkeeping under an old id would then suppress pushes

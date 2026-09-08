@@ -55,13 +55,16 @@ class Settings(BaseSettings):
     # target_type missing from the two maps below, and the lookback a closing
     # message ("збито") is allowed when hunting for the track it closes.
     track_stale_minutes: int = 20
-    # How far back the impact layer reaches (GET /threats/impacts, the one route
-    # that publishes strike locations live — see models.IMPACT_ROLES). A window
-    # rather than "the current attack": an operator opens the layer to read what
-    # this night did, and a raid that paused for twenty minutes is still the
-    # same night to them. Impacts are closed-on-creation, so there is no "still
-    # open" set to ask for instead.
-    impact_layer_hours: int = 24
+    # How far back the consequence layer reaches — BOTH of the routes that
+    # publish where a strike landed (GET /threats/impacts and GET /aftermath;
+    # see models.IMPACT_ROLES). One setting for both on purpose: they are one
+    # layer with one toggle in the client, and two values that must stay equal
+    # is a footgun. A window rather than "the current attack": an operator opens
+    # the layer to read what this night did, and a raid that paused for twenty
+    # minutes is still the same night to them. Neither shape has a "still open"
+    # set to ask for instead — impacts are closed-on-creation and a report has
+    # no lifecycle at all.
+    consequence_layer_hours: int = 24
     # Minutes of silence after which an open track is auto-closed as 'lost' (a
     # target that went quiet without an explicit destroyed/clear), per target
     # type and per whether the track is actually being FOLLOWED — see

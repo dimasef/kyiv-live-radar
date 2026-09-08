@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { TYPE_COLORS } from '@/theme'
 import type { JournalDay } from '@/types'
 
+import DayAftermath from './DayAftermath'
 import DayAlerts from './DayAlerts'
 import { hasActivity, typeSegments } from './journalStats'
 
@@ -95,6 +96,11 @@ export default function DayDetail({ day, districtName, locale }: Props) {
           <div className="mt-5 border-t border-white/[0.06] pt-4">
             <DayAlerts day={day} />
           </div>
+
+          {/* After the alerts, before the districts: what happened comes after
+              how long it lasted, and the raion list belongs to the targets
+              above it — a consequence names no raion here at all. */}
+          <DayAftermath day={day} />
 
           {day.district_count > 0 && (
             <div className="mt-4 border-t border-white/[0.06] pt-4">

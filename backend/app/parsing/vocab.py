@@ -401,6 +401,71 @@ _AFTERMATH = ("постраждал", "загинул", "поранен", "же�
               # never a target over it. Both corpus hits were raising tracks.
               "може чути", "можете чути")
 
+# --- Aftermath CATEGORIES. Read only by domain/aftermath.py, never by a
+# suppressor: `_AFTERMATH` above decides whether a message is suppressed (and it
+# must keep deciding exactly what it decides today), these four decide what an
+# already-suppressed message is ABOUT. Keeping them apart is not tidiness —
+# folding «детонац»/«загорянн» into `_AFTERMATH` to categorise with was measured
+# to suppress 8 more messages, two of which currently keep a live raion
+# («У Вишневому закликають залишатися в укриттях… через загрозу повторної
+# детонації»). Calibrated against the 20 real corpus reports that name a place.
+#
+# fire vs damage is "is it still happening": «горить»/«загоряння» is burning
+# now, «вигорілі авто»/«понівечена багатоповерхівка» is the static result. Same
+# question puts `rescue` above `fire` in the severity order (domain/aftermath):
+# people still under rubble is an event in progress with people in it.
+_CAT_CASUALTIES = ("загинул", "загибл", "поранен", "жертв", "потерпіл", "госпіталіз",
+                   "постраждал", "тіло", "тіла", "під завалами", "з-під завалів")
+_CAT_RESCUE = ("рятувальник", "дснс", "надзвичайник", "врятув", "евакуй", "деблокув",
+               "пошуково-рятувальн", "тривають пошуки", "заблокован", "піротехнік")
+_CAT_FIRE = ("пожеж", "горить", "горять", "загорянн", "палає", "палають", "палала",
+             "палало", "загоранн")
+_CAT_DAMAGE = ("пошкодж", "зруйнов", "понівечен", "вигорі", "згорі", "уламк", "завал",
+               "відновленн", "руйнув")
+
+# «постраждал» is the one word in _CAT_CASUALTIES that a BUILDING can do:
+# «У Деснянському районі попередньо постраждала багатоповерхівка» (raw 29567) is
+# damage, and reading it as casualties both mislabels the marker and — since
+# nothing else in that message is a damage word — was the difference between
+# recording it as the wrong thing and not recording it at all. Anchored to the
+# following noun, the same shape as _HEDGE_MODAL_RE above, rather than dropping
+# «постраждал» from the casualties list (which would cost «двоє людей
+# постраждали», raw 29495, its only casualties word).
+_STRUCTURE_HARM_RE = re.compile(
+    r"постраждал\w*\s+(?:багатоповерхів|будин|будівл|будов|склад|авто|гуртожит|поверх)"
+)
+
+# --- Not an aftermath at all, though it reads like one. Blocks the aftermath
+# RECORD only; the message stays suppressed either way, which is why this could
+# not be folded into `_AFTERMATH` (it is not a reason to suppress — suppression
+# already happened — it is a reason not to place a marker).
+#
+#   1. A controlled demolition the rescue service ANNOUNCED in advance: «Звуки,
+#      що чує Вишгород, загрози не становлять. ДСНС попереджали про знищення
+#      вибухонебезпечних предметів.» Reads as rescue work over Вишгород.
+#   2. The rescue service doing its ordinary peacetime job: «Рятувальники вже
+#      6 добу ліквідовують забруднення нафтопродуктами на Кирилівському озері»
+#      — six days of an oil spill, pinned onto Почайна. «рятувальник» is a
+#      common word outside a raid, and this is the class that would otherwise
+#      feed the layer noise all year.
+_NOT_AN_AFTERMATH = ("знищення вибухонебезпечн", "планове знищення", "планові тренуванн",
+                     "загрози не становлять", "не становить загрози",
+                     "забруднення", "нафтопродукт")
+
+# --- Words that say a message is about an ATTACK. The aftermath record needs
+# either one of these or a live incident in the region (see domain/aftermath.py):
+# «Поділ. Горять автомобілі» names no attack, and on its own it could as well be
+# a car fire in July. Measured: text alone would drop 5 of 18 real reports, the
+# region's open incident recovers the four that arrived during that night's raid,
+# and what stays dropped is the days-later rescue update — which is the half a
+# LIVE map layer has least business showing.
+#
+# «вибух» carries a veto: «вибухонебезпечних предметів» is the controlled
+# demolition above, i.e. the exact phrase this gate must not wave through.
+_STRIKE_WORD = ("атак", "удар", "обстріл", "влучанн", "приліт", "вибух",
+                "бпла", "ракет", "шахед", "дрон")
+_STRIKE_WORD_VETO = ("вибухонебезпечн",)
+
 # --- Our air defence engaged ("Відпрацювали установки по Дарницькому та
 # Соломʼянському", "працює ППО") — not an incoming target, and matching its two
 # districts would draw a bogus vector between them. ---
@@ -1041,7 +1106,23 @@ _WHOLE_WORD_ALIASES = frozenset({"чзв", "пох", "бц", "голос", "пу
                                  # «Русанівського каналу» — a drowning-rescue
                                  # news item, i.e. the aftermath class this map
                                  # must not draw.
-                                 "русанівські"})
+                                 "русанівські",
+                                 # Троєщина's shorthand, and the sharpest case
+                                 # in this set: «троєю» stems to "троє" — which
+                                 # is an entry in _NUM_WORDS above. So one word
+                                 # was both a number and a place, and the stem
+                                 # claimed «троє людей» in every casualty tally
+                                 # AND «троє шахедів курсом на Бровари» — a
+                                 # phantom target over a microdistrict from a
+                                 # count. "троя"/"трої"/"трою" reach «троянди»
+                                 # and «троянський» the same way. All four case
+                                 # forms stay (bare «Троя» is 57 corpus
+                                 # callouts, «над Троєю» is the instrumental the
+                                 # sample lacks but the language has) — as whole
+                                 # words none of them can reach the numeral, and
+                                 # the longer stem "троєщин" still carries
+                                 # Троєщина/-і/-у/-о.
+                                 "троя", "трої", "трою", "троєю"})
 
 # An alias that is also part of a PROPER NAME, keyed to the word that follows it.
 # "Голос Києва" is a Telegram channel other channels quote ("Голос Києва —

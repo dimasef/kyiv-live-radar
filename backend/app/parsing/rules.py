@@ -158,6 +158,16 @@ class ParseResult:
     raw_text: str = ""
     matched: bool = field(default=False)
     aftermath: bool = field(default=False)
+    # The raions an AFTERMATH message named — the one thing worth keeping from a
+    # message this parser otherwise discards whole. `districts` above is empty
+    # for them by design (`clears_districts`: a suppressed message reports
+    # nowhere, and everything downstream depends on that), so the aftermath
+    # layer needs its own field rather than a caveat on the main one.
+    #
+    # Read by exactly one caller (pipeline/ingest records the report). Empty for
+    # every message that is not an aftermath, and for an aftermath that named no
+    # place — «є постраждалі» places nothing, the same rule impacts follow.
+    aftermath_districts: list[DistrictHit] = field(default_factory=list)
     # A link-bearing promo/donation/ad/meta message ("створив ракетний канал…
     # https://t.me/…") — suppressed like aftermath (impact/clear/destroyed win).
     promo: bool = field(default=False)
@@ -1173,6 +1183,14 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
     # «готовність» is not a sighting. Reassigning one name meant the line a
     # predicate sat on silently decided which of the two it saw.
     reported_districts = [] if sup.clears_districts else _drop_standby_districts(districts, norm)
+    # The third district list, and the only one an aftermath message keeps. It
+    # runs through `_drop_standby_districts` like the reported set — a raion
+    # named only as «готовність» is not where anything happened, which is as
+    # true of a fire report as of a sighting — but skips `clears_districts`,
+    # which is the whole point: that is what discards it today.
+    aftermath_districts = (
+        _drop_standby_districts(districts, norm) if aftermath else []
+    )
     multi_targets = not impact and _multi_targets(reported_districts, norm)
     # An impact is a point strike, never a trajectory — same rule the map holds
     # (threatVisual.ts), applied here so the flag can't contradict it.
@@ -1191,6 +1209,7 @@ def parse_message(text: str, matcher: DistrictMatcher) -> ParseResult:
         raw_text=text,
         matched=matched,
         aftermath=aftermath,
+        aftermath_districts=aftermath_districts,
         promo=promo,
         ad_action=ad_action,
         impact=impact,

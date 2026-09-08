@@ -13,12 +13,17 @@ const COLUMNS = ['Юзер', 'Роль', 'Стан', 'Входи', 'Реєстр
 
 /** Every account, newest first, with role changes, blocking and deletion.
  *
- * The role dropdown offers only «Користувач» and «Адмін» (the manual `admin_g`):
- * a plain `admin` is recomputed from the env allowlists at every login, so it
- * cannot be granted here in a way that survives one. A role the allowlist backs
- * shows as read-only «Адмін (env)» for the same reason, and an «Адмін ⚠» is
- * someone whose allowlist entry is gone and who will silently drop to
- * «Користувач» at their next sign-in. */
+ * The dropdown offers «Користувач», «Спостерігач» and «Адмін» (the manual
+ * `admin_g`) — the three roles that are stored intent. A plain `admin` is
+ * recomputed from the env allowlists at every login, so it cannot be granted
+ * here in a way that survives one: a role the allowlist backs shows as
+ * read-only «Адмін (env)», and an «Адмін ⚠» is someone whose allowlist entry is
+ * gone and who will silently drop to «Користувач» at their next sign-in.
+ *
+ * «Спостерігач» grants exactly one thing — the consequence layer on the map
+ * (the backend's IMPACT_ROLES) — and no console access at all. Until
+ * 2026-09-08 it was in this dropdown but did NOT survive a login either, so the
+ * grant lasted one session; see models.MANUAL_ROLES. */
 export default function UsersPanel() {
   const currentUserId = useRadar((s) => s.user?.id ?? null)
   const { data: users, loaded, setData: setUsers } = useAsyncData<AdminUser[]>(

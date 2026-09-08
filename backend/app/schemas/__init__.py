@@ -29,6 +29,9 @@ from .admin import (
     ThreatTypeIn,
     ToponymDismissalIn,
 )
+from .aftermath import (
+    AftermathOut,
+)
 from .analytics import (
     DistrictStatOut,
     DurationBucketOut,
@@ -143,6 +146,7 @@ from .zones import (
 )
 
 __all__ = [
+    "AftermathOut",
     "PresencePrefIn",
     "PresencePrefOut",
     "PublicUserBrief",

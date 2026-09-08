@@ -16,6 +16,16 @@ export const STATUS_COLORS = {
   unseen: '#38bdf8',
 } as const
 
+/** The consequence layer's other half — fires, damage, casualties, rescue work.
+ *
+ * Warm ash rather than another alarm colour, and one tone for all four
+ * categories (shape carries the kind — see aftermathIcons.ts). It has to sit
+ * apart from three neighbours at once: the impact magenta it shares a layer
+ * with, the `unconfirmed` yellow it would otherwise be mistaken for, and the
+ * `destroyed` grey that means "ignore this". A consequence is none of those —
+ * it already happened, and it is not the thing to take shelter from. */
+export const AFTERMATH_COLOR = '#b08968'
+
 /** Chip colour per track status (the popup's lifecycle chip), all from the
  * shared palette rather than new hues.
  *

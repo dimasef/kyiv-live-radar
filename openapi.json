@@ -189,6 +189,117 @@
         "title": "AdminUserRoleIn",
         "type": "object"
       },
+      "AftermathOut": {
+        "description": "One report, one raion. Everything here is already visible to the caller\nby the time they can call this route (see api/public/threats.py::aftermath),\nso nothing is withheld the way `IncidentOut` withholds an impact count — the\nwithholding happens at the door, not per field.",
+        "properties": {
+          "categories": {
+            "default": [],
+            "items": {
+              "enum": [
+                "casualties",
+                "rescue",
+                "fire",
+                "damage"
+              ],
+              "type": "string"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "district_id": {
+            "title": "District Id",
+            "type": "integer"
+          },
+          "district_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "District Name"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lon": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lon"
+          },
+          "region": {
+            "enum": [
+              "kyiv",
+              "chernihiv",
+              "sumy",
+              "kharkiv",
+              "dnipro"
+            ],
+            "title": "Region",
+            "type": "string"
+          },
+          "reported_at": {
+            "format": "date-time",
+            "title": "Reported At",
+            "type": "string"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "source_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Name"
+          },
+          "text": {
+            "default": "",
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "district_id",
+          "region",
+          "reported_at"
+        ],
+        "title": "AftermathOut",
+        "type": "object"
+      },
       "AlertOut": {
         "description": "An official air-raid alert window (тривога -> відбій).",
         "properties": {
@@ -2090,6 +2201,19 @@
       "JournalDayOut": {
         "description": "One calendar day of aggregated threat activity — see GET /journal/days.\nMirrors app/domain/journal.py::DayStat. The intensity score is derived on\nthe client from these fields (the frontend owns the weighting).",
         "properties": {
+          "aftermath_count": {
+            "default": 0,
+            "title": "Aftermath Count",
+            "type": "integer"
+          },
+          "aftermath_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "default": {},
+            "title": "Aftermath Counts",
+            "type": "object"
+          },
           "alert_count": {
             "default": 0,
             "title": "Alert Count",
@@ -7358,7 +7482,7 @@
     },
     "/admin/users/{user_id}/role": {
       "patch": {
-        "description": "Grant or revoke console access.\n\nOnly 'user' and 'admin_g' are assignable (see models.AssignableRole): plain\n'admin' is derived from the env allowlists on every login, so it cannot be\ngranted here in a way that survives.\n\nRevoking is refused while the env allowlist still names the person — role\nresolution would hand the role straight back at their next sign-in, and a\ncontrol that silently undoes itself is worse than one that says no. The\nentry has to go from ADMIN_EMAILS / ADMIN_TELEGRAM_IDS first.",
+        "description": "Grant or revoke console access, or the consequence layer.\n\nOnly `models.AssignableRole` values ('user', 'observer', 'admin_g') are\nassignable: plain 'admin' is derived from the env allowlists on every login,\nso it cannot be granted here in a way that survives. The other two can,\nbecause resolution preserves them (models.MANUAL_ROLES) — 'observer' did not\nuntil 2026-09-08, which made granting the consequence layer impossible in\npractice: it was reset at the person's next sign-in.\n\nRevoking is refused while the env allowlist still names the person — role\nresolution would hand the role straight back at their next sign-in, and a\ncontrol that silently undoes itself is worse than one that says no. The\nentry has to go from ADMIN_EMAILS / ADMIN_TELEGRAM_IDS first.",
         "operationId": "admin_set_user_role_admin_users__user_id__role_patch",
         "parameters": [
           {
@@ -7476,6 +7600,83 @@
           }
         },
         "summary": "Admin Unblock User"
+      }
+    },
+    "/aftermath": {
+      "get": {
+        "description": "What a strike DID to a raion — fires, damage, casualties, rescue work.\n\nThe same door as `/threats/impacts` above, and for the same reason: on the\nnight of a raid «горить багатоповерхівка в Дарницькому» is damage assessment\nfor whoever launched it, exactly as a strike pin is. So the two share one\nrole gate (IMPACT_ROLES), one time window (`consequence_layer_hours`) and\none layer in the client — the reader is asking one question, \"what did this\nnight do to these streets\", and the two answers differ only in whether\nanyone confirmed the hit itself.\n\nA separate route from the impacts one rather than a merged payload: they are\ndifferent shapes (a report has no target type, no count, no vector), and the\npublic routes stay untouched either way — which is the property the whole\narrangement exists to protect.\n\nNo websocket counterpart, deliberately. A report does not move, and the\nabsence of a broadcast is the cheapest guarantee that it cannot reach a\nframe everyone receives.",
+        "operationId": "aftermath_aftermath_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "kyiv",
+                      "chernihiv",
+                      "sumy",
+                      "kharkiv",
+                      "dnipro"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Region"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AftermathOut"
+                  },
+                  "title": "Response Aftermath Aftermath Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Aftermath"
       }
     },
     "/alert-zones": {

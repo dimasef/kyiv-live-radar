@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from sqlalchemy import exists, or_, select, tuple_
 
 from ..feeds.common import build_region_matchers
-from ..models import District, Notice, RawMessage, Source, Threat, ThreatEvent
+from ..models import AftermathReport, District, Notice, RawMessage, Source, Threat, ThreatEvent
 from ..parsing import ParseResult
 from ..parsing.alert_parser import parse_alert_message
 from ..schemas import RawEventLinkOut, RawMessageOut, RawParsedOut
@@ -137,6 +137,17 @@ def apply_raw_filters(
         Notice.source_id == RawMessage.source_id,
         Notice.source_message_id == RawMessage.message_id,
     )
+    # A third outcome, and deliberately NOT part of `outcome='event'`: an
+    # aftermath report is a private marker for vouched accounts (IMPACT_ROLES),
+    # never a feed card, so by the filter's own question — "did anything
+    # surface?" — the message is still suppressed. What it changes is the LABEL:
+    # «хроніка наслідків» (the class was recognised, nothing kept) reads
+    # differently from «наслідки на карті» (a marker exists), and that
+    # difference is the only way to see the two recording gates working.
+    became_aftermath = exists().where(
+        AftermathReport.source_id == RawMessage.source_id,
+        AftermathReport.source_message_id == RawMessage.message_id,
+    )
 
     if source_ids:
         stmt = stmt.where(RawMessage.source_id.in_(source_ids))
@@ -204,6 +215,8 @@ def apply_raw_filters(
         stmt = stmt.where(became_event | became_notice)
     elif outcome == "suppressed":
         stmt = stmt.where(~became_event, ~became_notice)
+    elif outcome == "aftermath":
+        stmt = stmt.where(became_aftermath)
     if llm == "yes":
         stmt = stmt.where(RawMessage.llm_attempted.is_(True))
     elif llm == "no":
@@ -220,6 +233,11 @@ async def serialize_raw_rows(session, rows: list[RawMessage]) -> list[RawMessage
     message_ids = [r.message_id for r in rows if r.message_id is not None]
     events_by_key: dict[tuple[int | None, int], list[_EventRow]] = {}
     notice_by_key: dict[tuple[int | None, int], tuple[int, str]] = {}
+    # Keys that produced an aftermath report. A set, not a map: the row's label
+    # only needs to know THAT one exists — the report itself is served by
+    # /aftermath to the accounts allowed to see where a strike landed, and /raw
+    # must not become a second door to that.
+    aftermath_keys: set[tuple[int | None, int]] = set()
     # threat_id -> lifecycle + fusion state of the owning track, so each event
     # chip in the admin /raw view carries what the public feed dropped.
     threat_state: dict[int, _ThreatState] = {}
@@ -244,6 +262,12 @@ async def serialize_raw_rows(session, rows: list[RawMessage]) -> list[RawMessage
         )
         for source_id, source_message_id, notice_id, kind in n_rows:
             notice_by_key[(source_id, source_message_id)] = (notice_id, kind)
+        a_rows = await session.execute(
+            select(AftermathReport.source_id, AftermathReport.source_message_id).where(
+                AftermathReport.source_message_id.in_(message_ids)
+            )
+        )
+        aftermath_keys |= {(source_id, source_message_id) for source_id, source_message_id in a_rows}
 
         threat_ids = {ev.threat_id for links in events_by_key.values() for ev in links}
         if threat_ids:
@@ -285,10 +309,23 @@ async def serialize_raw_rows(session, rows: list[RawMessage]) -> list[RawMessage
             else matchers.default
         )
         diag = None if is_alert_channel else diagnose(r.text, matcher)
+        has_aftermath = key in aftermath_keys if key else False
         if events:
             row_outcome, suppressed_by = "подія", None
         elif notice is not None:
-            row_outcome, suppressed_by = "нотіс", None
+            # Both at once is a real shape, not an edge case: «У Києві двоє людей
+            # постраждали… пожежі у Деснянському та Святошинському» is a
+            # retrospective summary card AND two aftermath markers (2 of the 20
+            # measured reports). The pre-step in ingest/aftermath.py is what
+            # lets a message be both, so the label has to be able to say it.
+            row_outcome = "нотіс + наслідки" if has_aftermath else "нотіс"
+            suppressed_by = None
+        elif has_aftermath:
+            # `suppressed_by` stays 'aftermath': the rule that decided this is
+            # still the aftermath filter, and the operator reading a wrong
+            # marker needs to know which list to look in.
+            row_outcome = "наслідки на карті"
+            suppressed_by = diag.flag if diag is not None else "aftermath"
         elif diag is None:
             row_outcome, suppressed_by = _alert_label(r.text), None
         else:

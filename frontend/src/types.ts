@@ -23,6 +23,10 @@ export type AnalyticsPeriod = JournalStats['period']
 export type Notice = Schemas['NoticeOut']
 export type ThreatAxis = Schemas['AxisOut']
 export type Alert = Schemas['AlertOut']
+/** What a strike did to a raion. Served only to vouched accounts (the backend's
+ * IMPACT_ROLES), and shown in the same map layer as impacts. */
+export type Aftermath = Schemas['AftermathOut']
+export type AftermathCategory = Aftermath['categories'][number]
 export type RawEventLink = Schemas['RawEventLinkOut']
 /** `llm_response` is an untyped JSON column server-side, so OpenAPI can only
  * call it "an object". The real shape is `LlmResponse` below — overriding just

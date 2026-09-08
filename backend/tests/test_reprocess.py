@@ -19,7 +19,17 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import app.pipeline.reprocess as reprocess
 from app.db import Base
-from app.models import Alert, District, Incident, Notice, RawMessage, Source, Threat, ThreatEvent
+from app.models import (
+    AftermathReport,
+    Alert,
+    District,
+    Incident,
+    Notice,
+    RawMessage,
+    Source,
+    Threat,
+    ThreatEvent,
+)
 from app.pipeline import lock
 
 T0 = datetime(2026, 8, 18, 20, 0)
@@ -46,12 +56,18 @@ async def test_wipe_tracks_also_clears_notices(wired_db):
         s.add(Threat(target_type="ballistic", status="sighting", incident_id=inc.id))
         s.add(Notice(kind="clear", text="🚆 news post mis-read as відбій"))
         s.add(Notice(kind="summary", text="attack recap"))
+        d = District(name_uk="Тест", name_en="Test", lat=50.45, lon=30.52)
+        s.add(d)
+        await s.flush()
+        # Same reason as notices: the replay re-records every aftermath report,
+        # so a wipe that skips them doubles the layer on each reprocess.
+        s.add(AftermathReport(district_id=d.id, categories=["fire"], text="пожежа"))
         await s.commit()
 
     await reprocess._wipe_tracks()
 
     async with Session() as s:
-        for model in (ThreatEvent, Threat, Incident, Notice):
+        for model in (ThreatEvent, Threat, Incident, Notice, AftermathReport):
             n = await s.scalar(select(func.count()).select_from(model))
             assert n == 0, f"{model.__name__} not wiped: {n} rows remain"
 
@@ -109,12 +125,21 @@ async def test_wipe_since_keeps_older_history(wired_db):
     async with Session() as s:
         s.add(Notice(kind="clear", text="old", event_time=T0 + timedelta(minutes=1)))
         s.add(Notice(kind="clear", text="new", event_time=T0 + timedelta(minutes=6)))
+        d = await s.scalar(select(District))
+        # Cut on `reported_at` (the message's own time), which is what the
+        # replay window is cut on — keyed on insert time both of these would
+        # survive and then be re-recorded.
+        s.add(AftermathReport(district_id=d.id, categories=["fire"], text="old",
+                              reported_at=T0 + timedelta(minutes=1)))
+        s.add(AftermathReport(district_id=d.id, categories=["fire"], text="new",
+                              reported_at=T0 + timedelta(minutes=6)))
         await s.commit()
 
     await reprocess._wipe_since(T0 + timedelta(minutes=4))
 
     async with Session() as s:
         assert {t.id for t in await s.scalars(select(Threat))} == {old_id}
+        assert {a.text for a in await s.scalars(select(AftermathReport))} == {"old"}
         # The straddler goes ENTIRELY, both its events with it — a rebuild that
         # left the minute-4 half behind would show one target as two.
         assert await s.scalar(select(func.count()).select_from(ThreatEvent)) == 1

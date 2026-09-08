@@ -36,6 +36,7 @@ from ...models import HOME_REGION, Alert, Notice, Threat, ThreatEvent
 from ...parsing import DistrictHit, ParseResult
 from ...timeutil import naive
 from ..results import Broadcast
+from .aftermath import record_aftermath
 from .context import IngestContext, _apply_update, _new_track
 
 log = logging.getLogger("tracking")
@@ -654,6 +655,15 @@ def _only_closes(parsed: ParseResult) -> bool:
 async def _dispatch(ctx: IngestContext) -> list[Broadcast]:
     """Route a parsed spotter message to its handler, in fixed precedence order."""
     parsed = ctx.parsed
+
+    # -1. Record what this message says a strike DID to a place (fires, damage,
+    #     casualties, rescue work). Not part of the precedence chain below and
+    #     not affected by it: the aftermath layer is private, so it competes
+    #     with no feed surface, and a message can legitimately be both a
+    #     retrospective summary card AND an aftermath record. Before the age
+    #     veto too — aftermath arrives late by nature and opens no live state.
+    #     See ingest/aftermath.py for both arguments in full.
+    await record_aftermath(ctx)
 
     # 0. Age veto. A reconnect backfill replays history, and a message that
     #    reaches us a stale-window after it was posted must not OPEN anything:

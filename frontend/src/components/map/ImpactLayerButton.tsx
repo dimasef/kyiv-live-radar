@@ -7,7 +7,8 @@ import { STATUS_COLORS } from '@/theme'
 
 import { mapControlClass } from './controlStyles'
 
-/** Switches the impact layer on and off — shown only to the accounts an
+/** Switches the consequence layer on and off — confirmed hits and what a
+ * strike did to a raion, both halves at once. Shown only to the accounts an
  * operator has vouched for.
  *
  * Hiding the button from everyone else is presentation, not protection: the
@@ -19,7 +20,11 @@ export default function ImpactLayerButton() {
   const allowed = useRadar((s) => canSeeImpacts(s.user?.role))
   const on = useRadar((s) => s.impactLayerOn)
   const toggle = useRadar((s) => s.toggleImpactLayer)
-  const count = useRadar((s) => s.impacts.length)
+  // Both halves of the layer, because the badge answers "is there anything
+  // under this button" and a night with reports but no confirmed hit is the
+  // common case (measured: 20 aftermath reports against 5 impacts on the same
+  // corpus).
+  const count = useRadar((s) => s.impacts.length + s.aftermath.length)
 
   if (!allowed) return null
 

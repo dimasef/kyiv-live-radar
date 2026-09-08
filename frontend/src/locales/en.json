@@ -491,7 +491,9 @@
       "body": "You follow a different oblast. The targets, raions and alerts here are {{region}}'s — yours are not in these numbers. The data is real, it is just not about you.",
       "show": "Show it anyway",
       "toMap": "Back to the map"
-    }
+    },
+    "reports_one": "{{count}} report",
+    "reports_other": "{{count}} reports"
   },
   "banner": {
     "expand": "Expand",
@@ -597,5 +599,16 @@
     "hide": "Hide impacts",
     "noticeOn": "Impact layer on",
     "noticeOff": "Impact layer off"
+  },
+  "aftermath": {
+    "title": "Consequences",
+    "category": {
+      "fire": "fire",
+      "damage": "damage",
+      "rescue": "rescue",
+      "casualties": "casualties"
+    },
+    "agoMinutes": "{{count}} min ago",
+    "agoHours": "{{count}} h ago"
   }
 }

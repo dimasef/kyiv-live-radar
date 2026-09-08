@@ -209,6 +209,19 @@ ALERT_THREATS: tuple[AlertThreat, ...] = get_args(AlertThreat)
 # ('stale'). NULL while active — see app/incidents.py.
 IncidentEndedReason = Literal["all_clear", "alert_end", "stale", "dismissed"]
 INCIDENT_ENDED_REASONS: tuple[IncidentEndedReason, ...] = get_args(IncidentEndedReason)
+# What an AftermathReport says happened to a place AFTER a strike. Several at
+# once is normal (7 of the 22 real corpus reports carry two), so the column is a
+# list — see domain/aftermath.py, which owns both the word lists and the
+# most-consequential-first order the display reads.
+#
+# 'power' is deliberately absent. Blackout wording («Знеструмлено частину
+# Дарницького району») never reaches the aftermath filter at all today —
+# `_POWER_OUTAGE` is wired to `_impact`, where it BLOCKS a strike reading, and no
+# energy stem is in `_AFTERMATH` — so such a message currently becomes a live
+# TRACK. That is its own bug, recorded in WORKFLOW.md §2.7; the category returns
+# once it is fixed, not before, so the enum can't promise data nothing produces.
+AftermathCategory = Literal["casualties", "rescue", "fire", "damage"]
+AFTERMATH_CATEGORIES: tuple[AftermathCategory, ...] = get_args(AftermathCategory)
 # Which tier answered an address search (app/geocoding.py). 'gazetteer' = one of
 # our own entries, 'osm' = Nominatim. Shown to the reader, because the two are
 # not equally precise: an entry is a settlement's centre, an OSM hit can be a
@@ -234,11 +247,28 @@ ADMIN_ROLES: tuple[UserRole, ...] = ("admin", "admin_g")
 # untouched, so the only way the data leaves the server is the one route that
 # names this tuple.
 IMPACT_ROLES: tuple[UserRole, ...] = ("admin", "admin_g", "observer")
+# The roles that are STORED INTENT rather than derived state: nothing in the env
+# computes them, so role resolution must leave them alone
+# (auth/service.resolve_and_set_role) and the console must report them as
+# 'manual' (auth/service.role_source_for). One tuple because those two functions
+# disagreeing is not a hypothetical — it shipped:
+#
+#   `observer` was assignable from day one (see AssignableRole) and IMPACT_ROLES
+#   above is the only thing that unlocks the consequence layer, but both
+#   functions hard-coded 'admin_g' as the sole manual role. So an operator
+#   vouched for someone, that person signed in once, and resolution silently
+#   reset them to 'user' — the granted access could only ever be destroyed,
+#   never kept, and the console showed source='default' while it happened.
+#
+# 'user' is deliberately absent though it is assignable: it is what resolution
+# DERIVES for everyone unremarkable, so preserving it would mean preserving the
+# default, i.e. never recomputing anything.
+MANUAL_ROLES: tuple[UserRole, ...] = ("admin_g", "observer")
 # WHY a User.role holds the value it does — read-only provenance for the admin
 # console's «Юзери» tab (auth/service.role_source_for computes it). 'manual' is
-# the DB-only 'admin_g' that role resolution preserves; 'allowlist' means the env
-# lists would resolve 'admin' for this user on their next login; 'default' means
-# nothing backs the role at all.
+# a role from MANUAL_ROLES above, which resolution preserves; 'allowlist' means
+# the env lists would resolve 'admin' for this user on their next login;
+# 'default' means nothing backs the role at all.
 #
 # The combination worth reading is role='admin' + 'default': a STALE admin whose
 # allowlist entry is gone, who will silently drop to 'user' the next time they
@@ -1098,6 +1128,67 @@ class ThreatAnalysis(Base):
     kind: Mapped[str] = mapped_column(String(10))  # see ANALYSIS_KINDS
     card_id: Mapped[int] = mapped_column()  # 1..len(CARD_IDS), the awarded card
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AftermathReport(Base):
+    """What a strike DID to one raion — casualties, rescue work, a fire, damage.
+
+    Not a target: no weapon type, no vector, no group count, none of a track's
+    lifecycle. It is the other half of what `_aftermath` already recognises and
+    then throws away: today such a message is suppressed AND its matched raions
+    are wiped (`rules.clears_districts`), so the one useful thing the parser
+    worked out — where — is discarded with the rest.
+
+    Its own table rather than `Threat(kind='aftermath')` because every public
+    surface's impact filter is keyed on the literal value 'impact'
+    (`api/public/threats.py`, `api/serialize.py::_incident_district_ids`,
+    `domain/journal.py`, and the five exits pinned by tests/test_impact_privacy)
+    — a new `kind` would need each of those rewritten from an equality to a set
+    membership, and one missed filter publishes where a strike landed. Nothing
+    queries this table but its own route, so there is no such filter to miss.
+
+    One row per message per raion, with no corroboration window. Impacts dedupe
+    because «влучання» and «пошкоджено будівлю» are one event in two voices;
+    these are a STREAM OF DISTINCT FACTS about one place — Вишневе has six
+    reports across three days (an evacuation, a dog found alive, 3.04 bn UAH
+    allocated for repairs), and merging them would say one thing happened six
+    times. Measured on the real corpus: a 30-minute window merges 2 of 25 rows,
+    six hours merges 7 — all of them wrongly.
+    """
+
+    __tablename__ = "aftermath_reports"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    district_id: Mapped[int] = mapped_column(ForeignKey("districts.id"), index=True)
+    region: Mapped[str] = mapped_column(String(20), default=HOME_REGION)
+    # When the report was POSTED, not when we stored it — aftermath arrives late
+    # by nature (a «наслідки нічної атаки» post lands the next morning), so
+    # insert time would misdate most of the table.
+    reported_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, index=True
+    )
+    # One or more AFTERMATH_CATEGORIES. A list, not a single value: 7 of the 22
+    # real reports name two at once («рятувальники деблокували тіло загиблого»).
+    categories: Mapped[list] = mapped_column(JSON, default=list)
+    text: Mapped[str] = mapped_column(Text, default="")
+    source_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sources.id"), nullable=True, index=True
+    )
+    source: Mapped[Source | None] = relationship()
+    # Same purpose as ThreatEvent.source_message_id: lets /raw_messages trace a
+    # raw message to the report it became.
+    source_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    raw_id: Mapped[int | None] = mapped_column(
+        ForeignKey("raw_messages.id", ondelete="SET NULL"), nullable=True
+    )
+    # Admin cancel of a false positive. Soft, like Threat.closed_reason
+    # ='dismissed': the row stays for the regression record, the layer stops
+    # serving it.
+    dismissed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    district: Mapped[District] = relationship()
 
 
 class BugReport(Base):

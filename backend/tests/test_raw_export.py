@@ -14,7 +14,15 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.api.raw_query import apply_raw_filters, serialize_raw_rows
 from app.db import Base
-from app.models import District, RawMessage, Source, Threat, ThreatEvent
+from app.models import (
+    AftermathReport,
+    District,
+    Notice,
+    RawMessage,
+    Source,
+    Threat,
+    ThreatEvent,
+)
 
 
 @pytest_asyncio.fixture
@@ -301,3 +309,76 @@ async def test_several_sources_are_a_union(session):
 
     stmt = apply_raw_filters(select(RawMessage), source_ids=[a.id, b.id])
     assert {r.id for r in await session.scalars(stmt)} == {a_msg.id, b_msg.id}
+
+
+async def test_a_recorded_aftermath_reads_differently_from_a_recognised_one(session):
+    """Two aftermath messages, one of which produced a marker. «хроніка
+    наслідків» says the class was recognised; «наслідки на карті» says a marker
+    exists — and that difference is the only way to see the two recording gates
+    (ingest/aftermath.py) working on a real night.
+
+    `suppressed_by` stays 'aftermath' on both: the rule that decided them is
+    still the aftermath filter, and an operator chasing a wrong marker needs to
+    know which word list to look in.
+    """
+    src = await _spotter(session)
+    recorded = await _raw(session, src, "Дарницький район після нічної атаки — "
+                                        "понівечена багатоповерхівка", message_id=1)
+    recognised = await _raw(session, src, "Про це повідомила КМВА, наслідки уточнюються",
+                            message_id=2)
+    district = await session.scalar(select(District))
+    session.add(AftermathReport(
+        district_id=district.id, categories=["damage"], text=recorded.text,
+        source_id=src.id, source_message_id=1, raw_id=recorded.id,
+    ))
+    await session.commit()
+
+    out = await _serialize(session, [recorded, recognised])
+    assert out[recorded.id].outcome == "наслідки на карті"
+    assert out[recorded.id].suppressed_by == "aftermath"
+    assert out[recognised.id].outcome == "хроніка наслідків"
+    assert out[recognised.id].suppressed_by == "aftermath"
+
+
+async def test_a_message_can_be_both_a_notice_and_an_aftermath(session):
+    """The shape that made recording a pre-step rather than a `_dispatch`
+    branch: a retrospective summary card AND aftermath markers, 2 of the 20
+    measured reports. The label has to be able to say both."""
+    src = await _spotter(session)
+    raw = await _raw(session, src, "У Києві двоє людей постраждали під час нічної "
+                                   "атаки. Внаслідок удару сталися пожежі.", message_id=1)
+    district = await session.scalar(select(District))
+    session.add(Notice(kind="summary", text=raw.text, source_id=src.id,
+                       source_message_id=1))
+    session.add(AftermathReport(
+        district_id=district.id, categories=["fire", "casualties"], text=raw.text,
+        source_id=src.id, source_message_id=1, raw_id=raw.id,
+    ))
+    await session.commit()
+
+    out = await _serialize(session, [raw])
+    assert out[raw.id].outcome == "нотіс + наслідки"
+
+
+async def test_the_aftermath_filter_finds_only_recorded_ones(session):
+    """`outcome='aftermath'` is a THIRD filter value, not part of 'event': a
+    marker is private to vouched accounts and never a feed card, so by the
+    filter's own question — did anything surface? — the message is still
+    suppressed."""
+    src = await _spotter(session)
+    recorded = await _raw(session, src, "Пожежа у Дарницькому районі після удару",
+                          message_id=1)
+    plain = await _raw(session, src, "Про це повідомила КМВА", message_id=2)
+    district = await session.scalar(select(District))
+    session.add(AftermathReport(
+        district_id=district.id, categories=["fire"], text=recorded.text,
+        source_id=src.id, source_message_id=1, raw_id=recorded.id,
+    ))
+    await session.commit()
+
+    stmt = apply_raw_filters(select(RawMessage), outcome="aftermath")
+    assert [r.id for r in await session.scalars(stmt)] == [recorded.id]
+    # …and it is still found by the plain "suppressed" filter, which asks a
+    # different question.
+    stmt = apply_raw_filters(select(RawMessage), outcome="suppressed")
+    assert {r.id for r in await session.scalars(stmt)} == {recorded.id, plain.id}

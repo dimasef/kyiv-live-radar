@@ -1,11 +1,12 @@
 """The «Юзери» tab: who has an account, what they may do, and removing them.
 
-The one thing to understand before changing anything here: **`role` is derived,
-not stored intent.** `auth/service.resolve_and_set_role` recomputes it from the
-env allowlists on every single login, preserving only 'admin_g'. Everything
-below follows from that:
+The one thing to understand before changing anything here: **plain 'admin' is
+derived, not stored intent.** `auth/service.resolve_and_set_role` recomputes it
+from the env allowlists on every single login, preserving only the roles in
+`models.MANUAL_ROLES` ('admin_g' and 'observer'). Everything below follows from
+that:
 
-* the assignable set is 'user' and 'admin_g', never plain 'admin';
+* the assignable set is 'user', 'observer' and 'admin_g', never plain 'admin';
 * revoking a role the allowlist grants is refused rather than silently undone
   at the person's next sign-in;
 * every response carries `role_source` — WHY the role reads as it does,
@@ -94,11 +95,14 @@ async def admin_set_user_role(
     session: AsyncSession = Depends(get_session),
     admin: User = Depends(require_admin),
 ):
-    """Grant or revoke console access.
+    """Grant or revoke console access, or the consequence layer.
 
-    Only 'user' and 'admin_g' are assignable (see models.AssignableRole): plain
-    'admin' is derived from the env allowlists on every login, so it cannot be
-    granted here in a way that survives.
+    Only `models.AssignableRole` values ('user', 'observer', 'admin_g') are
+    assignable: plain 'admin' is derived from the env allowlists on every login,
+    so it cannot be granted here in a way that survives. The other two can,
+    because resolution preserves them (models.MANUAL_ROLES) — 'observer' did not
+    until 2026-09-08, which made granting the consequence layer impossible in
+    practice: it was reset at the person's next sign-in.
 
     Revoking is refused while the env allowlist still names the person — role
     resolution would hand the role straight back at their next sign-in, and a

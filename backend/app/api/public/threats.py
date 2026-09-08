@@ -13,6 +13,7 @@ from ...auth.deps import require_impact_access
 from ...config import settings
 from ...db import get_session
 from ...models import (
+    AftermathReport,
     Region,
     Threat,
     ThreatEvent,
@@ -20,10 +21,12 @@ from ...models import (
     utcnow,
 )
 from ...schemas import (
+    AftermathOut,
     FeedEntryOut,
     ThreatEventOut,
     ThreatOut,
 )
+from ..serialize import aftermath_out as _aftermath_out
 from ..serialize import event_out as _event_out
 from ..serialize import feed_entry_out as _feed_entry_out
 from ..serialize import threat_out as _threat_out
@@ -128,7 +131,7 @@ async def live_impacts(
     Declared BEFORE /threats/{threat_id}/events on purpose — FastAPI matches in
     order, and "impacts" would otherwise be tried as a threat_id.
     """
-    since = utcnow() - timedelta(hours=settings.impact_layer_hours)
+    since = utcnow() - timedelta(hours=settings.consequence_layer_hours)
     stmt = (
         select(Threat)
         .where(
@@ -142,6 +145,47 @@ async def live_impacts(
     if region:
         stmt = stmt.where(Threat.region.in_(region))
     return [_threat_out(t) for t in await session.scalars(stmt)]
+
+
+@router.get("/aftermath", response_model=list[AftermathOut])
+async def aftermath(
+    region: list[Region] | None = Query(None),
+    session: AsyncSession = Depends(get_session),
+    _viewer: User = Depends(require_impact_access),
+):
+    """What a strike DID to a raion — fires, damage, casualties, rescue work.
+
+    The same door as `/threats/impacts` above, and for the same reason: on the
+    night of a raid «горить багатоповерхівка в Дарницькому» is damage assessment
+    for whoever launched it, exactly as a strike pin is. So the two share one
+    role gate (IMPACT_ROLES), one time window (`consequence_layer_hours`) and
+    one layer in the client — the reader is asking one question, "what did this
+    night do to these streets", and the two answers differ only in whether
+    anyone confirmed the hit itself.
+
+    A separate route from the impacts one rather than a merged payload: they are
+    different shapes (a report has no target type, no count, no vector), and the
+    public routes stay untouched either way — which is the property the whole
+    arrangement exists to protect.
+
+    No websocket counterpart, deliberately. A report does not move, and the
+    absence of a broadcast is the cheapest guarantee that it cannot reach a
+    frame everyone receives.
+    """
+    since = utcnow() - timedelta(hours=settings.consequence_layer_hours)
+    stmt = (
+        select(AftermathReport)
+        .where(
+            AftermathReport.dismissed_at.is_(None),
+            AftermathReport.reported_at >= since,
+        )
+        .options(selectinload(AftermathReport.district),
+                 selectinload(AftermathReport.source))
+        .order_by(AftermathReport.reported_at.desc())
+    )
+    if region:
+        stmt = stmt.where(AftermathReport.region.in_(region))
+    return [_aftermath_out(r) for r in await session.scalars(stmt)]
 
 
 @router.get("/threats/{threat_id}/events", response_model=list[ThreatEventOut])

@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..domain.districts import citywide_district_id
 from ..models import (
     HOME_REGION,
+    AftermathReport,
     Alert,
     District,
     Incident,
@@ -31,6 +32,7 @@ class JournalWindow:
     threats: list
     incidents: list
     alerts: list
+    aftermath: list
     district_events: list
     sentinel: int | None
     hide_impacts_from: date | None
@@ -94,6 +96,19 @@ async def load_journal_window(
             )
         )
     )
+    # Dismissed reports are excluded here rather than in build_journal, the same
+    # way every other row is filtered before it gets there — the aggregation
+    # stays a pure function over whatever it is handed.
+    aftermath = list(
+        await session.scalars(
+            select(AftermathReport).where(
+                AftermathReport.region == HOME_REGION,
+                AftermathReport.dismissed_at.is_(None),
+                AftermathReport.reported_at >= window_start,
+                AftermathReport.reported_at < window_end,
+            )
+        )
+    )
     district_events = (
         await session.execute(
             select(
@@ -126,6 +141,7 @@ async def load_journal_window(
         threats=threats,
         incidents=incidents,
         alerts=alerts,
+        aftermath=aftermath,
         district_events=district_events,
         sentinel=sentinel,
         hide_impacts_from=today if alert_open is not None else None,

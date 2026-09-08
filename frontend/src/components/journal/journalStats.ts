@@ -55,7 +55,12 @@ export function hasActivity(d: JournalDay): boolean {
     d.target_count > 0 ||
     d.impact_count > 0 ||
     d.alert_count > 0 ||
-    d.district_count > 0
+    d.district_count > 0 ||
+    // A day can carry ONLY consequences: the rescue work and the damage tally
+    // of a strike run for days after the raid that caused them, on dates with
+    // no sighting of their own. Without this the panel said "nothing happened"
+    // over a list of fires.
+    d.aftermath_count > 0
   )
 }
 

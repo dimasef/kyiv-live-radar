@@ -237,6 +237,18 @@ chain is orphaned too. «Деміївка 🔴» → «Совки/Солома/�
 **A short stem eats an ordinary word.** The canonical case is «Остер» ⊂
 «остерігайтеся». Four-letter stems are where this bites.
 
+**A short stem eats a NUMBER word — the same class, but it fires on live
+callouts, not just news.** Троєщина's aliases «троєю/троя/трої/трою» all stem to
+four letters, and the pattern appends an optional case tail, so «троє» matched
+«троє людей» in every casualty tally *and* «троє шахедів курсом на Бровари» —
+a phantom target over a Kyiv microdistrict from a count word this parser reads
+as a count — «троє» is literally an entry in `_NUM_WORDS` (`vocab.py:178`), so
+one word was both a number and a place. It sat unnoticed because `clears_districts`
+wipes the raions of an aftermath message, so only the harmless half was visible.
+The fix is the whole-word set, not a deletion: dropping just «троєю» leaves
+«троянди» and «троянський». Ask of any 4-letter stem whether it is a prefix of a
+NUMERAL, not only of a noun.
+
 **A Kyiv stem swallows a northern toponym.** The spoken word is *longer* than
 the Kyiv entry's stem and denotes a different place 150 km away: «Мезин,
 деснянське» became the Деснянський **raion** of Kyiv and opened a Kyiv attack

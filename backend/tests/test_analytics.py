@@ -31,6 +31,9 @@ def _run(start, end, *, threats=(), incidents=(), alerts=(), district_events=(),
     day_stats = build_journal(
         start, end,
         threats=list(threats), incidents=list(incidents), alerts=list(alerts),
+        # Aftermath reports feed the per-day journal only; nothing in
+        # build_analytics reads them.
+        aftermath=[],
         district_events=list(district_events), sentinel_district_id=sentinel_district_id,
     )
     return build_analytics(

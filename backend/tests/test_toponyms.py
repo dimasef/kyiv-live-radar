@@ -370,6 +370,46 @@ def test_stoianka_does_not_eat_a_parking_lot():
     assert [h.name for h in m.find(normalize("біля автостоянки"))] == []
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        # Both are real corpus messages (29380, 29571) that were pinning a
+        # microdistrict. «троє» is a COUNT word this parser reads as a count, so
+        # the stem reached a casualty tally AND a live callout.
+        "❗️На жаль, внаслідок атаки по Києву загинуло троє людей, – КМВА",
+        "троє шахедів курсом на Бровари",
+        # Same 4-letter stems, ordinary words: the flower and the adjective.
+        "подарували троянди",
+        "троянський кінь",
+    ],
+)
+def test_troieshchyna_does_not_ride_on_a_count_word(text):
+    """Троєщина's shorthand is why `_WHOLE_WORD_ALIASES` exists at all: as stems
+    «троєю»/«троя»/«трої»/«трою» reach «троє людей», «троє шахедів», «троянди»
+    and «троянський» — a phantom target over a Kyiv microdistrict from a number.
+    Whole-word matching is what keeps the callout and drops all four."""
+    assert "Троєщина" not in [h.name for h in _region_matcher("kyiv").find(normalize(text))]
+
+
+@pytest.mark.parametrize(
+    "text",
+    # Every form the corpus actually types, across all 57 real callouts.
+    ["Троя 🔴!", "троя", "ТРОЯ", "На Трою з півночі!!", "йде на трою",
+     "район Трої по двох реактивних", "Троєщина готуємось",
+     "Останній реактивний в бік Троєщини", "Ще 2 ракети на Троєщину",
+     "Троєщино",
+     # The instrumental. Zero hits in the July sample, which is exactly why the
+     # alias is kept as a whole word instead of deleted — the corpus not having
+     # typed a case form is not evidence the language lacks it.
+     "Шахед над Троєю"],
+)
+def test_troieshchyna_still_matches_every_real_form(text):
+    """The other half of the fix above: the boundary must not cost a callout.
+    The long stem "троєщин" carries the full name's cases; the four short case
+    forms are whole-word aliases."""
+    assert [h.name for h in _region_matcher("kyiv").find(normalize(text))] == ["Троєщина"], text
+
+
 def test_koncha_zaspa_does_not_double_match():
     """The spelled-out name contains the alias. Both branches belong to one
     entry, so the matcher must still return a single hit — two would enumerate

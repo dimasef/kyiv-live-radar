@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
-from ..models import OAuthIdentity, RoleSource, User, utcnow
+from ..models import MANUAL_ROLES, OAuthIdentity, RoleSource, User, utcnow
 from .security import encode_access, encode_refresh
 
 
@@ -52,7 +52,7 @@ def role_source_for(user: User, identities: Sequence[OAuthIdentity]) -> RoleSour
     whole page of users costs no extra query. Lives here, next to `role_for` and
     `resolve_and_set_role`, because all three read the same allowlists and must
     never disagree about what they mean."""
-    if user.role == "admin_g":
+    if user.role in MANUAL_ROLES:
         return "manual"
     verified_email = user.email if user.email_verified else None
     if role_for(verified_email, telegram_ids_in(identities)) == "admin":
@@ -80,10 +80,12 @@ async def resolve_and_set_role(session: AsyncSession, user: User) -> None:
     (verified email + any linked Telegram id). Called on every login so a change
     to the allowlist takes effect on the user's next sign-in.
 
-    'admin_g' is a manual DB-only role (never derivable from the allowlists), so
-    it is preserved as-is — recomputing would clobber it back to admin/user on
-    the next login."""
-    if user.role == "admin_g":
+    A role in `MANUAL_ROLES` is stored intent, not derived state — nothing in the
+    env computes it — so it is preserved as-is. Recomputing would clobber it back
+    to admin/user on the next login, which is exactly what it did to 'observer'
+    until 2026-09-08: the only role that unlocks the consequence layer could be
+    granted from the console and then lost at the person's very next sign-in."""
+    if user.role in MANUAL_ROLES:
         return
     verified_email = user.email if user.email_verified else None
     telegram_ids = await _telegram_ids_for(session, user)

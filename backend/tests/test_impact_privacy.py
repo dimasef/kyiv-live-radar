@@ -11,6 +11,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.api.serialize import incident_out
@@ -19,7 +20,15 @@ from app.config import settings
 from app.db import Base, get_session
 from app.domain.journal import KYIV
 from app.main import app
-from app.models import Alert, District, Incident, Threat, ThreatEvent, User
+from app.models import (
+    AftermathReport,
+    Alert,
+    District,
+    Incident,
+    Threat,
+    ThreatEvent,
+    User,
+)
 
 
 @pytest_asyncio.fixture
@@ -236,8 +245,133 @@ async def test_a_dismissed_impact_is_not_served_to_the_layer(client):
 async def test_the_layer_only_reaches_back_its_window(client):
     c, s = client
     th = await _an_impact(s)
-    th.created_at = datetime.now(UTC) - timedelta(hours=settings.impact_layer_hours + 1)
+    th.created_at = datetime.now(UTC) - timedelta(hours=settings.consequence_layer_hours + 1)
     await s.commit()
     tok = await _token(s, "observer")
     r = await c.get("/threats/impacts", headers={"Authorization": f"Bearer {tok}"})
     assert r.status_code == 200 and r.json() == []
+
+
+# --- …and the same door for the other half of the layer: GET /aftermath.
+# A report says what a strike DID to a raion, which on the night of a raid is
+# the same battle-damage assessment a strike pin is — so it gets the same gate,
+# the same window, and the same three tests that can actually fail. Two more
+# were considered and left out on purpose: "absent from /events/recent" and
+# "never broadcast over the websocket" are structurally impossible (another
+# table; no such WSMessage variant exists), and a test that cannot fail is not
+# a pinned intention.
+
+
+async def _an_aftermath(session) -> AftermathReport:
+    d = await session.scalar(select(District).where(District.name_en == "Darnytskyi"))
+    if d is None:
+        d = District(name_uk="Дарницький", name_en="Darnytskyi", lat=50.4, lon=30.6)
+        session.add(d)
+        await session.commit()
+    report = AftermathReport(
+        district_id=d.id, region="kyiv", categories=["fire", "casualties"],
+        text="Пожежа у Дарницькому районі після удару",
+    )
+    session.add(report)
+    await session.commit()
+    return report
+
+
+async def test_aftermath_is_closed_to_everyone_but_vouched_accounts(client):
+    c, s = client
+    await _an_aftermath(s)
+
+    assert (await c.get("/aftermath")).status_code == 401
+
+    user = await _token(s, "user")
+    r = await c.get("/aftermath", headers={"Authorization": f"Bearer {user}"})
+    assert r.status_code == 403
+
+    for role in ("observer", "admin", "admin_g"):
+        tok = await _token(s, role)
+        r = await c.get("/aftermath", headers={"Authorization": f"Bearer {tok}"})
+        assert r.status_code == 200, role
+        body = r.json()
+        assert len(body) == 1, role
+        # The marker is placeable and labelled without a second request — the
+        # last category is the most consequential one (domain/aftermath.py).
+        assert body[0]["lat"] == 50.4 and body[0]["district_name"] == "Дарницький"
+        assert body[0]["categories"][-1] == "casualties"
+
+
+async def test_a_dismissed_report_is_not_served(client):
+    c, s = client
+    report = await _an_aftermath(s)
+    report.dismissed_at = datetime.now(UTC)
+    await s.commit()
+    tok = await _token(s, "observer")
+    r = await c.get("/aftermath", headers={"Authorization": f"Bearer {tok}"})
+    assert r.status_code == 200 and r.json() == []
+
+
+async def test_aftermath_only_reaches_back_its_window(client):
+    c, s = client
+    report = await _an_aftermath(s)
+    report.reported_at = datetime.now(UTC) - timedelta(
+        hours=settings.consequence_layer_hours + 1
+    )
+    await s.commit()
+    tok = await _token(s, "observer")
+    r = await c.get("/aftermath", headers={"Authorization": f"Bearer {tok}"})
+    assert r.status_code == 200 and r.json() == []
+
+
+async def test_the_journal_reports_aftermath_but_not_during_the_raid(client):
+    """The one surface where a consequence reaches everybody — and only after
+    the відбій, under the same rule as `impact_count`.
+
+    Publishing it at all is deliberate: these reports are news posts from public
+    channels, and by the time the alert is over the withholding protects
+    nothing. During the raid it protects a great deal, which is why today's
+    counts read 0 while the siren runs. Counts only either way — the journal
+    never says which raion burned.
+    """
+    c, s = client
+    d = await _district(s)
+    now = datetime.now(UTC)
+    today, today_key = now.replace(tzinfo=None), now.astimezone(KYIV).date()
+    yesterday, yesterday_key = today - timedelta(days=1), today_key - timedelta(days=1)
+    for when in (today, yesterday):
+        s.add(AftermathReport(district_id=d.id, region="kyiv", reported_at=when,
+                              categories=["fire", "casualties"], text="Пожежа після удару"))
+    alert = Alert(scope="city", alert_type="air_raid", started_at=today, provider="telegram")
+    s.add(alert)
+    await s.commit()
+
+    def _counts(payload):
+        return {day["date"]: day["aftermath_count"] for day in payload["days"]}
+
+    during = _counts((await c.get("/journal/days")).json())
+    assert during[today_key.isoformat()] == 0
+    # Yesterday is untouched: the withholding is about the raid in progress.
+    assert during[yesterday_key.isoformat()] == 1
+
+    alert.ended_at = today + timedelta(minutes=30)
+    alert.closed_reason = "official"
+    await s.commit()
+
+    after = (await c.get("/journal/days")).json()
+    assert _counts(after)[today_key.isoformat()] == 1
+    today_row = next(day for day in after["days"] if day["date"] == today_key.isoformat())
+    assert today_row["aftermath_counts"]["fire"] == 1
+    assert today_row["aftermath_counts"]["casualties"] == 1
+    # No raion is named — the whole point of aggregating.
+    assert "aftermath_district_ids" not in today_row
+
+
+async def test_a_dismissed_report_never_reaches_the_journal(client):
+    """An admin-cancelled false positive is excluded from every tally, the same
+    way a dismissed track and a dismissed impact are."""
+    c, s = client
+    d = await _district(s)
+    now = datetime.now(UTC).replace(tzinfo=None)
+    s.add(AftermathReport(district_id=d.id, region="kyiv", reported_at=now,
+                          categories=["fire"], text="хибний", dismissed_at=now))
+    await s.commit()
+    days = (await c.get("/journal/days")).json()["days"]
+    assert all(day["aftermath_count"] == 0 for day in days)

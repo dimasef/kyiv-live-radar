@@ -1,32 +1,45 @@
 import { useEffect } from "react";
 import { Marker } from "react-leaflet";
 
+import { aftermathDivIcon } from "@/aftermathIcons";
 import { canSeeImpacts } from "@/api";
+import { fadeFactor } from "@/lib/aftermathFreshness";
 import { useRadar } from "@/store";
 import { IMPACT_REFRESH_MS } from "@/store/impactsSlice";
 import { MARKER_PX } from "@/store/prefsSlice";
 import { threatDivIcon } from "@/threatIcons";
 
+import AftermathPopup from "./AftermathPopup";
 import ThreatPopup from "./ThreatPopup";
 import { trackPoints } from "./track";
 
-/** Where strikes landed, for the accounts an operator has vouched for.
+/** What this night did to these streets, for the accounts an operator has
+ * vouched for: confirmed hits AND what a strike did to a raion — fires, damage,
+ * casualties, rescue work.
  *
- * Every other live surface withholds this (see the backend's IMPACT_ROLES): a
+ * Every other live surface withholds both (see the backend's IMPACT_ROLES): a
  * "hit in Дарницький" published while the raid is still running is damage
- * assessment for whoever launched it. So this layer is off by default, asks for
- * nothing until it is switched on, and is the only place in the app that draws
- * an impact before the alert is over.
+ * assessment for whoever launched it, and «горить багатоповерхівка в
+ * Дарницькому» is the same assessment by another route. So this layer is off by
+ * default, asks for nothing until it is switched on, and is the only place in
+ * the app that draws either before the alert is over.
+ *
+ * One layer, one toggle, two marker sets, because the reader is asking one
+ * question and the two answers differ only in whether anyone confirmed the hit
+ * itself. The hierarchy between them is deliberate: an impact keeps the loud
+ * magenta burst it has always had, a consequence is a smaller stroke glyph in
+ * warm ash that fades with its own age. What is still in the air outranks what
+ * already happened.
  *
  * Points, never trails: an impact is where something arrived, and threatVisual
- * already refuses it a vector. It reuses the burst glyph the journal and the
- * feed already use for `status: 'impact'`, so a strike looks the same wherever
- * it is shown. */
+ * already refuses it a vector. A report is a raion, not a path. */
 export default function ImpactLayer() {
   const on = useRadar((s) => s.impactLayerOn);
   const impacts = useRadar((s) => s.impacts);
+  const aftermath = useRadar((s) => s.aftermath);
   const refresh = useRadar((s) => s.refreshImpacts);
   const markerSize = useRadar((s) => s.mapMarkerSize);
+  const now = useRadar((s) => s.nowMs + s.clockSkewMs);
   // Part of the effect's key, not just a guard: the switch is remembered across
   // reloads while the session hydrates asynchronously, so at boot the first
   // attempt runs before the role is known. Without this the layer sat empty
@@ -62,6 +75,30 @@ export default function ImpactLayer() {
             })}
           >
             <ThreatPopup threat={impact} />
+          </Marker>
+        );
+      })}
+
+      {aftermath.map((report) => {
+        if (report.lat == null || report.lon == null) return null;
+        // The LAST category is the most consequential one — the server orders
+        // the list (domain/aftermath.py::_SEVERITY) precisely so the client
+        // does not re-derive that ranking.
+        const worst = report.categories[report.categories.length - 1];
+        if (!worst) return null;
+        return (
+          <Marker
+            key={`a${report.id}`}
+            position={[report.lat, report.lon]}
+            // Smaller than a target marker by design: it must be findable
+            // without competing with anything still flying.
+            icon={aftermathDivIcon(worst, {
+              size: Math.round(MARKER_PX[markerSize] * 0.8),
+              extra: report.categories.length - 1,
+            })}
+            opacity={fadeFactor(report, now)}
+          >
+            <AftermathPopup report={report} />
           </Marker>
         );
       })}
