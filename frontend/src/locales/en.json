@@ -556,8 +556,8 @@
     "movement": "Movement",
     "data": "Data",
     "messages": "Messages",
-    "leads": "Led by {{source}}",
-    "echo": "+{{n}} from {{sources}}"
+    "leadLabel": "Led by",
+    "echoLabel": "+{{n}} from"
   },
   "speed": {
     "kmh": "km/h",

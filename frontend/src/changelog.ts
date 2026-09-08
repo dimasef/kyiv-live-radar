@@ -32,12 +32,23 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.53.2";
+const LATEST = "0.53.3";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "картка цілі під рукою",
+    date: "2026-09-08",
+    kind: "patch",
+    changes: [
+      "Вибір цілі у стрічці подій одразу відкриває її картку на мапі — більше не треба шукати позначку й тиснути її окремо",
+      "Esc знімає вибір: картка закривається, і ціль перестає бути виділеною. Те саме, що клік по мапі, тільки з клавіатури",
+      "У розділі «Дані» назви каналів стоять окремими чіпами, а не через кому — імена з власною пунктуацією («Місто Кия | Безпека») більше не зливаються між собою",
+    ],
+  },
+  {
+    version: "0.53.2",
     title: "слова спостерігача",
     date: "2026-09-08",
     kind: "patch",

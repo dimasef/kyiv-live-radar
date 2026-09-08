@@ -901,6 +901,8 @@ body::after {
 }
 .leaflet-popup-close-button {
   color: var(--text-dim) !important;
+  top: 8px !important;
+  right: 4px !important;
 }
 .leaflet-control-zoom a {
   background: rgba(13, 21, 31, 0.85) !important;

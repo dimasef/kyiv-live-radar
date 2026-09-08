@@ -563,8 +563,8 @@
     "movement": "Рух",
     "data": "Дані",
     "messages": "Повідомлення",
-    "leads": "Веде: {{source}}",
-    "echo": "+{{n}} від {{sources}}"
+    "leadLabel": "Веде:",
+    "echoLabel": "+{{n}} від"
   },
   "speed": {
     "kmh": "км/год",

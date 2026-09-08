@@ -3,4 +3,5 @@
 export { default as HomeController } from "./HomeController";
 export { default as InspectController } from "./InspectController";
 export { default as ResizeHandler } from "./ResizeHandler";
+export { default as SelectionEscape } from "./SelectionEscape";
 export { default as ZoneAutoFit } from "./ZoneAutoFit";

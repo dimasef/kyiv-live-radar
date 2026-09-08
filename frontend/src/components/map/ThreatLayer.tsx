@@ -1,6 +1,6 @@
 import L from "leaflet";
-import { memo, useMemo } from "react";
-import { CircleMarker, Marker, Polyline } from "react-leaflet";
+import { memo, useEffect, useMemo, useRef } from "react";
+import { CircleMarker, Marker, Polyline, useMap } from "react-leaflet";
 
 import { fadeFactor, showsLiveMotion } from "@/lib/threatFreshness";
 import { useRadar } from "@/store";
@@ -85,6 +85,8 @@ const ThreatLayer = memo(function ThreatLayer({
   const trail = showTrail || highlighted || popupOpen;
   const trailWeight = trackWidth + (highlighted ? 2 : 0);
   const pickable = regroupPick != null && regroupPick.sourceThreatId !== threat.id;
+  const map = useMap();
+  const markerRef = useRef<L.Marker | null>(null);
   const type = threat.target_type;
   const { pts, echoPts, color, moved, heading, state } = threatVisual(threat);
 
@@ -111,6 +113,37 @@ const ThreatLayer = memo(function ThreatLayer({
     [type, state, heading, color, highlighted, leaving, threat.target_count, threat.id, live,
      still, markerSize],
   );
+
+  // Picking a target in the feed opens its popup too — the click already means
+  // "tell me about this one", and making the operator find the marker and click
+  // it again to read what they just asked for is a step for nothing.
+  //
+  // AFTER the fly-to lands, never during it: a popup's autoPan calls
+  // `_panAnim.stop()` on open (Leaflet's Popup._adjustPan), so opening one
+  // mid-flight kills InspectController's flight and leaves the map wherever it
+  // had got to. `moveend` is that landing, and every fresh selection flies —
+  // including one that ends where it started, since flyTo fires the event
+  // either way. A track with no points never flies and never renders a marker
+  // here, so the two agree by construction.
+  //
+  // This does lean on the flight being ASYNC, which is where it degrades: on an
+  // engine without 3d transforms (the TV browser) flyTo falls straight through
+  // to setView, whose `moveend` has already fired by the time this effect runs
+  // — InspectController is mounted above these layers, so its effect goes
+  // first. There the popup simply does not auto-open, which is what the map did
+  // before this existed. Worth knowing before "fixing" it by opening eagerly:
+  // that trades a missing convenience for a map that stops mid-flight.
+  useEffect(() => {
+    if (!highlighted || pickable) return;
+    const open = () => {
+      const marker = markerRef.current;
+      if (marker && !marker.isPopupOpen()) marker.openPopup();
+    };
+    map.once("moveend", open);
+    return () => {
+      map.off("moveend", open);
+    };
+  }, [highlighted, pickable, map]);
 
   if (pts.length === 0) return null;
   // City-wide threats have no real location (their event sits on the city-centre
@@ -256,6 +289,7 @@ const ThreatLayer = memo(function ThreatLayer({
         />
       )}
       <Marker
+        ref={markerRef}
         position={[head.lat, head.lon]}
         icon={headIcon}
         opacity={dim}

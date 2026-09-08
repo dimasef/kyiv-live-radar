@@ -21,6 +21,7 @@ import {
   HomeController,
   InspectController,
   ResizeHandler,
+  SelectionEscape,
   ZoneAutoFit,
 } from "./controllers";
 import DistrictLayer from "./DistrictLayer";
@@ -171,6 +172,7 @@ export default function MapView() {
         <ResizeHandler bounds={framing} />
         <HomeController />
         <InspectController />
+        <SelectionEscape />
 
         {/* Hidden while arming a new position — HomePlacement shows the single
             house being placed (cursor ghost / center pin) instead. */}
