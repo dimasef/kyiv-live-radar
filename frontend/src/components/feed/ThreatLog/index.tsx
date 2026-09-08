@@ -19,6 +19,7 @@ import {
   filterFeedIncidents,
   filterFeedNotices,
   filterFeedRegions,
+  isClosedGroup,
   kyivDayKey,
 } from './timeline'
 
@@ -116,19 +117,15 @@ export default function ThreatLog() {
               )
             }
 
-            // A group holds every event from ONE source message. That covers
-            // two very different shapes: (a) a "дорозвідка"/stand-down that
-            // closed SEVERAL tracks at once — one event per closed track, so
-            // MULTIPLE distinct track ids; (b) a single sighting/impact that
-            // named SEVERAL districts — one event per district but all on the
-            // SAME track. Only (a) is "Закрито цілей"; (b) is a normal sighting
-            // and must NOT be shown as closed. Distinguish by distinct track
-            // count, not group length.
-            const distinctTracks = new Set(item.group.map((e) => e.threat.id)).size
+            // A group holds every event from ONE source message, and that one
+            // shape covers a stand-down closing several tracks, a sighting that
+            // named several districts of one track, and an enumeration opening
+            // one track per district. Only the first is "Закрито цілей" — see
+            // `isClosedGroup`, which asks the tracks rather than the shape.
             return (
               <Fragment key={item.keyId}>
                 {separator}
-                {distinctTracks > 1 ? (
+                {isClosedGroup(item.group) ? (
                   <ClosedGroupCard group={item.group} />
                 ) : (
                   <ThreatCard event={item.group[0].event} threat={item.group[0].threat} />

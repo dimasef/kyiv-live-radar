@@ -1,5 +1,4 @@
 import { Sparkles, TriangleAlert } from 'lucide-react'
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useRadar } from '@/store'
@@ -19,14 +18,9 @@ export default function ThreatCard({ event, threat }: FeedEntry) {
   const isSelected = useRadar((s) => s.inspectedThreat?.id === threat.id)
   const inspectThreat = useRadar((s) => s.inspectThreat)
   const clearInspection = useRadar((s) => s.clearInspection)
-  const [rawOpen, setRawOpen] = useState(false)
 
   const color = threatColor(threat)
   const toggleInspect = () => (isSelected ? clearInspection() : inspectThreat(threat))
-  // The LLM gist is the readable headline; the raw Telegram text collapses
-  // beneath it. Rule-only events (no summary) just show the raw text.
-  const headline = event.llm_summary || event.raw_text
-  const hasSummary = !!event.llm_summary
   const rescued = event.decision_source === 'triage'
 
   return (
@@ -86,27 +80,26 @@ export default function ThreatCard({ event, threat }: FeedEntry) {
         </span>
       </div>
 
+      {/* The spotter's own words, always — `event.llm_summary` is still stored
+          and still readable in the raw view, it just no longer speaks for them
+          here.
+
+          It used to be the headline, with this text collapsed underneath. That
+          traded the one thing a sighting card carries for a paraphrase, and on
+          the short callouts this feed is mostly made of the paraphrase was
+          longer than the original and said no more: «Політех 🔴.» became
+          «Політех, підтверджено» — restating the status chip beside it — and
+          «Сади/Голос 🔴.» came back identical minus the full stop. Worse, it
+          silently rewrote places: «Голос парк 🔴.» was published as
+          «Гідропарк», a different district across the river, while the real
+          text sat behind a collapsed toggle. A long message needs no gist
+          either; ClampText already folds anything past five lines, and the
+          longest sighting in the whole corpus is 86 characters. */}
       <ClampText
-        text={headline}
+        text={event.raw_text}
         className="mt-0.5 break-words leading-snug text-slate-300"
       />
       <SourceName name={event.source_name} />
-      {hasSummary && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            setRawOpen((v) => !v)
-          }}
-          className="mt-0.5 font-mono text-[10px] text-slate-500 hover:text-slate-300"
-        >
-          {rawOpen ? '▾' : '▸'} {t('log.showRaw')}
-        </button>
-      )}
-      {hasSummary && rawOpen && (
-        <div className="mt-0.5 break-words border-l border-white/10 pl-2 text-[11px] leading-snug text-slate-500">
-          {event.raw_text}
-        </div>
-      )}
 
       {threat.has_conflict && (
         <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">

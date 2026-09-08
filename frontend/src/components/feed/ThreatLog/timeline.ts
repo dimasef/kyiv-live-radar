@@ -113,6 +113,41 @@ export function groupFeed(log: FeedEntry[]): FeedEntry[][] {
   return groups
 }
 
+/** Whether this group is several tracks CLOSED by one message, rather than one
+ * message that opened several.
+ *
+ * "One message, many tracks" used to be enough to answer that, because only a
+ * «дорозвідка» stand-down could produce it. Multi-target enumeration broke the
+ * assumption: «Нивки / Шулявка / Лукʼянівка» is one message that OPENS three
+ * tracks, one per district — and the feed announced three live jet drones over
+ * Kyiv as «Закрито цілей ×3», in green, at the moment they arrived
+ * (live 2026-09-08 16:22).
+ *
+ * So ask the tracks instead of the shape. A stand-down closes them AT the
+ * message's own instant, which is what makes this exact rather than a guess
+ * about staleness: a track that closes three minutes later carries a different
+ * `closed_at`, so a live sighting card can never turn green behind the
+ * operator's back. Verified against the live DB — every one of the stand-down's
+ * own events matches its tracks' `closed_at` to the microsecond, and every
+ * earlier sighting on those same tracks does not.
+ *
+ * Compared as instants, not as strings: the two timestamps are serialized by
+ * different Pydantic models, and a day when one of them renders `Z` where the
+ * other renders `+00:00` must not silently turn every stand-down back into a
+ * sighting. An unparseable stamp yields NaN, which fails the comparison — the
+ * safe direction, since a plain sighting card is never a false claim while a
+ * green "closed" one is.
+ */
+export function isClosedGroup(group: FeedEntry[]): boolean {
+  const distinctTracks = new Set(group.map((e) => e.threat.id)).size
+  if (distinctTracks < 2) return false
+  return group.every(
+    (e) =>
+      e.threat.closed_at != null &&
+      Date.parse(e.threat.closed_at) === Date.parse(e.event.event_time),
+  )
+}
+
 // One all-clear announced across channels within this window is ONE event —
 // collapse the notices into a single card instead of repeating it per source.
 const CLEAR_GROUP_MS = 12 * 60 * 1000
