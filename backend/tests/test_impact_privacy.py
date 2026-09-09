@@ -25,6 +25,7 @@ from app.models import (
     Alert,
     District,
     Incident,
+    Source,
     Threat,
     ThreatEvent,
     User,
@@ -190,13 +191,20 @@ async def _token(session, role: str) -> str:
 
 async def _an_impact(session) -> Threat:
     d = District(name_uk="Дарницький", name_en="Darnytskyi", lat=50.4, lon=30.6)
-    session.add(d)
+    src = Source(channel_key="klr", name="Kyiv Live Radar", role="spotter")
+    session.add_all([d, src])
     await session.commit()
     th = Threat(target_type="shahed", status="impact", kind="impact",
                 closed_at=datetime.now(UTC))
     session.add(th)
     await session.commit()
-    session.add(ThreatEvent(threat_id=th.id, district_id=d.id, raw_text="влучання"))
+    # `source_id` is not decoration — it is the whole point. A NULL many-to-one
+    # never emits a lazy query, so an impact with no source silently skipped the
+    # one line of `event_out` that touches `ThreatEvent.source`. That is how the
+    # route managed to 500 on every REAL impact from 0.49.0 to 0.54.1 while
+    # these tests stayed green.
+    session.add(ThreatEvent(threat_id=th.id, district_id=d.id, raw_text="влучання",
+                            source_id=src.id))
     await session.commit()
     return th
 

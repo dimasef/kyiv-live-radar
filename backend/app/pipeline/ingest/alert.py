@@ -23,6 +23,10 @@ from ..results import Broadcast
 
 log = logging.getLogger("ingest")
 
+# The target family an alert level stands for, as the feed's own vocabulary
+# (`TargetType`): the level-change card is coloured by it.
+_LEVEL_TARGET_TYPE = {"red": "missile", "yellow": "shahed"}
+
 
 async def ingest_alert_message(
     session,
@@ -169,9 +173,12 @@ async def process_parsed_alert(
     # The level moved inside a running alert — no new siren, but the feed must
     # say so: «Дронова небезпека» becoming «Ракетна загроза» is the single most
     # consequential thing this channel publishes, and the banner alone is one
-    # line that scrolls past. The card carries the channel's own words.
+    # line that scrolls past. The card carries the channel's own words, and
+    # `target_type` carries the level it moved TO, so the card can take the
+    # colour of the threat it now announces rather than a neutral one.
     if outcome.kind == "escalated":
-        notice = Notice(kind="alert_level", text=text, target_type="unknown",
+        notice = Notice(kind="alert_level", text=text,
+                        target_type=_LEVEL_TARGET_TYPE.get(alert.level, "unknown"),
                         source_id=source_id, event_time=when,
                         source_message_id=raw.message_id)
         session.add(notice)

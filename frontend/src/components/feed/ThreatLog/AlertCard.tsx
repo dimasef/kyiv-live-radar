@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { alertLevelColor, alertThreatKey } from '@/lib/alertLevel'
 import { durationLabel } from '@/lib/duration'
 import { useRadar } from '@/store'
-import { STATUS_COLORS } from '@/theme'
+import { STATUS_COLORS, TYPE_COLORS } from '@/theme'
 import type { Alert } from '@/types'
 
 import { DevId, EventTime } from './badges'
@@ -38,11 +38,18 @@ export default function AlertCard({ alert, ended }: { alert: Alert; ended: boole
   // the level-less wording rather than name a threat it cannot vouch for.
   const relevelled = alert.level_changed_at != null
   const threatKey = relevelled ? 'alert.threat.unspecified' : alertThreatKey(alert)
+  //
+  // In the FEED a drone alert speaks the same yellow the forecast card does,
+  // not the map's amber: here it sits between notices, and two yellows a shade
+  // apart in one column read as two different states. The banner and the
+  // polygons keep `alertLevelColor`, where amber is the only yellow on screen.
   const color = ended
     ? STATUS_COLORS.clear
     : relevelled
       ? STATUS_COLORS.confirmed
-      : alertLevelColor(alert)
+      : alert.level === 'yellow'
+        ? TYPE_COLORS.shahed
+        : alertLevelColor(alert)
   const Icon = ended ? ShieldCheck : Siren
   const where =
     zone?.name_uk ??

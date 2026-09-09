@@ -110,6 +110,9 @@
     "echo": "Echo from other channels",
     "trigger": "Danger near home",
     "launcher": "Ballistic launch (OTRK)",
+    "impacts": "Impacts & consequences",
+    "zoneYellow": "Drone attack",
+    "zoneRed": "Missile attack",
     "down": {
       "shahed": "UAV shot down",
       "jet_drone": "Jet UAV shot down",
@@ -598,7 +601,9 @@
     "show": "Show impacts",
     "hide": "Hide impacts",
     "noticeOn": "Impact layer on",
-    "noticeOff": "Impact layer off"
+    "noticeOff": "Impact layer off",
+    "chip": "Impact",
+    "noticeError": "Layer unavailable — data failed to load"
   },
   "aftermath": {
     "title": "Consequences",

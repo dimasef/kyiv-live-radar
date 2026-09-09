@@ -3,14 +3,16 @@ import L from 'leaflet'
 import { AFTERMATH_COLOR } from '@/theme'
 import type { AftermathCategory } from '@/types'
 
-/** Marker glyphs for the consequence layer's other half — what a strike DID to
- * a place, as opposed to a confirmed hit.
+/** Glyphs for the consequence layer's other half — what a strike DID to a
+ * place, as opposed to a confirmed hit.
  *
- * One colour for all four, shape carrying the meaning. That is the same rule
- * `threatIcons` follows for an impact ("the burst SHAPE marks the hit"), and it
- * is what keeps the layer readable: a reader scanning it wants to see WHERE
- * something happened first and what kind second, and four hues competing with
- * the target palette would invert that.
+ * On the MAP every report is one and the same ring (aftermathMarkerSvg), in
+ * one colour: a reader scanning the layer wants to see WHERE something
+ * happened first, and the popup names every category in words. The
+ * per-category shapes below survive for the journal, where each sits next to
+ * its word. The impact marker is the same ring in the same colour
+ * (threatIcons.impactGlyphSvg) — within the layer only size and the popup say
+ * "confirmed hit" versus "what it did".
  *
  * Stroke-only, no fill, no pulse. A target pulses because it is still in the
  * air; a burnt-out building is the opposite of that, and animating it would say
@@ -50,22 +52,16 @@ export function aftermathGlyphSvg(
   )
 }
 
-/** A leaflet icon for one report. `category` is the report's LAST category —
- * the list arrives ordered least → most consequential from the server, so the
- * marker shows the worst thing that happened there without the client
- * re-deriving an order the backend owns (domain/aftermath.py::_SEVERITY).
- *
- * `extra` is the count of the other categories, shown as the same «+N» chip the
- * target markers use for a group size: «пожежа +2» says at a glance that this
- * raion's report is not only a fire, and the popup lists all of them. */
-export function aftermathDivIcon(
-  category: AftermathCategory,
-  { size = 22, extra = 0 }: { size?: number; extra?: number } = {},
-): L.DivIcon {
-  const badge =
-    extra > 0 ? `<span class="threat-count">+${extra}</span>` : ''
+/** The one marker every report gets on the map, whatever its categories. */
+export function aftermathMarkerSvg(
+  { size = 16, color = AFTERMATH_COLOR }: { size?: number; color?: string } = {},
+): string {
+  return aftermathGlyphSvg('rescue', { size, color })
+}
+
+export function aftermathDivIcon({ size = 22 }: { size?: number } = {}): L.DivIcon {
   return L.divIcon({
-    html: aftermathGlyphSvg(category, { size }) + badge,
+    html: aftermathMarkerSvg({ size }),
     className: 'threat-icon',
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],

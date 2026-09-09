@@ -1,6 +1,5 @@
-import { aftermathGlyphSvg } from '@/aftermathIcons'
-import { HOME_DANGER_COLORS, MUTED_COLOR, STATUS_COLORS, TYPE_COLORS } from '@/theme'
-import { launcherGlyphSvg, threatGlyphSvg } from '@/threatIcons'
+import { HOME_DANGER_COLORS, MUTED_COLOR, TYPE_COLORS } from '@/theme'
+import { impactGlyphSvg, launcherGlyphSvg, threatGlyphSvg } from '@/threatIcons'
 import { DOWN_LABEL_KEY } from '@/threatLabels'
 import type { TargetType } from '@/types'
 
@@ -87,38 +86,30 @@ export function legendRows({ impacts = false }: { impacts?: boolean } = {}): Leg
   // so the flame button in the corner is explained before it is pressed. Only
   // for the accounts that have that button at all — the legend is what every
   // reader sees, and the layer's existence is withheld from the rest.
+  // One row for both halves: on the map they are the same ring in the same
+  // colour, and a legend that listed it twice would be explaining a difference
+  // the reader cannot see.
   if (impacts) {
     rows.push({
       id: 'impact',
-      labelKey: 'impacts.title',
-      html: threatGlyphSvg('unknown', {
-        size: GLYPH_PX, state: 'impact', color: STATUS_COLORS.impact,
-      }),
-    })
-    // The same layer's other half. One row, not four: the four glyphs are
-    // variations of one idea ("what a strike did to this place") and listing
-    // each would make the legend longer than the thing it explains. The flame
-    // stands for the set because it is the one shape nobody has to be taught —
-    // and the popup names every category in words anyway.
-    rows.push({
-      id: 'aftermath',
-      labelKey: 'aftermath.title',
-      html: aftermathGlyphSvg('fire', { size: GLYPH_PX }),
+      labelKey: 'legend.impacts',
+      html: impactGlyphSvg({ size: GLYPH_PX }),
     })
   }
   // Two rows, because the layer now paints two levels and they are the one
   // thing about it a reader has to be told rather than shown: amber and red
-  // side by side on the map mean nothing until the legend names them. The
-  // all-clear flash stays on the red row rather than getting a third — it is
-  // the same «відбій» whichever level preceded it.
+  // side by side on the map mean nothing until the legend names them. Named
+  // by what they MEAN (drones / missiles), not by their colour — the swatch
+  // already shows the colour. The all-clear flash stays on the red row rather
+  // than getting a third — it is the same «відбій» whichever level preceded it.
   rows.push({
     id: 'zone-yellow',
-    labelKey: 'zones.levelYellow',
+    labelKey: 'legend.zoneYellow',
     html: zoneEdgeSwatch(ZONE_STYLES.yellow.color, ZONE_GLOW.yellow.opacity),
   })
   rows.push({
     id: 'zone',
-    labelKey: 'zones.levelRed',
+    labelKey: 'legend.zoneRed',
     html: zoneEdgeSwatch(ZONE_STYLES.red.color, ZONE_GLOW.red.opacity),
     flipped: {
       labelKey: 'zones.clear',

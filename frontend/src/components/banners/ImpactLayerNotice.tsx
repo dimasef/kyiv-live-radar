@@ -15,9 +15,16 @@ export default function ImpactLayerNotice() {
 
   return (
     <Presence visible={notice !== null}>
-      <div role="status" className={`${PILL_CLASS} ${PILL_TONE.layer}`}>
+      <div
+        role="status"
+        className={`${PILL_CLASS} ${notice === 'error' ? PILL_TONE.alert : PILL_TONE.layer}`}
+      >
         <Flame size={14} className="flex-none" />
-        {notice === 'off' ? t('impacts.noticeOff') : t('impacts.noticeOn')}
+        {notice === 'error'
+          ? t('impacts.noticeError')
+          : notice === 'off'
+            ? t('impacts.noticeOff')
+            : t('impacts.noticeOn')}
       </div>
     </Presence>
   )

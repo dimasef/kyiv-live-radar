@@ -362,7 +362,21 @@ async def test_an_escalation_message_raises_a_feed_notice(session):
     notice = (await session.scalars(
         select(Notice).where(Notice.kind == "alert_level"))).one()
     assert "ракетна загроза" in notice.text.lower()
+    # The card is coloured by the level it moved TO, carried as a target family.
+    assert notice.target_type == "missile"
     assert await _count(session, Alert) == 1
+
+
+async def test_a_de_escalation_notice_carries_the_drone_family(session):
+    await ingest_alert_message(
+        session, text="🔴 УВАГА! У Києві оголошена ракетна загроза!",
+        when=BASE, message_id=904)
+    await ingest_alert_message(
+        session, text="🟡 УВАГА! У Києві оголошена нова загроза — дронова небезпека!",
+        when=BASE + timedelta(minutes=12), message_id=905)
+    notice = (await session.scalars(
+        select(Notice).where(Notice.kind == "alert_level"))).one()
+    assert notice.target_type == "shahed"
 
 
 # --- replaying history must not disturb a running alert ---

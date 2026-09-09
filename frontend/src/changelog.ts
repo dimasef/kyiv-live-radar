@@ -32,12 +32,25 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.54.0";
+const LATEST = "0.54.1";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "тривога своїм кольором",
+    date: "2026-09-09",
+    kind: "patch",
+    changes: [
+      "Зміна рівня тривоги у стрічці тепер виглядає як сама тривога: «Дронова небезпека» або «Ракетна загроза» своїм кольором і з тим самим текстом, а не окреме «Рівень загрози змінено»",
+      "Дронова небезпека у стрічці такого ж жовтого, як прогноз, — дві жовті картки поруч більше не читаються як два різні стани",
+      "У легенді рівні тривоги названо тим, що вони означають — «Атака дронів» і «Ракетна атака», — а не кольором",
+      "Влучання й наслідки на мапі — одна позначка й один колір, в легенді один рядок. Картка влучання каже де, коли і чим, без швидкості й напрямку, які для того, що вже впало, не мають сенсу",
+      "Лічильник на кнопці шару влучань видно й коли шар вимкнений — так само, як у кнопки сирен поруч",
+    ],
+  },
+  {
+    version: "0.54.0",
     title: "наслідки ночі",
     date: "2026-09-08",
     kind: "minor",

@@ -139,7 +139,20 @@ async def live_impacts(
             Threat.closed_reason.is_distinct_from("dismissed"),
             Threat.created_at >= since,
         )
-        .options(selectinload(Threat.events).selectinload(ThreatEvent.district))
+        # BOTH relationships `event_out` touches, not just the one the marker
+        # needs. `ThreatEvent.source` is a lazy many-to-one, so on a fresh
+        # request session (where the Source is not already in the identity map)
+        # serializing it raises MissingGreenlet and the whole route 500s.
+        #
+        # It did, for every real impact, from 0.49.0 until 2026-09-09. Two
+        # things hid it: the client turns any failed request into an empty
+        # layer, and the tests below built their impact event with no
+        # `source_id` at all — a NULL many-to-one never emits the query, so the
+        # one line that breaks was the one line never exercised.
+        .options(
+            selectinload(Threat.events).selectinload(ThreatEvent.district),
+            selectinload(Threat.events).selectinload(ThreatEvent.source),
+        )
         .order_by(Threat.created_at.desc())
     )
     if region:

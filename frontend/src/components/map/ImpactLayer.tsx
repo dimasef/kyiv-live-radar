@@ -10,7 +10,7 @@ import { MARKER_PX } from "@/store/prefsSlice";
 import { threatDivIcon } from "@/threatIcons";
 
 import AftermathPopup from "./AftermathPopup";
-import ThreatPopup from "./ThreatPopup";
+import ImpactPopup from "./ImpactPopup";
 import { trackPoints } from "./track";
 
 /** What this night did to these streets, for the accounts an operator has
@@ -21,15 +21,16 @@ import { trackPoints } from "./track";
  * "hit in Дарницький" published while the raid is still running is damage
  * assessment for whoever launched it, and «горить багатоповерхівка в
  * Дарницькому» is the same assessment by another route. So this layer is off by
- * default, asks for nothing until it is switched on, and is the only place in
- * the app that draws either before the alert is over.
+ * default, is fetched only for the accounts allowed to see it, and is the only
+ * place in the app that draws either before the alert is over.
  *
  * One layer, one toggle, two marker sets, because the reader is asking one
  * question and the two answers differ only in whether anyone confirmed the hit
- * itself. The hierarchy between them is deliberate: an impact keeps the loud
- * magenta burst it has always had, a consequence is a smaller stroke glyph in
- * warm ash that fades with its own age. What is still in the air outranks what
- * already happened.
+ * itself. Both are the same yellow ring, and only size tells them apart: an
+ * impact is the full-size ring whatever fell (the type is a chip in its popup,
+ * never a silhouette on the map), a consequence a smaller one whatever it did
+ * (the categories are chips in its popup) that fades with its own age. What is
+ * still in the air outranks what already happened.
  *
  * Points, never trails: an impact is where something arrived, and threatVisual
  * already refuses it a vector. A report is a raion, not a path. */
@@ -40,20 +41,20 @@ export default function ImpactLayer() {
   const refresh = useRadar((s) => s.refreshImpacts);
   const markerSize = useRadar((s) => s.mapMarkerSize);
   const now = useRadar((s) => s.nowMs + s.clockSkewMs);
-  // Part of the effect's key, not just a guard: the switch is remembered across
-  // reloads while the session hydrates asynchronously, so at boot the first
-  // attempt runs before the role is known. Without this the layer sat empty
-  // until the next tick a minute later.
+  // The effect's key, not just a guard: the session hydrates asynchronously,
+  // so at boot the first attempt runs before the role is known. Without this
+  // the layer sat empty until the next tick a minute later.
   const allowed = useRadar((s) => canSeeImpacts(s.user?.role));
 
   // A timer is genuinely outside React, and impacts have no websocket to ride:
-  // the server never broadcasts one, on purpose.
+  // the server never broadcasts one, on purpose. Runs while the layer is OFF
+  // too — the button's badge counts what is under it before it is pressed.
   useEffect(() => {
-    if (!on || !allowed) return;
+    if (!allowed) return;
     refresh();
     const id = setInterval(refresh, IMPACT_REFRESH_MS);
     return () => clearInterval(id);
-  }, [on, allowed, refresh]);
+  }, [allowed, refresh]);
 
   if (!on) return null;
 
@@ -74,28 +75,20 @@ export default function ImpactLayer() {
               seed: impact.id,
             })}
           >
-            <ThreatPopup threat={impact} />
+            <ImpactPopup threat={impact} />
           </Marker>
         );
       })}
 
       {aftermath.map((report) => {
         if (report.lat == null || report.lon == null) return null;
-        // The LAST category is the most consequential one — the server orders
-        // the list (domain/aftermath.py::_SEVERITY) precisely so the client
-        // does not re-derive that ranking.
-        const worst = report.categories[report.categories.length - 1];
-        if (!worst) return null;
         return (
           <Marker
             key={`a${report.id}`}
             position={[report.lat, report.lon]}
             // Smaller than a target marker by design: it must be findable
             // without competing with anything still flying.
-            icon={aftermathDivIcon(worst, {
-              size: Math.round(MARKER_PX[markerSize] * 0.8),
-              extra: report.categories.length - 1,
-            })}
+            icon={aftermathDivIcon({ size: Math.round(MARKER_PX[markerSize] * 0.8) })}
             opacity={fadeFactor(report, now)}
           >
             <AftermathPopup report={report} />

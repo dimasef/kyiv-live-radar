@@ -3,8 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { canSeeImpacts } from '@/api'
 import { useRadar } from '@/store'
-import { STATUS_COLORS } from '@/theme'
-
+import { ZONE_STYLES } from './constants'
 import { mapControlClass } from './controlStyles'
 
 /** Switches the consequence layer on and off — confirmed hits and what a
@@ -23,7 +22,8 @@ export default function ImpactLayerButton() {
   // Both halves of the layer, because the badge answers "is there anything
   // under this button" and a night with reports but no confirmed hit is the
   // common case (measured: 20 aftermath reports against 5 impacts on the same
-  // corpus).
+  // corpus). Shown while the layer is off as well — that is when the answer is
+  // news, the same rule as the siren button beside it.
   const count = useRadar((s) => s.impacts.length + s.aftermath.length)
 
   if (!allowed) return null
@@ -37,11 +37,13 @@ export default function ImpactLayerButton() {
       className={`${mapControlClass(on)} relative`}
     >
       <Flame size={17} />
-      {on && count > 0 && (
+      {count > 0 && (
         <span
           className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold text-white"
-          // The impact magenta, the same colour the markers themselves carry.
-          style={{ background: STATUS_COLORS.impact }}
+          // The same red as the siren button's badge: the two corners count
+          // different things, but a badge is a badge, and one colour for both
+          // is what stops the pair reading as two different alarms.
+          style={{ background: ZONE_STYLES.red.color }}
         >
           {count}
         </span>

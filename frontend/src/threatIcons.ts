@@ -4,16 +4,17 @@
 // і повертаються через rotate. ballistic/unknown — симетричні, не обертаються.
 // КОЛІР = ТИП (див. theme.ts TYPE_COLORS): жовтий shahed, помаранч jet_drone,
 // білий missile, фіолетовий ballistic, бірюзовий fpv, рожевий kab. Збита/пропала → сіра
-// (передається ззовні).
+// (передається ззовні). Влучання — один гліф і один колір на всі типи (impactGlyphSvg).
 
 import L from 'leaflet'
 
-import { TYPE_COLORS } from './theme'
+import { aftermathMarkerSvg } from './aftermathIcons'
+import { STATUS_COLORS, TYPE_COLORS } from './theme'
 import type { TargetType } from './types'
 
 // active = рухома голова треку (гліф, повертається за азимутом); fix = одиночна
-// фіксація без напрямку (крапка); impact = влучання (гліф + спалах); destroyed =
-// збита/пропала (гліф + перекреслення, колір сірий).
+// фіксація без напрямку (крапка); impact = влучання (спалах, тип не малюється);
+// destroyed = збита/пропала (гліф + перекреслення, колір сірий).
 export type ThreatState = 'active' | 'fix' | 'impact' | 'destroyed'
 
 export const THREAT_PATHS: Record<TargetType, string> = {
@@ -100,17 +101,12 @@ interface GlyphOpts {
 /** Чистий SVG-рядок гліфа — для стрічки (inline) та для divIcon. */
 export function threatGlyphSvg(type: TargetType, opts: GlyphOpts = {}): string {
   const { size = 26, state = 'active', bearingDeg = 0 } = opts
+  if (state === 'impact') return impactGlyphSvg({ size, color: opts.color })
   const color = opts.color ?? TYPE_COLORS[type]
   const rot = DIRECTIONAL[type] ? bearingDeg : 0
   const fillRule = type === 'unknown' ? ' fill-rule="evenodd"' : ''
 
   let overlay = ''
-  if (state === 'impact') {
-    const rays = [0, 45, 90, 135, 180, 225, 270, 315]
-      .map((a) => `<line x1="12" y1="-1" x2="12" y2="1.5" transform="rotate(${a} 12 12)"/>`)
-      .join('')
-    overlay = `<g stroke="${color}" stroke-width="1.6" stroke-linecap="round" opacity="0.9">${rays}</g>`
-  }
   if (state === 'destroyed') {
     overlay =
       `<line x1="4" y1="20" x2="20" y2="4" stroke="#0a1a1f" stroke-width="4.5" stroke-linecap="round" opacity="0.6"/>` +
@@ -123,6 +119,15 @@ export function threatGlyphSvg(type: TargetType, opts: GlyphOpts = {}): string {
     `<path d="${THREAT_PATHS[type]}" fill="${color}" stroke="#000" stroke-width="0.7" stroke-linejoin="round"${fillRule}/>` +
     `</g>${overlay}</svg>`
   )
+}
+
+/** Влучання: те саме жовте кільце, що й у наслідків. Один гліф на всі типи —
+ * тип цілі, що вже впала, це рядок у попапі, а не силует на мапі. У шарі
+ * наслідків форма й колір одні на все; підтверджене влучання від того, що воно
+ * накоїло, відрізняє лише розмір маркера (ImpactLayer) і попап. */
+export function impactGlyphSvg(opts: { size?: number; color?: string } = {}): string {
+  const { size = 26, color = STATUS_COLORS.impact } = opts
+  return aftermathMarkerSvg({ size, color })
 }
 
 /** ОТРК / пусковий майданчик — гліф для origin-маркера БАЛІСТИЧНОЇ осі: ракета

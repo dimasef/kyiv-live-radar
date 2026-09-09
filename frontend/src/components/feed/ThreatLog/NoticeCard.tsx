@@ -1,32 +1,29 @@
-import { CloudLightning, Compass, Info, Radio, ShieldCheck, Siren, Sparkles } from 'lucide-react'
+import { CloudLightning, Compass, Info, Radio, Sparkles } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { HOME_COLOR, STATUS_COLORS, TYPE_COLORS } from '@/theme'
+import { HOME_COLOR, TYPE_COLORS } from '@/theme'
 import type { Notice, NoticeKind } from '@/types'
 
+import AlertLevelCard from './AlertLevelCard'
 import AllClearCard from './AllClearCard'
 import { DevId, EventTime, SourceName } from './badges'
 import ClampText from './ClampText'
 
+type Style = { icon: LucideIcon; color: string }
+
 /** Per-kind icon + accent colour. Rule notices (clear/summary) keep their
  * established look; the LLM-triage context kinds (directional/forecast/status)
  * each get a distinct cue. Unknown kinds fall back to a neutral info card so a
- * backend deployed ahead of the client never renders oddly. */
-const STYLE: Record<NoticeKind, { icon: LucideIcon; color: string }> = {
-  clear: { icon: ShieldCheck, color: STATUS_COLORS.clear },
+ * backend deployed ahead of the client never renders oddly. The two kinds with
+ * a card of their own (clear, alert_level) are dispatched before this is read. */
+const STYLE: Partial<Record<NoticeKind, Style>> = {
   summary: { icon: Info, color: HOME_COLOR },
-  // The threat level moving inside a running alert. Deliberately neither of the
-  // two level colours: the move can go either way (a червоний alert can drop
-  // back to жовтий), and the card's body is the channel's own announcement,
-  // which opens with its own 🟡/🔴. What this accent has to say is "something
-  // about the alert you are already under has changed".
-  alert_level: { icon: Siren, color: STATUS_COLORS.conflict },
   directional: { icon: Compass, color: TYPE_COLORS.jet_drone },
   forecast: { icon: CloudLightning, color: TYPE_COLORS.shahed },
   status: { icon: Radio, color: TYPE_COLORS.unknown },
 }
-const FALLBACK = { icon: Info, color: HOME_COLOR }
+const FALLBACK: Style = { icon: Info, color: HOME_COLOR }
 
 /** Every channel behind this card, deduplicated and in the order they appear. */
 function sourceNames(notices: Notice[]): string | null {
@@ -43,6 +40,9 @@ export default function NoticeCard({ notices }: { notices: Notice[] }) {
   // The all-clear has a card of its own: it is the only notice that says the
   // raid is OVER, and it is what someone scrolls back to find afterwards.
   if (head.kind === 'clear') return <AllClearCard notices={notices} />
+  // So does the level change: it is a new threat over the same siren, and it
+  // reads as the alert card it replaces, not as a note about one.
+  if (head.kind === 'alert_level') return <AlertLevelCard notice={head} />
   const { icon: Icon, color } = STYLE[head.kind as NoticeKind] ?? FALLBACK
   const isAi = head.generated_by === 'llm'
 

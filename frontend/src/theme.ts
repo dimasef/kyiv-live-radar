@@ -6,7 +6,11 @@ export const STATUS_COLORS = {
   destroyed: '#6b7280',
   clear: '#22c55e',
   conflict: '#f97316',
-  impact: '#d946ef',
+  /** Yellow-400, a step lighter than the `unconfirmed` yellow-500 so the two
+   * chips do not read as the same state. Shared with the consequence layer's
+   * other half (AFTERMATH_COLOR): on the map the whole layer is one colour and
+   * one ring, and only size tells a confirmed hit from what it did. */
+  impact: '#facc15',
   /** Nobody is reporting this target any more — a state, not an outcome. Blue
    * because it must not read as either alarm or all-clear, and grey (which it
    * used to be) read as "resolved, ignore it" for a target that may well still
@@ -18,13 +22,10 @@ export const STATUS_COLORS = {
 
 /** The consequence layer's other half — fires, damage, casualties, rescue work.
  *
- * Warm ash rather than another alarm colour, and one tone for all four
- * categories (shape carries the kind — see aftermathIcons.ts). It has to sit
- * apart from three neighbours at once: the impact magenta it shares a layer
- * with, the `unconfirmed` yellow it would otherwise be mistaken for, and the
- * `destroyed` grey that means "ignore this". A consequence is none of those —
- * it already happened, and it is not the thing to take shelter from. */
-export const AFTERMATH_COLOR = '#b08968'
+ * One tone for all four categories and one ring for all of them on the map
+ * (aftermathIcons.ts), and the same tone as the impacts it shares the layer
+ * with — a consequence is a strike's own news, not a second kind of alarm. */
+export const AFTERMATH_COLOR = STATUS_COLORS.impact
 
 /** Chip colour per track status (the popup's lifecycle chip), all from the
  * shared palette rather than new hues.
@@ -34,7 +35,7 @@ export const AFTERMATH_COLOR = '#b08968'
  * the all-clear uses — a downed target is good news, and grey would read as
  * merely "gone". A target nobody is reporting any more (`lost` — «не фіксується»)
  * gets the blue: its fate is unknown, which is neither good news nor bad. An
- * impact keeps its own magenta, matching the feed.
+ * impact keeps the yellow the consequence layer paints it in on the map.
  */
 export const STATUS_CHIP_COLOR: Record<ThreatStatus, string> = {
   tracking: STATUS_COLORS.confirmed,
@@ -97,7 +98,8 @@ export const TYPE_COLORS: Record<TargetType, string> = {
 export const MUTED_COLOR = STATUS_COLORS.destroyed
 
 /** A threat's display colour: TYPE colour, greyed once it's destroyed/lost. An
- * impact keeps its type colour (the burst SHAPE marks the hit; see threatIcons).
+ * impact's MARKER ignores this and is always STATUS_COLORS.impact (see
+ * threatIcons.impactGlyphSvg); the type colour still labels its type in text.
  * Source conflict is no longer a colour — it shows as a dashed track + feed chip. */
 export function threatColor(t: Threat): string {
   if (t.status === 'destroyed' || t.status === 'lost') return MUTED_COLOR
