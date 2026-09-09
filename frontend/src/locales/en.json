@@ -1,7 +1,10 @@
 {
   "app": {
-    "title": "Kyiv Live Radar",
+    "title": "UA Live Radar",
     "subtitle": "Auxiliary aerial threat tracker"
+  },
+  "meta": {
+    "mapTitle": "aerial threat map"
   },
   "nav": {
     "map": "Map",

@@ -73,7 +73,7 @@ export default function CollectionPage() {
           </button>
           <div className="min-w-0 flex-1">
             <span className="font-mono text-[11px] uppercase tracking-[0.24em] text-phosphor-soft">
-              Kyiv Live Radar // Колекція
+              UA Live Radar // Колекція
             </span>
             <h1 className="font-display text-xl font-bold text-slate-100">
               {ownerName ? `Картки: ${ownerName}` : 'Мої картки'}

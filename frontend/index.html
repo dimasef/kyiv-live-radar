@@ -7,7 +7,32 @@
       content="width=device-width, initial-scale=1.0, minimum-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <meta name="theme-color" content="#05080d" />
-    <meta name="description" content="Kyiv Live Radar — допоміжний трекер повітряних загроз" />
+    <meta
+      name="description"
+      content="Неофіційна мапа повітряних загроз: дрони й ракети над Київщиною, Чернігівщиною та Сумщиною за повідомленнями спостерігачів у реальному часі. Не замінює офіційну тривогу."
+    />
+    <meta name="application-name" content="UA Live Radar" />
+    <meta name="apple-mobile-web-app-title" content="UA Live Radar" />
+    <link rel="canonical" href="https://www.ua-radar.online/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="UA Live Radar" />
+    <meta property="og:title" content="UA Live Radar — мапа повітряних загроз" />
+    <meta
+      property="og:description"
+      content="Дрони й ракети над Київщиною, Чернігівщиною та Сумщиною за повідомленнями спостерігачів у реальному часі. Не замінює офіційну тривогу."
+    />
+    <meta property="og:url" content="https://www.ua-radar.online/" />
+    <meta property="og:image" content="https://www.ua-radar.online/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="uk_UA" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="UA Live Radar — мапа повітряних загроз" />
+    <meta
+      name="twitter:description"
+      content="Дрони й ракети над Київщиною, Чернігівщиною та Сумщиною за повідомленнями спостерігачів у реальному часі."
+    />
+    <meta name="twitter:image" content="https://www.ua-radar.online/og.png" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -15,10 +40,33 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Unbounded:wght@500;700&display=swap"
       rel="stylesheet"
     />
-    <title>Kyiv Live Radar</title>
+    <title>UA Live Radar — мапа повітряних загроз</title>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "UA Live Radar",
+        "url": "https://www.ua-radar.online/",
+        "description": "Неофіційна мапа повітряних загроз: дрони й ракети над Київщиною, Чернігівщиною та Сумщиною за повідомленнями спостерігачів у реальному часі.",
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "Web",
+        "inLanguage": "uk",
+        "isAccessibleForFree": true
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <h1>UA Live Radar</h1>
+      <p>
+        Неофіційна мапа повітряних загроз: дрони й ракети над Київщиною, Чернігівщиною та
+        Сумщиною за повідомленнями волонтерів-спостерігачів. Точність на рівні району, із
+        затримкою від секунд до хвилин. Не замінює офіційну тривогу — завжди реагуйте на
+        сирену та офіційні застосунки.
+      </p>
+      <p>Для роботи мапи потрібен увімкнений JavaScript.</p>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

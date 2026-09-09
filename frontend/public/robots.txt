@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /raw
+Disallow: /account
+Disallow: /user/
+Disallow: /collection
+
+Sitemap: https://www.ua-radar.online/sitemap.xml

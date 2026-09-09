@@ -22,6 +22,7 @@ const ContactPage = lazy(() => import('./components/auth/ContactPage'))
 const CollectionPage = lazy(() => import('./components/game/CollectionPage'))
 const ChangelogPage = lazy(() => import('./components/changelog/ChangelogPage'))
 const ThreatJournalPage = lazy(() => import('./components/journal/ThreatJournalPage'))
+import { useDocumentMeta } from './lib/useDocumentMeta'
 import { useRadar } from './store'
 import './i18n'
 import './index.css'
@@ -50,6 +51,7 @@ void useRadar.getState().refreshSession()
  * global SW-update toast), so navigation and status are consistent everywhere. */
 function Root() {
   const route = useRoute()
+  useDocumentMeta(route)
   const page =
     route === CHANGELOG_PATH ? (
       <ChangelogPage />

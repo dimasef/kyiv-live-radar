@@ -1,4 +1,4 @@
-// threatIcons.ts — сімейство гліфів загроз для Kyiv Live Radar
+// threatIcons.ts — сімейство гліфів загроз для UA Live Radar
 // Формат: один <path>, viewBox 0 0 24 24, fill підставляється в рантаймі.
 // Директивні типи (shahed/jet_drone/missile) намальовані носом вгору (азимут 0°)
 // і повертаються через rotate. ballistic/unknown — симетричні, не обертаються.

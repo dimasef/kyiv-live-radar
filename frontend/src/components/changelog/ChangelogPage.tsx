@@ -31,7 +31,7 @@ export default function ChangelogPage() {
           </h1>
           <span className="font-mono text-sm text-phosphor-soft">v{APP_VERSION}</span>
         </div>
-        <p className="mt-1 text-[12px] text-slate-500">Kyiv Live Radar</p>
+        <p className="mt-1 text-[12px] text-slate-500">UA Live Radar</p>
 
         {/* SemVer policy — collapsed by default */}
         <div className="mt-6 rounded-xl border border-white/[0.07] bg-white/[0.02]">

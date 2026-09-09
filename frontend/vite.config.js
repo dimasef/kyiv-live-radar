@@ -27,11 +27,13 @@ export default defineConfig({
             registerType: 'prompt',
             injectRegister: null, // registered manually in main.tsx
             includeAssets: ['favicon.svg'],
-            injectManifest: { globPatterns: ['**/*.{js,css,html,svg,woff2,png}'] },
+            // og.png is for link previews, never for the app — precaching it would
+            // cost every install 36 KB it will not open.
+            injectManifest: { globPatterns: ['**/*.{js,css,html,svg,woff2,png}'], globIgnores: ['**/og.png'] },
             manifest: {
-                name: 'Kyiv Live Radar',
+                name: 'UA Live Radar',
                 short_name: 'Live Radar',
-                description: 'Допоміжний трекер повітряних загроз над Києвом',
+                description: 'Допоміжний трекер повітряних загроз: дрони й ракети за повідомленнями спостерігачів',
                 lang: 'uk',
                 dir: 'ltr',
                 start_url: '/',

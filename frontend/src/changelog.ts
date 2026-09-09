@@ -32,12 +32,23 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.54.1";
+const LATEST = "0.54.2";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "нова адреса",
+    date: "2026-09-10",
+    kind: "patch",
+    changes: [
+      "Застосунок переїхав на власну адресу ua-radar.online і тепер зветься UA Live Radar — радар давно не лише про Київ. Стара адреса працює, встановлені застосунки нічого не помітять",
+      "Посилання на радар у Telegram та інших месенджерах показує прев'ю з назвою й описом, а не голу адресу",
+      "Кожна сторінка має власний заголовок вкладки: журнал, статистика, історія версій — їх легко розрізнити серед відкритих вкладок",
+    ],
+  },
+  {
+    version: "0.54.1",
     title: "тривога своїм кольором",
     date: "2026-09-09",
     kind: "patch",

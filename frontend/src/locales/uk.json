@@ -1,7 +1,10 @@
 {
   "app": {
-    "title": "Kyiv Live Radar",
+    "title": "UA Live Radar",
     "subtitle": "Допоміжний трекер повітряних загроз"
+  },
+  "meta": {
+    "mapTitle": "мапа повітряних загроз"
   },
   "nav": {
     "map": "Мапа",
