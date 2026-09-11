@@ -9,6 +9,7 @@ from datetime import date, datetime
 from types import SimpleNamespace
 
 from app.domain.journal import build_journal
+from app.domain.journal_window import JournalWindow
 
 
 def _threat(created_at, *, target_type="shahed", status="tracking", kind="track",
@@ -30,12 +31,18 @@ def _alert(started_at, ended_at, *, scope="city", closed_reason="official"):
 
 
 def _run(start, end, **kw):
-    kw.setdefault("threats", [])
-    kw.setdefault("incidents", [])
-    kw.setdefault("alerts", [])
-    kw.setdefault("aftermath", [])
-    kw.setdefault("district_events", [])
-    days = build_journal(start, end, **kw)
+    window = JournalWindow(
+        threats=kw.pop("threats", []),
+        incidents=kw.pop("incidents", []),
+        alerts=kw.pop("alerts", []),
+        aftermath=kw.pop("aftermath", []),
+        district_events=kw.pop("district_events", []),
+        sentinel=kw.pop("sentinel_district_id", None),
+        hide_impacts_from=kw.pop("hide_impacts_from", None),
+        window_start=datetime.min,
+        window_end=datetime.max,
+    )
+    days = build_journal(start, end, window, **kw)
     return {d.date: d for d in days}
 
 

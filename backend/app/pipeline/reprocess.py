@@ -39,7 +39,7 @@ from ..models import (
 from ..seed import seed_districts
 from ..timeutil import naive
 from . import lock
-from .ingest import process_parsed, process_parsed_alert
+from .ingest import MessageOrigin, process_parsed, process_parsed_alert
 
 log = logging.getLogger("reprocess")
 
@@ -216,16 +216,18 @@ async def replay_raw_messages(raws: list[RawMessage]) -> int:
                     s, raw=r, text=text, when=raw.event_time, source_id=raw.source_id,
                 )
             else:
-                broadcasts = await process_parsed(
-                    s, raw=r, text=text,
-                    matcher=matchers.for_source(
-                        *binding_by_source_id.get(raw.source_id, (HOME_REGION, []))
-                    ),
-                    when=raw.event_time,
+                origin = MessageOrigin(
+                    text=text, when=raw.event_time,
                     source_id=raw.source_id, message_id=raw.message_id,
                     forwarded_from_id=raw.forwarded_from_id,
                     forwarded_from_channel_id=raw.forwarded_from_channel_id,
                     reply_to_message_id=raw.reply_to_message_id,
+                )
+                broadcasts = await process_parsed(
+                    s, raw=r, origin=origin,
+                    matcher=matchers.for_source(
+                        *binding_by_source_id.get(raw.source_id, (HOME_REGION, []))
+                    ),
                     # Replay stored LLM triage verdicts deterministically (no
                     # API, no queue) so a reprocess rebuilds axes/notices/
                     # rescues exactly, at each message's own position.

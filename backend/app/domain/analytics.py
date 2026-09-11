@@ -32,6 +32,7 @@ from zoneinfo import ZoneInfo
 from ..models import ALERT_DURATION_BUCKETS, TARGET_TYPES, AlertDurationBucket
 from ..timeutil import KYIV, kyiv_date, kyiv_local, naive
 from .journal import DayStat
+from .journal_window import JournalWindow
 
 # Upper bounds in minutes for every bucket but the last (which is open-ended).
 _DURATION_BOUNDS_MINUTES = (30, 60, 120, 240)
@@ -137,13 +138,12 @@ def _spread_alert_minutes(
 def build_analytics(
     start: date,
     end: date,
+    w: JournalWindow,
     *,
     day_stats: list[DayStat],
     alert_windows,
     target_first_seen,
-    district_events,
     alert_start: date | None,
-    sentinel_district_id: int | None = None,
     tz: ZoneInfo = KYIV,
     top_districts: int = 12,
 ) -> AnalyticsStat:
@@ -156,7 +156,7 @@ def build_analytics(
     `alert_windows` is an iterable of `(started_at, ended_at, closed_reason)` for
     city alerts; `target_first_seen` of `(first_sighting_time, group_size)` per
     inbound track, so an hour's `target_count` counts targets the same way
-    `DayStat.target_count` does; `district_events` of
+    `DayStat.target_count` does; `w.district_events` of
     `(event_time, district_id, is_impact)` — the same triples `build_journal`
     takes.
 
@@ -209,8 +209,8 @@ def build_analytics(
 
     per_district: dict[int, DistrictStat] = {}
     district_days: dict[int, set[date]] = defaultdict(set)
-    for event_time, district_id, is_impact in district_events:
-        if district_id == sentinel_district_id:
+    for event_time, district_id, is_impact in w.district_events:
+        if district_id == w.sentinel:
             continue  # the citywide sentinel is not a place
         day = kyiv_date(event_time, tz)
         if day not in in_period:

@@ -144,7 +144,7 @@ async def test_reprocess_replay_routes_stored_verdict(ctx):
     # A message with a STORED directional verdict, replayed through process_parsed
     # in 'replay' mode, deterministically rebuilds its axis + notice (no API/queue).
     from app.models import ThreatAxis
-    from app.pipeline.ingest import process_parsed
+    from app.pipeline.ingest import MessageOrigin, process_parsed
 
     session, matcher = ctx
     raw = RawMessage(source_id=1, message_id=200, text="щось незрозуміле з брянська",
@@ -153,10 +153,9 @@ async def test_reprocess_replay_routes_stored_verdict(ctx):
                                     target_type="ballistic", summary="Балістика з Брянщини")
     session.add(raw)
     await session.commit()
+    origin = MessageOrigin(text=raw.text, when=raw.event_time, source_id=1, message_id=200)
     out = await process_parsed(
-        session, raw=raw, text=raw.text, matcher=matcher, when=raw.event_time,
-        source_id=1, message_id=200, forwarded_from_id=None,
-        forwarded_from_channel_id=None, reply_to_message_id=None, triage="replay",
+        session, raw=raw, origin=origin, matcher=matcher, triage="replay",
     )
     assert any(b.type == "axis" for b in out)
     assert await session.scalar(select(func.count()).select_from(ThreatAxis)) == 1
@@ -168,7 +167,7 @@ async def test_a_channel_with_the_llm_switch_off_is_never_enqueued(ctx, monkeypa
     the spend actually happens (it picks up the suppressed-but-threat-flavored
     classes the inline tiers never see), so a switch that only stopped the
     inline call would leave the channel billing almost exactly as before."""
-    from app.pipeline.ingest import process_parsed
+    from app.pipeline.ingest import MessageOrigin, process_parsed
 
     session, matcher = ctx
     monkeypatch.setattr(settings, "triage_enabled", True)
@@ -181,10 +180,9 @@ async def test_a_channel_with_the_llm_switch_off_is_never_enqueued(ctx, monkeypa
                      event_time=utcnow())
     session.add(raw)
     await session.commit()
+    origin = MessageOrigin(text=raw.text, when=raw.event_time, source_id=1, message_id=201)
     await process_parsed(
-        session, raw=raw, text=raw.text, matcher=matcher, when=raw.event_time,
-        source_id=1, message_id=201, forwarded_from_id=None,
-        forwarded_from_channel_id=None, reply_to_message_id=None, triage="live",
+        session, raw=raw, origin=origin, matcher=matcher, triage="live",
     )
     assert raw.triage_state is None  # not even queued
     assert triage_module.get_queue().empty()
@@ -194,7 +192,7 @@ async def test_the_switch_also_blocks_replay_of_a_stored_triage_verdict(ctx):
     """Same rule as the type classifier's: a rebuild must not re-apply verdicts
     the operator turned the channel off because of."""
     from app.models import ThreatAxis
-    from app.pipeline.ingest import process_parsed
+    from app.pipeline.ingest import MessageOrigin, process_parsed
 
     session, matcher = ctx
     src = await session.get(Source, 1)
@@ -205,10 +203,9 @@ async def test_the_switch_also_blocks_replay_of_a_stored_triage_verdict(ctx):
                                     target_type="ballistic", summary="Балістика з Брянщини")
     session.add(raw)
     await session.commit()
+    origin = MessageOrigin(text=raw.text, when=raw.event_time, source_id=1, message_id=202)
     out = await process_parsed(
-        session, raw=raw, text=raw.text, matcher=matcher, when=raw.event_time,
-        source_id=1, message_id=202, forwarded_from_id=None,
-        forwarded_from_channel_id=None, reply_to_message_id=None, triage="replay",
+        session, raw=raw, origin=origin, matcher=matcher, triage="replay",
     )
     assert out == []
     assert await session.scalar(select(func.count()).select_from(ThreatAxis)) == 0

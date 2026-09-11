@@ -10,6 +10,7 @@ from types import SimpleNamespace
 
 from app.domain.analytics import build_analytics, duration_bucket
 from app.domain.journal import build_journal
+from app.domain.journal_window import JournalWindow
 
 
 def _threat(created_at, *, target_type="shahed", status="tracking", kind="track",
@@ -28,22 +29,22 @@ def _alert(started_at, ended_at, *, scope="city", closed_reason="official"):
 
 def _run(start, end, *, threats=(), incidents=(), alerts=(), district_events=(),
          target_first_seen=(), alert_start=None, sentinel_district_id=None):
-    day_stats = build_journal(
-        start, end,
+    window = JournalWindow(
         threats=list(threats), incidents=list(incidents), alerts=list(alerts),
         # Aftermath reports feed the per-day journal only; nothing in
         # build_analytics reads them.
         aftermath=[],
-        district_events=list(district_events), sentinel_district_id=sentinel_district_id,
+        district_events=list(district_events), sentinel=sentinel_district_id,
+        hide_impacts_from=None,
+        window_start=datetime.min, window_end=datetime.max,
     )
+    day_stats = build_journal(start, end, window)
     return build_analytics(
-        start, end,
+        start, end, window,
         day_stats=day_stats,
         alert_windows=[(a.started_at, a.ended_at, a.closed_reason) for a in alerts],
         target_first_seen=list(target_first_seen),
-        district_events=list(district_events),
         alert_start=alert_start,
-        sentinel_district_id=sentinel_district_id,
     )
 
 

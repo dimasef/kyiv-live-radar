@@ -234,7 +234,7 @@ async def test_off_mode_makes_no_call_at_all(db, stub_type, monkeypatch):
 async def test_a_stored_verdict_is_replayed_without_a_new_call(db, stub_type, monkeypatch):
     """What makes an admin reprocess of a whole night free — and what keeps the
     rebuilt picture identical to the live one instead of re-rolling the dice."""
-    from app.pipeline.ingest import process_parsed
+    from app.pipeline.ingest import MessageOrigin, process_parsed
 
     session, matcher = db
     calls, _ = stub_type
@@ -245,9 +245,8 @@ async def test_a_stored_verdict_is_replayed_without_a_new_call(db, stub_type, mo
                      llm_type_evidence="context")
     session.add(raw)
     await session.commit()
-    await process_parsed(session, raw=raw, text=raw.text, matcher=matcher, when=when,
-                         source_id=1, message_id=7, forwarded_from_id=None,
-                         reply_to_message_id=None, triage="off")
+    origin = MessageOrigin(text=raw.text, when=when, source_id=1, message_id=7)
+    await process_parsed(session, raw=raw, origin=origin, matcher=matcher, triage="off")
     assert calls == []
     track = (await session.scalars(select(Threat))).one()
     assert track.target_type == "ballistic"
@@ -307,7 +306,7 @@ async def test_the_switch_also_blocks_replay_of_a_stored_verdict(db, stub_type, 
     operator took off the LLM must not have last week's verdicts re-applied to
     it by the next rebuild — that would make the switch un-actionable on the
     history it was flipped because of."""
-    from app.pipeline.ingest import process_parsed
+    from app.pipeline.ingest import MessageOrigin, process_parsed
 
     session, matcher = db
     calls, _ = stub_type
@@ -320,9 +319,8 @@ async def test_the_switch_also_blocks_replay_of_a_stored_verdict(db, stub_type, 
                      llm_type_evidence="context")
     session.add(raw)
     await session.commit()
-    await process_parsed(session, raw=raw, text=raw.text, matcher=matcher, when=when,
-                         source_id=1, message_id=7, forwarded_from_id=None,
-                         reply_to_message_id=None, triage="off")
+    origin = MessageOrigin(text=raw.text, when=when, source_id=1, message_id=7)
+    await process_parsed(session, raw=raw, origin=origin, matcher=matcher, triage="off")
     assert calls == []
     track = (await session.scalars(select(Threat))).one()
     assert track.target_type == "unknown"

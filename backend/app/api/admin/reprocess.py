@@ -44,14 +44,10 @@ async def _reprocess_summary(s) -> dict:
     today = datetime.now(UTC).astimezone(KYIV).date()
     start = today - timedelta(days=20)
     w = await load_journal_window(s, start, today, today)
-    stats = build_journal(
-        start, today, threats=w.threats, incidents=w.incidents, alerts=w.alerts,
-        # The preview diff is about tracks and targets — a rebuild's effect on
-        # the consequence layer is not what an operator is deciding here.
-        aftermath=[],
-        district_events=w.district_events, sentinel_district_id=w.sentinel,
-        hide_impacts_from=w.hide_impacts_from,
-    )
+    # The preview diff is about tracks and targets — a rebuild's effect on the
+    # consequence layer is not what an operator is deciding here.
+    w.aftermath = []
+    stats = build_journal(start, today, w)
     return {
         "tracks": tracks or 0,
         "events": events or 0,

@@ -7,6 +7,7 @@ from __future__ import annotations
 from ..lock import ingest_lock
 from .alert import ingest_alert_message, process_parsed_alert
 from .context import (
+    MessageOrigin,
     TypeContext,
     _note_and_inherit_type,
     _recent_type,
@@ -28,6 +29,7 @@ __all__ = [
     "process_rescued",
     "should_fallback",
     "ingest_lock",
+    "MessageOrigin",
     "_note_and_inherit_type",
     "note_inferred_type",
     "note_operator_type",

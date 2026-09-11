@@ -20,6 +20,7 @@ from ..lock import ingest_lock
 from ..results import Broadcast
 from .context import (
     IngestContext,
+    MessageOrigin,
     _note_and_inherit_type,
     note_inferred_type,
     note_type_decline,
@@ -30,13 +31,7 @@ from .resolve import _resolve, in_promo_thread
 from .type_context import build_type_context, wants_llm_type
 
 
-async def ingest_message(session, **kwargs) -> list[Broadcast]:
-    """Serialized entry point — see _ingest_locked for the pipeline."""
-    async with ingest_lock:
-        return await _ingest_locked(session, **kwargs)
-
-
-async def _ingest_locked(
+async def ingest_message(
     session,
     *,
     text: str,
@@ -49,15 +44,35 @@ async def _ingest_locked(
     reply_to_message_id: int | None = None,
     enforce_age: bool = False,
 ) -> list[Broadcast]:
+    """Serialized entry point — see _ingest_locked for the pipeline."""
+    origin = MessageOrigin(
+        text=text, when=when, source_id=source_id, message_id=message_id,
+        forwarded_from_id=forwarded_from_id,
+        forwarded_from_channel_id=forwarded_from_channel_id,
+        reply_to_message_id=reply_to_message_id,
+    )
+    async with ingest_lock:
+        return await _ingest_locked(session, origin=origin, matcher=matcher,
+                                    enforce_age=enforce_age)
+
+
+async def _ingest_locked(
+    session,
+    *,
+    origin: MessageOrigin,
+    matcher: DistrictMatcher,
+    enforce_age: bool = False,
+) -> list[Broadcast]:
     # 0. Idempotency guard: a real Telegram message_id is unique per channel.
     #    Re-ingesting one (repeated backfill on every restart was doing exactly
     #    this) must be a no-op, not a duplicate raw_message + duplicate events on
     #    a possibly-different track. Simulator messages (message_id=None) skip
     #    this check — they have no stable identity to dedupe on.
-    if message_id is not None:
+    if origin.message_id is not None:
         dup = await session.scalar(
             select(RawMessage.id).where(
-                RawMessage.source_id == source_id, RawMessage.message_id == message_id
+                RawMessage.source_id == origin.source_id,
+                RawMessage.message_id == origin.message_id,
             )
         )
         if dup is not None:
@@ -65,13 +80,13 @@ async def _ingest_locked(
 
     # 1. Persist the raw message first (first-hand data, eval set, reprocessing).
     raw = RawMessage(
-        source_id=source_id,
-        message_id=message_id,
-        text=text,
-        event_time=when,
-        forwarded_from_id=forwarded_from_id,
-        forwarded_from_channel_id=forwarded_from_channel_id,
-        reply_to_message_id=reply_to_message_id,
+        source_id=origin.source_id,
+        message_id=origin.message_id,
+        text=origin.text,
+        event_time=origin.when,
+        forwarded_from_id=origin.forwarded_from_id,
+        forwarded_from_channel_id=origin.forwarded_from_channel_id,
+        reply_to_message_id=origin.reply_to_message_id,
     )
     session.add(raw)
     await session.commit()
@@ -79,14 +94,8 @@ async def _ingest_locked(
     return await process_parsed(
         session,
         raw=raw,
-        text=text,
+        origin=origin,
         matcher=matcher,
-        when=when,
-        source_id=source_id,
-        message_id=message_id,
-        forwarded_from_id=forwarded_from_id,
-        forwarded_from_channel_id=forwarded_from_channel_id,
-        reply_to_message_id=reply_to_message_id,
         enforce_age=enforce_age,
     )
 
@@ -153,7 +162,7 @@ async def _infer_incident_type(session, parsed: ParseResult, when: datetime,
     return False
 
 
-async def _maybe_llm_type(session, raw: RawMessage, parsed: ParseResult, when: datetime,
+async def _maybe_llm_type(session, raw: RawMessage, parsed: ParseResult, origin: MessageOrigin,
                           *, allow_llm: bool, region: str, source_llm_enabled: bool = True,
                           window_minutes: int | None = None,
                           matcher: DistrictMatcher | None = None) -> str | None:
@@ -202,7 +211,7 @@ async def _maybe_llm_type(session, raw: RawMessage, parsed: ParseResult, when: d
         # stated a type in the feed since — the classifier would be reading the
         # same picture and giving the same answer. Three such repeats cost
         # $0.0058 in fifty seconds on 2026-08-23.
-        if type_context_declined(raw.source_id, when, window_minutes):
+        if type_context_declined(raw.source_id, origin.when, window_minutes):
             return None
         from ..triage import llm_spend_ok
 
@@ -211,7 +220,7 @@ async def _maybe_llm_type(session, raw: RawMessage, parsed: ParseResult, when: d
         from ...parsing.type_llm import llm_target_type
 
         source = await session.get(Source, raw.source_id) if raw.source_id else None
-        context = await build_type_context(session, when, exclude_raw_id=raw.id,
+        context = await build_type_context(session, origin.when, exclude_raw_id=raw.id,
                                            region=region, matcher=matcher)
         # Stamped BEFORE the await, not after: llm_target_type swallows timeouts
         # and API errors into (None, None), so gating this on `usage` recorded
@@ -237,7 +246,7 @@ async def _maybe_llm_type(session, raw: RawMessage, parsed: ParseResult, when: d
         raw.llm_type_confidence = verdict.confidence
         raw.llm_type_evidence = verdict.evidence
     if verdict.declined:
-        note_type_decline(raw.source_id, when)
+        note_type_decline(raw.source_id, origin.when)
         return None
     if settings.llm_type_mode != "live" or not verdict.usable:
         return None
@@ -292,14 +301,8 @@ async def process_parsed(
     session,
     *,
     raw: RawMessage,
-    text: str,
+    origin: MessageOrigin,
     matcher: DistrictMatcher,
-    when: datetime,
-    source_id: int | None,
-    message_id: int | None,
-    forwarded_from_id: int | None,
-    forwarded_from_channel_id: int | None = None,
-    reply_to_message_id: int | None,
     triage: str = "live",
     enforce_age: bool = False,
 ) -> list[Broadcast]:
@@ -334,13 +337,13 @@ async def process_parsed(
         # the promo-thread veto, which is about THIS message rather than the
         # channel.
         source_llm_enabled, inherit_window, sector_notation = await _source_settings(
-            session, source_id
+            session, origin.source_id
         )
         allow_llm = source_llm_enabled and not await in_promo_thread(
-            session, source_id, reply_to_message_id, matcher
+            session, origin.source_id, origin.reply_to_message_id, matcher
         )
         parsed, decision_source, llm_attempted, llm_usage, llm_response = await _resolve(
-            text, matcher, allow_llm=allow_llm
+            origin.text, matcher, allow_llm=allow_llm
         )
         _apply_llm_to_raw(raw, llm_attempted, llm_usage, llm_response)
 
@@ -349,7 +352,7 @@ async def process_parsed(
         # IngestContext below. It used to be computed twice, in the incident
         # tier and again for the context.
         region = await resolve_region(
-            session, [h.district_id for h in parsed.districts], source_id
+            session, [h.district_id for h in parsed.districts], origin.source_id
         )
 
         # Cross-message type inheritance: record this message's stated type, or
@@ -358,13 +361,13 @@ async def process_parsed(
         # branch below so a typed post updates the context even when it produces no
         # event of its own (e.g. a district-less "Балістика!"). The incident-level
         # fallback below is the second tier when the per-channel window has lapsed.
-        inherited_inferred = _note_and_inherit_type(parsed, source_id, when, inherit_window,
-                                                    region=region)
-        type_from_incident = await _infer_incident_type(session, parsed, when, region)
+        inherited_inferred = _note_and_inherit_type(parsed, origin.source_id, origin.when,
+                                                    inherit_window, region=region)
+        type_from_incident = await _infer_incident_type(session, parsed, origin.when, region)
         # Fourth tier — the LLM reads the type off the last two hours of the
         # whole feed. Last on purpose: it must never overrule a type the rules,
         # the channel or the live incident already established.
-        type_from_llm = await _maybe_llm_type(session, raw, parsed, when, allow_llm=allow_llm,
+        type_from_llm = await _maybe_llm_type(session, raw, parsed, origin, allow_llm=allow_llm,
                                               region=region,
                                               source_llm_enabled=source_llm_enabled,
                                               window_minutes=inherit_window,
@@ -376,7 +379,7 @@ async def process_parsed(
         # already a whole-attack signal, so caching it per channel would only
         # let it outlive the incident that justified it.
         if type_from_llm is not None:
-            note_inferred_type(source_id, type_from_llm, when)
+            note_inferred_type(origin.source_id, type_from_llm, origin.when)
 
         span.set_attribute("decision_source", decision_source)
         span.set_attribute("target_type", parsed.target_type)
@@ -385,10 +388,10 @@ async def process_parsed(
 
         ctx = IngestContext(
             session=session, raw=raw, parsed=parsed, decision_source=decision_source,
-            when=when, source_id=source_id, message_id=message_id,
-            forwarded_from_id=forwarded_from_id,
-            forwarded_from_channel_id=forwarded_from_channel_id,
-            reply_to_message_id=reply_to_message_id,
+            when=origin.when, source_id=origin.source_id, message_id=origin.message_id,
+            forwarded_from_id=origin.forwarded_from_id,
+            forwarded_from_channel_id=origin.forwarded_from_channel_id,
+            reply_to_message_id=origin.reply_to_message_id,
             llm_summary=(llm_response.get("summary") or None
                          if llm_response is not None and decision_source == "llm" else None),
             type_inferred=(type_from_incident or type_from_llm is not None

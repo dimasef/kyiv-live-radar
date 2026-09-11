@@ -481,6 +481,22 @@ def _apply_update(parsed: ParseResult, track: Threat, *, promote: bool = True,
         track.target_count = parsed.target_count
 
 
+@dataclass(frozen=True)
+class MessageOrigin:
+    """Where a message came from — text, timestamp and Telegram identity — built
+    once at the ingest entry point (`ingest_message`) and threaded through
+    `_ingest_locked`/`process_parsed`/`_maybe_llm_type` instead of re-listing each
+    field as its own kwarg at every hop."""
+
+    text: str
+    when: datetime
+    source_id: int | None = None
+    message_id: int | None = None
+    forwarded_from_id: int | None = None
+    forwarded_from_channel_id: int | None = None
+    reply_to_message_id: int | None = None
+
+
 @dataclass
 class IngestContext:
     """Groups the parameters every process_parsed handler needs — not a plugin

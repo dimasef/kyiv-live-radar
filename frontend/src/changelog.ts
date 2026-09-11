@@ -35,6 +35,15 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 export const CHANGELOG: Release[] = [
   {
     version: APP_VERSION,
+    title: "простіше всередині",
+    date: "2026-09-11",
+    kind: "patch",
+    changes: [
+      "Внутрішнє спрощення обробки повідомлень і журналу без змін у тому, що ви бачите",
+    ],
+  },
+  {
+    version: "0.54.8",
     title: "порядок на сервері",
     date: "2026-09-11",
     kind: "patch",

@@ -20,6 +20,7 @@ from zoneinfo import ZoneInfo
 
 from ..models import AFTERMATH_CATEGORIES, TARGET_TYPES
 from ..timeutil import KYIV, kyiv_date, naive
+from .journal_window import JournalWindow
 
 
 @dataclass
@@ -52,28 +53,23 @@ class DayStat:
 def build_journal(
     start: date,
     end: date,
+    w: JournalWindow,
     *,
-    threats,
-    incidents,
-    alerts,
-    aftermath,
-    district_events,
-    sentinel_district_id: int | None = None,
     tz: ZoneInfo = KYIV,
-    hide_impacts_from: date | None = None,
 ) -> list[DayStat]:
-    """Aggregate rows into one `DayStat` per day in [start, end] (inclusive).
+    """Aggregate `w`'s rows into one `DayStat` per day in [start, end]
+    (inclusive).
 
-    `district_events` is an iterable of `(event_time, district_id, is_impact)`
-    triples. Rows outside the range are ignored (they bucket to a day not in
-    the map). An alert spanning midnight is attributed entirely to its start
-    day.
+    `w.district_events` is an iterable of `(event_time, district_id,
+    is_impact)` triples. Rows outside the range are ignored (they bucket to a
+    day not in the map). An alert spanning midnight is attributed entirely to
+    its start day.
 
-    `hide_impacts_from` drops every impact contribution (count, type mix and
-    districts) for days on or after it — the caller passes today's date while
-    an air-raid alert is still open, so an ongoing raid's strike locations
-    aren't published live. Everything else about those days is reported
-    normally.
+    `w.hide_impacts_from` drops every impact contribution (count, type mix
+    and districts) for days on or after it — the caller passes today's date
+    while an air-raid alert is still open, so an ongoing raid's strike
+    locations aren't published live. Everything else about those days is
+    reported normally.
 
     Aftermath reports are held back by the same date for the same reason: «три
     пожежі в Дарницькому» during a running raid is the assessment a strike pin
@@ -93,16 +89,16 @@ def build_journal(
         return days.get(kyiv_date(dt, tz))
 
     def impacts_hidden(day: date) -> bool:
-        return hide_impacts_from is not None and day >= hide_impacts_from
+        return w.hide_impacts_from is not None and day >= w.hide_impacts_from
 
-    for inc in incidents:
+    for inc in w.incidents:
         if inc.ended_reason == "dismissed":
             continue  # admin-cancelled false positive — never a real attack
         s = bucket(inc.started_at)
         if s is not None:
             s.attack_count += 1
 
-    for th in threats:
+    for th in w.threats:
         day = kyiv_date(th.created_at, tz)
         s = days.get(day)
         if s is None:
@@ -124,7 +120,7 @@ def build_journal(
             s.track_count += 1
             s.target_count += th.target_count or 1
 
-    for report in aftermath:
+    for report in w.aftermath:
         day = kyiv_date(report.reported_at, tz)
         s = days.get(day)
         if s is None:
@@ -137,8 +133,8 @@ def build_journal(
                 s.aftermath_counts[category] += 1
 
     districts_per_day: dict[date, dict[int, int]] = {}
-    for event_time, district_id, is_impact in district_events:
-        if district_id == sentinel_district_id:
+    for event_time, district_id, is_impact in w.district_events:
+        if district_id == w.sentinel:
             continue
         key = kyiv_date(event_time, tz)
         if key not in days:
@@ -154,7 +150,7 @@ def build_journal(
         s.district_ids = sorted(counts, key=lambda i: (-counts[i], i))
         s.district_count = len(counts)
 
-    for a in alerts:
+    for a in w.alerts:
         if a.scope != "city":
             continue
         if a.closed_reason == "dismissed":

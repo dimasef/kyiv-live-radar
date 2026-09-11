@@ -62,17 +62,7 @@ async def journal_days(
         raise HTTPException(status_code=400, detail="Range too large (max 92 days)")
 
     w = await load_journal_window(session, start, end, today)
-    stats = build_journal(
-        start,
-        end,
-        threats=w.threats,
-        incidents=w.incidents,
-        alerts=w.alerts,
-        aftermath=w.aftermath,
-        district_events=w.district_events,
-        sentinel_district_id=w.sentinel,
-        hide_impacts_from=w.hide_impacts_from,
-    )
+    stats = build_journal(start, end, w)
     return JournalOut(
         from_date=start.isoformat(),
         to_date=end.isoformat(),
@@ -104,17 +94,7 @@ async def journal_stats(
         start = end - timedelta(days=_PERIOD_DAYS[period])
 
     w = await load_journal_window(session, start, end, today)
-    day_stats = build_journal(
-        start,
-        end,
-        threats=w.threats,
-        incidents=w.incidents,
-        alerts=w.alerts,
-        aftermath=w.aftermath,
-        district_events=w.district_events,
-        sentinel_district_id=w.sentinel,
-        hide_impacts_from=w.hide_impacts_from,
-    )
+    day_stats = build_journal(start, end, w)
     # Targets are binned by their FIRST SIGHTING, not Threat.created_at (insert
     # time — a backfill/replay shifts it and would smear the hour-of-day picture).
     first_seen = (
@@ -143,6 +123,7 @@ async def journal_stats(
     stat = build_analytics(
         start,
         end,
+        w,
         day_stats=day_stats,
         alert_windows=[
             (a.started_at, a.ended_at, a.closed_reason)
@@ -150,9 +131,7 @@ async def journal_stats(
             if a.closed_reason != "dismissed"
         ],
         target_first_seen=first_seen,
-        district_events=w.district_events,
         alert_start=kyiv_date(alert_start) if alert_start is not None else None,
-        sentinel_district_id=w.sentinel,
     )
     return JournalStatsOut(
         period=period,
