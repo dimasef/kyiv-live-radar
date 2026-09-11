@@ -45,6 +45,11 @@ export default function InspectController() {
     const pts = trackPoints(display);
     if (pts.length === 0) return;
     fittedId.current = inspected.id;
+    // Whatever popup is open belongs to the PREVIOUS selection, and an open
+    // popup is a hazard for the flight: its marker may move on the next live
+    // frame, and a moving popup autoPans, which stops the animation halfway.
+    // The new selection's popup opens on landing (ThreatLayer).
+    map.closePopup();
     if (pts.length === 1) {
       // Never zoom IN past INSPECT_ZOOM, but don't zoom the operator OUT if
       // they're already closer — just recenter at their current zoom.

@@ -32,12 +32,22 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 /** The current version — a plain literal (not CHANGELOG[0].version) so importing
  * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
  * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.54.2";
+const LATEST = "0.54.3";
 
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
     version: LATEST,
+    title: "політ без падіння",
+    date: "2026-09-11",
+    kind: "patch",
+    changes: [
+      "Виправлено «Радар зламався», що міг вискочити, коли ви обирали ціль у стрічці, а попередня ціль саме отримувала нове повідомлення з відкритою карткою",
+      "Вибір нової цілі закриває картку попередньої ще перед польотом мапи — раніше рухома картка могла зупинити політ на півдорозі",
+    ],
+  },
+  {
+    version: "0.54.2",
     title: "нова адреса",
     date: "2026-09-10",
     kind: "patch",

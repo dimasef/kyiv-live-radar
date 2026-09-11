@@ -133,15 +133,27 @@ const ThreatLayer = memo(function ThreatLayer({
   // first. There the popup simply does not auto-open, which is what the map did
   // before this existed. Worth knowing before "fixing" it by opening eagerly:
   // that trades a missing convenience for a map that stops mid-flight.
+  //
+  // Opened a tick AFTER `moveend`, never inside it. That event is not only the
+  // landing: ANOTHER popup's autoPan fires it too, synchronously, when it stops
+  // a flight in progress (Popup._adjustPan → _panAnim.stop()). Opening ours in
+  // that same call closed the other popup while Leaflet was still halfway
+  // through positioning it, and it crashed on its now-null map — «Радар
+  // зламався» on a phone, 2026-09-11. A macrotask lets the other popup finish
+  // before it is closed.
   useEffect(() => {
     if (!highlighted || pickable) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const open = () => {
-      const marker = markerRef.current;
-      if (marker && !marker.isPopupOpen()) marker.openPopup();
+      timer = setTimeout(() => {
+        const marker = markerRef.current;
+        if (marker && !marker.isPopupOpen()) marker.openPopup();
+      }, 0);
     };
     map.once("moveend", open);
     return () => {
       map.off("moveend", open);
+      clearTimeout(timer);
     };
   }, [highlighted, pickable, map]);
 
