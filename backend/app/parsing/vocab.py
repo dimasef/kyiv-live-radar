@@ -989,7 +989,16 @@ _OBLAST_CITY_STEMS = frozenset(
 #              words, "центр"/"центру"/"центрі" are 37 clean corpus hits and one
 #              of the most-named places on the feed.
 _WHOLE_WORD_ALIASES = frozenset({"чзв", "пох", "бц", "голос", "пущею",
-                                 "море", "моря", "морі", "остер",
+                                 "море", "моря", "морі", "морю", "остер",
+                                 # Віта-Литовська's bare callout; the stem is
+                                 # inside вітаю/вітання (2026-09-11).
+                                 "віта",
+                                 # Чернігівщина 2026-09-11: an everyday noun
+                                 # (hooves), an adjective, «лісн» ⊂ Лісники,
+                                 # «козар» ⊂ Козаровичі, «вербов» a street,
+                                 # «артеменк» a surname. See the entries.
+                                 "копита", "красне", "лісне", "козари",
+                                 "вербове", "артеменків",
                                  "центр", "центру", "центрі",
                                  # The Antonov plant, next to Нивки. As a stem
                                  # it swallowed «Антоновичі» — a Chernihiv-oblast

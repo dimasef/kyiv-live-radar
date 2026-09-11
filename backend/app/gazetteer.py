@@ -99,6 +99,11 @@ DISTRICTS: list[dict] = [
      "aliases": ["бортничі"]},
     {"name_uk": "ДВРЗ", "name_en": "DVRZ", "lat": 50.445, "lon": 30.660,
      "aliases": ["дврз"]},
+    # The old workers' quarter between Дарниця and Нова Дарниця — the Kyiv
+    # spotter's own callout («Соцмісто 🔴», «Соцмісто/Дарниця»), 16 corpus hits,
+    # every one the place (2026-09-11).
+    {"name_uk": "Соцмісто", "name_en": "Sotsmisto", "lat": 50.4542, "lon": 30.6211,
+     "aliases": []},
     {"name_uk": "Лівобережний", "name_en": "Livoberezhnyi", "lat": 50.452, "lon": 30.598,
      "aliases": ["лівобережна"]},
     # The two BANKS, the coarsest place this feed names — 102 corpus callouts
@@ -172,8 +177,10 @@ DISTRICTS: list[dict] = [
     # The mall on Берковецька, used as a landmark the same way Sky Mall is.
     # "лавина" is also an ordinary noun; all 3 corpus hits are the callout
     # (GAZETTEER.md watch list).
+    # «лавін» is how two of the three Kyiv channels spell it (Лавіна/Лавіну) —
+    # 11 corpus hits, all the mall (2026-09-11).
     {"name_uk": "Лавина", "name_en": "LavinaMall", "lat": 50.4955, "lon": 30.3606,
-     "aliases": []},
+     "aliases": ["лавін"]},
 
 
     # --- Approach-corridor localities, Kyiv oblast ---
@@ -307,6 +314,12 @@ DISTRICTS: list[dict] = [
     # word start. The bare noun («стоянка таксі») could, and is zero for zero
     # across the corpus — watch-listed in GAZETTEER.md rather than assumed safe.
     {"name_uk": "Стоянка", "name_en": "Stoianka", "lat": 50.454, "lon": 30.2261, "aliases": []},
+    # The next village down the Житомирська траса from Стоянка; the Kyiv
+    # spotter calls it in with Стоянка and Мила — 7 corpus hits (2026-09-11).
+    # Мила itself is NOT added: 2 hits, and «мила» is an everyday adjective
+    # this gazetteer has rejected before in that shape (Веселе). Гореничі is
+    # 4 km away and carries the pair.
+    {"name_uk": "Гореничі", "name_en": "Horenychi", "lat": 50.4193, "lon": 30.2115, "aliases": []},
     {"name_uk": "Ржищів", "name_en": "Rzhyshchiv", "lat": 49.9682, "lon": 31.0412, "aliases": []},
     {"name_uk": "Козин", "name_en": "Kozyn", "lat": 50.229, "lon": 30.6479, "aliases": []},
     # "церкв" requires a preceding "Біл…" (vocab._ALIAS_PREV_WORD_REQUIRED), or
@@ -402,11 +415,23 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Рогозів", "name_en": "Rohoziv", "lat": 50.2339, "lon": 31.055, "aliases": []},
     # Stem "пирог" is also пироги/пиріг — clean sweep only (watch list).
     {"name_uk": "Пирогів", "name_en": "Pyrohiv", "lat": 50.3545, "lon": 30.5145, "aliases": []},
+    # The locality between Теремки and Корчувате — «На Теремки, далі Мишоловка»,
+    # 7 corpus hits from two channels (2026-09-11).
+    {"name_uk": "Мишоловка", "name_en": "Mysholovka", "lat": 50.3732, "lon": 30.5285, "aliases": []},
     # Point HAND-SET: Nominatim resolves this name to a homonym ~350 km away.
     # Do not "fix" it by re-geocoding.
     {"name_uk": "Чапаївка", "name_en": "Chapaivka", "lat": 50.343, "lon": 30.522, "aliases": []},
-    # Hyphenated compound only — bare "Віта" collides with вітаю/вітання.
+    # Hyphenated compound only — bare "Віта" is Віта-Литовська's (below).
     {"name_uk": "Віта-Поштова", "name_en": "VitaPoshtova", "lat": 50.3197, "lon": 30.3809, "aliases": []},
+    # The other Віта, 12 km east inside the city limits, and the one the bare
+    # callout means: «Віта 🔴», «Віта/Заспа», «Віта/Голос південь» — every
+    # neighbour it is paired with is on the Dnipro side, not the Одеська траса.
+    # 12 bare + 6 spaced («Віта Литовська») corpus hits, all callouts. «віта» is
+    # WHOLE-WORD (vocab._WHOLE_WORD_ALIASES): as a stem it is inside вітаю/
+    # вітання, which is what kept the bare form out for the life of the
+    # project. Two tests pin the greeting (2026-09-11).
+    {"name_uk": "Віта-Литовська", "name_en": "VitaLytovska", "lat": 50.3297, "lon": 30.5517,
+     "aliases": ["віта"]},
     # "трипіл" covers both the plant and the village 2 km away (same target cluster).
     {"name_uk": "Трипільська ТЕС", "name_en": "Trypilska TES", "lat": 50.1333, "lon": 30.75,
      "aliases": ["трипілля", "трипільська", "трипіл"]},
@@ -415,8 +440,11 @@ DISTRICTS: list[dict] = [
     # Deliberately a SEPARATE, nearer point than KyivReservoir above: "район моря"
     # means the near edge of the water, the corridor into the city. The only false
     # hit ("Чорного моря" in bomber reports) is vetoed by matcher._is_foreign_sea.
+    # «по морю» is the feed's phrase for a target riding the reservoir north or
+    # south — 22 corpus hits, none a foreign sea (2026-09-11). Whole-word like
+    # its three siblings.
     {"name_uk": "Район моря", "name_en": "KyivSeaApproach", "lat": 50.66, "lon": 30.52,
-     "aliases": ["море", "моря", "морі"]},
+     "aliases": ["море", "моря", "морі", "морю"]},
 
     # "чзв" is 3 chars — below the stem floor, so it needs _WHOLE_WORD_ALIASES.
     {"name_uk": "Чорнобильська зона", "name_en": "ChornobylZone", "lat": 51.2705, "lon": 30.2196,
@@ -1216,6 +1244,60 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Яцево", "name_en": "Yatsevo", "lat": 51.5375, "lon": 31.3636,
      "region": "chernihiv", "aliases": []},
     {"name_uk": "Терехівка", "name_en": "Terekhivka", "lat": 51.5945, "lon": 31.4066,
+     "region": "chernihiv", "aliases": []},
+
+    # --- Чернігівщина, 2026-09-11 — the admin coverage queue over 10.6k
+    # messages since the previous pass. Geocoded, swept, and where Nominatim
+    # offered several the neighbouring callouts chose (GAZETTEER.md).
+    # Ковпита's «Копита» is the channel's own misspelling («Копита/Андріївка»);
+    # whole-word, since «копита» is also hooves.
+    {"name_uk": "Ковпита", "name_en": "Kovpyta", "lat": 51.3800, "lon": 30.8613,
+     "region": "chernihiv", "aliases": ["копита"]},
+    {"name_uk": "Ведильці", "name_en": "Vedyltsi", "lat": 51.4620, "lon": 30.8506,
+     "region": "chernihiv", "aliases": []},
+    # Two in the oblast; the Михайло-Коцюбинське one, because every callout
+    # pairs it with Ковпита/Ведильці/Михайло-Коцюбинське. `region_only`: a
+    # Sumy and a Kharkiv Андріївка already exist, each hidden the same way.
+    {"name_uk": "Андріївка", "name_en": "Andriivka CH", "lat": 51.4030, "lon": 31.0127,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    # The hamlet by Хатилова Гута, called in beside Ведильці and Ковпита. Whole-
+    # word (vocab): the stem «лісн» is inside Лісники and «лісний масив».
+    # Kharkiv's Лісне matches whole-word too from now on — all 55 of its corpus
+    # hits already were.
+    {"name_uk": "Лісне", "name_en": "Lisne CH", "lat": 51.3153, "lon": 30.7004,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    {"name_uk": "Олбин", "name_en": "Olbyn", "lat": 51.0765, "lon": 31.0261,
+     "region": "chernihiv", "aliases": []},
+    # «Звернув на Підлісне, Олбин» — 6 km apart, one callout naming both.
+    {"name_uk": "Підлісне", "name_en": "Pidlisne CH", "lat": 51.1520, "lon": 31.1231,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    # Four in the oblast. The Іванівська one: both nights it sits between
+    # Гончарівське/Жеведь and Олишівка/Олбин on a southbound track. Whole-word:
+    # «красн» is Краснопалівка, Красноград, Краснопілля, 160 corpus hits.
+    {"name_uk": "Красне", "name_en": "Krasne CH", "lat": 51.2918, "lon": 31.2586,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    # Whole-word: the stem «козар» would reach Kyiv's Козаровичі, which sits on
+    # this channel's own bank of the reservoir.
+    {"name_uk": "Козари", "name_en": "Kozary", "lat": 50.9436, "lon": 31.4055,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    # Called in beside Березна/Седнів/Ковчин, which is where it is.
+    {"name_uk": "Боромики", "name_en": "Boromyky", "lat": 51.5376, "lon": 31.6043,
+     "region": "chernihiv", "aliases": []},
+    # The Срібнянська corridor, four names one evening: «Березівка», «Артеменків»,
+    # «Березівка, Олексинці». Four Березівка in the oblast; the Талалаївська
+    # one is 3 km from Олексинці, the rest 60+ km from anything called in.
+    {"name_uk": "Березівка", "name_en": "Berezivka CH", "lat": 50.7147, "lon": 32.9782,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    {"name_uk": "Олексинці", "name_en": "Oleksyntsi", "lat": 50.6867, "lon": 32.9638,
+     "region": "chernihiv", "aliases": []},
+    # Whole-word: the stem is the surname Артеменко.
+    {"name_uk": "Артеменків", "name_en": "Artemenkiv", "lat": 50.6968, "lon": 32.8707,
+     "region": "chernihiv", "aliases": []},
+    # «Вербове, Терешківка» — 4 km apart, one callout naming both, and each
+    # unique in the oblast. Вербове whole-word: «вербов» is a street too.
+    {"name_uk": "Вербове", "name_en": "Verbove CH", "lat": 50.7230, "lon": 31.8509,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    {"name_uk": "Терешківка", "name_en": "Tereshkivka", "lat": 50.7053, "lon": 31.9030,
      "region": "chernihiv", "aliases": []},
 
     # --- Сумщина (2026-08-28) --------------------------------------------

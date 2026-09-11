@@ -18,6 +18,10 @@ M = _matcher()
 _SUMY_M = DistrictMatcher(
     [{"id": i + 1, **d} for i, d in enumerate(DISTRICTS)], prefer_region="sumy"
 )
+# Same for a Чернігівщина channel.
+_CH_M = DistrictMatcher(
+    [{"id": i + 1, **d} for i, d in enumerate(DISTRICTS)], prefer_region="chernihiv"
+)
 # Convenience: district id by English name.
 BY_EN = {d["name_en"]: i + 1 for i, d in enumerate(DISTRICTS)}
 
@@ -1262,9 +1266,80 @@ def test_southern_corridor_gazetteer_gaps():
     assert BY_EN["Pyrohiv"] in {h.district_id for h in parse_message("Шахед на Пирогів", M).districts}
     assert BY_EN["Chapaivka"] in {h.district_id for h in parse_message("БпЛА на Чапаївку", M).districts}
     assert BY_EN["VitaPoshtova"] in {h.district_id for h in parse_message("Ціль на Віта-Поштова", M).districts}
-    # Bare "Заспа"/"Віта" must NOT match (collide with заспокойтесь/вітаю).
+    # Bare "Заспа"/"Віта" are whole-word: the verb/greeting they sit inside
+    # must NOT match (заспокойтесь/вітаю), while the callout itself does.
     assert not parse_message("Заспокойтесь, все тихо", M).districts
     assert not parse_message("Вітаю всіх на каналі", M).districts
+    assert not parse_message("Вітання з Києва, все тихо", M).districts
+
+
+def test_bare_vita_is_vita_lytovska_and_the_hyphenated_one_stays_poshtova():
+    # 2026-09-08/09 Kyiv feed: «Віта 🔴», «Віта/Заспа 🔴», «1х Віта Литовська».
+    for txt in ["Віта 🔴.", "Віта/Заспа 🔴.", "1х Віта Литовська", "Віта Литовська/ пирогів"]:
+        ids = {h.district_id for h in parse_message(txt, M).districts}
+        assert BY_EN["VitaLytovska"] in ids, txt
+        assert BY_EN["VitaPoshtova"] not in ids, txt
+    ids = {h.district_id for h in parse_message("Ціль на Віта-Поштова", M).districts}
+    assert BY_EN["VitaPoshtova"] in ids and BY_EN["VitaLytovska"] not in ids
+
+
+@pytest.mark.parametrize(
+    "text,name_en",
+    [
+        ("Соцмісто 🔴.", "Sotsmisto"),
+        ("Дарниця/Соцмісто 🔴.", "Sotsmisto"),
+        ("Летять 2 штна Лавіну, увага.", "LavinaMall"),
+        ("Лавіна - обережно", "LavinaMall"),
+        ("Пішов на північ по морю.", "KyivSeaApproach"),
+        ("На Теремки, далі Мишоловка", "Mysholovka"),
+        ("Гореничі/Мила 🔴.", "Horenychi"),
+        ("Стоянка/Гореничі 🔴.", "Horenychi"),
+    ],
+)
+def test_kyiv_coverage_queue_2026_09_11(text, name_en):
+    assert BY_EN[name_en] in {h.district_id for h in parse_message(text, M).districts}, text
+
+
+@pytest.mark.parametrize(
+    "text,name_en",
+    [
+        ("Ковпита на Сорокошичі", "Kovpyta"),
+        ("Копита/Андріївка", "Kovpyta"),
+        ("Копита/Андріївка", "Andriivka CH"),
+        ("Ведильці другий", "Vedyltsi"),
+        ("Лісне", "Lisne CH"),
+        ("Звернув на Підлісне, Олбин", "Olbyn"),
+        ("Звернув на Підлісне, Олбин", "Pidlisne CH"),
+        ("На красне", "Krasne CH"),
+        ("Козари", "Kozary"),
+        ("Боромики", "Boromyky"),
+        ("На Березівку", "Berezivka CH"),
+        ("Березівка, Олексинці", "Oleksyntsi"),
+        ("Артеменків йде", "Artemenkiv"),
+        ("Вербове, Терешківка", "Verbove CH"),
+        ("Вербове, Терешківка", "Tereshkivka"),
+    ],
+)
+def test_chernihiv_coverage_queue_2026_09_11(text, name_en):
+    assert BY_EN[name_en] in {h.district_id for h in parse_message(text, _CH_M).districts}, text
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # The words the new whole-word entries sit inside — none may pin.
+        "Краснопалівка далі на Красноград",
+        "Лісники, потім лісний масив",
+        "Козаровичі 🔴",
+        "Артеменко повідомляє",
+        "Кінь б'є копитами",
+        "Вербова вулиця перекрита",
+    ],
+)
+def test_whole_word_entries_2026_09_11_do_not_reach_their_colliders(text):
+    ids = {h.district_id for h in parse_message(text, _CH_M).districts}
+    for en in ["Krasne CH", "Lisne CH", "Kozary", "Artemenkiv", "Kovpyta", "Verbove CH"]:
+        assert BY_EN[en] not in ids, (text, en)
 
 
 def test_relayed_news_of_a_faraway_destruction_is_not_a_stand_down():
