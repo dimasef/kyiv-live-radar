@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Radar } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
@@ -7,7 +8,7 @@ import { cardById } from '@/lib/cards'
 import { COLLECTION_PATH, navigate } from '@/router'
 import { useRadar } from '@/store'
 
-import CardModal from './CardModal'
+const CardModal = lazy(() => import('./CardModal'))
 
 /** Global gamification overlays, mounted once in the app shell so they survive
  * route changes while a 3–10s analysis runs: the scanning overlay while it
@@ -60,15 +61,17 @@ function ResultModal() {
       navigate(COLLECTION_PATH)
     }
     return (
-      <CardModal
-        card={card}
-        count={reveal.count}
-        caption={reveal.isNew ? t('game.newCard') : t('game.dupCard')}
-        captionGlow={reveal.isNew}
-        action={{ label: t('game.toCollection'), onClick: toCollection }}
-        closeLabel={t('game.close')}
-        onClose={dismiss}
-      />
+      <Suspense fallback={null}>
+        <CardModal
+          card={card}
+          count={reveal.count}
+          caption={reveal.isNew ? t('game.newCard') : t('game.dupCard')}
+          captionGlow={reveal.isNew}
+          action={{ label: t('game.toCollection'), onClick: toCollection }}
+          closeLabel={t('game.close')}
+          onClose={dismiss}
+        />
+      </Suspense>
     )
   }
 

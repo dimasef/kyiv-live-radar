@@ -1,6 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 
-import { APP_VERSION } from '@/changelog'
+import { APP_VERSION } from '@/version'
 
 interface State {
   error: Error | null

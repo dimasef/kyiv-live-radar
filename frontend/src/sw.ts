@@ -3,7 +3,7 @@ import { createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching'
 import { NavigationRoute, registerRoute } from 'workbox-routing'
 import { NetworkOnly } from 'workbox-strategies'
 
-import { APP_VERSION } from './changelog'
+import { APP_VERSION } from './version'
 
 // Hand-written SW (injectManifest) — see vite.config.ts. Excluded from the app
 // `tsc -b` project (uses webworker globals); vite-plugin-pwa bundles it.

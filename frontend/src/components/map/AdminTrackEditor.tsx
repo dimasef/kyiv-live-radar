@@ -1,5 +1,8 @@
-import TrackEditModal from '@/components/admin/TrackEditModal'
+import { lazy, Suspense } from 'react'
+
 import { useRadar } from '@/store'
+
+const TrackEditModal = lazy(() => import('@/components/admin/TrackEditModal'))
 
 /** The track editor, opened from a target's popup.
  *
@@ -21,17 +24,19 @@ export default function AdminTrackEditor() {
   if (track == null || picking) return null
 
   return (
-    <TrackEditModal
-      track={track}
-      onClose={closeAdminTrack}
-      onTrackChanged={applyAdminTrack}
-      // The map and the feed both update from the server's websocket
-      // broadcast, so there is no list here for these to re-point.
-      onEventMoved={() => {}}
-      onEventDeleted={() => {}}
-      onPickOnMap={(event) =>
-        startRegroupPick({ eventId: event.id, sourceThreatId: track.id })
-      }
-    />
+    <Suspense fallback={null}>
+      <TrackEditModal
+        track={track}
+        onClose={closeAdminTrack}
+        onTrackChanged={applyAdminTrack}
+        // The map and the feed both update from the server's websocket
+        // broadcast, so there is no list here for these to re-point.
+        onEventMoved={() => {}}
+        onEventDeleted={() => {}}
+        onPickOnMap={(event) =>
+          startRegroupPick({ eventId: event.id, sourceThreatId: track.id })
+        }
+      />
+    </Suspense>
   )
 }

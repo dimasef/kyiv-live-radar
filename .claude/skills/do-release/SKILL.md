@@ -25,9 +25,10 @@ into the changelog entry below.
 ## 2. Add the CHANGELOG entry (mandatory)
 
 **Every prod release MUST add a `CHANGELOG` entry** in
-`frontend/src/changelog.ts`. `APP_VERSION` is derived from the newest entry (the
-`LATEST` literal) and shown in-app (Settings → version history at `/change-log`).
-Never ship a user-visible change without one.
+`frontend/src/changelog.ts`. Bump `APP_VERSION` in `frontend/src/version.ts`;
+the newest CHANGELOG entry uses `version: APP_VERSION`, and it's shown in-app
+(Settings → version history at `/change-log`). Never ship a user-visible
+change without one.
 
 Each entry requires:
 - `date` — `YYYY-MM-DD`, the release day (today).
@@ -41,8 +42,8 @@ Each entry requires:
 - `changes` — Ukrainian, operator-facing (what they'll notice), **not** internal
   mechanics.
 
-Bump `LATEST` to the new version and put the new entry **first** (newest-first
-order). Keep `LATEST` equal to the newest entry's `version`.
+Bump `APP_VERSION` in `frontend/src/version.ts` to the new version and put the
+new entry **first** (newest-first order), with `version: APP_VERSION`.
 
 ### The changelog is visible to EVERY user — do not leak
 

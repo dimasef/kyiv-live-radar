@@ -1,5 +1,5 @@
 import type { BugContext } from '@/api'
-import { APP_VERSION } from '@/changelog'
+import { APP_VERSION } from '@/version'
 
 /** Everything a bug report should carry that a person shouldn't have to type.
  *

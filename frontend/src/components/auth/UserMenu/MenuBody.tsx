@@ -1,7 +1,7 @@
 import { Bug, Layers, LogOut, UserRound } from 'lucide-react'
 
 import { type AuthUser } from '@/api'
-import { APP_VERSION } from '@/changelog'
+import { APP_VERSION } from '@/version'
 import Avatar from '@/components/common/Avatar'
 import { ACCOUNT_PATH, CHANGELOG_PATH, COLLECTION_PATH } from '@/router'
 

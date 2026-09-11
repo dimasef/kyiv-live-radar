@@ -1,7 +1,7 @@
 import { Tag } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { APP_VERSION } from '@/changelog'
+import { APP_VERSION } from '@/version'
 import { CHANGELOG_PATH, navigate } from '@/router'
 import { useRadar } from '@/store'
 

@@ -1,3 +1,5 @@
+import { APP_VERSION } from "./version";
+
 export type BumpKind = "major" | "minor" | "patch";
 
 export interface Release {
@@ -29,15 +31,19 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
   },
 ];
 
-/** The current version — a plain literal (not CHANGELOG[0].version) so importing
- * APP_VERSION into the service worker tree-shakes the whole changelog OUT of the
- * SW bundle. Keep it equal to the newest CHANGELOG entry's `version` below. */
-const LATEST = "0.54.4";
-
 /** Release history, newest first. Each entry lists what was done / fixed. */
 export const CHANGELOG: Release[] = [
   {
-    version: LATEST,
+    version: APP_VERSION,
+    title: "швидший старт",
+    date: "2026-09-11",
+    kind: "patch",
+    changes: [
+      "Застосунок відкривається швидше: історія версій і картки колекції тепер довантажуються лише тоді, коли ви їх відкриваєте, тож перший запуск на повільній мережі помітно легший",
+    ],
+  },
+  {
+    version: "0.54.4",
     title: "більше точок на мапі",
     date: "2026-09-11",
     kind: "patch",
@@ -1447,7 +1453,3 @@ export const CHANGELOG: Release[] = [
     ],
   },
 ];
-
-/** Current app version — shown in Settings. Bump `LATEST` above and add a
- * matching CHANGELOG entry (both use the same literal). */
-export const APP_VERSION = LATEST;
