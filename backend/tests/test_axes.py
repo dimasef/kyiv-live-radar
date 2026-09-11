@@ -80,7 +80,7 @@ async def test_disabled_axis_layer_is_noop(session, monkeypatch):
 def test_axis_out_carries_source_coords_for_named_origin():
     # A named origin exposes its representative centroid so the client can morph
     # the edge wedge into an on-map source marker when zoomed out.
-    from app.api.serialize import axis_out
+    from app.realtime.serialize import axis_out
 
     a = ThreatAxis(id=1, sector="NE", origin_key="bryansk", target_type="ballistic",
                    status="unverified", corroboration_count=1,
@@ -92,7 +92,7 @@ def test_axis_out_carries_source_coords_for_named_origin():
 
 def test_axis_out_has_no_coords_for_bare_sector():
     # A bare-sector axis (a direction with no named place) stays edge-only.
-    from app.api.serialize import axis_out
+    from app.realtime.serialize import axis_out
 
     a = ThreatAxis(id=2, sector="N", origin_key=None, target_type="shahed",
                    status="unverified", corroboration_count=1,

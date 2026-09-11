@@ -99,7 +99,7 @@ class ThreatOut(BaseModel):
     # seen, and the instant the sweeper will auto-close it as 'stale'. The map
     # fades a target out across that span, so a stale dot stops looking as
     # convincing as a fresh one. NULL on the shallow (feed) serialization —
-    # a feed row is history and needs no freshness. See api/serialize.py.
+    # a feed row is history and needs no freshness. See realtime/serialize.py.
     last_event_at: datetime | None = None
     stale_at: datetime | None = None
     events: list[ThreatEventOut] = []

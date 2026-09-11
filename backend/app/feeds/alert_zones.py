@@ -29,7 +29,6 @@ from datetime import datetime
 import httpx
 from sqlalchemy import select
 
-from ..api.ws import manager
 from ..config import settings
 from ..db import SessionLocal
 from ..domain.alert_zones import (
@@ -47,6 +46,7 @@ from ..domain.zone_alerts import Pending, confirm_changes, signal_time
 from ..models import Alert, AlertLevel, utcnow
 from ..pipeline.broadcast import broadcast_results
 from ..pipeline.results import Broadcast
+from ..realtime.ws import manager
 from ..schemas import AlertZoneOut, WSMessage
 from ..timeutil import from_kyiv_local
 

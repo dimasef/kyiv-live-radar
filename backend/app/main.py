@@ -7,11 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api.auth_routes import router as auth_router
-from .api.friends_routes import friends_router
-from .api.gamification import gamification_router
 from .api.routes import router
-from .api.ws import manager
 from .config import settings
 from .db import SessionLocal
 from .feeds.health import feed_health, get_status
@@ -20,6 +16,7 @@ from .logging_setup import setup_logging
 from .migrate import upgrade_to_head
 from .observability import setup_observability
 from .pipeline.ingest import rehydrate_type_context
+from .realtime.ws import manager
 from .seed import bootstrap_sources_from_env, seed_districts, seed_sources
 
 setup_logging()
@@ -112,9 +109,6 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Kyiv Aerial Threat Tracker (MVP)", lifespan=lifespan)
 
 app.include_router(router)
-app.include_router(auth_router)
-app.include_router(friends_router)
-app.include_router(gamification_router)
 
 setup_observability(app)
 

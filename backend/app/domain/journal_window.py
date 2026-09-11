@@ -13,7 +13,6 @@ from datetime import date, datetime, time, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..domain.districts import citywide_district_id
 from ..models import (
     HOME_REGION,
     AftermathReport,
@@ -23,6 +22,7 @@ from ..models import (
     Threat,
     ThreatEvent,
 )
+from .districts import citywide_district_id
 
 
 @dataclass

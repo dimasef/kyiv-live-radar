@@ -12,7 +12,6 @@ import logging
 
 from sqlalchemy import func, select
 
-from ..api.ws import manager
 from ..config import settings
 from ..db import SessionLocal
 from ..domain.alerts import close_stale_alerts
@@ -22,6 +21,7 @@ from ..domain.tracking import close_stale_tracks
 from ..feeds.health import feed_health, get_status
 from ..models import Threat, ThreatAxis, utcnow
 from ..observability import metrics
+from ..realtime.ws import manager
 from ..schemas import WSMessage
 from . import lock
 from .broadcast import broadcast_results

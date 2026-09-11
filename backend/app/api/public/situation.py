@@ -17,16 +17,16 @@ from ...models import (
     Threat,
     ThreatAxis,
 )
+from ...realtime.serialize import alert_out as _alert_out
+from ...realtime.serialize import axis_out as _axis_out
+from ...realtime.serialize import incident_out as _incident_out
+from ...realtime.serialize import notice_out as _notice_out
 from ...schemas import (
     AlertOut,
     AxisOut,
     IncidentOut,
     NoticeOut,
 )
-from ..serialize import alert_out as _alert_out
-from ..serialize import axis_out as _axis_out
-from ..serialize import incident_out as _incident_out
-from ..serialize import notice_out as _notice_out
 
 router = APIRouter()
 

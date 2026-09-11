@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...auth.deps import require_admin
 from ...db import get_session
+from ...domain.source_stats import SourceStats, compute_source_stats
 from ...domain.sources import delete_source_cascade, upsert_source
 from ...feeds.telegram import request_listener_reload
 from ...models import (
@@ -23,7 +24,6 @@ from ...schemas import (
     SourceUpdateIn,
 )
 from ..deps import _attack_active
-from ..source_stats import SourceStats, compute_source_stats
 
 router = APIRouter()
 

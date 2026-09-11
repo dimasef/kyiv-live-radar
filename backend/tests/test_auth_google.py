@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import func, select
 
-import app.api.auth_routes as auth_routes
+import app.api.public.auth_routes as auth_routes
 from app.config import settings
 from app.models import OAuthIdentity
 

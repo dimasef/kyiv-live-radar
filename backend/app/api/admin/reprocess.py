@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 
 from ...auth.deps import require_admin
 from ...domain.journal import KYIV, build_journal
+from ...domain.journal_window import load_journal_window
 from ...models import (
     Incident,
     RawMessage,
@@ -25,7 +26,6 @@ from ...schemas import (
     ReprocessResultOut,
 )
 from ..deps import _attack_active
-from ..journal_window import load_journal_window
 
 router = APIRouter()
 

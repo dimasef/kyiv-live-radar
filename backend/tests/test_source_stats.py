@@ -1,4 +1,4 @@
-"""Unit tests for per-source quality metrics (app/api/source_stats.py) — pure DB
+"""Unit tests for per-source quality metrics (app/domain/source_stats.py) — pure DB
 aggregation, no HTTP. Verifies each metric and that pre-column history
 (llm_attempted IS NULL) is excluded from the LLM-fallback denominator."""
 from __future__ import annotations
@@ -6,7 +6,7 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import select
 
-from app.api.source_stats import compute_source_stats
+from app.domain.source_stats import compute_source_stats
 from app.models import (
     District,
     ParserCorrection,

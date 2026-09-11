@@ -10,8 +10,11 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from . import (
+    auth_routes,
     bugs,
     districts,
+    friends_routes,
+    gamification,
     geocode,
     journal,
     push,
@@ -27,3 +30,6 @@ router = APIRouter()
 for _module in (districts, regions, sources, threats, situation, zones, journal, raw,
                 push, bugs, geocode):
     router.include_router(_module.router)
+router.include_router(auth_routes.router)
+router.include_router(friends_routes.friends_router)
+router.include_router(gamification.gamification_router)

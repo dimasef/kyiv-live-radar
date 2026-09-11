@@ -15,7 +15,6 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from app.api.serialize import incident_out
 from app.domain.aftermath import categorize, read_aftermath
 from app.gazetteer import DISTRICTS
 from app.models import (
@@ -29,6 +28,7 @@ from app.models import (
 )
 from app.parsing import DistrictMatcher, normalize, parse_message
 from app.pipeline.ingest import ingest_message
+from app.realtime.serialize import incident_out
 
 
 @pytest.fixture(scope="module")

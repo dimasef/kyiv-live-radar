@@ -20,16 +20,16 @@ from ...models import (
     User,
     utcnow,
 )
+from ...realtime.serialize import aftermath_out as _aftermath_out
+from ...realtime.serialize import event_out as _event_out
+from ...realtime.serialize import feed_entry_out as _feed_entry_out
+from ...realtime.serialize import threat_out as _threat_out
 from ...schemas import (
     AftermathOut,
     FeedEntryOut,
     ThreatEventOut,
     ThreatOut,
 )
-from ..serialize import aftermath_out as _aftermath_out
-from ..serialize import event_out as _event_out
-from ..serialize import feed_entry_out as _feed_entry_out
-from ..serialize import threat_out as _threat_out
 
 router = APIRouter()
 

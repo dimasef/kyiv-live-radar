@@ -13,6 +13,7 @@ from ...db import get_session
 from ...domain.corrections import (
     parser_agrees,
 )
+from ...domain.coverage import find_coverage_gaps, find_toponym_candidates
 from ...feeds.common import build_matcher
 from ...models import (
     District,
@@ -27,7 +28,6 @@ from ...schemas import (
     CoverageGapOut,
     ToponymDismissalIn,
 )
-from ..coverage import find_coverage_gaps, find_toponym_candidates
 
 router = APIRouter()
 

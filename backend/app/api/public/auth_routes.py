@@ -9,27 +9,27 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth.avatar import AvatarError, validate_avatar_data_url
-from ..auth.deps import get_current_user
-from ..auth.providers.google import GoogleAuthError, verify_google_id_token
-from ..auth.providers.telegram import TelegramAuthError, verify_telegram_login
-from ..auth.security import (
+from ...auth.avatar import AvatarError, validate_avatar_data_url
+from ...auth.deps import get_current_user
+from ...auth.providers.google import GoogleAuthError, verify_google_id_token
+from ...auth.providers.telegram import TelegramAuthError, verify_telegram_login
+from ...auth.security import (
     AuthError,
     decode_refresh,
     encode_access,
     hash_password,
     verify_password,
 )
-from ..auth.service import (
+from ...auth.service import (
     get_or_create_user_for_identity,
     issue_tokens,
     resolve_and_set_role,
     touch_login,
 )
-from ..config import settings
-from ..db import get_session
-from ..models import OAuthIdentity, User
-from ..schemas import (
+from ...config import settings
+from ...db import get_session
+from ...models import OAuthIdentity, User
+from ...schemas import (
     AccessTokenOut,
     GoogleAuthIn,
     LoginIn,

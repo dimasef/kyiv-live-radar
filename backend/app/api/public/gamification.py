@@ -18,17 +18,17 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth.deps import get_current_user
-from ..db import get_session
-from ..domain.cards import CARD_COUNT, STALE_AFTER, draw_card, eligible_kind_for
-from ..models import (
+from ...auth.deps import get_current_user
+from ...db import get_session
+from ...domain.cards import CARD_COUNT, STALE_AFTER, draw_card, eligible_kind_for
+from ...models import (
     Threat,
     ThreatAnalysis,
     ThreatEvent,
     User,
     utcnow,
 )
-from ..schemas import (
+from ...schemas import (
     AnalyzeIn,
     AnalyzeOut,
     CardCountOut,
@@ -37,8 +37,8 @@ from ..schemas import (
     GamificationPrefOut,
     ThreatAnalysisStateOut,
 )
-from ..timeutil import within
-from .deps import are_friends
+from ...timeutil import within
+from ..deps import are_friends
 
 gamification_router = APIRouter(tags=["gamification"])
 

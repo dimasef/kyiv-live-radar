@@ -359,7 +359,7 @@ async def _route_rescue(
     # No gazetteer in the prompt means no district id can come back, so a
     # `localized` verdict here is not a rescue candidate at all — it is the
     # model saying "this names a place you don't have". That is the coverage-gap
-    # queue's business (api/coverage.py picks it up automatically: the message
+    # queue's business (domain/coverage.py picks it up automatically: the message
     # produced neither event nor notice), and labelling it honestly keeps the
     # /raw filter from reading as 26 missed rescues a night.
     if not settings.llm_localize_enabled and verdict.get("category") == "localized":

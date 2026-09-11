@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime
 from types import SimpleNamespace
 
-from app.api.serialize import incident_out
+from app.realtime.serialize import incident_out
 
 
 def _threat(*, scope="district", kind="track", status="tracking", target_count=1, district_id=1):

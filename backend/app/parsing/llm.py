@@ -24,7 +24,7 @@ on the real corpus (2026-08-23, 381 stored verdicts):
 So the listing is off and that budget goes to `parsing.type_llm` instead, where
 the real gap is (79% of localizable sightings name no target type). Unlocalized
 messages are not lost: they surface in the admin coverage-gap queue
-(api/coverage.py), which is the gazetteer lever CLAUDE.md points at. Flip the
+(domain/coverage.py), which is the gazetteer lever CLAUDE.md points at. Flip the
 flag back on to restore the old behaviour verbatim.
 
 Hard safety rails (both paths):
@@ -139,7 +139,7 @@ _CATEGORIES = ("localized", "citywide", "directional", "forecast", "status", "no
 
 # What `localized` means depends on whether the model was given the gazetteer.
 # With the listing it is "a place we know"; without it, it is "a place at all" —
-# which is precisely the coverage-gap signal (api/coverage.py) rather than
+# which is precisely the coverage-gap signal (domain/coverage.py) rather than
 # something to rescue, since no district id can come back to place it.
 _LOCALIZED_WITH_LIST = "names a place from the list"
 _LOCALIZED_NO_LIST = (

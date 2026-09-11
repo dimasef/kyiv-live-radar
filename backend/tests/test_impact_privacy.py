@@ -11,7 +11,6 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 
-from app.api.serialize import incident_out
 from app.auth.security import encode_access
 from app.config import settings
 from app.domain.journal import KYIV
@@ -25,6 +24,7 @@ from app.models import (
     ThreatEvent,
     User,
 )
+from app.realtime.serialize import incident_out
 
 
 async def _district(session, name_uk="Дарницький", name_en="Darnytskyi") -> District:

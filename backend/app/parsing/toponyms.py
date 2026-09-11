@@ -191,7 +191,7 @@ _CHATTER_WORDS = (
     # The zone-status posts the Сумщина channel repeats per raion («Сумський
     # район - повітряна тривога!»). They are whole short messages, so the
     # boilerplate detector deliberately leaves them alone (see
-    # api.coverage.channel_boilerplate) and the vocabulary has to.
+    # domain.coverage.channel_boilerplate) and the vocabulary has to.
     "повітрян", "локаційн", "станом", "транзит", "маневрує", "назад",
     "скоріш", "найближч", "становл", "уважні", "чути", "спати", "південних",
 )
@@ -254,7 +254,7 @@ def _place_positions(norm: str) -> set[str]:
 
 def strip_boilerplate(norm: str, boilerplate: frozenset[str]) -> str:
     """Drop the lines a channel appends to every post — see
-    `api.coverage.channel_boilerplate` for how they are found.
+    `domain.coverage.channel_boilerplate` for how they are found.
 
     A signature is the worst possible input to a list ranked by FREQUENCY: it
     repeats mechanically, so it outranks every real village. «Підписатись |

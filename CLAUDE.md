@@ -140,7 +140,7 @@ fuse → broadcast**.
      (`llm_localize_enabled`): the gazetteer enum was 81% of the prompt's
      tokens and produced 3 inline events + 26 rescues for the life of the
      project. Coverage gaps are found by the admin queue in
-     `app/api/coverage.py` instead — the gazetteer is the real lever, not the
+     `app/domain/coverage.py` instead — the gazetteer is the real lever, not the
      LLM. `pipeline.ingest.should_fallback` still gates what reaches the
      second pass.
 4. **Track grouping** (`app/domain/tracking.py`) — the most failure-prone

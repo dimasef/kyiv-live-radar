@@ -1,4 +1,4 @@
-"""Unit tests for app/api/serialize.py::threat_out_shallow — a drift guard so
+"""Unit tests for app/realtime/serialize.py::threat_out_shallow — a drift guard so
 a new ThreatOut field is never silently dropped from the shallow (feed) path,
 since it's built by introspecting ThreatOut.model_fields rather than a
 hand-written list.
@@ -9,8 +9,8 @@ exclusion is asserted explicitly rather than left implicit."""
 
 from datetime import UTC, datetime, timedelta
 
-from app.api.serialize import _DERIVED_THREAT_FIELDS, threat_out, threat_out_shallow
 from app.models import Threat
+from app.realtime.serialize import _DERIVED_THREAT_FIELDS, threat_out, threat_out_shallow
 from app.schemas import ThreatOut
 
 

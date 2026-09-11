@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...db import get_session
 from ...domain.analytics import build_analytics
 from ...domain.journal import KYIV, build_journal
+from ...domain.journal_window import load_journal_window
 from ...models import (
     ANALYTICS_PERIODS,
     HOME_REGION,
@@ -20,6 +21,7 @@ from ...models import (
     Threat,
     ThreatEvent,
 )
+from ...realtime.serialize import journal_out as _journal_out
 from ...schemas import (
     DistrictStatOut,
     DurationBucketOut,
@@ -30,8 +32,6 @@ from ...schemas import (
     StatsTotalsOut,
 )
 from ...timeutil import kyiv_date
-from ..journal_window import load_journal_window
-from ..serialize import journal_out as _journal_out
 
 router = APIRouter()
 

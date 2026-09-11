@@ -1141,7 +1141,7 @@ class AftermathReport(Base):
 
     Its own table rather than `Threat(kind='aftermath')` because every public
     surface's impact filter is keyed on the literal value 'impact'
-    (`api/public/threats.py`, `api/serialize.py::_incident_district_ids`,
+    (`api/public/threats.py`, `realtime/serialize.py::_incident_district_ids`,
     `domain/journal.py`, and the five exits pinned by tests/test_impact_privacy)
     — a new `kind` would need each of those rewritten from an equality to a set
     membership, and one missed filter publishes where a strike landed. Nothing

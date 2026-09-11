@@ -36,6 +36,10 @@ from ...models import (
 from ...pipeline.broadcast import broadcast_results
 from ...pipeline.ingest import note_operator_type
 from ...pipeline.results import Broadcast
+from ...realtime.serialize import alert_out as _alert_out
+from ...realtime.serialize import incident_out as _incident_out
+from ...realtime.serialize import notice_out as _notice_out
+from ...realtime.serialize import threat_out as _threat_out
 from ...schemas import (
     AlertOut,
     DismissedOut,
@@ -52,10 +56,6 @@ from ...schemas import (
 )
 from ...timeutil import naive
 from ..deps import _threat_with_events
-from ..serialize import alert_out as _alert_out
-from ..serialize import incident_out as _incident_out
-from ..serialize import notice_out as _notice_out
-from ..serialize import threat_out as _threat_out
 
 router = APIRouter()
 
@@ -183,7 +183,7 @@ async def admin_recount_threat(
     await session.commit()
     results = [Broadcast("status", threat)]
     # An attack's own target_count is summed over its member tracks at
-    # serialization time (api/serialize.py), so the banner is stale until the
+    # serialization time (realtime/serialize.py), so the banner is stale until the
     # incident is re-sent too. Its TYPES are untouched — no recompute here.
     if inc is not None:
         results.append(Broadcast("attack", incident=inc))

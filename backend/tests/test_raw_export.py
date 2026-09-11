@@ -1,4 +1,4 @@
-"""The /raw debug serialization (api/raw_query.py::serialize_raw_rows).
+"""The /raw debug serialization (domain/raw_query.py::serialize_raw_rows).
 
 Everything here exists to make a feed dump readable without a DB session: WHY a
 message produced nothing, WHERE its events landed, and WHEN it was actually
@@ -11,7 +11,7 @@ from datetime import UTC, datetime, timedelta
 import pytest_asyncio
 from sqlalchemy import select
 
-from app.api.raw_query import apply_raw_filters, serialize_raw_rows
+from app.domain.raw_query import apply_raw_filters, serialize_raw_rows
 from app.models import (
     AftermathReport,
     District,

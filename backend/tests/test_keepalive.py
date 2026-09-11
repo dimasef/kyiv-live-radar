@@ -2,8 +2,8 @@ import asyncio
 
 import pytest
 
-from app.api.ws import manager
 from app.pipeline import keepalive
+from app.realtime.ws import manager
 
 
 @pytest.mark.asyncio

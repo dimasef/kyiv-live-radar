@@ -11,9 +11,9 @@ from __future__ import annotations
 
 import asyncio
 
-from ..api.ws import manager
 from ..config import settings
 from ..models import utcnow
+from ..realtime.ws import manager
 from ..schemas import WSMessage
 
 

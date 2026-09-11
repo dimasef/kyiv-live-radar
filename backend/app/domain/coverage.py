@@ -40,7 +40,7 @@ from ..models import Notice, RawMessage, Source, ThreatEvent, ToponymDismissal
 from ..parsing import DistrictMatcher, normalize, parse_message
 from ..parsing.toponyms import rank_candidates, unknown_toponyms
 
-# The message-level suppressors, in the order `api.raw_diagnosis` checks them. A
+# The message-level suppressors, in the order `domain.raw_diagnosis` checks them. A
 # message the parser already ruled out (donation post, casualty news, negation)
 # is not a coverage gap even when it names an unknown word — surfacing those
 # would bury the real ones, which is the failure mode a ranked list can't

@@ -21,13 +21,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth.deps import get_current_user
-from ..config import settings
-from ..db import get_session
-from ..domain.presence import presence_for
-from ..models import Friendship, User, utcnow
-from ..pipeline.contact_push import notify_contact_request, notify_request_accepted
-from ..schemas import (
+from ...auth.deps import get_current_user
+from ...config import settings
+from ...db import get_session
+from ...domain.presence import presence_for
+from ...models import Friendship, User, utcnow
+from ...pipeline.contact_push import notify_contact_request, notify_request_accepted
+from ...schemas import (
     ContactPrefIn,
     ContactPrefsOut,
     FriendActionOut,
@@ -45,7 +45,7 @@ from ..schemas import (
     SendFriendRequestIn,
     ShareToggleIn,
 )
-from .deps import are_friends
+from ..deps import are_friends
 
 friends_router = APIRouter(tags=["friends"])
 
