@@ -1,6 +1,5 @@
+import CardView from '@/components/game/CardView'
 import type { CardDef } from '@/lib/cards'
-
-import CardView from '../CardView'
 
 /** The card grid: 2/3/4 columns; owned cards are buttons that pop up, locked
  * ones are inert placeholders. */

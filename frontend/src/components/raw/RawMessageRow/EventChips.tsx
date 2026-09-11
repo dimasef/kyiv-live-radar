@@ -4,9 +4,9 @@ import { useTranslation } from 'react-i18next'
 import { deleteNotice, fetchAdminThreat } from '@/api'
 import AdminActionButton from '@/components/admin/AdminActionButton'
 import TrackEditModal from '@/components/admin/TrackEditModal'
+import { type NoticeSet } from '@/components/raw/NoticeControl'
 import type { RawMessage, Threat } from '@/types'
 
-import { type NoticeSet } from '../NoticeControl'
 import EventChip from './EventChip'
 import type { ApplyTrack, DropEvent, MoveEvent } from './types'
 

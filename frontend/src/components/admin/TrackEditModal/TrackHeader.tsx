@@ -3,10 +3,10 @@ import { useTranslation } from 'react-i18next'
 
 import { dismissThreat, restoreThreat, setThreatType } from '@/api'
 import AdminActionButton from '@/components/admin/AdminActionButton'
+import { ADMIN_TARGET_TYPES } from '@/components/admin/adminLayout'
 import { threatChip } from '@/threatLabels'
 import type { TargetType, Threat } from '@/types'
 
-import { ADMIN_TARGET_TYPES } from '../adminLayout'
 import TrackCountStepper from './TrackCountStepper'
 
 /** What the track IS — its identity line, and the three properties an operator

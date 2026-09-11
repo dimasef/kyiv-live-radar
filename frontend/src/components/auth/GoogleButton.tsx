@@ -4,10 +4,24 @@ import { useRadar } from '@/store'
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+interface GoogleIdentityServices {
+  accounts: {
+    id: {
+      initialize(config: {
+        client_id: string
+        callback: (resp: { credential: string }) => void
+      }): void
+      renderButton(
+        parent: HTMLElement,
+        options: { theme: string; size: string; text: string; shape: string; width: number },
+      ): void
+    }
+  }
+}
+
 declare global {
   interface Window {
-    google?: any
+    google?: GoogleIdentityServices
   }
 }
 

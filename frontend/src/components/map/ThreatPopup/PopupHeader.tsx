@@ -1,8 +1,9 @@
 import { useTranslation } from 'react-i18next'
 
 import { threatColor } from '@/theme'
-import { CountBadge, typeLabel } from '@/threatDisplay'
+import { CountBadge } from '@/threatDisplay'
 import { threatChip } from '@/threatLabels'
+import { typeLabel } from '@/threatState'
 import type { Threat } from '@/types'
 
 import { MONO } from './popupStyles'

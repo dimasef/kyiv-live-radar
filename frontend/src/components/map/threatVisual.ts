@@ -1,6 +1,6 @@
-import { threatState } from '@/threatDisplay'
 import { threatColor } from '@/theme'
 import { DIRECTIONAL, DOT_UNTIL_MOVING } from '@/threatIcons'
+import { threatState } from '@/threatState'
 import type { Threat } from '@/types'
 
 import type { Pt } from '@/lib/geo'

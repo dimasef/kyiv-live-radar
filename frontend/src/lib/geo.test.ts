@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { angdiff, bearing, haversineKm, offsetKm, raionIdAt } from './geo'
-import type { DistrictBoundary } from '../types'
+import type { DistrictBoundary } from '@/types'
 
 const KYIV = { lat: 50.45, lon: 30.52 }
 

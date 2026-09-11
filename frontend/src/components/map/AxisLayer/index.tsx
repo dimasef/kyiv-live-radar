@@ -1,11 +1,11 @@
 import type { Map as LeafletMap } from 'leaflet'
 import { useEffect, useReducer } from 'react'
 
+import { isInsideBox, overlayInsets, visibleInsets } from '@/components/map/edgeProjection'
 import { useRadar } from '@/store'
 import { TYPE_COLORS } from '@/theme'
 import type { ThreatAxis } from '@/types'
 
-import { isInsideBox, overlayInsets, visibleInsets } from '../edgeProjection'
 import AxisSourceMarker from './AxisSourceMarker'
 import AxisWedge from './AxisWedge'
 

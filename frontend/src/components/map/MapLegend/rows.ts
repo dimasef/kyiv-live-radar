@@ -1,9 +1,8 @@
+import { ZONE_ALL_CLEAR, ZONE_GLOW, ZONE_STYLES } from '@/components/map/constants'
 import { HOME_DANGER_COLORS, MUTED_COLOR, TYPE_COLORS } from '@/theme'
 import { impactGlyphSvg, launcherGlyphSvg, threatGlyphSvg } from '@/threatIcons'
 import { DOWN_LABEL_KEY } from '@/threatLabels'
 import type { TargetType } from '@/types'
-
-import { ZONE_ALL_CLEAR, ZONE_GLOW, ZONE_STYLES } from '../constants'
 
 export const GLYPH_PX = 22
 

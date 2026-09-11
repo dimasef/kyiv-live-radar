@@ -2,8 +2,9 @@ import { Sparkles, TriangleAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { useRadar } from '@/store'
-import { CountBadge, typeLabel } from '@/threatDisplay'
 import { threatColor } from '@/theme'
+import { CountBadge } from '@/threatDisplay'
+import { typeLabel } from '@/threatState'
 import type { FeedEntry } from '@/types'
 
 import { DevId, DevSource, EventTime, SourceName } from './badges'

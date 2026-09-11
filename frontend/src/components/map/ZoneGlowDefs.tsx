@@ -2,11 +2,11 @@ import { createPortal } from 'react-dom'
 
 import { ZONE_ALL_CLEAR, ZONE_GLOW } from './constants'
 
-export const ZONE_GLOW_FILTER_ID = {
+const ZONE_GLOW_FILTER_ID = {
   yellow: 'zone-inner-glow-yellow',
   red: 'zone-inner-glow-red',
 } as const
-export const ZONE_ALL_CLEAR_FILTER_ID = 'zone-inner-glow-clear'
+const ZONE_ALL_CLEAR_FILTER_ID = 'zone-inner-glow-clear'
 
 /** Blur the shape's own alpha, then subtract that blur FROM the alpha
  * (`operator="out"`). Deep inside, the blur is opaque and the result cancels to

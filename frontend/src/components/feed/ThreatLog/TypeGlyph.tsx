@@ -1,6 +1,6 @@
-import { threatState } from '@/threatDisplay'
 import { threatColor } from '@/theme'
 import { threatGlyphSvg } from '@/threatIcons'
+import { threatState } from '@/threatState'
 import type { Threat } from '@/types'
 
 /** The target-type glyph for a feed row — same family as the map, small and

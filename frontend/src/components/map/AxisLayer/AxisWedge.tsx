@@ -1,6 +1,6 @@
+import { edgeMarkerPosition, type EdgeInsets } from '@/components/map/edgeProjection'
 import type { ThreatAxis } from '@/types'
 
-import { edgeMarkerPosition, type EdgeInsets } from '../edgeProjection'
 import AxisLabel, { WRAP_AT } from './AxisLabel'
 
 /** Nominal wedge footprint: the chevron plus its label underneath. The label is

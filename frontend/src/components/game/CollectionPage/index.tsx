@@ -3,11 +3,11 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { fetchUserCollection, type Collection } from '@/api'
+import CardModal from '@/components/game/CardModal'
 import { CARDS, collectionCounts, type CardDef } from '@/lib/cards'
 import { collectionUserId, useRoute } from '@/router'
 import { useRadar } from '@/store'
 
-import CardModal from '../CardModal'
 import CardGrid from './CardGrid'
 import RarityTabs, { type Tab } from './RarityTabs'
 import RulesModal from './RulesModal'

@@ -3,12 +3,12 @@ import { useEffect, useState } from 'react'
 
 import { fetchUserCollection, fetchUserContacts, type Collection, type PublicUser } from '@/api'
 import Avatar from '@/components/common/Avatar'
+import CollectionSummaryCard from '@/components/auth/CollectionSummaryCard'
+import PresenceLine from '@/components/auth/ContactsSection/PresenceLine'
+import { personLabel } from '@/components/auth/ContactsSection/contactFormat'
 import { ACCOUNT_PATH, navigate, useRoute, userRouteId } from '@/router'
 import { useRadar } from '@/store'
 
-import CollectionSummaryCard from '../CollectionSummaryCard'
-import PresenceLine from '../ContactsSection/PresenceLine'
-import { personLabel } from '../ContactsSection/contactFormat'
 import ContactNetwork from './ContactNetwork'
 
 /** One contact's profile page (`/user/<id>`): who they are, how their card

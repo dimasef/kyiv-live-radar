@@ -1,12 +1,12 @@
 import { Fragment, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import OnlineBadge from '@/components/feed/OnlineBadge'
 import { currentRegion, effectiveRegion } from '@/lib/regions'
 import { useRadar } from '@/store'
 import { shownRegions } from '@/store/feedRegions'
 import { FEED_ZOOM } from '@/store/prefsSlice'
 
-import OnlineBadge from '../OnlineBadge'
 import AlertCard from './AlertCard'
 import AttackSummaryCard from './AttackSummaryCard'
 import ClosedGroupCard from './ClosedGroupCard'

@@ -1,4 +1,4 @@
-import type { DistrictBoundary } from '../types'
+import type { DistrictBoundary } from '@/types'
 
 export interface Pt {
   lat: number

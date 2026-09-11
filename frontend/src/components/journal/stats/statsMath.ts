@@ -1,6 +1,5 @@
+import { TYPE_ORDER } from '@/components/journal/journalStats'
 import type { AnalyticsPeriod, StatsDay, TargetType } from '@/types'
-
-import { TYPE_ORDER } from '../journalStats'
 
 export const PERIODS: AnalyticsPeriod[] = ['30d', '90d', 'all']
 
