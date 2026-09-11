@@ -10,14 +10,12 @@ from datetime import UTC, datetime
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 # The listener-reload hook is patched where it is USED, not where it is defined
 # (`feeds.telegram`) — this is the module whose namespace holds the imported name.
 import app.api.admin.sources as sources_routes
 from app.auth.security import encode_access
-from app.config import settings
-from app.db import Base, get_session
+from app.db import get_session
 from app.main import app
 from app.models import (
     District,
@@ -32,26 +30,19 @@ from app.models import (
 
 
 @pytest_asyncio.fixture
-async def client(tmp_path, monkeypatch):
-    monkeypatch.setattr(settings, "auth_jwt_secret", "sources-secret")
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-
+async def client(db_sessionmaker, monkeypatch):
     reloads = {"count": 0}
     monkeypatch.setattr(sources_routes, "request_listener_reload", lambda: reloads.__setitem__("count", reloads["count"] + 1))
 
     async def _override():
-        async with Session() as s:
+        async with db_sessionmaker() as s:
             yield s
 
     app.dependency_overrides[get_session] = _override
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
-        yield c, Session, reloads
+        yield c, db_sessionmaker, reloads
     app.dependency_overrides.clear()
-    await engine.dispose()
 
 
 async def _admin_headers(Session, role: str = "admin") -> dict:

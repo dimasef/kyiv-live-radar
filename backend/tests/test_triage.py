@@ -2,36 +2,23 @@
 
 from datetime import UTC, datetime, timedelta
 
-import pytest_asyncio
+import pytest
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.config import settings
-from app.db import Base
-from app.gazetteer import DISTRICTS, SOURCES
-from app.models import District, Notice, RawMessage, Source, ThreatAxis, ThreatEvent, utcnow
+from app.gazetteer import DISTRICTS
+from app.models import Notice, RawMessage, Source, ThreatAxis, ThreatEvent, utcnow
 from app.parsing import DistrictMatcher, parse_message
 from app.pipeline import triage as triage_module
 from app.pipeline.triage import TriageJob, route_verdict, should_triage
-from tests.conftest import district_rows, make_verdict
+from tests.conftest import make_verdict
 
 BASE = datetime(2026, 7, 16, 12, 0, tzinfo=UTC)
 
 
-@pytest_asyncio.fixture
-async def ctx():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        s.add_all(district_rows())
-        s.add_all(Source(channel_key=x["channel_key"], name=x["name"],
-                         trust_weight=x["trust_weight"]) for x in SOURCES)
-        await s.commit()
-        matcher = DistrictMatcher(list(await s.scalars(select(District))))
-        yield s, matcher
-    await engine.dispose()
+@pytest.fixture
+def ctx(seeded_session, standard_matcher):
+    return seeded_session, standard_matcher
 
 
 M = DistrictMatcher([{"id": i + 1, **d} for i, d in enumerate(DISTRICTS)])
@@ -227,25 +214,21 @@ async def test_the_switch_also_blocks_replay_of_a_stored_triage_verdict(ctx):
     assert await session.scalar(select(func.count()).select_from(ThreatAxis)) == 0
 
 
-async def test_budget_counts_when_we_paid_not_when_the_message_was_posted(monkeypatch):
+async def test_budget_counts_when_we_paid_not_when_the_message_was_posted(
+    db_sessionmaker, monkeypatch
+):
     # A reconnect backfill (or an admin reprocess) spends real money TODAY on
     # messages posted days ago. Keyed on `event_time` those calls landed in an
     # old day's bucket and never counted against the cap, so the guard kept
     # answering "ok" while the spend ran away. `ingested_at` is when we paid.
-    from app.db import Base as _Base
     from app.pipeline import triage as triage_mod
 
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(_Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-
-    monkeypatch.setattr(triage_mod, "SessionLocal", Session)
+    monkeypatch.setattr(triage_mod, "SessionLocal", db_sessionmaker)
     monkeypatch.setattr(settings, "llm_daily_budget_usd", 1.0)
     monkeypatch.setattr(settings, "llm_monthly_budget_usd", 0.0)
 
     now = utcnow()
-    async with Session() as s:
+    async with db_sessionmaker() as s:
         s.add(RawMessage(
             source_id=1, message_id=900, text="backfilled",
             event_time=now - timedelta(days=3),   # posted three days ago
@@ -257,24 +240,17 @@ async def test_budget_counts_when_we_paid_not_when_the_message_was_posted(monkey
     triage_mod._invalidate_spend_cache()
     assert await triage_mod.llm_spend_ok() is False
     triage_mod._invalidate_spend_cache()
-    await engine.dispose()
 
 
-async def test_budget_ignores_spend_from_a_previous_day(monkeypatch):
-    from app.db import Base as _Base
+async def test_budget_ignores_spend_from_a_previous_day(db_sessionmaker, monkeypatch):
     from app.pipeline import triage as triage_mod
 
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(_Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-
-    monkeypatch.setattr(triage_mod, "SessionLocal", Session)
+    monkeypatch.setattr(triage_mod, "SessionLocal", db_sessionmaker)
     monkeypatch.setattr(settings, "llm_daily_budget_usd", 1.0)
     monkeypatch.setattr(settings, "llm_monthly_budget_usd", 0.0)
 
     now = utcnow()
-    async with Session() as s:
+    async with db_sessionmaker() as s:
         s.add(RawMessage(
             source_id=1, message_id=901, text="yesterday's spend",
             event_time=now, ingested_at=now - timedelta(days=2),
@@ -285,4 +261,3 @@ async def test_budget_ignores_spend_from_a_previous_day(monkeypatch):
     triage_mod._invalidate_spend_cache()
     assert await triage_mod.llm_spend_ok() is True  # the daily window reset
     triage_mod._invalidate_spend_cache()
-    await engine.dispose()

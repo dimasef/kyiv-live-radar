@@ -22,11 +22,9 @@ from datetime import timedelta
 
 import pytest
 import pytest_asyncio
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.db import Base
 from app.gazetteer import DISTRICTS
-from app.models import District, RawMessage, Source, utcnow
+from app.models import RawMessage, Source, utcnow
 from app.parsing import DistrictMatcher, parse_message
 from app.pipeline.ingest import (
     _note_and_inherit_type,
@@ -34,28 +32,18 @@ from app.pipeline.ingest import (
     rehydrate_type_context,
 )
 from app.timeutil import naive
+from tests.conftest import district_rows
 
 M = DistrictMatcher([{"id": i + 1, **d} for i, d in enumerate(DISTRICTS)])
 
 
 @pytest_asyncio.fixture
-async def session(tmp_path):
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        s.add_all(
-            District(name_uk=d["name_uk"], name_en=d["name_en"], lat=d["lat"], lon=d["lon"],
-                     aliases=d.get("aliases", []), region=d.get("region", "kyiv"),
-                     region_only=bool(d.get("region_only", False)))
-            for d in DISTRICTS
-        )
-        await s.commit()
-        _recent_type.clear()
-        yield s
+async def session(session):
+    session.add_all(district_rows())
+    await session.commit()
     _recent_type.clear()
-    await engine.dispose()
+    yield session
+    _recent_type.clear()
 
 
 async def _channel(session, minutes: int | None) -> Source:

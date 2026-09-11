@@ -13,12 +13,10 @@ one target on the map as two.
 
 from datetime import datetime, timedelta
 
-import pytest_asyncio
+import pytest
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import app.pipeline.reprocess as reprocess
-from app.db import Base
 from app.models import (
     AftermathReport,
     Alert,
@@ -35,16 +33,11 @@ from app.pipeline import lock
 T0 = datetime(2026, 8, 18, 20, 0)
 
 
-@pytest_asyncio.fixture
-async def wired_db(tmp_path, monkeypatch):
-    """A temp DB whose sessionmaker is wired into the reprocess module."""
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'r.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    monkeypatch.setattr(reprocess, "SessionLocal", Session)
-    yield Session
-    await engine.dispose()
+@pytest.fixture
+def wired_db(db_sessionmaker, monkeypatch):
+    """The shared sessionmaker, wired into the reprocess module."""
+    monkeypatch.setattr(reprocess, "SessionLocal", db_sessionmaker)
+    return db_sessionmaker
 
 
 async def test_wipe_tracks_also_clears_notices(wired_db):

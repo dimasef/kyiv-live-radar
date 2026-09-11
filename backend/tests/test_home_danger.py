@@ -10,10 +10,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest_asyncio
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.config import settings
-from app.db import Base
 from app.domain.geometry import angdiff_deg, bearing_deg, haversine_km
 from app.domain.home_danger import (
     DangerLevel,
@@ -209,12 +207,8 @@ EAST_SQUARE = {
 
 
 @pytest_asyncio.fixture
-async def session(tmp_path):
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
+async def session(db_sessionmaker):
+    async with db_sessionmaker() as s:
         s.add(District(name_uk="Захід", name_en="West", lat=50.5, lon=30.4,
                        aliases=[], boundary=WEST_SQUARE))
         s.add(District(name_uk="Схід", name_en="East", lat=50.5, lon=30.6,
@@ -225,7 +219,6 @@ async def session(tmp_path):
         west = (await s.scalars(select(District.id).where(District.name_en == "West"))).one()
         east = (await s.scalars(select(District.id).where(District.name_en == "East"))).one()
         yield s, west, east
-    await engine.dispose()
 
 
 async def test_zone_deep_inside_one_raion(session):

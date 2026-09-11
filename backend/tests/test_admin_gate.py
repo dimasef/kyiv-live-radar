@@ -4,35 +4,11 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
-import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.auth.security import encode_access
 from app.auth.service import resolve_and_set_role, role_for
 from app.config import settings
-from app.db import Base, get_session
-from app.main import app
 from app.models import MANUAL_ROLES, User
-
-
-@pytest_asyncio.fixture
-async def client(tmp_path, monkeypatch):
-    monkeypatch.setattr(settings, "auth_jwt_secret", "gate-test-secret")
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        async def _override():
-            yield s
-
-        app.dependency_overrides[get_session] = _override
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as c:
-            yield c, s
-        app.dependency_overrides.clear()
-    await engine.dispose()
 
 
 async def _seed(session, *, role: str) -> str:
@@ -42,8 +18,8 @@ async def _seed(session, *, role: str) -> str:
     return encode_access(user)
 
 
-async def test_raw_messages_requires_admin(client):
-    c, s = client
+async def test_raw_messages_requires_admin(client, session):
+    c, s = client, session
 
     # Anonymous → 401.
     r = await c.get("/raw_messages")
@@ -65,10 +41,10 @@ async def test_raw_messages_requires_admin(client):
     assert r.status_code == 200
 
 
-async def test_threat_count_requires_admin(client):
+async def test_threat_count_requires_admin(client, session):
     """The newest write route, checked the same way — the gate is per-route
     (api/admin/__init__.py), so a new one is a new opportunity to forget it."""
-    c, s = client
+    c, s = client, session
     body = {"target_count": 2}
 
     r = await c.patch("/admin/threats/1/count", json=body)
@@ -87,7 +63,7 @@ async def test_threat_count_requires_admin(client):
 
 
 @pytest.mark.parametrize("role", MANUAL_ROLES)
-async def test_resolve_preserves_a_manual_role(client, role):
+async def test_resolve_preserves_a_manual_role(client, session, role):
     """A role nothing in the env computes must survive resolution, or it can
     only ever be destroyed by the person signing in.
 
@@ -98,7 +74,7 @@ async def test_resolve_preserves_a_manual_role(client, role):
     exactly one session and the console reported source='default' meanwhile.
     Parametrized over MANUAL_ROLES so a role added there without teaching
     resolution about it fails here."""
-    _c, s = client
+    _c, s = client, session
     user = User(email=f"not-allowlisted-{role}@x.com", role=role, password_hash="x")
     s.add(user)
     await s.commit()
@@ -106,11 +82,11 @@ async def test_resolve_preserves_a_manual_role(client, role):
     assert user.role == role
 
 
-async def test_resolve_still_recomputes_a_derived_role(client):
+async def test_resolve_still_recomputes_a_derived_role(client, session):
     """The other half: preserving manual roles must not turn resolution into a
     no-op. A plain user whose email has since been allowlisted becomes admin at
     their next sign-in, which is the whole reason resolution runs."""
-    _c, s = client
+    _c, s = client, session
     settings.admin_emails = "promoted@x.com"
     user = User(email="promoted@x.com", role="user", password_hash="x",
                 email_verified=True)
@@ -133,14 +109,14 @@ def test_role_for_allowlist(monkeypatch):
     assert role_for(None, []) == "user"
 
 
-async def test_raw_filters_bind_as_lists_over_http(client):
+async def test_raw_filters_bind_as_lists_over_http(client, session):
     """The multi-select filters ride as REPEATED query params
     (`?region=kyiv&region=sumy`). Worth an HTTP-level test rather than only the
     query-builder ones in test_raw_export: a single-valued signature would still
     answer 200 here while silently keeping just the last value."""
     from app.models import RawMessage, Source
 
-    c, s = client
+    c, s = client, session
     admin = await _seed(s, role="admin")
     headers = {"Authorization": f"Bearer {admin}"}
     kyiv = Source(name="Київ", channel_key="k", role="spotter", region="kyiv")

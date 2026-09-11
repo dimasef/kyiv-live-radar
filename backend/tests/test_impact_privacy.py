@@ -9,17 +9,12 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.api.serialize import incident_out
 from app.auth.security import encode_access
 from app.config import settings
-from app.db import Base, get_session
 from app.domain.journal import KYIV
-from app.main import app
 from app.models import (
     AftermathReport,
     Alert,
@@ -30,24 +25,6 @@ from app.models import (
     ThreatEvent,
     User,
 )
-
-
-@pytest_asyncio.fixture
-async def client(tmp_path):
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        async def _override():
-            yield s
-
-        app.dependency_overrides[get_session] = _override
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as c:
-            yield c, s
-        app.dependency_overrides.clear()
-    await engine.dispose()
 
 
 async def _district(session, name_uk="Дарницький", name_en="Darnytskyi") -> District:
@@ -75,8 +52,8 @@ async def _threat(session, district, *, kind="track", status="tracking", when=No
     return th, ev
 
 
-async def test_impact_is_absent_from_the_live_map(client):
-    c, s = client
+async def test_impact_is_absent_from_the_live_map(client, session):
+    c, s = client, session
     d = await _district(s)
     live, _ = await _threat(s, d)
     impact, _ = await _threat(s, d, kind="impact", status="impact")
@@ -88,8 +65,8 @@ async def test_impact_is_absent_from_the_live_map(client):
     assert impact.id not in ids
 
 
-async def test_impact_event_is_absent_from_the_feed(client):
-    c, s = client
+async def test_impact_event_is_absent_from_the_feed(client, session):
+    c, s = client, session
     d = await _district(s)
     live, live_ev = await _threat(s, d)
     _impact, impact_ev = await _threat(s, d, kind="impact", status="impact")
@@ -101,8 +78,8 @@ async def test_impact_event_is_absent_from_the_feed(client):
     assert impact_ev.id not in event_ids
 
 
-async def test_impact_events_cannot_be_fetched_by_threat_id(client):
-    c, s = client
+async def test_impact_events_cannot_be_fetched_by_threat_id(client, session):
+    c, s = client, session
     d = await _district(s)
     live, _ = await _threat(s, d)
     impact, _ = await _threat(s, d, kind="impact", status="impact")
@@ -112,8 +89,8 @@ async def test_impact_events_cannot_be_fetched_by_threat_id(client):
     assert (await c.get(f"/threats/{impact.id}/events")).status_code == 404
 
 
-async def test_incident_publishes_no_impact_count_or_impact_districts(client):
-    _c, s = client
+async def test_incident_publishes_no_impact_count_or_impact_districts(client, session):
+    _c, s = client, session
     hit_only = await _district(s, "Дніпровський", "Dniprovskyi")
     seen = await _district(s, "Оболонський", "Obolonskyi")
     # A one-track shahed attack: notable ONLY because something landed, so the
@@ -145,8 +122,8 @@ async def test_incident_publishes_no_impact_count_or_impact_districts(client):
     assert out.notable
 
 
-async def test_journal_hides_todays_impacts_only_while_the_alert_is_open(client):
-    c, s = client
+async def test_journal_hides_todays_impacts_only_while_the_alert_is_open(client, session):
+    c, s = client, session
     d = await _district(s)
     # Timestamps are stored naive-UTC, but the journal buckets days in
     # Europe/Kyiv — so the day KEYS must be Kyiv dates too. Using the UTC date
@@ -182,7 +159,6 @@ async def test_journal_hides_todays_impacts_only_while_the_alert_is_open(client)
 
 
 async def _token(session, role: str) -> str:
-    settings.auth_jwt_secret = "impact-privacy-secret"
     user = User(email=f"{role}@x.com", role=role, password_hash="x")
     session.add(user)
     await session.commit()
@@ -209,8 +185,8 @@ async def _an_impact(session) -> Threat:
     return th
 
 
-async def test_impact_layer_is_closed_to_everyone_but_vouched_accounts(client):
-    c, s = client
+async def test_impact_layer_is_closed_to_everyone_but_vouched_accounts(client, session):
+    c, s = client, session
     await _an_impact(s)
 
     assert (await c.get("/threats/impacts")).status_code == 401
@@ -226,9 +202,9 @@ async def test_impact_layer_is_closed_to_everyone_but_vouched_accounts(client):
         assert len(r.json()) == 1, role
 
 
-async def test_the_impact_layer_widens_nothing_else(client):
+async def test_the_impact_layer_widens_nothing_else(client, session):
     """An observer is not an admin, and the public map stays public-shaped."""
-    c, s = client
+    c, s = client, session
     await _an_impact(s)
     tok = await _token(s, "observer")
     h = {"Authorization": f"Bearer {tok}"}
@@ -240,8 +216,8 @@ async def test_the_impact_layer_widens_nothing_else(client):
     assert (await c.get("/raw_messages", headers=h)).status_code == 403
 
 
-async def test_a_dismissed_impact_is_not_served_to_the_layer(client):
-    c, s = client
+async def test_a_dismissed_impact_is_not_served_to_the_layer(client, session):
+    c, s = client, session
     th = await _an_impact(s)
     th.closed_reason = "dismissed"
     await s.commit()
@@ -250,8 +226,8 @@ async def test_a_dismissed_impact_is_not_served_to_the_layer(client):
     assert r.status_code == 200 and r.json() == []
 
 
-async def test_the_layer_only_reaches_back_its_window(client):
-    c, s = client
+async def test_the_layer_only_reaches_back_its_window(client, session):
+    c, s = client, session
     th = await _an_impact(s)
     th.created_at = datetime.now(UTC) - timedelta(hours=settings.consequence_layer_hours + 1)
     await s.commit()
@@ -285,8 +261,8 @@ async def _an_aftermath(session) -> AftermathReport:
     return report
 
 
-async def test_aftermath_is_closed_to_everyone_but_vouched_accounts(client):
-    c, s = client
+async def test_aftermath_is_closed_to_everyone_but_vouched_accounts(client, session):
+    c, s = client, session
     await _an_aftermath(s)
 
     assert (await c.get("/aftermath")).status_code == 401
@@ -307,8 +283,8 @@ async def test_aftermath_is_closed_to_everyone_but_vouched_accounts(client):
         assert body[0]["categories"][-1] == "casualties"
 
 
-async def test_a_dismissed_report_is_not_served(client):
-    c, s = client
+async def test_a_dismissed_report_is_not_served(client, session):
+    c, s = client, session
     report = await _an_aftermath(s)
     report.dismissed_at = datetime.now(UTC)
     await s.commit()
@@ -317,8 +293,8 @@ async def test_a_dismissed_report_is_not_served(client):
     assert r.status_code == 200 and r.json() == []
 
 
-async def test_aftermath_only_reaches_back_its_window(client):
-    c, s = client
+async def test_aftermath_only_reaches_back_its_window(client, session):
+    c, s = client, session
     report = await _an_aftermath(s)
     report.reported_at = datetime.now(UTC) - timedelta(
         hours=settings.consequence_layer_hours + 1
@@ -329,7 +305,7 @@ async def test_aftermath_only_reaches_back_its_window(client):
     assert r.status_code == 200 and r.json() == []
 
 
-async def test_the_journal_reports_aftermath_but_not_during_the_raid(client):
+async def test_the_journal_reports_aftermath_but_not_during_the_raid(client, session):
     """The one surface where a consequence reaches everybody — and only after
     the відбій, under the same rule as `impact_count`.
 
@@ -339,7 +315,7 @@ async def test_the_journal_reports_aftermath_but_not_during_the_raid(client):
     counts read 0 while the siren runs. Counts only either way — the journal
     never says which raion burned.
     """
-    c, s = client
+    c, s = client, session
     d = await _district(s)
     now = datetime.now(UTC)
     today, today_key = now.replace(tzinfo=None), now.astimezone(KYIV).date()
@@ -372,10 +348,10 @@ async def test_the_journal_reports_aftermath_but_not_during_the_raid(client):
     assert "aftermath_district_ids" not in today_row
 
 
-async def test_a_dismissed_report_never_reaches_the_journal(client):
+async def test_a_dismissed_report_never_reaches_the_journal(client, session):
     """An admin-cancelled false positive is excluded from every tally, the same
     way a dismissed track and a dismissed impact are."""
-    c, s = client
+    c, s = client, session
     d = await _district(s)
     now = datetime.now(UTC).replace(tzinfo=None)
     s.add(AftermathReport(district_id=d.id, region="kyiv", reported_at=now,

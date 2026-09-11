@@ -2,27 +2,13 @@
 
 from datetime import UTC, datetime, timedelta
 
-import pytest_asyncio
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.config import settings
-from app.db import Base
 from app.domain.axes import AxisSignal, apply_axis_signal, close_stale_axes
 from app.models import ThreatAxis
 
 BASE = datetime(2026, 7, 16, 12, 0, tzinfo=UTC)
-
-
-@pytest_asyncio.fixture
-async def session():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        yield s
-    await engine.dispose()
 
 
 def _sig(when, *, sector="NE", target_type="ballistic", origin_key="bryansk", src="a", raw_id=1):

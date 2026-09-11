@@ -10,31 +10,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-
-from app.db import Base, get_session
-from app.main import app
 from app.models import District, Threat, ThreatEvent
-
-
-@pytest_asyncio.fixture
-async def client(tmp_path):
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        async def _override():
-            yield s
-
-        app.dependency_overrides[get_session] = _override
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as c:
-            yield c, s
-        app.dependency_overrides.clear()
-    await engine.dispose()
 
 
 async def _track(
@@ -70,8 +46,8 @@ async def _track(
     return th
 
 
-async def test_active_threats_publish_the_fade_window(client):
-    c, s = client
+async def test_active_threats_publish_the_fade_window(client, session):
+    c, s = client, session
     await _track(s, minutes_ago=3)
     rows = (await c.get("/threats/active")).json()
     assert len(rows) == 1
@@ -83,7 +59,7 @@ async def test_active_threats_publish_the_fade_window(client):
     assert (stale - seen) == timedelta(minutes=5)
 
 
-async def test_a_followed_track_publishes_the_long_window(client):
+async def test_a_followed_track_publishes_the_long_window(client, session):
     """Both axes of the rule have to survive the trip to the client, not just
     the type one — this is what stops a target a channel is actively walking
     along from fading out between its (legitimately spaced) callouts.
@@ -94,7 +70,7 @@ async def test_a_followed_track_publishes_the_long_window(client):
     to be a jet_drone, which stopped proving anything the day its tracked window
     was brought down to its orphan one.
     """
-    c, s = client
+    c, s = client, session
     await _track(s, target_type="shahed", minutes_ago=1, followed=True)
     row = (await c.get("/threats/active")).json()[0]
     seen = datetime.fromisoformat(row["last_event_at"])
@@ -102,7 +78,7 @@ async def test_a_followed_track_publishes_the_long_window(client):
     assert (stale - seen) == timedelta(minutes=15)
 
 
-async def test_freshness_timestamps_carry_an_explicit_utc_offset(client):
+async def test_freshness_timestamps_carry_an_explicit_utc_offset(client, session):
     """The trap that a window-length assertion can't see.
 
     These two fields are ASSIGNED after model_validate, so ThreatOut's `_as_utc`
@@ -111,7 +87,7 @@ async def test_freshness_timestamps_carry_an_explicit_utc_offset(client):
     client that made a 6-minute-old sighting read as "186 хв тому" (+3 h), while
     the difference between the two fields stayed a correct 20 minutes.
     """
-    c, s = client
+    c, s = client, session
     await _track(s, minutes_ago=3)
     row = (await c.get("/threats/active")).json()[0]
     for field in ("last_event_at", "stale_at"):
@@ -121,8 +97,8 @@ async def test_freshness_timestamps_carry_an_explicit_utc_offset(client):
     assert timedelta(minutes=2) < age < timedelta(minutes=5)
 
 
-async def test_district_ballistic_fades_on_the_shortest_window(client):
-    c, s = client
+async def test_district_ballistic_fades_on_the_shortest_window(client, session):
+    c, s = client, session
     await _track(s, target_type="ballistic", minutes_ago=1)
     row = (await c.get("/threats/active")).json()[0]
     seen = datetime.fromisoformat(row["last_event_at"])
@@ -130,8 +106,8 @@ async def test_district_ballistic_fades_on_the_shortest_window(client):
     assert (stale - seen) == timedelta(minutes=2)
 
 
-async def test_citywide_ballistic_keeps_the_normal_window(client):
-    c, s = client
+async def test_citywide_ballistic_keeps_the_normal_window(client, session):
+    c, s = client, session
     await _track(s, target_type="ballistic", scope="city", minutes_ago=1)
     row = (await c.get("/threats/active")).json()[0]
     seen = datetime.fromisoformat(row["last_event_at"])
@@ -139,8 +115,8 @@ async def test_citywide_ballistic_keeps_the_normal_window(client):
     assert (stale - seen) == timedelta(minutes=20)
 
 
-async def test_feed_rows_omit_freshness_without_touching_lazy_events(client):
-    c, s = client
+async def test_feed_rows_omit_freshness_without_touching_lazy_events(client, session):
+    c, s = client, session
     await _track(s, minutes_ago=1)
     rows = (await c.get("/events/recent")).json()
     assert len(rows) == 1
@@ -148,8 +124,8 @@ async def test_feed_rows_omit_freshness_without_touching_lazy_events(client):
     assert rows[0]["threat"]["stale_at"] is None
 
 
-async def test_health_publishes_the_server_clock(client):
-    c, _ = client
+async def test_health_publishes_the_server_clock(client, session):
+    c, _ = client, session
     body = (await c.get("/health")).json()
     assert "server_time" in body
     # Parseable and sane — this is what the client's clock-skew correction rides on.

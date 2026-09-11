@@ -5,28 +5,14 @@ create Alert rows — never a Threat or Notice, unlike the spotter pipeline).
 
 from datetime import UTC, datetime, timedelta
 
-import pytest_asyncio
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.db import Base
 from app.domain.alerts import AlertSignal, close_stale_alerts
 from app.domain.alerts import apply_alert_signal as _apply_signal
 from app.models import Alert, Notice, RawMessage, Threat
 from app.pipeline.ingest import ingest_alert_message
 
 BASE = datetime(2026, 7, 8, 12, 0, tzinfo=UTC)
-
-
-@pytest_asyncio.fixture
-async def session(tmp_path):
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'a.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        yield s
-    await engine.dispose()
 
 
 async def _count(session, model) -> int:

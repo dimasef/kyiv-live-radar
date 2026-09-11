@@ -7,13 +7,9 @@ SQLite DB.
 
 
 import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.config import settings
-from app.db import Base, get_session
-from app.main import app
 from app.models import District, PushSubscription
 
 SQUARE = {
@@ -25,25 +21,11 @@ SUB = {"endpoint": "https://push.example/abc", "keys": {"p256dh": "k", "auth": "
 
 
 @pytest_asyncio.fixture
-async def ctx(tmp_path):
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        s.add(District(name_uk="Квадратний", name_en="Square", lat=50.5, lon=30.5,
-                       aliases=[], boundary=SQUARE))
-        await s.commit()
-
-        async def _override():
-            yield s
-
-        app.dependency_overrides[get_session] = _override
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            yield client, s
-        app.dependency_overrides.clear()
-    await engine.dispose()
+async def ctx(client, session):
+    session.add(District(name_uk="Квадратний", name_en="Square", lat=50.5, lon=30.5,
+                         aliases=[], boundary=SQUARE))
+    await session.commit()
+    return client, session
 
 
 async def test_subscribe_creates_row_and_resolves_raion(ctx):
@@ -127,7 +109,6 @@ async def test_push_prefs_carry_to_a_new_device(ctx, monkeypatch):
     already expressed a preference somewhere else. The SUBSCRIPTION stays
     per-device (a push endpoint belongs to one browser) — only the prefs move.
     """
-    monkeypatch.setattr(settings, "auth_jwt_secret", "push-prefs-secret")
     client, _s = ctx
     r = await client.post("/auth/register", json={"email": "p@x.com", "password": "password123"})
     auth = {"Authorization": f"Bearer {r.json()['access']}"}

@@ -25,32 +25,16 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-import pytest_asyncio
+import pytest
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.db import Base
-from app.gazetteer import SOURCES
-from app.models import Alert, District, Incident, RawMessage, Source, Threat, utcnow
-from app.parsing import DistrictMatcher
+from app.models import Alert, Incident, RawMessage, Threat, utcnow
 from app.pipeline.ingest import ingest_alert_message, ingest_message
-from tests.conftest import district_rows
 
 
-@pytest_asyncio.fixture
-async def ctx(tmp_path):
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        s.add_all(district_rows())
-        s.add_all(Source(channel_key=x["channel_key"], name=x["name"],
-                         trust_weight=x["trust_weight"]) for x in SOURCES)
-        await s.commit()
-        districts = list(await s.scalars(select(District)))
-        yield s, DistrictMatcher(districts)
-    await engine.dispose()
+@pytest.fixture
+def ctx(seeded_session, standard_matcher):
+    return seeded_session, standard_matcher
 
 
 def _late(minutes: int = 45) -> datetime:

@@ -1,5 +1,6 @@
 import asyncio
 import os
+from functools import lru_cache
 
 # BEFORE app.config is imported (which is what every `import app.*` below does):
 # the local .env carries the real Sentry DSN, so a failing test used to ship its
@@ -19,10 +20,19 @@ os.environ["SENTRY_DSN"] = ""
 os.environ["ANTHROPIC_API_KEY"] = ""
 
 import pytest
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.pool import StaticPool
 
 import app.domain.districts as districts
 import app.pipeline.ingest as ingest
 import app.pipeline.triage as triage
+from app.db import Base, get_session
+from app.gazetteer import SOURCES
+from app.main import app
+from app.models import District, Source
+from app.parsing import DistrictMatcher
 from app.parsing.rules import LlmUsage
 
 
@@ -136,7 +146,7 @@ def district_rows(*extra: dict) -> list:
     the gazetteer so they seed with the same defaults.
     """
     from app.gazetteer import DISTRICTS
-    from app.models import HOME_REGION, District
+    from app.models import HOME_REGION
 
     return [
         District(
@@ -148,11 +158,95 @@ def district_rows(*extra: dict) -> list:
     ]
 
 
-def test_the_suite_cannot_reach_the_anthropic_api():
-    """Load-bearing invariant, not a smoke test: every LLM consumer gates on
-    `settings.anthropic_api_key` being non-empty, so this blank is what stands
-    between the suite and the maintainer's billing. Kept next to the env stub
-    that sets it, so removing one fails here rather than silently at runtime."""
+@pytest.fixture(autouse=True)
+def _safe_jwt_secret(monkeypatch):
+    """PyJWT's `InsecureKeyLengthWarning` fires under 32 bytes for HS256. Give
+    every test a secret that clears it by default; a test that wants its own
+    (to assert on a specific token, say) still overrides it afterward — keep
+    those overrides >=32 bytes too, or the warning is back."""
     from app.config import settings
 
-    assert not settings.anthropic_api_key
+    monkeypatch.setattr(settings, "auth_jwt_secret", "default-test-jwt-secret-32-bytes!")
+
+
+@pytest_asyncio.fixture
+async def db_engine():
+    """Function-scoped in-memory engine, shared by `session`/`client` below.
+
+    `StaticPool` is load-bearing, not a performance tweak: without it, every
+    aiosqlite connection opened against `:memory:` is a SEPARATE empty
+    database, so a session that reconnects mid-test would see no tables.
+    """
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
+        poolclass=StaticPool,
+        connect_args={"check_same_thread": False},
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield engine
+    await engine.dispose()
+
+
+@pytest.fixture
+def db_sessionmaker(db_engine):
+    return async_sessionmaker(db_engine, expire_on_commit=False)
+
+
+@pytest_asyncio.fixture
+async def session(db_sessionmaker):
+    async with db_sessionmaker() as s:
+        yield s
+
+
+@pytest_asyncio.fixture
+async def client(session):
+    """The HTTP client alone. A test that also needs the DB session takes
+    `session` directly rather than unpacking a tuple out of this fixture."""
+
+    async def _override():
+        yield session
+
+    app.dependency_overrides[get_session] = _override
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        yield c
+    app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture
+async def seeded_session(session):
+    """`session` plus the standard gazetteer + source roster, committed —
+    what most `ctx`/`db` fixtures used to hand-roll per file."""
+    session.add_all(district_rows())
+    session.add_all(
+        Source(channel_key=x["channel_key"], name=x["name"],
+               trust_weight=x.get("trust_weight", 1.0), role=x.get("role", "spotter"))
+        for x in SOURCES
+    )
+    await session.commit()
+    return session
+
+
+@lru_cache(maxsize=1)
+def _build_standard_matcher() -> tuple[DistrictMatcher, tuple[int, ...]]:
+    """Built once for the whole run, not per test — compiling the ~723-entry
+    stem regex set measured at ~119ms, the single biggest per-test setup cost.
+    No DB: ids are assigned by hand the way SQLite will (1..N in insertion
+    order), and `test_standard_matcher_ids_match_a_fresh_seed` pins that they
+    agree with a real seed. `DistrictMatcher.__init__` (parsing/matcher.py)
+    only reads id/name/aliases off each row, so transient objects suffice."""
+    rows = district_rows()
+    for i, d in enumerate(rows, start=1):
+        d.id = i
+    return DistrictMatcher(rows), tuple(d.id for d in rows)
+
+
+@pytest.fixture(scope="session")
+def standard_matcher() -> DistrictMatcher:
+    return _build_standard_matcher()[0]
+
+
+@pytest.fixture(scope="session")
+def standard_district_ids() -> tuple[int, ...]:
+    return _build_standard_matcher()[1]

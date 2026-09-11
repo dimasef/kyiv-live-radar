@@ -4,12 +4,9 @@ from datetime import UTC, datetime, timedelta
 
 import pytest_asyncio
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.config import settings
-from app.db import Base
 from app.domain.districts import reset_cache
-from app.gazetteer import SOURCES
 from app.models import (
     District,
     Incident,
@@ -20,28 +17,15 @@ from app.models import (
     ThreatAxis,
     ThreatEvent,
 )
-from app.parsing import DistrictMatcher, parse_message
+from app.parsing import parse_message
 from app.pipeline.ingest import ingest_alert_message, ingest_message
 from app.pipeline.ingest.resolve import in_promo_thread
-from tests.conftest import district_rows
 
 
 @pytest_asyncio.fixture
-async def ctx(tmp_path):
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        s.add_all(district_rows())
-        s.add_all(Source(channel_key=x["channel_key"], name=x["name"],
-                         trust_weight=x["trust_weight"]) for x in SOURCES)
-        await s.commit()
-        districts = list(await s.scalars(select(District)))
-        sources = list(await s.scalars(select(Source)))
-        matcher = DistrictMatcher(districts)
-        yield s, matcher, sources
-    await engine.dispose()
+async def ctx(seeded_session, standard_matcher):
+    sources = list(await seeded_session.scalars(select(Source)))
+    return seeded_session, standard_matcher, sources
 
 
 BASE = datetime(2026, 7, 8, 12, 0, tzinfo=UTC)

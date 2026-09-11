@@ -2,36 +2,17 @@
 monkeypatched — never hits Google."""
 from __future__ import annotations
 
-import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
+import pytest
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import app.api.auth_routes as auth_routes
 from app.config import settings
-from app.db import Base, get_session
-from app.main import app
 from app.models import OAuthIdentity
 
 
-@pytest_asyncio.fixture
-async def client(tmp_path, monkeypatch):
-    monkeypatch.setattr(settings, "auth_jwt_secret", "google-test-secret")
+@pytest.fixture(autouse=True)
+def _google_client_id(monkeypatch):
     monkeypatch.setattr(settings, "google_client_id", "test-client-id")
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        async def _override():
-            yield s
-
-        app.dependency_overrides[get_session] = _override
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as c:
-            yield c, s
-        app.dependency_overrides.clear()
-    await engine.dispose()
 
 
 def _patch_profile(monkeypatch, profile):
@@ -41,8 +22,8 @@ def _patch_profile(monkeypatch, profile):
     monkeypatch.setattr(auth_routes, "verify_google_id_token", _fake)
 
 
-async def test_google_creates_user_and_is_idempotent(client, monkeypatch):
-    c, s = client
+async def test_google_creates_user_and_is_idempotent(client, session, monkeypatch):
+    c, s = client, session
     _patch_profile(monkeypatch, {
         "sub": "g-1", "email": "person@gmail.com", "email_verified": True,
         "name": "Person", "picture": "http://pic",
@@ -61,8 +42,8 @@ async def test_google_creates_user_and_is_idempotent(client, monkeypatch):
     assert count == 1
 
 
-async def test_google_links_to_existing_email_account(client, monkeypatch):
-    c, _ = client
+async def test_google_links_to_existing_email_account(client, session, monkeypatch):
+    c, _ = client, session
     # Pre-existing password account with the same email.
     r = await c.post("/auth/register", json={"email": "dup@gmail.com", "password": "password123"})
     uid = r.json()["user"]["id"]
@@ -77,8 +58,8 @@ async def test_google_links_to_existing_email_account(client, monkeypatch):
     assert set(r.json()["user"]["providers"]) == {"password", "google"}
 
 
-async def test_google_unverified_email_rejected(client, monkeypatch):
-    c, _ = client
+async def test_google_unverified_email_rejected(client, session, monkeypatch):
+    c, _ = client, session
     _patch_profile(monkeypatch, {
         "sub": "g-3", "email": "x@gmail.com", "email_verified": False,
         "name": "X", "picture": None,

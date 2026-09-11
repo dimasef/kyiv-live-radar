@@ -10,7 +10,7 @@ from app.models import User
 
 @pytest.fixture(autouse=True)
 def _secret(monkeypatch):
-    monkeypatch.setattr(settings, "auth_jwt_secret", "unit-test-secret")
+    monkeypatch.setattr(settings, "auth_jwt_secret", "unit-test-secret" * 2)
 
 
 def test_password_hash_roundtrip():

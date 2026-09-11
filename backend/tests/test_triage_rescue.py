@@ -3,38 +3,23 @@ the riskiest consumer, so every gate gets a test."""
 
 from datetime import UTC, timedelta
 
-import pytest_asyncio
+import pytest
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.config import settings
-from app.db import Base
-from app.gazetteer import SOURCES
-from app.models import District, Notice, RawMessage, Source, Threat, ThreatEvent, utcnow
-from app.parsing import DistrictMatcher
+from app.models import Notice, RawMessage, Threat, ThreatEvent, utcnow
 from app.pipeline.triage import TriageJob, route_verdict
-from tests.conftest import district_rows, make_verdict
+from tests.conftest import make_verdict
 
 
-@pytest_asyncio.fixture
-async def ctx(monkeypatch):
+@pytest.fixture
+def ctx(seeded_session, standard_matcher, monkeypatch):
     # Rescue only exists when the prompt carries the gazetteer — without it no
     # district id can come back and a `localized` verdict is a coverage gap, not
     # a rescue (see triage._route_rescue). This whole file is about that path.
     monkeypatch.setattr(settings, "llm_localize_enabled", True)
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        s.add_all(district_rows())
-        s.add_all(Source(channel_key=x["channel_key"], name=x["name"],
-                         trust_weight=x["trust_weight"]) for x in SOURCES)
-        await s.commit()
-        matcher = DistrictMatcher(list(await s.scalars(select(District))))
-        did = matcher.districts_index[0][0]  # a real, non-sentinel district id
-        yield s, matcher, did
-    await engine.dispose()
+    did = standard_matcher.districts_index[0][0]  # a real, non-sentinel district id
+    return seeded_session, standard_matcher, did
 
 
 async def _raw_job(session, text, did, when, source_id=1, message_id=100):

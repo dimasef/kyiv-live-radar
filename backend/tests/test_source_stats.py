@@ -4,12 +4,9 @@ aggregation, no HTTP. Verifies each metric and that pre-column history
 from __future__ import annotations
 
 import pytest
-import pytest_asyncio
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.api.source_stats import compute_source_stats
-from app.db import Base
 from app.models import (
     District,
     ParserCorrection,
@@ -20,13 +17,9 @@ from app.models import (
 )
 
 
-@pytest_asyncio.fixture
-async def Session(tmp_path):
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'s.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield async_sessionmaker(engine, expire_on_commit=False)
-    await engine.dispose()
+@pytest.fixture
+def Session(db_sessionmaker):
+    return db_sessionmaker
 
 
 async def _seed(Session) -> int:

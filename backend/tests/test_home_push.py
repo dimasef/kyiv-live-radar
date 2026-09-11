@@ -12,10 +12,8 @@ from datetime import UTC, datetime, timedelta
 import pytest
 import pytest_asyncio
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.config import settings
-from app.db import Base
 from app.models import District, Notice, PushSubscription, Source, Threat, ThreatEvent
 from app.pipeline import home_push
 from app.pipeline.home_push import evaluate_home_danger, evaluate_regional_ballistic
@@ -34,7 +32,7 @@ def _latlon(km_south: float, km_east: float = 0.0) -> tuple[float, float]:
 
 
 @pytest_asyncio.fixture
-async def ctx(tmp_path, monkeypatch):
+async def ctx(session, monkeypatch):
     monkeypatch.setattr(settings, "vapid_public_key", "test-pub")
     monkeypatch.setattr(settings, "vapid_private_key", "test-priv")
     # The fixtures place sightings at BASE + 0..8 min; "now" for the per-source
@@ -42,19 +40,13 @@ async def ctx(tmp_path, monkeypatch):
     # present — `_add_event` advances this clock.
     _CLOCK["now"] = BASE
     monkeypatch.setattr(home_push, "utcnow", lambda: _CLOCK["now"])
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        sub = PushSubscription(
-            endpoint="https://push.example/abc", p256dh="k", auth="a",
-            home_lat=HOME_LAT, home_lon=HOME_LON, home_radius_km=3.0,
-        )
-        s.add(sub)
-        await s.commit()
-        yield s, sub
-    await engine.dispose()
+    sub = PushSubscription(
+        endpoint="https://push.example/abc", p256dh="k", auth="a",
+        home_lat=HOME_LAT, home_lon=HOME_LON, home_radius_km=3.0,
+    )
+    session.add(sub)
+    await session.commit()
+    return session, sub
 
 
 @pytest.fixture

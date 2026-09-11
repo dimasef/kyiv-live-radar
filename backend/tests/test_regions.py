@@ -16,13 +16,9 @@ gazetteer is later reshuffled.
 from datetime import UTC, datetime, timedelta
 
 import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.db import Base, get_session
 from app.gazetteer import DISTRICTS, SOURCES
-from app.main import app
 from app.models import District, Incident, Source, Threat
 from app.parsing import DistrictMatcher, normalize
 from app.pipeline.ingest import ingest_alert_message, ingest_message
@@ -36,28 +32,15 @@ NIZHYN = {"name_uk": "Ніжин", "name_en": "Nizhyn", "lat": 51.048, "lon": 31
 
 
 @pytest_asyncio.fixture
-async def ctx(tmp_path):
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'r.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        s.add_all(district_rows(NIZHYN))
-        s.add_all(Source(channel_key=x["channel_key"], name=x["name"],
-                         trust_weight=x["trust_weight"]) for x in SOURCES)
-        s.add(Source(channel_key="north_watch", name="Північ", region="chernihiv"))
-        await s.commit()
-        matcher = DistrictMatcher(list(await s.scalars(select(District))))
-        sources = list(await s.scalars(select(Source)))
-        async def _override():
-            yield s
-
-        app.dependency_overrides[get_session] = _override
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            yield s, matcher, sources, client
-        app.dependency_overrides.clear()
-    await engine.dispose()
+async def ctx(session, client):
+    session.add_all(district_rows(NIZHYN))
+    session.add_all(Source(channel_key=x["channel_key"], name=x["name"],
+                     trust_weight=x["trust_weight"]) for x in SOURCES)
+    session.add(Source(channel_key="north_watch", name="Північ", region="chernihiv"))
+    await session.commit()
+    matcher = DistrictMatcher(list(await session.scalars(select(District))))
+    sources = list(await session.scalars(select(Source)))
+    return session, matcher, sources, client
 
 
 async def _tracks(s) -> list[Threat]:

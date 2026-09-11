@@ -11,11 +11,8 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
-import pytest_asyncio
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.db import Base
 from app.domain.alert_zones import ZONE_BY_ID, ZoneState
 from app.domain.zone_alerts import (
     MAX_BACKDATE_HOURS,
@@ -179,15 +176,10 @@ def test_an_absurdly_old_timestamp_is_clamped():
 
 # --- persist_once: reconciliation against the DB ---
 
-@pytest_asyncio.fixture
-async def db(tmp_path, monkeypatch):
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'z.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    monkeypatch.setattr(az, "SessionLocal", Session)
-    yield Session
-    await engine.dispose()
+@pytest.fixture
+def db(db_sessionmaker, monkeypatch):
+    monkeypatch.setattr(az, "SessionLocal", db_sessionmaker)
+    return db_sessionmaker
 
 
 @pytest.fixture(autouse=True)

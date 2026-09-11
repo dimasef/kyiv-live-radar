@@ -6,32 +6,8 @@ looking at the map.
 """
 from __future__ import annotations
 
-import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-
 from app.api.public.sources import public_channel_url
-from app.db import Base, get_session
-from app.main import app
 from app.models import Source
-
-
-@pytest_asyncio.fixture
-async def client(tmp_path):
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        async def _override():
-            yield s
-
-        app.dependency_overrides[get_session] = _override
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as c:
-            yield c, s
-        app.dependency_overrides.clear()
-    await engine.dispose()
 
 
 def test_only_a_public_username_becomes_a_link():
@@ -47,8 +23,8 @@ def test_only_a_public_username_becomes_a_link():
     assert public_channel_url("abcd") is None
 
 
-async def test_lists_active_channels_spotters_first(client):
-    c, s = client
+async def test_lists_active_channels_spotters_first(client, session):
+    c, s = client, session
     s.add_all([
         Source(channel_key="KyivCityOfficial", name="КМДА", role="alert", region="kyiv"),
         Source(channel_key="kyiv_nebo", name="Київське небо", role="spotter", region="kyiv"),
@@ -63,17 +39,17 @@ async def test_lists_active_channels_spotters_first(client):
     assert rows[2]["role"] == "alert"
 
 
-async def test_an_archived_channel_is_not_credited(client):
+async def test_an_archived_channel_is_not_credited(client, session):
     """We are not standing on it any more — listing it would credit it for data
     it no longer provides."""
-    c, s = client
+    c, s = client, session
     s.add(Source(channel_key="ppo_kiev", name="ППО", role="spotter", is_active=False))
     await s.commit()
     assert (await c.get("/sources")).json() == []
 
 
-async def test_a_private_channel_is_named_but_not_linked(client):
-    c, s = client
+async def test_a_private_channel_is_named_but_not_linked(client, session):
+    c, s = client, session
     s.add(Source(channel_key="+SecretInvite1", name="Закритий канал", role="spotter"))
     await s.commit()
     rows = (await c.get("/sources")).json()
@@ -81,11 +57,11 @@ async def test_a_private_channel_is_named_but_not_linked(client):
     assert rows[0]["url"] is None
 
 
-async def test_our_own_channel_is_not_credited_as_a_source(client):
+async def test_our_own_channel_is_not_credited_as_a_source(client, session):
     """It ingests like any other channel, but the block exists to point at the
     volunteer channels the map stands on — crediting ourselves there is a link
     back to the page the reader already has open."""
-    c, s = client
+    c, s = client, session
     s.add_all([
         Source(channel_key="kyiv_live_radar", name="Kyiv Live Radar", role="spotter"),
         Source(channel_key="kyiv_nebo", name="Київське небо", role="spotter"),
@@ -95,10 +71,10 @@ async def test_our_own_channel_is_not_credited_as_a_source(client):
     assert [r["name"] for r in rows] == ["Київське небо"]
 
 
-async def test_the_public_list_never_carries_trust_weight(client):
+async def test_the_public_list_never_carries_trust_weight(client, session):
     """It is an internal fusion knob; published, it reads as our public rating of
     a volunteer channel."""
-    c, s = client
+    c, s = client, session
     s.add(Source(channel_key="kyiv_nebo", name="Київське небо", trust_weight=0.3))
     await s.commit()
     rows = (await c.get("/sources")).json()

@@ -9,38 +9,23 @@ is inert, and that a stored verdict replays for free.
 from datetime import timedelta
 
 import pytest
-import pytest_asyncio
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.config import settings
-from app.db import Base
-from app.gazetteer import DISTRICTS, SOURCES
-from app.models import District, RawMessage, Source, Threat, ThreatEvent, utcnow
+from app.gazetteer import DISTRICTS
+from app.models import RawMessage, Source, Threat, ThreatEvent, utcnow
 from app.parsing import DistrictMatcher, parse_message
 from app.parsing.rules import LlmUsage
 from app.parsing.type_llm import TypeVerdict, normalize_type_verdict
 from app.pipeline.ingest import ingest_message
 from app.pipeline.ingest.type_context import build_type_context, wants_llm_type
-from tests.conftest import district_rows
 
 M = DistrictMatcher([{"id": i + 1, **d} for i, d in enumerate(DISTRICTS)])
 
 
-@pytest_asyncio.fixture
-async def db():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        s.add_all(district_rows())
-        s.add_all(Source(channel_key=x["channel_key"], name=x["name"],
-                         trust_weight=x["trust_weight"]) for x in SOURCES)
-        await s.commit()
-        matcher = DistrictMatcher(list(await s.scalars(select(District))))
-        yield s, matcher
-    await engine.dispose()
+@pytest.fixture
+def db(seeded_session, standard_matcher):
+    return seeded_session, standard_matcher
 
 
 @pytest.fixture

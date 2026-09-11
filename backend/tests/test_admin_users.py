@@ -11,39 +11,21 @@ from itertools import count
 
 import pytest
 import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.auth.security import encode_access, hash_password
 from app.auth.service import role_source_for
 from app.config import settings
-from app.db import Base, get_session
-from app.main import app
 from app.models import OAuthIdentity, User
 
 
 @pytest_asyncio.fixture
-async def env(tmp_path, monkeypatch):
-    monkeypatch.setattr(settings, "auth_jwt_secret", "users-test-secret")
+async def env(client, session, monkeypatch):
     # Empty by default so a stray real allowlist can't make a seeded user an
     # 'allowlist' admin behind the provenance assertions.
     monkeypatch.setattr(settings, "admin_emails", "")
     monkeypatch.setattr(settings, "admin_telegram_ids", "")
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        async def _override():
-            yield s
-
-        app.dependency_overrides[get_session] = _override
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as c:
-            yield c, s
-        app.dependency_overrides.clear()
-    await engine.dispose()
+    return client, session
 
 
 _seq = count(1)

@@ -5,41 +5,19 @@ from __future__ import annotations
 from datetime import timedelta
 
 import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.config import settings
-from app.db import Base, get_session
-from app.main import app
 from app.models import User, utcnow
 from app.timeutil import naive
 
 
 @pytest_asyncio.fixture
-async def env(tmp_path, monkeypatch):
+async def env(client, session):
     """(client, session) — the session is the SAME one the app uses, so a test
     can set up state the API has no endpoint for (e.g. an old last_seen_at)."""
-    monkeypatch.setattr(settings, "auth_jwt_secret", "api-test-secret")
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        async def _override():
-            yield s
-
-        app.dependency_overrides[get_session] = _override
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as c:
-            yield c, s
-        app.dependency_overrides.clear()
-    await engine.dispose()
-
-
-@pytest_asyncio.fixture
-async def client(env):
-    return env[0]
+    return client, session
 
 
 async def _register(c: AsyncClient, email: str) -> str:

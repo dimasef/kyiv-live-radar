@@ -11,30 +11,23 @@ from datetime import UTC, datetime
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import app.pipeline.reprocess as reprocess
 from app.auth.security import encode_access
-from app.config import settings
-from app.db import Base, get_session
+from app.db import get_session
 from app.main import app
 from app.models import District, Incident, RawMessage, Source, Threat, ThreatEvent, User
 
 
 @pytest_asyncio.fixture
-async def client(tmp_path, monkeypatch):
-    monkeypatch.setattr(settings, "auth_jwt_secret", "reproc-secret")
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
+async def client(db_sessionmaker, monkeypatch):
     # The endpoints read/rebuild via reprocess.SessionLocal — wire it to the test DB.
-    monkeypatch.setattr(reprocess, "SessionLocal", Session)
+    monkeypatch.setattr(reprocess, "SessionLocal", db_sessionmaker)
 
     # A stub reprocess: simulate a wipe (drop all threats) so the before/after
     # diff has something to show, without running the real global-touching one.
     async def fake_run_reprocess(no_llm: bool = True, last: int | None = None):
-        async with Session() as s:
+        async with db_sessionmaker() as s:
             await s.execute(delete(ThreatEvent))
             await s.execute(delete(Threat))
             await s.commit()
@@ -43,15 +36,14 @@ async def client(tmp_path, monkeypatch):
     monkeypatch.setattr(reprocess, "run_reprocess", fake_run_reprocess)
 
     async def _override():
-        async with Session() as s:
+        async with db_sessionmaker() as s:
             yield s
 
     app.dependency_overrides[get_session] = _override
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
-        yield c, Session
+        yield c, db_sessionmaker
     app.dependency_overrides.clear()
-    await engine.dispose()
 
 
 async def _admin_headers(Session) -> dict:

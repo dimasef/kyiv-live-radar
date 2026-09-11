@@ -6,15 +6,9 @@ source_message_id) so `_raw_for_event` resolves — that linkage is what makes t
 correction land."""
 from __future__ import annotations
 
-import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.auth.security import encode_access
-from app.config import settings
-from app.db import Base, get_session
-from app.main import app
 from app.models import (
     District,
     ParserCorrection,
@@ -24,25 +18,6 @@ from app.models import (
     ThreatEvent,
     User,
 )
-
-
-@pytest_asyncio.fixture
-async def client(tmp_path, monkeypatch):
-    monkeypatch.setattr(settings, "auth_jwt_secret", "corrections-secret")
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        async def _override():
-            yield s
-
-        app.dependency_overrides[get_session] = _override
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as c:
-            yield c, s
-        app.dependency_overrides.clear()
-    await engine.dispose()
 
 
 async def _admin_headers(session) -> dict:
@@ -76,8 +51,8 @@ async def _corrections(session) -> list[ParserCorrection]:
     return list(await session.scalars(select(ParserCorrection).order_by(ParserCorrection.id)))
 
 
-async def test_dismiss_records_false_positive(client):
-    c, s = client
+async def test_dismiss_records_false_positive(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     _, raw, threat, _ = await _setup(s)
 
@@ -91,8 +66,8 @@ async def test_dismiss_records_false_positive(client):
     assert rows[0].text == raw.text
 
 
-async def test_restore_removes_false_positive(client):
-    c, s = client
+async def test_restore_removes_false_positive(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     _, _, threat, _ = await _setup(s)
 
@@ -101,8 +76,8 @@ async def test_restore_removes_false_positive(client):
     assert await _corrections(s) == []
 
 
-async def test_dismiss_dedupes(client):
-    c, s = client
+async def test_dismiss_dedupes(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     _, _, threat, _ = await _setup(s)
 
@@ -113,8 +88,8 @@ async def test_dismiss_dedupes(client):
     assert len(rows) == 1  # upsert on (raw_message_id, kind), never duplicated
 
 
-async def test_retype_records_correction(client):
-    c, s = client
+async def test_retype_records_correction(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     _, raw, threat, _ = await _setup(s, target_type="shahed")
 
@@ -128,8 +103,8 @@ async def test_retype_records_correction(client):
     assert rows[0].expected == {"target_type": "ballistic"}
 
 
-async def test_move_event_records_relocate(client):
-    c, s = client
+async def test_move_event_records_relocate(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     _, _, _, ev = await _setup(s)
     d2 = District(name_uk="Позняки", name_en="Pozniaky", lat=50.4, lon=30.6)
@@ -144,8 +119,8 @@ async def test_move_event_records_relocate(client):
     assert rows[0].expected == {"district_id": d2.id, "district_en": "Pozniaky"}
 
 
-async def test_delete_event_records_false_positive(client):
-    c, s = client
+async def test_delete_event_records_false_positive(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     _, raw, _, ev = await _setup(s)
 
@@ -157,8 +132,8 @@ async def test_delete_event_records_false_positive(client):
     assert rows[0].raw_message_id == raw.id
 
 
-async def test_admin_corrections_endpoint(client):
-    c, s = client
+async def test_admin_corrections_endpoint(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     _, raw, threat, _ = await _setup(s)
     await c.post(f"/admin/threats/{threat.id}/dismiss", headers=headers)
@@ -170,8 +145,8 @@ async def test_admin_corrections_endpoint(client):
     assert all("resolved" in row for row in rows)
 
 
-async def test_coverage_gaps(client):
-    c, s = client
+async def test_coverage_gaps(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     d = District(name_uk="Троєщина", name_en="Troieshchyna", lat=50.5, lon=30.6)
     src = Source(channel_key="s1", name="S1")
@@ -230,12 +205,12 @@ def test_corrections_eval_check():
     assert agrees is True
 
 
-async def test_channel_signature_never_ranks_as_a_place(client):
+async def test_channel_signature_never_ranks_as_a_place(client, session):
     """A footer repeats mechanically, so on a list ranked by FREQUENCY it beats
     every real village. Live on 2026-08-30 «Підписатись | Відправити новину»
     held three of the queue's top six rows while Володимирівка — eight real
     callouts in the same window — was nowhere on it."""
-    c, s = client
+    c, s = client, session
     headers = await _admin_headers(s)
     src = Source(channel_key="s-sig", name="Sig")
     s.add(src)
@@ -254,11 +229,11 @@ async def test_channel_signature_never_ranks_as_a_place(client):
         assert footer_word not in names
 
 
-async def test_a_word_only_counts_where_a_place_stands(client):
+async def test_a_word_only_counts_where_a_place_stands(client, session):
     """A long post contributes every noun it contains, which is what buried the
     ranking. The four positions in `_place_positions` are what a callout uses —
     including being the whole short message, the northern channels' own form."""
-    c, s = client
+    c, s = client, session
     headers = await _admin_headers(s)
     src = Source(channel_key="s-pos", name="Pos")
     s.add(src)
@@ -282,11 +257,11 @@ async def test_a_word_only_counts_where_a_place_stands(client):
     assert "неймовірно" not in names
 
 
-async def test_operator_can_rule_a_candidate_out_and_put_it_back(client):
+async def test_operator_can_rule_a_candidate_out_and_put_it_back(client, session):
     """The queue's word lists live in code because each is a decision with a
     failure mode; this is their operator-editable half — one exact word, no
     deploy, and reversible."""
-    c, s = client
+    c, s = client, session
     headers = await _admin_headers(s)
     src = Source(channel_key="s-dis", name="Dis")
     s.add(src)

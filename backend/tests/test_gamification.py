@@ -8,13 +8,9 @@ from datetime import UTC
 
 import pytest
 import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from httpx import AsyncClient
 
-from app.config import settings
-from app.db import Base, get_session
 from app.domain.cards import CARD_COUNT, CARD_RARITY, draw_card
-from app.main import app
 from app.models import Threat
 
 
@@ -30,22 +26,8 @@ def test_draw_card_is_weighted_by_rarity():
 
 
 @pytest_asyncio.fixture
-async def env(tmp_path, monkeypatch):
-    monkeypatch.setattr(settings, "auth_jwt_secret", "api-test-secret")
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        async def _override():
-            yield s
-
-        app.dependency_overrides[get_session] = _override
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as c:
-            yield c, s
-        app.dependency_overrides.clear()
-    await engine.dispose()
+async def env(client, session):
+    return client, session
 
 
 async def _register(c: AsyncClient, email: str) -> dict:

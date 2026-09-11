@@ -10,10 +10,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest_asyncio
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.api.raw_query import apply_raw_filters, serialize_raw_rows
-from app.db import Base
 from app.models import (
     AftermathReport,
     District,
@@ -26,16 +24,10 @@ from app.models import (
 
 
 @pytest_asyncio.fixture
-async def session(tmp_path):
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        s.add(District(name_uk="Оболонський", name_en="Obolonskyi", lat=50.5, lon=30.5))
-        await s.commit()
-        yield s
-    await engine.dispose()
+async def session(session):
+    session.add(District(name_uk="Оболонський", name_en="Obolonskyi", lat=50.5, lon=30.5))
+    await session.commit()
+    return session
 
 
 async def _spotter(session) -> Source:

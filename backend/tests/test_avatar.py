@@ -8,14 +8,9 @@ from __future__ import annotations
 import base64
 
 import pytest
-import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from httpx import AsyncClient
 
 from app.auth.avatar import MAX_AVATAR_CHARS, AvatarError, validate_avatar_data_url
-from app.config import settings
-from app.db import Base, get_session
-from app.main import app
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 JPEG = b"\xff\xd8\xff" + b"\x00" * 32
@@ -24,25 +19,6 @@ WEBP = b"RIFF" + b"\x00" * 4 + b"WEBP" + b"\x00" * 24
 
 def _data_url(mime: str, raw: bytes) -> str:
     return f"data:{mime};base64,{base64.b64encode(raw).decode()}"
-
-
-@pytest_asyncio.fixture
-async def client(tmp_path, monkeypatch):
-    monkeypatch.setattr(settings, "auth_jwt_secret", "avatar-test-secret")
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        async def _override():
-            yield s
-
-        app.dependency_overrides[get_session] = _override
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as c:
-            yield c
-        app.dependency_overrides.clear()
-    await engine.dispose()
 
 
 async def _auth(c: AsyncClient, email: str = "av@x.com") -> dict:

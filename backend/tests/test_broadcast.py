@@ -9,25 +9,17 @@ once.
 
 from __future__ import annotations
 
-import pytest_asyncio
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+import pytest
 
-from app.db import Base
 from app.models import District, Threat, ThreatEvent
 from app.pipeline import broadcast as broadcast_mod
 from app.pipeline.broadcast import broadcast_results
 from app.pipeline.results import Broadcast
 
 
-@pytest_asyncio.fixture
-async def db(tmp_path):
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'b.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        yield s
-    await engine.dispose()
+@pytest.fixture
+def db(session):
+    return session
 
 
 async def _track_over(session, names: list[str]) -> tuple[Threat, list[ThreatEvent]]:

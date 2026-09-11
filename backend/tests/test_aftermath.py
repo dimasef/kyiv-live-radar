@@ -12,28 +12,23 @@ from __future__ import annotations
 from datetime import timedelta
 
 import pytest
-import pytest_asyncio
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import selectinload
 
 from app.api.serialize import incident_out
-from app.db import Base
 from app.domain.aftermath import categorize, read_aftermath
-from app.gazetteer import DISTRICTS, SOURCES
+from app.gazetteer import DISTRICTS
 from app.models import (
     AFTERMATH_CATEGORIES,
     AftermathReport,
     District,
     Incident,
     Notice,
-    Source,
     Threat,
     utcnow,
 )
 from app.parsing import DistrictMatcher, normalize, parse_message
 from app.pipeline.ingest import ingest_message
-from tests.conftest import district_rows
 
 
 @pytest.fixture(scope="module")
@@ -202,20 +197,9 @@ def test_a_standby_raion_is_not_where_something_happened(M):
 # the message's ROUTING is unchanged by it.
 
 
-@pytest_asyncio.fixture
-async def ctx(tmp_path):
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        s.add_all(district_rows())
-        s.add_all(Source(channel_key=x["channel_key"], name=x["name"],
-                         trust_weight=x["trust_weight"]) for x in SOURCES)
-        await s.commit()
-        districts = list(await s.scalars(select(District)))
-        yield s, DistrictMatcher(districts)
-    await engine.dispose()
+@pytest.fixture
+def ctx(seeded_session, standard_matcher):
+    return seeded_session, standard_matcher
 
 
 async def _reports(s) -> list[AftermathReport]:

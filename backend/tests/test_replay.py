@@ -5,30 +5,18 @@ the pipeline accepts it end-to-end for a handful of messages."""
 from datetime import datetime
 
 import pytest_asyncio
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.db import Base
 from app.feeds.replay import _CHANNELS, _load_messages
-from app.models import District, Source
-from app.parsing import DistrictMatcher
+from app.models import Source
 from app.pipeline.ingest import ingest_message
 from tests.conftest import district_rows
 
 
 @pytest_asyncio.fixture
-async def ctx(tmp_path):
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        s.add_all(district_rows())
-        await s.commit()
-        districts = list(await s.scalars(select(District)))
-        matcher = DistrictMatcher(districts)
-        yield s, matcher
-    await engine.dispose()
+async def ctx(session, standard_matcher):
+    session.add_all(district_rows())
+    await session.commit()
+    return session, standard_matcher
 
 
 def test_dataset_loads_and_is_well_formed():

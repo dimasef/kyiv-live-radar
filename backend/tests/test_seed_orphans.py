@@ -11,24 +11,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-import pytest_asyncio
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.db import Base
 from app.models import District, Threat, ThreatEvent
 from app.seed import _retire_orphan_districts
-
-
-@pytest_asyncio.fixture
-async def session(tmp_path):
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        yield s
-    await engine.dispose()
 
 
 async def _orphan(session, name_en: str = "Ghost") -> District:

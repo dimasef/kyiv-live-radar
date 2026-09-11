@@ -4,16 +4,10 @@ override tools. Verifies the write happened AND that a dismissed entity drops
 out of the live views (/threats/active, /incidents/active, journal)."""
 from __future__ import annotations
 
-import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import app.pipeline.ingest as ingest
 from app.auth.security import encode_access
-from app.config import settings
-from app.db import Base, get_session
-from app.main import app
 from app.models import (
     Alert,
     District,
@@ -28,25 +22,6 @@ from app.models import (
 )
 from app.parsing.rules import ParseResult
 from app.pipeline.ingest.context import _apply_update
-
-
-@pytest_asyncio.fixture
-async def client(tmp_path, monkeypatch):
-    monkeypatch.setattr(settings, "auth_jwt_secret", "admin-actions-secret")
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    Session = async_sessionmaker(engine, expire_on_commit=False)
-    async with Session() as s:
-        async def _override():
-            yield s
-
-        app.dependency_overrides[get_session] = _override
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as c:
-            yield c, s
-        app.dependency_overrides.clear()
-    await engine.dispose()
 
 
 async def _admin_headers(session) -> dict:
@@ -92,8 +67,8 @@ async def _active_ids(c, headers) -> set[int]:
     return {t["id"] for t in r.json()}
 
 
-async def test_dismiss_and_restore_threat(client):
-    c, s = client
+async def test_dismiss_and_restore_threat(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     threat, _ = await _threat_with_event(s, d)
@@ -110,8 +85,8 @@ async def test_dismiss_and_restore_threat(client):
     assert threat.id in await _active_ids(c, headers)
 
 
-async def test_dismiss_excludes_threat_from_journal(client):
-    c, s = client
+async def test_dismiss_excludes_threat_from_journal(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     threat, _ = await _threat_with_event(s, d)
@@ -127,8 +102,8 @@ async def test_dismiss_excludes_threat_from_journal(client):
     assert total_tracks(after) == 0
 
 
-async def test_retype_updates_incident(client):
-    c, s = client
+async def test_retype_updates_incident(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     inc = Incident(target_type="shahed", attack_types=["shahed"])
@@ -148,11 +123,11 @@ async def test_retype_updates_incident(client):
     assert refreshed.attack_types == ["ballistic"]
 
 
-async def test_recount_threat_latches_against_the_parser(client):
+async def test_recount_threat_latches_against_the_parser(client, session):
     """The whole point of the override: the pipeline grows target_count as a
     running max, so a correction that didn't latch would be undone by the next
     spotter restating a bigger group."""
-    c, s = client
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     threat, _ = await _threat_with_event(s, d)
@@ -170,8 +145,8 @@ async def test_recount_threat_latches_against_the_parser(client):
     assert threat.target_count == 2
 
 
-async def test_recount_null_hands_the_count_back_to_the_sightings(client):
-    c, s = client
+async def test_recount_null_hands_the_count_back_to_the_sightings(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     threat, ev = await _threat_with_event(s, d)
@@ -192,8 +167,8 @@ async def test_recount_null_hands_the_count_back_to_the_sightings(client):
     assert threat.target_count == 6
 
 
-async def test_recount_rejects_a_nonsense_count(client):
-    c, s = client
+async def test_recount_rejects_a_nonsense_count(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     threat, _ = await _threat_with_event(s, d)
@@ -210,13 +185,13 @@ async def test_recount_rejects_a_nonsense_count(client):
     ).status_code == 404
 
 
-async def test_retype_of_an_open_track_becomes_the_channel_type_context(client):
+async def test_retype_of_an_open_track_becomes_the_channel_type_context(client, session):
     """An operator correcting a LIVE track is the strongest type signal there is,
     and it used to stop at the track. 2026-08-23: a retype to jet_drone at
     18:50:12.7 was followed 5.7 s later by a classifier call answering `shahed`,
     which then became the channel context — a machine guess seeded it, the human
     correction did not."""
-    c, s = client
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     threat, _ = await _threat_with_event(s, d, target_type="unknown", source_id=7)
@@ -230,11 +205,11 @@ async def test_retype_of_an_open_track_becomes_the_channel_type_context(client):
     assert not ctx.inferred      # stated by a human, not read off the feed
 
 
-async def test_retype_of_a_closed_track_leaves_the_live_context_alone(client):
+async def test_retype_of_a_closed_track_leaves_the_live_context_alone(client, session):
     """Retyping a CLOSED track is a history correction. Injecting its type into
     the live context would be the same poisoning every other rule in
     ingest/context.py exists to prevent."""
-    c, s = client
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     threat, _ = await _threat_with_event(
@@ -248,8 +223,8 @@ async def test_retype_of_a_closed_track_leaves_the_live_context_alone(client):
     assert 7 not in ingest._recent_type
 
 
-async def test_retype_rejects_unknown_type(client):
-    c, s = client
+async def test_retype_rejects_unknown_type(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     threat, _ = await _threat_with_event(s, d)
@@ -259,8 +234,8 @@ async def test_retype_rejects_unknown_type(client):
     assert r.status_code == 422
 
 
-async def test_dismiss_incident_cancels_member_tracks(client):
-    c, s = client
+async def test_dismiss_incident_cancels_member_tracks(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     inc = Incident(target_type="shahed", attack_types=["shahed"])
@@ -289,8 +264,8 @@ async def test_dismiss_incident_cancels_member_tracks(client):
     assert threat.id in await _active_ids(c, headers)
 
 
-async def test_delete_last_event_dismisses_track(client):
-    c, s = client
+async def test_delete_last_event_dismisses_track(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     threat, ev = await _threat_with_event(s, d)
@@ -301,8 +276,8 @@ async def test_delete_last_event_dismisses_track(client):
     assert threat.id not in await _active_ids(c, headers)
 
 
-async def test_delete_one_of_two_events_keeps_track(client):
-    c, s = client
+async def test_delete_one_of_two_events_keeps_track(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     threat, ev1 = await _threat_with_event(s, d)
@@ -317,11 +292,11 @@ async def test_delete_one_of_two_events_keeps_track(client):
     assert [e.id for e in remaining] == [ev2.id]
 
 
-async def test_delete_event_recomputes_corroboration(client):
+async def test_delete_event_recomputes_corroboration(client, session):
     # The deleted sighting was one of the two independent sources behind the
     # track — its corroboration/confidence must not outlive it (the «Весь фід»
     # chips read exactly these numbers).
-    c, s = client
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     src_a = Source(channel_key="a", name="A")
@@ -342,8 +317,8 @@ async def test_delete_event_recomputes_corroboration(client):
     assert threat.corroboration_count == 1
 
 
-async def test_add_notice_from_raw_message(client):
-    c, s = client
+async def test_add_notice_from_raw_message(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     src = Source(channel_key="a", name="A")
     s.add(src)
@@ -373,8 +348,8 @@ async def test_add_notice_from_raw_message(client):
     assert await s.scalar(select(func.count()).select_from(Notice)) == 0
 
 
-async def test_add_notice_uses_given_text(client):
-    c, s = client
+async def test_add_notice_uses_given_text(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     raw = RawMessage(text="дуже довгий пост із купою деталей")
     s.add(raw)
@@ -389,8 +364,8 @@ async def test_add_notice_uses_given_text(client):
     assert r.json()["text"] == "Ситуація спокійна"
 
 
-async def test_move_event_changes_district(client):
-    c, s = client
+async def test_move_event_changes_district(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     d1 = await _district(s)
     d2 = District(name_uk="Друга", name_en="Second", lat=50.5, lon=30.6)
@@ -405,12 +380,12 @@ async def test_move_event_changes_district(client):
     assert refreshed.district_id == d2.id
 
 
-async def test_move_event_hands_the_track_to_the_new_district_s_region(client):
+async def test_move_event_hands_the_track_to_the_new_district_s_region(client, session):
     # Ingest keeps "a track lives in the region of its LATEST sighting"
     # (handlers._hand_over_region). An admin relocating a sighting can break it,
     # leaving the track corroborating and closing in a pool it left — so the
     # move re-derives the region from the new district.
-    c, s = client
+    c, s = client, session
     headers = await _admin_headers(s)
     kyiv = await _district(s)
     north = District(
@@ -427,8 +402,8 @@ async def test_move_event_hands_the_track_to_the_new_district_s_region(client):
     assert threat.region == "chernihiv"
 
 
-async def test_move_event_rejects_unknown_district(client):
-    c, s = client
+async def test_move_event_rejects_unknown_district(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     _, ev = await _threat_with_event(s, d)
@@ -436,8 +411,8 @@ async def test_move_event_rejects_unknown_district(client):
     assert r.status_code == 400
 
 
-async def test_dismiss_and_restore_alert(client):
-    c, s = client
+async def test_dismiss_and_restore_alert(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     alert = Alert(scope="city")
     s.add(alert)
@@ -454,8 +429,8 @@ async def test_dismiss_and_restore_alert(client):
     assert alert.id in {a["id"] for a in (await c.get("/alerts/active")).json()}
 
 
-async def test_dismissed_list(client):
-    c, s = client
+async def test_dismissed_list(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     threat, _ = await _threat_with_event(s, d)
@@ -466,8 +441,8 @@ async def test_dismissed_list(client):
     assert threat.id in {t["id"] for t in r.json()["threats"]}
 
 
-async def test_admin_actions_require_admin(client):
-    c, s = client
+async def test_admin_actions_require_admin(client, session):
+    c, s = client, session
     d = await _district(s)
     threat, _ = await _threat_with_event(s, d)
 
@@ -488,10 +463,10 @@ async def test_admin_actions_require_admin(client):
 
 # --- Regrouping a sighting: move it to another track, or split it out --------
 
-async def test_split_moves_a_sighting_onto_a_track_of_its_own(client):
+async def test_split_moves_a_sighting_onto_a_track_of_its_own(client, session):
     """Tracking's split/merge mistakes used to be repairable only by DELETING
     the sighting — throwing away a real observation to fix a grouping error."""
-    c, s = client
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     threat, keep = await _threat_with_event(s, d, target_type="shahed")
@@ -515,10 +490,10 @@ async def test_split_moves_a_sighting_onto_a_track_of_its_own(client):
     assert body["source_threat"]["events"][0]["manual"] is False
 
 
-async def test_a_split_inherits_the_lifecycle_of_the_track_it_left(client):
+async def test_a_split_inherits_the_lifecycle_of_the_track_it_left(client, session):
     """Splitting a track the sweeper closed an hour ago must give a second
     CLOSED track, not a fresh live dot for a target that is long gone."""
-    c, s = client
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     threat, _keep = await _threat_with_event(s, d, closed_at=utcnow())
@@ -536,8 +511,8 @@ async def test_a_split_inherits_the_lifecycle_of_the_track_it_left(client):
     assert threat.id not in await _active_ids(c, headers)
 
 
-async def test_moving_a_sighting_onto_another_track_merges_them(client):
-    c, s = client
+async def test_moving_a_sighting_onto_another_track_merges_them(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     keeper, _ = await _threat_with_event(s, d)
@@ -554,10 +529,10 @@ async def test_moving_a_sighting_onto_another_track_merges_them(client):
     assert stray.id not in await _active_ids(c, headers)
 
 
-async def test_moving_the_only_sighting_of_a_track_does_not_delete_it(client):
+async def test_moving_the_only_sighting_of_a_track_does_not_delete_it(client, session):
     """A regroup must never lose the observation: the sighting survives the move
     even when its old track is emptied and dismissed by it."""
-    c, s = client
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     keeper, _ = await _threat_with_event(s, d)
@@ -570,8 +545,8 @@ async def test_moving_the_only_sighting_of_a_track_does_not_delete_it(client):
     assert survived is not None and survived.threat_id == keeper.id
 
 
-async def test_regroup_rejects_a_no_op_and_a_missing_target(client):
-    c, s = client
+async def test_regroup_rejects_a_no_op_and_a_missing_target(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     threat, ev = await _threat_with_event(s, d)
@@ -584,10 +559,10 @@ async def test_regroup_rejects_a_no_op_and_a_missing_target(client):
     assert missing.status_code == 400
 
 
-async def test_regroup_refuses_to_group_a_sighting_into_an_impact(client):
+async def test_regroup_refuses_to_group_a_sighting_into_an_impact(client, session):
     """An impact is a terminal marker, not a path — and it is withheld from the
     map by design, so a sighting moved into one would simply vanish."""
-    c, s = client
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     impact = Threat(target_type="shahed", status="destroyed", kind="impact")
@@ -600,19 +575,19 @@ async def test_regroup_refuses_to_group_a_sighting_into_an_impact(client):
     assert r.status_code == 400
 
 
-async def test_regroup_requires_admin(client):
-    c, s = client
+async def test_regroup_requires_admin(client, session):
+    c, s = client, session
     d = await _district(s)
     _threat, ev = await _threat_with_event(s, d)
     r = await c.patch(f"/admin/events/{ev.id}/threat", json={"threat_id": None})
     assert r.status_code in (401, 403)
 
 
-async def test_admin_can_load_a_closed_track_the_public_route_hides(client):
+async def test_admin_can_load_a_closed_track_the_public_route_hides(client, session):
     """The editor opens on tracks the public API will not serve — closed ones,
     and impacts. Impact privacy is a rule about the public map/feed/journal
     (test_impact_privacy.py), not about the operator's own console."""
-    c, s = client
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     impact = Threat(target_type="shahed", status="destroyed", kind="impact",
@@ -628,14 +603,14 @@ async def test_admin_can_load_a_closed_track_the_public_route_hides(client):
     assert len(r.json()["events"]) == 1
 
 
-async def test_track_detail_requires_admin(client):
-    c, s = client
+async def test_track_detail_requires_admin(client, session):
+    c, s = client, session
     d = await _district(s)
     threat, _ = await _threat_with_event(s, d)
     assert (await c.get(f"/admin/threats/{threat.id}")).status_code in (401, 403)
 
 
-async def test_manual_attack_type_overrides_the_derived_one(client):
+async def test_manual_attack_type_overrides_the_derived_one(client, session):
     """PATCH /admin/incidents/{id}/type — the operator's verdict on a raid.
 
     Both published fields have to move: `target_type` (the label) and
@@ -644,7 +619,7 @@ async def test_manual_attack_type_overrides_the_derived_one(client):
     attack the operator just called ballistic, which is the mismatch the
     override exists to fix.
     """
-    c, s = client
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     inc = Incident(target_type="shahed", attack_types=["shahed", "missile"])
@@ -667,13 +642,13 @@ async def test_manual_attack_type_overrides_the_derived_one(client):
     assert live["classification"] == "ballistic"
 
 
-async def test_manual_attack_type_survives_a_new_member_track(client):
+async def test_manual_attack_type_survives_a_new_member_track(client, session):
     """The whole reason it is a stored column. `recompute_incident_types` runs on
     every attach, so a plain write to `target_type` would be erased by the next
     sighting — seconds away during a live raid."""
     from app.domain.incidents import attach_to_incident
 
-    c, s = client
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     inc = Incident(target_type="shahed", attack_types=["shahed"])
@@ -695,8 +670,8 @@ async def test_manual_attack_type_survives_a_new_member_track(client):
     assert (await c.get("/incidents/active")).json()[0]["classification"] == "ballistic"
 
 
-async def test_clearing_the_override_returns_to_the_derived_type(client):
-    c, s = client
+async def test_clearing_the_override_returns_to_the_derived_type(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     inc = Incident(target_type="shahed", attack_types=["shahed"])
@@ -717,11 +692,11 @@ async def test_clearing_the_override_returns_to_the_derived_type(client):
     assert r.json()["classification"] == "drone"
 
 
-async def test_manual_attack_type_leaves_the_member_tracks_alone(client):
+async def test_manual_attack_type_leaves_the_member_tracks_alone(client, session):
     """A verdict on the raid is not a verdict on each sighting: rewriting the
     tracks would make the map and the regression dataset claim a spotter said
     something they did not."""
-    c, s = client
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     inc = Incident(target_type="shahed", attack_types=["shahed"])
@@ -742,8 +717,8 @@ async def test_manual_attack_type_leaves_the_member_tracks_alone(client):
     assert await s.scalar(select(func.count()).select_from(ParserCorrection)) == 0
 
 
-async def test_retype_unknown_incident_404(client):
-    c, s = client
+async def test_retype_unknown_incident_404(client, session):
+    c, s = client, session
     headers = await _admin_headers(s)
     r = await c.patch(
         "/admin/incidents/999999/type", json={"target_types": ["ballistic"]}, headers=headers
@@ -751,7 +726,7 @@ async def test_retype_unknown_incident_404(client):
     assert r.status_code == 404
 
 
-async def test_manual_combined_attack(client):
+async def test_manual_combined_attack(client, session):
     """A raid of several weapon families reads as 'комбінована', and the operator
     has to be able to say so.
 
@@ -759,7 +734,7 @@ async def test_manual_combined_attack(client):
     when it sees ≥2 families, and 'combined' is a derived LABEL — not a member of
     the TargetType enum — so no single value could ever have expressed it.
     """
-    c, s = client
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     inc = Incident(target_type="shahed", attack_types=["shahed"])
@@ -785,10 +760,10 @@ async def test_manual_combined_attack(client):
     assert live["classification"] == "combined"
 
 
-async def test_two_types_of_one_family_are_not_combined(client):
+async def test_two_types_of_one_family_are_not_combined(client, session):
     """Shahed and a jet drone are both drones. Deriving that stays classify's
     job — the override must not turn "two types" into "combined" by itself."""
-    c, s = client
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     inc = Incident(target_type="shahed", attack_types=["shahed"])
@@ -805,10 +780,10 @@ async def test_two_types_of_one_family_are_not_combined(client):
     assert r.json()["target_type"] == "jet_drone"
 
 
-async def test_combined_override_survives_a_new_member_track(client):
+async def test_combined_override_survives_a_new_member_track(client, session):
     from app.domain.incidents import attach_to_incident
 
-    c, s = client
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     inc = Incident(target_type="shahed", attack_types=["shahed"])
@@ -829,10 +804,10 @@ async def test_combined_override_survives_a_new_member_track(client):
     assert (await c.get("/incidents/active")).json()[0]["classification"] == "combined"
 
 
-async def test_unknown_drops_out_of_a_manual_set(client):
+async def test_unknown_drops_out_of_a_manual_set(client, session):
     """'unknown' carries no weapon family, so it can't make an attack combined
     and must not sit in attack_types pretending to."""
-    c, s = client
+    c, s = client, session
     headers = await _admin_headers(s)
     d = await _district(s)
     inc = Incident(target_type="shahed", attack_types=["shahed"])
