@@ -175,6 +175,11 @@ const ThreatLayer = memo(function ThreatLayer({
           position={[head.lat, head.lon]}
           icon={pulse}
           interactive={false}
+          // `interactive` only skips pointer/click handling — Leaflet's
+          // tabindex+role="button" is gated by the SEPARATE `keyboard` option
+          // (default true), so a purely decorative marker needs this too or
+          // it is still a nameless, do-nothing stop on the tab order.
+          keyboard={false}
           zIndexOffset={-100}
         />
       )}

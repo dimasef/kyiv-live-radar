@@ -77,6 +77,7 @@ export default function FriendLayer() {
       {visible.map((f) => {
         const style = contactStyleOf(contactStyles[f.id]);
         const [dx, dy] = offsets.get(String(f.id)) ?? [0, 0];
+        const label = f.display_name || f.email || t("friends.friend");
         return (
           <Marker
             key={f.id}
@@ -84,10 +85,16 @@ export default function FriendLayer() {
             icon={markerIcon(style, [dx, dy])}
             // A marker is the only place a contact appears outside the account
             // page, so it's the natural way in to who they are.
-            eventHandlers={{ click: () => navigate(userPath(f.id)) }}
+            eventHandlers={{
+              click: () => navigate(userPath(f.id)),
+              // Leaflet gives every clickable marker role="button"+tabindex on
+              // its own, but never a name — a divIcon gets no `alt` the way an
+              // L.Icon <img> would. Same text as the hover Tooltip below.
+              add: (e) => e.target.getElement()?.setAttribute("aria-label", label),
+            }}
           >
             <Tooltip direction="top" offset={[dx, dy - 14]}>
-              {f.display_name || f.email || t("friends.friend")}
+              {label}
             </Tooltip>
           </Marker>
         );

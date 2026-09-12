@@ -65,6 +65,11 @@ export default function HomeMarker({
       <Marker
         position={[home.lat, home.lon]}
         icon={homeIcon(homeStyle.icon, color, homeStyle.glow)}
+        // No eventHandlers — clicking it does nothing, only hover (the
+        // Tooltip) does. `interactive` stays default-true so that hover still
+        // fires, but `keyboard` off: Leaflet's role="button"/tabindex is a
+        // false promise of a command with none to give.
+        keyboard={false}
       >
         <Tooltip direction="top" offset={[0, -18]}>
           {t("legend.home")} · {home.lat.toFixed(4)}, {home.lon.toFixed(4)}
