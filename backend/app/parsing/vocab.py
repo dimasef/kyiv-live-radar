@@ -1131,7 +1131,15 @@ _WHOLE_WORD_ALIASES = frozenset({"чзв", "пох", "бц", "голос", "пу
                                  # words none of them can reach the numeral, and
                                  # the longer stem "троєщин" still carries
                                  # Троєщина/-і/-у/-о.
-                                 "троя", "трої", "трою", "троєю"})
+                                 "троя", "трої", "трою", "троєю",
+                                 # Чернігівщина, 2026-09-12: two more real
+                                 # places whose stems are ordinary words. "мирн"
+                                 # is the alert channel's own all-clear sign-off
+                                 # ("...стаємо 🟢! мирного вечора"), 106 corpus
+                                 # hits; "макс" is "максимально"/"максимальна",
+                                 # 76 hits. Both places are named only in the
+                                 # nominative so far — same shape as «остер».
+                                 "мирне", "максим"})
 
 # An alias that is also part of a PROPER NAME, keyed to the word that follows it.
 # "Голос Києва" is a Telegram channel other channels quote ("Голос Києва —

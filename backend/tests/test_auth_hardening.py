@@ -15,7 +15,8 @@ async def _register(client):
     return r.json()
 
 
-async def test_refresh_rotates_and_old_token_dies(client, session):
+async def test_refresh_rotates_and_old_token_dies(client, session, monkeypatch):
+    monkeypatch.setattr(settings, "auth_refresh_reuse_grace_s", 0)
     pair = await _register(client)
     r = await client.post("/auth/refresh", json={"refresh": pair["refresh"]})
     assert r.status_code == 200
@@ -107,3 +108,14 @@ async def test_push_endpoint_must_be_a_push_service(client):
     assert (await client.post("/push/subscribe", json=body)).status_code == 422
     body["subscription"]["endpoint"] = "https://web.push.apple.com/QAbc"
     assert (await client.post("/push/subscribe", json=body)).status_code == 200
+
+
+async def test_concurrent_boot_refresh_is_not_a_replay(client):
+    """Two tabs (or the boot refresh and a 401 retry) present the same token
+    within the grace window: both get a pair, nothing is revoked."""
+    pair = await _register(client)
+    a = await client.post("/auth/refresh", json={"refresh": pair["refresh"]})
+    b = await client.post("/auth/refresh", json={"refresh": pair["refresh"]})
+    assert a.status_code == 200 and b.status_code == 200
+    assert (await client.post("/auth/refresh", json={"refresh": a.json()["refresh"]})).status_code == 200
+    assert (await client.post("/auth/refresh", json={"refresh": b.json()["refresh"]})).status_code == 200

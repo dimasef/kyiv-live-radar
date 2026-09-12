@@ -613,6 +613,10 @@ class Settings(BaseSettings):
     auth_jwt_secret: str = ""
     auth_access_ttl_minutes: int = 30
     auth_refresh_ttl_days: int = 30
+    # A rotated refresh token stays usable this many seconds, so a concurrent
+    # retry with it (two tabs booting, a 401 retry racing the boot refresh) gets
+    # a pair instead of reading as theft and ending the whole family.
+    auth_refresh_reuse_grace_s: int = 30
     # Per-IP request caps on the auth routes (app/api/ratelimit.py). Password
     # hashing costs ~35 ms of CPU per call, so an unthrottled login flood is the
     # cheapest way to stall the event loop mid-raid. Per-minute windows.

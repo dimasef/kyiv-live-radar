@@ -6,6 +6,7 @@ and role rules live in exactly one place.
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -151,14 +152,25 @@ async def rotate_refresh(session: AsyncSession, token: str) -> User | None:
     if row is None or row.user_id != user_id:
         return None
     if row.revoked_at is not None:
-        log.warning("auth: reuse of a revoked refresh token for user %s — revoking all", user_id)
-        await revoke_all_refresh(session, user_id)
+        # Rotation leaves the old token alive for a short grace (see below);
+        # logout and reset end it at once. Past that, a presentation is a replay.
+        if naive(row.expires_at) <= now:
+            log.warning("auth: reuse of a revoked refresh token for user %s — revoking all", user_id)
+            await revoke_all_refresh(session, user_id)
+            return None
+    elif naive(row.expires_at) <= now:
         return None
-    if naive(row.expires_at) <= now:
-        return None
-    row.revoked_at = now
+    else:
+        # A concurrent retry with the same token (two tabs booting, a 401 retry
+        # racing the boot refresh) is not theft: the row stays usable for the
+        # grace window, then reads as a replay.
+        row.revoked_at = now
+        row.expires_at = now + timedelta(seconds=settings.auth_refresh_reuse_grace_s)
+    # Rows are kept a while past expiry so a late replay is still recognized.
     await session.execute(
-        delete(RefreshToken).where(RefreshToken.user_id == user_id, RefreshToken.expires_at < now)
+        delete(RefreshToken).where(
+            RefreshToken.user_id == user_id, RefreshToken.expires_at < now - timedelta(days=7)
+        )
     )
     return await session.get(User, user_id)
 
@@ -171,18 +183,20 @@ async def revoke_refresh(session: AsyncSession, token: str) -> None:
         jti = str(claims["jti"])
     except (AuthError, KeyError, ValueError, TypeError):
         return
+    now = naive(utcnow())
     await session.execute(
         update(RefreshToken)
         .where(RefreshToken.jti == jti, RefreshToken.revoked_at.is_(None))
-        .values(revoked_at=utcnow())
+        .values(revoked_at=now, expires_at=now)
     )
 
 
 async def revoke_all_refresh(session: AsyncSession, user_id: int) -> None:
+    now = naive(utcnow())
     await session.execute(
         update(RefreshToken)
-        .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
-        .values(revoked_at=utcnow())
+        .where(RefreshToken.user_id == user_id, RefreshToken.expires_at > now)
+        .values(revoked_at=now, expires_at=now)
     )
 
 

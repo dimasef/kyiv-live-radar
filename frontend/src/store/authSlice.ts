@@ -8,6 +8,7 @@ import {
   authMe,
   patchMe,
   authRefreshToken,
+  refreshAccessToken,
   authRegister,
   authResetPassword,
   authVerifyEmail,
@@ -126,15 +127,19 @@ export const createAuthSlice: StateCreator<RadarState, [], [], AuthSlice> = (set
     },
 
     refreshSession: async () => {
-      const refresh = safeGet(STORAGE_KEYS.authRefresh)
-      if (!refresh) {
+      if (!safeGet(STORAGE_KEYS.authRefresh)) {
         set({ authStatus: 'anon' })
         return
       }
       try {
-        const pair = await authRefreshToken(refresh)
-        safeSet(STORAGE_KEYS.authRefresh, pair.refresh)
-        setAccessToken(pair.access)
+        // Through the shared single-flight path, never a second direct
+        // /auth/refresh: a 401 retry racing this at boot would replay the
+        // same (now rotated) token.
+        const access = await refreshAccessToken()
+        if (!access) {
+          if (get().authStatus === 'unknown') set({ authStatus: 'anon' })
+          return
+        }
         const me = await authMe()
         set({ user: me, authStatus: 'authed' })
         get().hydrateGamification(me.gamification)

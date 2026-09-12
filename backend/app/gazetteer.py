@@ -1104,8 +1104,11 @@ DISTRICTS: list[dict] = [
      "region": "chernihiv", "aliases": ["трисвятська"]},
     {"name_uk": "Тростянка", "name_en": "Trostianka", "lat": 51.3288, "lon": 32.6812,
      "region": "chernihiv", "aliases": []},
+    # 2026-09-12: the accusative «на Турʼю» is the first inflected form of this
+    # short vowel-final name the corpus has produced — see GAZETTEER.md's note
+    # on Мена/Ічня for why the stemmer needs the alias spelled out.
     {"name_uk": "Тур'я", "name_en": "Turia", "lat": 51.9018, "lon": 31.9932,
-     "region": "chernihiv", "aliases": []},
+     "region": "chernihiv", "aliases": ["турю"]},
     {"name_uk": "Хвилівка", "name_en": "Khvylivka", "lat": 50.9793, "lon": 31.881,
      "region": "chernihiv", "aliases": []},
     {"name_uk": "Хімволокно", "name_en": "Khimvolokno", "lat": 51.4637, "lon": 31.247,
@@ -1255,15 +1258,8 @@ DISTRICTS: list[dict] = [
      "region": "chernihiv", "aliases": ["копита"]},
     {"name_uk": "Ведильці", "name_en": "Vedyltsi", "lat": 51.4620, "lon": 30.8506,
      "region": "chernihiv", "aliases": []},
-    # Two in the oblast; the Михайло-Коцюбинське one, because every callout
-    # pairs it with Ковпита/Ведильці/Михайло-Коцюбинське. `region_only`: a
-    # Sumy and a Kharkiv Андріївка already exist, each hidden the same way.
     {"name_uk": "Андріївка", "name_en": "Andriivka CH", "lat": 51.4030, "lon": 31.0127,
      "region": "chernihiv", "region_only": True, "aliases": []},
-    # The hamlet by Хатилова Гута, called in beside Ведильці and Ковпита. Whole-
-    # word (vocab): the stem «лісн» is inside Лісники and «лісний масив».
-    # Kharkiv's Лісне matches whole-word too from now on — all 55 of its corpus
-    # hits already were.
     {"name_uk": "Лісне", "name_en": "Lisne CH", "lat": 51.3153, "lon": 30.7004,
      "region": "chernihiv", "region_only": True, "aliases": []},
     {"name_uk": "Олбин", "name_en": "Olbyn", "lat": 51.0765, "lon": 31.0261,
@@ -1283,9 +1279,6 @@ DISTRICTS: list[dict] = [
     # Called in beside Березна/Седнів/Ковчин, which is where it is.
     {"name_uk": "Боромики", "name_en": "Boromyky", "lat": 51.5376, "lon": 31.6043,
      "region": "chernihiv", "aliases": []},
-    # The Срібнянська corridor, four names one evening: «Березівка», «Артеменків»,
-    # «Березівка, Олексинці». Four Березівка in the oblast; the Талалаївська
-    # one is 3 km from Олексинці, the rest 60+ km from anything called in.
     {"name_uk": "Березівка", "name_en": "Berezivka CH", "lat": 50.7147, "lon": 32.9782,
      "region": "chernihiv", "region_only": True, "aliases": []},
     {"name_uk": "Олексинці", "name_en": "Oleksyntsi", "lat": 50.6867, "lon": 32.9638,
@@ -1298,6 +1291,81 @@ DISTRICTS: list[dict] = [
     {"name_uk": "Вербове", "name_en": "Verbove CH", "lat": 50.7230, "lon": 31.8509,
      "region": "chernihiv", "region_only": True, "aliases": []},
     {"name_uk": "Терешківка", "name_en": "Tereshkivka", "lat": 50.7053, "lon": 31.9030,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Роїще", "name_en": "Roishche", "lat": 51.6608, "lon": 31.2588,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Слабин", "name_en": "Slabyn", "lat": 51.3553, "lon": 31.1167,
+     "region": "chernihiv", "aliases": []},
+    # Whole-word not needed: the street veto already catches «вул. клочківська»
+    # (a Kharkiv street) via the preceding «вул.» — checked against the corpus.
+    {"name_uk": "Клочків", "name_en": "Klochkiv", "lat": 51.6059, "lon": 31.5936,
+     "region": "chernihiv", "aliases": []},
+    # «Пилятин на Данівку» — the two are 8.7 km apart in the same громада.
+    {"name_uk": "Пилятин", "name_en": "Pyliatyn", "lat": 50.9363, "lon": 31.2962,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Данівка", "name_en": "Danivka CH", "lat": 50.8664, "lon": 31.2095,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Поліське", "name_en": "Poliske CH", "lat": 50.9079, "lon": 30.8709,
+     "region": "chernihiv", "aliases": []},
+    # «На Красківське» replies to «Великі Осняки» — 18 km apart, same громада.
+    {"name_uk": "Красківське", "name_en": "Kraskivske", "lat": 51.7391, "lon": 30.9674,
+     "region": "chernihiv", "aliases": []},
+    # Multi-word: `_stem()` strips the space, so the two-word name itself can
+    # never match text that still has the space in it. «осняки» is the
+    # distinctive single word (1/1 corpus hit is this village).
+    {"name_uk": "Великі Осняки", "name_en": "Velyki Osniaky", "lat": 51.6869, "lon": 31.1933,
+     "region": "chernihiv", "aliases": ["осняки"]},
+    # «Боярівка на Берлози ➡️ Мирне» — all three in one message, one громада.
+    {"name_uk": "Боярівка", "name_en": "Boiarivka CH", "lat": 50.9700, "lon": 31.1584,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Берлози", "name_en": "Berlozy", "lat": 50.8945, "lon": 31.1593,
+     "region": "chernihiv", "aliases": []},
+    # Whole-word: «мирн» as a stem is «мирного»/«мирної» — the alert channel's
+    # own all-clear sign-off ("...стаємо 🟢! бажаю всім тихого та мирного
+    # вечора"), 106 corpus hits. The bare word "мирне" itself is exact-boundary
+    # safe (see vocab._WHOLE_WORD_ALIASES).
+    {"name_uk": "Мирне", "name_en": "Myrne CH", "lat": 50.8527, "lon": 31.1591,
+     "region": "chernihiv", "aliases": []},
+    # «Соколівка на гончар» / «Соколівка, Максим» — Максим is 5 km away, same
+    # громада; a real village, not the given name it looks like.
+    {"name_uk": "Соколівка", "name_en": "Sokolivka CH", "lat": 51.1558, "lon": 30.9059,
+     "region": "chernihiv", "aliases": []},
+    # Whole-word: «макс» as a stem is «максимально»/«максимальна», 76 corpus
+    # hits (routine PPO-alert wording). The bare word itself does not collide —
+    # «максимально» has a letter right after «максим», which the exact-boundary
+    # match rejects.
+    {"name_uk": "Максим", "name_en": "Maksym CH", "lat": 51.1969, "lon": 30.9427,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Ладинка", "name_en": "Ladynka", "lat": 51.2845, "lon": 31.1459,
+     "region": "chernihiv", "aliases": []},
+    # Two Стрільники in the oblast. «На Стрільники ➡️ Велику Загорівку» and
+    # «Городище на стрільники» both point at the Бахмацька one — 7.6 km from
+    # Велика Загорівка, against 61 km for the Прилуцький homonym.
+    {"name_uk": "Стрільники", "name_en": "Strilnyky CH", "lat": 51.1980, "lon": 32.5899,
+     "region": "chernihiv", "aliases": []},
+    # Multi-word, same as Великі Осняки above. «загорівка» also matches the
+    # corpus's one «мала загорівка» mention — fine while only the Велика one is
+    # gazetteered, but re-sweep if Мала Загорівка is ever added too.
+    {"name_uk": "Велика Загорівка", "name_en": "Velyka Zahorivka", "lat": 51.1760, "lon": 32.4985,
+     "region": "chernihiv", "aliases": ["загорівка"]},
+    {"name_uk": "Хибалівка", "name_en": "Khybalivka", "lat": 51.3405, "lon": 31.8579,
+     "region": "chernihiv", "aliases": []},
+    # A second «Спаське» — the existing entry (below, Сумщина block) is the
+    # Сумський район one. `region_only` on both, same pattern as the two
+    # Андріївка entries: each region's channel sees only its own.
+    {"name_uk": "Спаське", "name_en": "Spaske CH", "lat": 51.5530, "lon": 32.6170,
+     "region": "chernihiv", "region_only": True, "aliases": []},
+    # «Мена та Дягова» / «На Дягову» — 11 km from Мена (already gazetteered),
+    # its own reply-parent.
+    {"name_uk": "Дягова", "name_en": "Diahova", "lat": 51.5029, "lon": 32.0605,
+     "region": "chernihiv", "aliases": []},
+    # Three Тарасівка in the oblast. Its reply-parent is «Лукнів» (already
+    # gazetteered) — 7.1 km away, against 130-150 km for the other two.
+    {"name_uk": "Тарасівка", "name_en": "Tarasivka NS", "lat": 51.5688, "lon": 33.0496,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Купчичі", "name_en": "Kupchychi", "lat": 51.5728, "lon": 32.6661,
+     "region": "chernihiv", "aliases": []},
+    {"name_uk": "Роздольне", "name_en": "Rozdolne CH", "lat": 51.0706, "lon": 31.4130,
      "region": "chernihiv", "aliases": []},
 
     # --- Сумщина (2026-08-28) --------------------------------------------

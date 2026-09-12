@@ -13,15 +13,22 @@ export interface EdgeInsets {
 
 /** The strip of map an edge marker may sit in. The container runs edge to edge
  * and UNDER its overlays, so the sides to stay clear of are spelled out here:
- * the alert banner up top, and on mobile the collapsed feed sheet (3.4rem)
- * plus the attribution line at the bottom.
+ * the alert banner up top, and at the bottom the floating control cluster
+ * (map/MapControls).
+ *
+ * The bottom number is measured to the TOP of that cluster, not to the feed
+ * sheet below it: the buttons are a 40px row raised 4.2rem on mobile and 0.75rem
+ * on desktop, so they clear the sheet and the attribution on their own. Measuring
+ * to the sheet instead (3.4rem + attribution = 76) left the strip running right
+ * through them, and a south-pointing HomeCompass pill landed under buttons that
+ * outrank it — present, but unreadable and unclickable, on every phone.
  *
  * The wider right inset on desktop is the feed's collapse handle
  * (chrome/FeedToggle), which is 20 px of chip at exactly the mid-height an edge
  * marker likes. It is there in both states — expanded, it rides the seam. */
 export function overlayInsets(): EdgeInsets {
   const desktop = window.matchMedia('(min-width: 1024px)').matches
-  return { top: 64, right: desktop ? 26 : 12, bottom: desktop ? 44 : 76, left: 12 }
+  return { top: 64, right: desktop ? 26 : 12, bottom: desktop ? 56 : 112, left: 12 }
 }
 
 /** The origin counts as visible only once it is clear of those overlays AND a

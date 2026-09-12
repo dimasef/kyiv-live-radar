@@ -102,6 +102,22 @@ def test_no_target_type_needed(matcher):
         # to keep, so «Ічню» shares no stem with «Ічня» — 5 real messages.
         "На Ічню",
         "Ічні",
+        # 2026-09-12: a single 25-message Чисте Небо export localizing 0/24,
+        # from /analyze-feed. «Тур'я» itself predates this batch; only its
+        # accusative («на Турʼю») is new — same short-vowel-final shape as
+        # Ічня above.
+        "Роїще",
+        "Слобода на Слабин",
+        "Клочків",
+        "Пилятин на Данівку",
+        "На Красківське",
+        "Великі Осняки",
+        "Боярівка на Берлози ➡️ Мирне",
+        "Соколівка, Максим",
+        "На Стрільники ➡️ Велику Загорівку",
+        "На Дягову",
+        "На Тарасівку",
+        "На Турʼю",
     ],
 )
 def test_chernihiv_batch_now_localizes(matcher, text):
@@ -113,6 +129,11 @@ def test_chernihiv_batch_now_localizes(matcher, text):
     [
         "Маленькі кияни замість відпочинку допомагають прибирати",
         "Чи варто реагувати — вирішуйте на власний розсуд",
+        # 2026-09-12: «мирн» is inside the alert channel's own all-clear
+        # sign-off, «макс» inside «максимально»/«максимальна» — both real
+        # corpus sentences, 106 and 76 hits respectively.
+        "Відбій тривоги та загрози від БПЛА, стаємо 🟢! бажаю всім тихого та мирного вечора",
+        "Кияни, максимально рекомендуємо зараз спуститись всім в укриття",
     ],
 )
 def test_a_village_named_like_an_ordinary_word_matches_whole_word_only(matcher, text):

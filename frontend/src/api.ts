@@ -88,6 +88,14 @@ function withAuth(headers: HeadersInit | undefined, token: string | null): Heade
  * among them would log the user out despite a perfectly valid refresh token. */
 let refreshInFlight: Promise<string | null> | null = null
 
+/** Mint a fresh access token from the stored refresh token, sharing one
+ * in-flight request with the 401 retry path. Boot MUST go through this too:
+ * the refresh token rotates on every use, so two concurrent refreshes with the
+ * same token read as a replay on the server and end the whole session. */
+export function refreshAccessToken(): Promise<string | null> {
+  return refreshOnce()
+}
+
 function refreshOnce(): Promise<string | null> {
   if (!refreshHandler) return Promise.resolve(null)
   refreshInFlight ??= refreshHandler().finally(() => {

@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { edgeMarkerPosition, isInsideBox, outsetInsets, screenBearing } from './edgeProjection'
+import {
+  edgeMarkerPosition,
+  isInsideBox,
+  outsetInsets,
+  overlayInsets,
+  screenBearing,
+} from './edgeProjection'
 
 describe('edgeMarkerPosition', () => {
   // A phone-ish map with the alert banner up top and the feed sheet below.
@@ -49,6 +55,38 @@ describe('edgeMarkerPosition', () => {
     const tiny = edgeMarkerPosition(90, { x: 40, y: 40 }, insets, pill)
     expect(tiny.left).toBe(insets.left)
     expect(tiny.top).toBe(insets.top)
+  })
+})
+
+describe('overlayInsets', () => {
+  // MapControls' geometry, restated the way APPEAR_MARGIN_RATIO is below — the
+  // component can't be imported into a DOM-free suite. A 40px button row
+  // (controlStyles.mapControlClass) raised 4.2rem on mobile, 0.75rem on desktop.
+  const CONTROLS_TOP_PX = { mobile: 4.2 * 16 + 40, desktop: 0.75 * 16 + 40 }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  function stubViewport(desktop: boolean) {
+    vi.stubGlobal('window', { matchMedia: () => ({ matches: desktop }) })
+  }
+
+  it.each([
+    ['mobile', false, CONTROLS_TOP_PX.mobile],
+    ['desktop', true, CONTROLS_TOP_PX.desktop],
+  ])('keeps the bottom strip clear of the control cluster on %s', (_name, desktop, controlsTop) => {
+    stubViewport(desktop as boolean)
+    // The reported bug: the pill sat UNDER the map controls, which draw over it.
+    expect(overlayInsets().bottom).toBeGreaterThanOrEqual(controlsTop as number)
+  })
+
+  it('puts a due-south pill above the controls, not behind them', () => {
+    stubViewport(false)
+    const size = { x: 390, y: 780 }
+    const pill = { width: 108, height: 30 }
+    const south = edgeMarkerPosition(180, size, overlayInsets(), pill)
+    expect(south.top + pill.height).toBeLessThanOrEqual(size.y - CONTROLS_TOP_PX.mobile)
   })
 })
 
