@@ -35,6 +35,15 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 export const CHANGELOG: Release[] = [
   {
     version: APP_VERSION,
+    title: "ще швидший старт",
+    date: "2026-09-12",
+    kind: "patch",
+    changes: [
+      "Мапа раніше починає з'єднуватися з сервером і тайлами карти, поки довантажується решта сторінки",
+    ],
+  },
+  {
+    version: "0.55.1",
     title: "швидше відкриття",
     date: "2026-09-12",
     kind: "patch",

@@ -36,6 +36,13 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- The map's first tile and its first API calls are both off-origin and
+         both sit on the LCP path (PageSpeed flags this explicitly, ~300ms
+         each) — worth the TLS handshake even on a route that turns out not to
+         need them. The Railway origin is hardcoded (not VITE_API_URL) because
+         this hint is dead weight, never wrong, on a local/staging backend. -->
+    <link rel="preconnect" href="https://basemaps.cartocdn.com" />
+    <link rel="preconnect" href="https://kyiv-live-radar-production.up.railway.app" />
     <link
       rel="preload"
       as="style"
