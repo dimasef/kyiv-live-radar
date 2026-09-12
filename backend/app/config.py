@@ -622,42 +622,30 @@ class Settings(BaseSettings):
     # even when the attacker rotates IPs.
     auth_login_attempts_per_email: int = 10
     auth_login_lockout_minutes: int = 5
-    # Telegram Login Widget payloads older than this are refused as replays.
-    auth_telegram_max_age_s: int = 900
+    # Email-ownership links (app/auth/verification.py).
+    auth_verify_ttl_hours: int = 24
+    # Verification/reset mails per address per 10 minutes.
+    auth_mail_per_email: int = 3
+    auth_reset_ttl_minutes: int = 60
+    # TEST-ONLY switch. False lets /auth/register hand out tokens without a
+    # verified address and /auth/login skip the check, which is what the suite
+    # needs to mint users in one call. Never set it on a deployed host.
+    email_verification_enabled: bool = True
     # Global switch for every in-memory rate limit (auth, geocode, push
     # subscribe). Off only for load tests that hammer one route from one host.
     rate_limit_enabled: bool = True
-    # Comma-separated allowlists that resolve a login to role=admin. Email match
-    # only counts for a VERIFIED email (Google id_token, never a self-registered
-    # password account — see auth.service.resolve_role). Telegram is id-based.
+    # Comma-separated allowlist of emails that resolve a login to role=admin.
+    # Only a VERIFIED email counts (Google id_token or a clicked verification
+    # link — see auth.service.role_for).
     admin_emails: str = ""
-    admin_telegram_ids: str = ""
-    # Google OIDC (Phase 2) — the SPA obtains an id_token via Google Identity
-    # Services and POSTs it to /auth/google; we verify it against Google's JWKS.
+    # Google OIDC — the SPA obtains an id_token via Google Identity Services
+    # and POSTs it; we verify signature/aud/iss server-side (auth/providers/google.py).
     # No client secret needed for the id-token flow.
     google_client_id: str = ""
-    # Telegram Login Widget (Phase 3) — a Bot API bot token (DISTINCT from the
-    # MTProto telegram_api_id/hash the listener uses). Reuses the already-present
-    # KLR_TEST_BOT_TOKEN env var if TELEGRAM_LOGIN_BOT_TOKEN isn't set.
-    telegram_login_bot_token: str = Field(
-        "", validation_alias=AliasChoices("TELEGRAM_LOGIN_BOT_TOKEN", "KLR_TEST_BOT_TOKEN")
-    )
 
     @property
     def admin_email_list(self) -> list[str]:
         return [e.strip().lower() for e in self.admin_emails.split(",") if e.strip()]
-
-    @property
-    def admin_telegram_id_list(self) -> list[int]:
-        out: list[int] = []
-        for part in self.admin_telegram_ids.split(","):
-            part = part.strip()
-            if part:
-                try:
-                    out.append(int(part))
-                except ValueError:
-                    pass
-        return out
 
     @property
     def is_local_dev(self) -> bool:
@@ -677,9 +665,16 @@ class Settings(BaseSettings):
     def google_configured(self) -> bool:
         return bool(self.google_client_id)
 
+    # --- Outbound mail (app/mail.py): verification + password-reset links. ---
+    resend_api_key: str = ""
+    mail_from: str = "UA Live Radar <no-reply@ua-radar.online>"
+    mail_timeout_s: float = 10.0
+    # Base of the links in those mails — the SPA origin, not the API's.
+    public_app_url: str = "http://localhost:5173"
+
     @property
-    def telegram_login_configured(self) -> bool:
-        return bool(self.telegram_login_bot_token)
+    def mail_configured(self) -> bool:
+        return bool(self.resend_api_key)
 
     # --- Alert-zone layer (app/feeds/alert_zones.py) — which raions of
     #     Київщина/Чернігівщина currently have a siren, painted on the map.

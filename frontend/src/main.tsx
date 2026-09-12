@@ -9,8 +9,10 @@ import {
   isAdminRoute,
   isCollectionRoute,
   isJournalRoute,
+  RESET_PASSWORD_PATH,
   useRoute,
   userRouteId,
+  VERIFY_EMAIL_PATH,
 } from './router'
 
 // Secondary routes are lazy so the initial bundle is just the map (the critical
@@ -18,6 +20,8 @@ import {
 // on demand — faster first paint, which matters most on a phone at night.
 const AdminPage = lazy(() => import('./components/admin/AdminPage'))
 const AccountPage = lazy(() => import('./components/auth/AccountPage'))
+const VerifyEmailPage = lazy(() => import('./components/auth/VerifyEmailPage'))
+const ResetPasswordPage = lazy(() => import('./components/auth/ResetPasswordPage'))
 const ContactPage = lazy(() => import('./components/auth/ContactPage'))
 const CollectionPage = lazy(() => import('./components/game/CollectionPage'))
 const ChangelogPage = lazy(() => import('./components/changelog/ChangelogPage'))
@@ -61,6 +65,10 @@ function Root() {
       <AdminPage />
     ) : route === ACCOUNT_PATH ? (
       <AccountPage />
+    ) : route === VERIFY_EMAIL_PATH ? (
+      <VerifyEmailPage />
+    ) : route === RESET_PASSWORD_PATH ? (
+      <ResetPasswordPage />
     ) : userRouteId(route) != null ? (
       <ContactPage />
     ) : isCollectionRoute(route) ? (

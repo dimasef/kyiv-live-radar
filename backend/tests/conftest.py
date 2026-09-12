@@ -161,6 +161,29 @@ def district_rows(*extra: dict) -> list:
 
 
 @pytest.fixture(autouse=True)
+def _verification_off(monkeypatch):
+    """Most tests mint a signed-in user with one /auth/register call. The
+    verification tests switch this back on themselves."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "email_verification_enabled", False)
+
+
+@pytest.fixture
+def outbox(monkeypatch):
+    """Captures every mail the app tries to send: a list of (to, subject, text)."""
+    import app.auth.verification as verification
+
+    sent: list[tuple[str, str, str]] = []
+
+    async def _capture(to, subject, text, html):
+        sent.append((to, subject, text))
+
+    monkeypatch.setattr(verification, "send_email", _capture)
+    return sent
+
+
+@pytest.fixture(autouse=True)
 def _fresh_rate_limits():
     from app.api.ratelimit import limiter
 

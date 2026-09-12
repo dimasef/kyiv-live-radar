@@ -44,9 +44,22 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** A machine-readable reason from a `{detail: {code}}` body, when the
+     * server sent one (auth: 'email_unverified', 'bad_token'). */
+    public code: string | null = null,
   ) {
     super(message)
     this.name = 'ApiError'
+  }
+}
+
+async function errorCode(res: Response): Promise<string | null> {
+  try {
+    const body = (await res.json()) as { detail?: { code?: unknown } | string }
+    const code = typeof body.detail === 'object' && body.detail ? body.detail.code : null
+    return typeof code === 'string' ? code : null
+  } catch {
+    return null
   }
 }
 
@@ -136,7 +149,7 @@ async function authPost<T>(path: string, body: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  if (!res.ok) throw new ApiError(res.status, `POST ${path} -> ${res.status}`)
+  if (!res.ok) throw new ApiError(res.status, `POST ${path} -> ${res.status}`, await errorCode(res))
   return res.json() as Promise<T>
 }
 
@@ -469,26 +482,22 @@ export const IMPACT_ROLES = ['admin', 'admin_g', 'observer']
 export const canSeeImpacts = (role?: string | null): boolean =>
   role != null && IMPACT_ROLES.includes(role)
 export type TokenPair = Schemas['TokenPairOut']
-/** The Telegram Login Widget payload (forwarded verbatim so the backend can
- * re-verify the HMAC over exactly the fields Telegram signed). */
-export interface TelegramAuthPayload {
-  id: number
-  first_name: string
-  last_name?: string
-  username?: string
-  photo_url?: string
-  auth_date: number
-  hash: string
-}
-
+/** Registration mails a verification link; the account cannot sign in until
+ * it is used, so there are no tokens here — see VerifyEmailPage. */
 export const authRegister = (email: string, password: string, displayName?: string) =>
-  authPost<TokenPair>('/auth/register', { email, password, display_name: displayName })
+  authPost<Schemas['RegisterOut']>('/auth/register', { email, password, display_name: displayName })
 export const authLogin = (email: string, password: string) =>
   authPost<TokenPair>('/auth/login', { email, password })
 export const authGoogle = (credential: string) =>
   authPost<TokenPair>('/auth/google', { credential })
-export const authTelegram = (payload: TelegramAuthPayload) =>
-  authPost<TokenPair>('/auth/telegram', payload)
+export const authVerifyEmail = (token: string) =>
+  authPost<TokenPair>('/auth/verify-email', { token })
+export const authResendVerification = (email: string) =>
+  authPost<{ ok: boolean }>('/auth/resend-verification', { email })
+export const authForgotPassword = (email: string) =>
+  authPost<{ ok: boolean }>('/auth/forgot-password', { email })
+export const authResetPassword = (token: string, password: string) =>
+  authPost<TokenPair>('/auth/reset-password', { token, password })
 export const authRefreshToken = (refresh: string) =>
   authPost<Schemas['AccessTokenOut']>('/auth/refresh', { refresh })
 export const authMe = () => get<AuthUser>('/auth/me')

@@ -986,6 +986,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/forgot-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Forgot Password
+         * @description Always 200. The reset link goes to the address's real owner, which is
+         *     also how they reclaim an email someone registered without verifying.
+         */
+        post: operations["forgot_password_auth_forgot_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/google": {
         parameters: {
             query?: never;
@@ -1089,7 +1110,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Register */
+        /**
+         * Register
+         * @description Create the account and mail a verification link. No tokens until the
+         *     link is used — the address has to be proven first (an unverified account
+         *     could otherwise squat someone else's email; see auth.service merge rules).
+         */
         post: operations["register_auth_register_post"];
         delete?: never;
         options?: never;
@@ -1097,7 +1123,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/telegram": {
+    "/auth/resend-verification": {
         parameters: {
             query?: never;
             header?: never;
@@ -1106,8 +1132,52 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Telegram Login */
-        post: operations["telegram_login_auth_telegram_post"];
+        /**
+         * Resend Verification
+         * @description Always 200: whether the address exists is not for the caller to learn.
+         */
+        post: operations["resend_verification_auth_resend_verification_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Password
+         * @description Set a new password from the mailed token. Using the link proves the
+         *     address, so it also verifies it; every other session is signed out.
+         */
+        post: operations["reset_password_auth_reset_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/verify-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Email
+         * @description Prove the address with the mailed token; signs the user in on success.
+         */
+        post: operations["verify_email_auth_verify_email_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2733,6 +2803,17 @@ export interface components {
             count: number;
         };
         /**
+         * EmailOnlyIn
+         * @description POST /auth/resend-verification and /auth/forgot-password.
+         */
+        EmailOnlyIn: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+        };
+        /**
          * EventDistrictIn
          * @description PATCH /admin/events/{id} — admin fixes a mislocated sighting.
          */
@@ -3370,6 +3451,14 @@ export interface components {
             /** Text */
             text: string;
         };
+        /** OkOut */
+        OkOut: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+        };
         /**
          * PresencePrefIn
          * @description PUT /me/presence — opt in/out of showing friends WHEN you were last active.
@@ -3786,6 +3875,21 @@ export interface components {
             password: string;
         };
         /**
+         * RegisterOut
+         * @description POST /auth/register result: no tokens — the address has to be proven
+         *     first (the mail with the link is on its way).
+         */
+        RegisterOut: {
+            /** Email */
+            email: string;
+            /**
+             * Status
+             * @default verification_sent
+             * @constant
+             */
+            status: "verification_sent";
+        };
+        /**
          * RegroupOut
          * @description PATCH /admin/events/{id}/threat — BOTH tracks the move touched.
          *
@@ -3867,6 +3971,16 @@ export interface components {
             incidents: number;
             /** Tracks */
             tracks: number;
+        };
+        /**
+         * ResetPasswordIn
+         * @description POST /auth/reset-password — the token from the reset mail + new password.
+         */
+        ResetPasswordIn: {
+            /** Password */
+            password: string;
+            /** Token */
+            token: string;
         };
         /**
          * SendFriendRequestIn
@@ -4217,30 +4331,6 @@ export interface components {
             zones: components["schemas"]["AlertZoneOut"][];
         };
         /**
-         * TelegramAuthIn
-         * @description POST /auth/telegram — the Telegram Login Widget payload. extra='allow'
-         *     so any future widget field is preserved for the HMAC data-check-string
-         *     (which must include EXACTLY the fields Telegram signed).
-         */
-        TelegramAuthIn: {
-            /** Auth Date */
-            auth_date: number;
-            /** First Name */
-            first_name: string;
-            /** Hash */
-            hash: string;
-            /** Id */
-            id: number;
-            /** Last Name */
-            last_name?: string | null;
-            /** Photo Url */
-            photo_url?: string | null;
-            /** Username */
-            username?: string | null;
-        } & {
-            [key: string]: unknown;
-        };
-        /**
          * ThreatAnalysisStateOut
          * @description GET /analysis/threat/{id} — which analyses this target has left, and which
          *     (if any) the current user already claimed. Drives the inspect-badge button:
@@ -4487,6 +4577,14 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /**
+         * VerifyEmailIn
+         * @description POST /auth/verify-email — the token from the link in the mail.
+         */
+        VerifyEmailIn: {
+            /** Token */
+            token: string;
         };
         /**
          * WSMessage
@@ -6075,6 +6173,39 @@ export interface operations {
             };
         };
     };
+    forgot_password_auth_forgot_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailOnlyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     google_login_auth_google_post: {
         parameters: {
             query?: never;
@@ -6287,6 +6418,72 @@ export interface operations {
         };
         responses: {
             /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegisterOut"] | components["schemas"]["TokenPairOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resend_verification_auth_resend_verification_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailOnlyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_password_auth_reset_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetPasswordIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -6306,7 +6503,7 @@ export interface operations {
             };
         };
     };
-    telegram_login_auth_telegram_post: {
+    verify_email_auth_verify_email_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -6315,7 +6512,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["TelegramAuthIn"];
+                "application/json": components["schemas"]["VerifyEmailIn"];
             };
         };
         responses: {

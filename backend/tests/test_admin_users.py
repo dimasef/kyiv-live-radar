@@ -24,7 +24,6 @@ async def env(client, session, monkeypatch):
     # Empty by default so a stray real allowlist can't make a seeded user an
     # 'allowlist' admin behind the provenance assertions.
     monkeypatch.setattr(settings, "admin_emails", "")
-    monkeypatch.setattr(settings, "admin_telegram_ids", "")
     return client, session
 
 
@@ -91,11 +90,11 @@ async def test_list_shape_and_providers(env):
     admin = await _seed(s, role="admin")
     native = await _seed(s, email="native@x.com")
     linked = await _seed(s, email="linked@x.com", email_verified=True)
-    tg_only = await _seed(s, email=None, password_hash=None)
+    sso_only = await _seed(s, email="sso@x.com", email_verified=True, password_hash=None)
     s.add_all(
         [
             OAuthIdentity(user_id=linked.id, provider="google", provider_user_id="g1"),
-            OAuthIdentity(user_id=tg_only.id, provider="telegram", provider_user_id="42"),
+            OAuthIdentity(user_id=sso_only.id, provider="google", provider_user_id="g2"),
         ]
     )
     await s.commit()
@@ -106,11 +105,11 @@ async def test_list_shape_and_providers(env):
 
     assert _row(rows, native.id)["providers"] == ["password"]
     assert _row(rows, linked.id)["providers"] == ["password", "google"]
-    assert _row(rows, tg_only.id)["providers"] == ["telegram"]
+    assert _row(rows, sso_only.id)["providers"] == ["google"]
 
     assert _row(rows, native.id)["email_verified"] is False
     assert _row(rows, linked.id)["email_verified"] is True
-    assert _row(rows, tg_only.id)["email"] is None
+    assert _row(rows, sso_only.id)["email"] == "sso@x.com"
     assert all(row["is_active"] is True for row in rows)
     # Newest first.
     assert [row["id"] for row in rows] == sorted((row["id"] for row in rows), reverse=True)
@@ -129,11 +128,8 @@ async def test_created_at_carries_an_explicit_utc_offset(env):
 async def test_role_source_provenance(env, monkeypatch):
     c, s = env
     monkeypatch.setattr(settings, "admin_emails", "Boss@X.com")
-    monkeypatch.setattr(settings, "admin_telegram_ids", "777")
 
     admin = await _seed(s, role="admin", email="boss@x.com", email_verified=True)
-    by_tg = await _seed(s, role="admin", email=None, password_hash=None)
-    s.add(OAuthIdentity(user_id=by_tg.id, provider="telegram", provider_user_id="777"))
     manual = await _seed(s, role="admin_g", email="manual@x.com")
     plain = await _seed(s, role="user", email="plain@x.com")
     # The whole reason the field exists: role says admin, nothing backs it any
@@ -143,7 +139,6 @@ async def test_role_source_provenance(env, monkeypatch):
 
     rows = (await c.get("/admin/users", headers=_headers(admin))).json()
     assert _row(rows, admin.id)["role_source"] == "allowlist"
-    assert _row(rows, by_tg.id)["role_source"] == "allowlist"
     assert _row(rows, manual.id)["role_source"] == "manual"
     assert _row(rows, plain.id)["role_source"] == "default"
     assert _row(rows, stale.id)["role_source"] == "default"
@@ -219,43 +214,28 @@ async def test_block_unknown_user_404(env):
 
 
 @pytest.mark.parametrize(
-    "role,email,verified,tg,expected",
+    "role,email,verified,expected",
     [
-        ("admin_g", "any@x.com", True, None, "manual"),
+        ("admin_g", "any@x.com", True, "manual"),
         # 'manual' wins even when the allowlist would ALSO back it: a role in
         # MANUAL_ROLES is one resolution never recomputes, and that is the fact
         # worth showing.
-        ("admin_g", "boss@x.com", True, None, "manual"),
+        ("admin_g", "boss@x.com", True, "manual"),
         # 'observer' is manual too — it is stored intent nothing in the env
         # computes. Reporting it as 'default' (which this did until 2026-09-08)
         # said the exact opposite: 'default' is the console's stale-role
         # warning, and it was shown for a grant that had just been made.
-        ("observer", "any@x.com", True, None, "manual"),
-        ("observer", "boss@x.com", True, None, "manual"),
-        ("admin", "boss@x.com", True, None, "allowlist"),
-        ("admin", "boss@x.com", False, None, "default"),
-        ("user", None, False, "777", "allowlist"),
-        ("user", None, False, "1", "default"),
-        ("user", "nobody@x.com", True, None, "default"),
+        ("observer", "any@x.com", True, "manual"),
+        ("observer", "boss@x.com", True, "manual"),
+        ("admin", "boss@x.com", True, "allowlist"),
+        ("admin", "boss@x.com", False, "default"),
+        ("user", "nobody@x.com", True, "default"),
     ],
 )
-def test_role_source_for_unit(monkeypatch, role, email, verified, tg, expected):
+def test_role_source_for_unit(monkeypatch, role, email, verified, expected):
     monkeypatch.setattr(settings, "admin_emails", "boss@x.com")
-    monkeypatch.setattr(settings, "admin_telegram_ids", "777")
     user = User(role=role, email=email, email_verified=verified)
-    identities = (
-        [OAuthIdentity(provider="telegram", provider_user_id=tg)] if tg else []
-    )
-    assert role_source_for(user, identities) == expected
-
-
-def test_role_source_ignores_unparsable_telegram_id(monkeypatch):
-    """provider_user_id is a string column; a non-numeric one must be skipped,
-    not raise, exactly as the login path's _telegram_ids_for does."""
-    monkeypatch.setattr(settings, "admin_telegram_ids", "777")
-    user = User(role="user", email=None, email_verified=False)
-    identities = [OAuthIdentity(provider="telegram", provider_user_id="not-a-number")]
-    assert role_source_for(user, identities) == "default"
+    assert role_source_for(user) == expected
 
 
 async def test_grant_and_revoke_admin_g(env):

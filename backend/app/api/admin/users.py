@@ -56,7 +56,7 @@ def _out(user: User) -> AdminUserOut:
         display_name=user.display_name,
         avatar_url=user.avatar_url,
         role=user.role,
-        role_source=role_source_for(user, user.identities),
+        role_source=role_source_for(user),
         providers=providers,
         is_active=user.is_active,
         created_at=user.created_at,
@@ -114,7 +114,7 @@ async def admin_set_user_role(
         # Demoting yourself locks you out of the console with no way back in;
         # promoting yourself is already true. Neither is worth allowing.
         raise HTTPException(status_code=400, detail="cannot change your own role")
-    source = role_source_for(user, user.identities)
+    source = role_source_for(user)
     if body.role == "user" and source == "allowlist":
         raise HTTPException(
             status_code=400,

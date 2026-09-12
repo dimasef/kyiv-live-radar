@@ -1,12 +1,11 @@
 """Auth service layer: role resolution, provider-identity linking, token issue.
 
-Shared by every provider route (email/password, Google, Telegram) so the
-account-linking and role rules live in exactly one place.
+Shared by every sign-in route (email/password, Google) so the account-linking
+and role rules live in exactly one place.
 """
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable, Sequence
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,70 +18,28 @@ from .security import AuthError, decode_refresh, encode_access, encode_refresh
 log = logging.getLogger("auth")
 
 
-def role_for(verified_email: str | None, telegram_ids: list[int]) -> str:
-    """Resolve a role from the env allowlists. An email only counts when it was
-    VERIFIED by a provider — a self-registered password email is never trusted
-    for admin. Telegram is matched by numeric id."""
+def role_for(verified_email: str | None) -> str:
+    """Resolve a role from the env allowlist. Only a VERIFIED email counts —
+    one Google vouched for, or one whose owner clicked our verification link."""
     if verified_email and verified_email.lower() in settings.admin_email_list:
-        return "admin"
-    admin_tg = set(settings.admin_telegram_id_list)
-    if any(tid in admin_tg for tid in telegram_ids):
         return "admin"
     return "user"
 
 
-def telegram_ids_in(identities: Iterable[OAuthIdentity]) -> list[int]:
-    """The numeric Telegram ids among already-loaded identity rows.
-
-    The object-graph twin of `_telegram_ids_for` below, which selects the column
-    straight from the DB for the login path. Kept separate on purpose: a list
-    view has the rows in hand (selectinload) and must not emit a query per user,
-    while the login path has no reason to load whole identity objects."""
-    out: list[int] = []
-    for identity in identities:
-        if identity.provider != "telegram":
-            continue
-        try:
-            out.append(int(identity.provider_user_id))
-        except (TypeError, ValueError):
-            pass
-    return out
-
-
-def role_source_for(user: User, identities: Sequence[OAuthIdentity]) -> RoleSource:
-    """WHY this user's role is what it is — see models.RoleSource.
-
-    Pure: the caller supplies the eagerly-loaded identities, so serializing a
-    whole page of users costs no extra query. Lives here, next to `role_for` and
-    `resolve_and_set_role`, because all three read the same allowlists and must
-    never disagree about what they mean."""
+def role_source_for(user: User) -> RoleSource:
+    """WHY this user's role is what it is — see models.RoleSource. Pure, so a
+    whole page of users costs no extra query; lives next to `role_for` and
+    `resolve_and_set_role` because all three must agree on the allowlist."""
     if user.role in MANUAL_ROLES:
         return "manual"
-    verified_email = user.email if user.email_verified else None
-    if role_for(verified_email, telegram_ids_in(identities)) == "admin":
+    if role_for(user.email if user.email_verified else None) == "admin":
         return "allowlist"
     return "default"
 
 
-async def _telegram_ids_for(session: AsyncSession, user: User) -> list[int]:
-    rows = await session.scalars(
-        select(OAuthIdentity.provider_user_id).where(
-            OAuthIdentity.user_id == user.id, OAuthIdentity.provider == "telegram"
-        )
-    )
-    out: list[int] = []
-    for raw in rows:
-        try:
-            out.append(int(raw))
-        except (TypeError, ValueError):
-            pass
-    return out
-
-
 async def resolve_and_set_role(session: AsyncSession, user: User) -> None:
-    """Recompute and persist user.role from ALL of the user's admin signals
-    (verified email + any linked Telegram id). Called on every login so a change
-    to the allowlist takes effect on the user's next sign-in.
+    """Recompute and persist user.role from the allowlist. Called on every
+    login so a change to the allowlist takes effect on the user's next sign-in.
 
     A role in `MANUAL_ROLES` is stored intent, not derived state — nothing in the
     env computes it — so it is preserved as-is. Recomputing would clobber it back
@@ -91,9 +48,7 @@ async def resolve_and_set_role(session: AsyncSession, user: User) -> None:
     granted from the console and then lost at the person's very next sign-in."""
     if user.role in MANUAL_ROLES:
         return
-    verified_email = user.email if user.email_verified else None
-    telegram_ids = await _telegram_ids_for(session, user)
-    user.role = role_for(verified_email, telegram_ids)
+    user.role = role_for(user.email if user.email_verified else None)
 
 
 async def get_or_create_user_for_identity(

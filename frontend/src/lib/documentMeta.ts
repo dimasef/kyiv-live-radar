@@ -7,7 +7,9 @@ import {
   isCollectionRoute,
   isJournalRoute,
   journalTabFromPath,
+  RESET_PASSWORD_PATH,
   userRouteId,
+  VERIFY_EMAIL_PATH,
 } from '@/router'
 
 export const SITE_ORIGIN = 'https://www.ua-radar.online'
@@ -37,6 +39,9 @@ export function documentMeta(path: string, t: TFunction): DocumentMeta {
   }
   if (isAdminRoute(path)) return { title: page(t('nav.admin')), indexable: false, canonical: null }
   if (path === ACCOUNT_PATH) return { title: page(t('nav.account')), indexable: false, canonical: null }
+  if (path === VERIFY_EMAIL_PATH || path === RESET_PASSWORD_PATH) {
+    return { title: page(t('nav.account')), indexable: false, canonical: null }
+  }
   if (isCollectionRoute(path)) return { title: page(t('nav.collection')), indexable: false, canonical: null }
   if (userRouteId(path) != null) return { title: app, indexable: false, canonical: null }
   return { title: `${app} — ${t('meta.mapTitle')}`, indexable: true, canonical: `${SITE_ORIGIN}/` }

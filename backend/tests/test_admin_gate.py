@@ -98,15 +98,12 @@ async def test_resolve_still_recomputes_a_derived_role(client, session):
 
 def test_role_for_allowlist(monkeypatch):
     monkeypatch.setattr(settings, "admin_emails", "Boss@X.com, second@x.com")
-    monkeypatch.setattr(settings, "admin_telegram_ids", "555, 777")
 
     # Verified allowlisted email → admin (case-insensitive).
-    assert role_for("boss@x.com", []) == "admin"
-    # Allowlisted Telegram id → admin.
-    assert role_for(None, [777]) == "admin"
+    assert role_for("boss@x.com") == "admin"
     # Neither → user.
-    assert role_for("stranger@x.com", [1, 2]) == "user"
-    assert role_for(None, []) == "user"
+    assert role_for("stranger@x.com") == "user"
+    assert role_for(None) == "user"
 
 
 async def test_raw_filters_bind_as_lists_over_http(client, session):

@@ -1485,6 +1485,21 @@
         "title": "DurationBucketOut",
         "type": "object"
       },
+      "EmailOnlyIn": {
+        "description": "POST /auth/resend-verification and /auth/forgot-password.",
+        "properties": {
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "EmailOnlyIn",
+        "type": "object"
+      },
       "EventDistrictIn": {
         "description": "PATCH /admin/events/{id} — admin fixes a mislocated sighting.",
         "properties": {
@@ -2683,6 +2698,17 @@
         "title": "NoticeOut",
         "type": "object"
       },
+      "OkOut": {
+        "properties": {
+          "ok": {
+            "default": true,
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "title": "OkOut",
+        "type": "object"
+      },
       "PresencePrefIn": {
         "description": "PUT /me/presence — opt in/out of showing friends WHEN you were last active.",
         "properties": {
@@ -3786,6 +3812,26 @@
         "title": "RegisterIn",
         "type": "object"
       },
+      "RegisterOut": {
+        "description": "POST /auth/register result: no tokens — the address has to be proven\nfirst (the mail with the link is on its way).",
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "status": {
+            "const": "verification_sent",
+            "default": "verification_sent",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "RegisterOut",
+        "type": "object"
+      },
       "RegroupOut": {
         "description": "PATCH /admin/events/{id}/threat — BOTH tracks the move touched.\n\nA regroup always changes two tracks, and the admin view has to update both:\nreturning only the destination left the source still advertising a sighting\nit no longer owns.",
         "properties": {
@@ -3957,6 +4003,29 @@
           "incidents"
         ],
         "title": "ReprocessSummaryOut",
+        "type": "object"
+      },
+      "ResetPasswordIn": {
+        "description": "POST /auth/reset-password — the token from the reset mail + new password.",
+        "properties": {
+          "password": {
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Password",
+            "type": "string"
+          },
+          "token": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "password"
+        ],
+        "title": "ResetPasswordIn",
         "type": "object"
       },
       "SendFriendRequestIn": {
@@ -4792,69 +4861,6 @@
         "title": "SyncSnapshotOut",
         "type": "object"
       },
-      "TelegramAuthIn": {
-        "additionalProperties": true,
-        "description": "POST /auth/telegram — the Telegram Login Widget payload. extra='allow'\nso any future widget field is preserved for the HMAC data-check-string\n(which must include EXACTLY the fields Telegram signed).",
-        "properties": {
-          "auth_date": {
-            "title": "Auth Date",
-            "type": "integer"
-          },
-          "first_name": {
-            "title": "First Name",
-            "type": "string"
-          },
-          "hash": {
-            "title": "Hash",
-            "type": "string"
-          },
-          "id": {
-            "title": "Id",
-            "type": "integer"
-          },
-          "last_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Name"
-          },
-          "photo_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Photo Url"
-          },
-          "username": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Username"
-          }
-        },
-        "required": [
-          "id",
-          "first_name",
-          "auth_date",
-          "hash"
-        ],
-        "title": "TelegramAuthIn",
-        "type": "object"
-      },
       "ThreatAnalysisStateOut": {
         "description": "GET /analysis/threat/{id} — which analyses this target has left, and which\n(if any) the current user already claimed. Drives the inspect-badge button:\n`*_taken` disables it globally, `mine.*` shows the card the user won.",
         "properties": {
@@ -5474,6 +5480,22 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "VerifyEmailIn": {
+        "description": "POST /auth/verify-email — the token from the link in the mail.",
+        "properties": {
+          "token": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "VerifyEmailIn",
         "type": "object"
       },
       "WSMessage": {
@@ -8330,6 +8352,48 @@
         ]
       }
     },
+    "/auth/forgot-password": {
+      "post": {
+        "description": "Always 200. The reset link goes to the address's real owner, which is\nalso how they reclaim an email someone registered without verifying.",
+        "operationId": "forgot_password_auth_forgot_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailOnlyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Forgot Password",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/google": {
       "post": {
         "operationId": "google_login_auth_google_post",
@@ -8609,6 +8673,7 @@
     },
     "/auth/register": {
       "post": {
+        "description": "Create the account and mail a verification link. No tokens until the\nlink is used — the address has to be proven first (an unverified account\ncould otherwise squat someone else's email; see auth.service merge rules).",
         "operationId": "register_auth_register_post",
         "requestBody": {
           "content": {
@@ -8621,11 +8686,19 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "202": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TokenPairOut"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/RegisterOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/TokenPairOut"
+                    }
+                  ],
+                  "title": "Response Register Auth Register Post"
                 }
               }
             },
@@ -8648,14 +8721,57 @@
         ]
       }
     },
-    "/auth/telegram": {
+    "/auth/resend-verification": {
       "post": {
-        "operationId": "telegram_login_auth_telegram_post",
+        "description": "Always 200: whether the address exists is not for the caller to learn.",
+        "operationId": "resend_verification_auth_resend_verification_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TelegramAuthIn"
+                "$ref": "#/components/schemas/EmailOnlyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resend Verification",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/reset-password": {
+      "post": {
+        "description": "Set a new password from the mailed token. Using the link proves the\naddress, so it also verifies it; every other session is signed out.",
+        "operationId": "reset_password_auth_reset_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordIn"
               }
             }
           },
@@ -8683,7 +8799,49 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Telegram Login",
+        "summary": "Reset Password",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/verify-email": {
+      "post": {
+        "description": "Prove the address with the mailed token; signs the user in on success.",
+        "operationId": "verify_email_auth_verify_email_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyEmailIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenPairOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Email",
         "tags": [
           "auth"
         ]

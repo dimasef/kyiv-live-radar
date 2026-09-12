@@ -284,7 +284,7 @@ AssignableRole = Literal["user", "observer", "admin_g"]
 ASSIGNABLE_ROLES: tuple[AssignableRole, ...] = get_args(AssignableRole)
 # Linked SSO providers on OAuthIdentity. Email+password is native on the User
 # row (password_hash), NOT an identity — so it's absent here.
-Provider = Literal["google", "telegram"]
+Provider = Literal["google"]
 PROVIDERS: tuple[Provider, ...] = get_args(Provider)
 # Admin corrections harvested from the /admin console into a labeled regression
 # dataset (app/domain/corrections.py). 'false_positive' = a dismissed track's
@@ -886,6 +886,21 @@ class RefreshToken(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class EmailToken(Base):
+    """A one-time email link: address verification or password reset. Only the
+    SHA-256 of the token is stored — see auth/verification.py."""
+
+    __tablename__ = "email_tokens"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    purpose: Mapped[str] = mapped_column(String(10))  # 'verify' | 'reset'
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Friendship(Base):

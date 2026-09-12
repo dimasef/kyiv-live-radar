@@ -42,15 +42,19 @@ from .analytics import (
 )
 from .auth import (
     AccessTokenOut,
+    EmailOnlyIn,
     GoogleAuthIn,
     LoginIn,
     LogoutIn,
     MeUpdateIn,
+    OkOut,
     RefreshIn,
     RegisterIn,
-    TelegramAuthIn,
+    RegisterOut,
+    ResetPasswordIn,
     TokenPairOut,
     UserOut,
+    VerifyEmailIn,
 )
 from .base import _as_utc
 from .bugs import (
@@ -249,7 +253,11 @@ __all__ = [
     "SourceUpdateIn",
     "StatsDayOut",
     "StatsTotalsOut",
-    "TelegramAuthIn",
+    "EmailOnlyIn",
+    "OkOut",
+    "RegisterOut",
+    "ResetPasswordIn",
+    "VerifyEmailIn",
     "ThreatAnalysisStateOut",
     "ThreatEventOut",
     "ThreatOut",

@@ -94,6 +94,16 @@ export function adminTabFromPath(path: string): AdminTab {
 }
 // Signed-in user's account page (profile, linked providers, sign-out).
 export const ACCOUNT_PATH = '/account'
+// Landing pages for the links the backend mails (app/auth/verification.py).
+// Both carry `?token=` and act only on a click, never on load — mail scanners
+// open links, and a one-time token must not be spent by one.
+export const VERIFY_EMAIL_PATH = '/verify-email'
+export const RESET_PASSWORD_PATH = '/reset-password'
+
+/** The `token` query parameter of the current URL, or null. */
+export function tokenFromSearch(): string | null {
+  return new URLSearchParams(window.location.search).get('token')
+}
 
 // Collectible-card collection. `/collection` shows your own; `/collection/<id>`
 // shows a friend's (server gates it to accepted friends).

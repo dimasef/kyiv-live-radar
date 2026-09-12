@@ -9,12 +9,12 @@ import {
   patchMe,
   authRefreshToken,
   authRegister,
-  authTelegram,
+  authResetPassword,
+  authVerifyEmail,
   isAdminRole,
   setAccessToken,
   setRefreshHandler,
   type AuthUser,
-  type TelegramAuthPayload,
   type TokenPair,
 } from '@/api'
 import { safeGet, safeRemove, safeSet, STORAGE_KEYS } from '@/lib/storage'
@@ -29,10 +29,13 @@ export interface AuthSlice {
   user: AuthUser | null
   authStatus: AuthStatus
   isAdmin: () => boolean
+  /** Creates the account and mails a verification link — does NOT sign in. */
   register: (email: string, password: string, displayName?: string) => Promise<void>
   login: (email: string, password: string) => Promise<void>
   loginWithGoogle: (credential: string) => Promise<void>
-  loginWithTelegram: (payload: TelegramAuthPayload) => Promise<void>
+  /** The mailed links: both prove the address and sign the user in. */
+  verifyEmail: (token: string) => Promise<void>
+  resetPassword: (token: string, password: string) => Promise<void>
   logout: () => void
   /** Restore a session from the stored refresh token (called once on boot). */
   refreshSession: () => Promise<void>
@@ -97,7 +100,7 @@ export const createAuthSlice: StateCreator<RadarState, [], [], AuthSlice> = (set
     isAdmin: () => isAdminRole(get().user?.role),
 
     register: async (email, password, displayName) => {
-      applyTokens(await authRegister(email, password, displayName))
+      await authRegister(email, password, displayName)
     },
 
     login: async (email, password) => {
@@ -108,8 +111,12 @@ export const createAuthSlice: StateCreator<RadarState, [], [], AuthSlice> = (set
       applyTokens(await authGoogle(credential))
     },
 
-    loginWithTelegram: async (payload) => {
-      applyTokens(await authTelegram(payload))
+    verifyEmail: async (token) => {
+      applyTokens(await authVerifyEmail(token))
+    },
+
+    resetPassword: async (token, password) => {
+      applyTokens(await authResetPassword(token, password))
     },
 
     logout: () => {

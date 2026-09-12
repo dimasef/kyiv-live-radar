@@ -35,6 +35,17 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 export const CHANGELOG: Release[] = [
   {
     version: APP_VERSION,
+    title: "підтвердження пошти",
+    date: "2026-09-12",
+    kind: "minor",
+    changes: [
+      "Реєстрація тепер підтверджується листом: після створення акаунта відкрийте посилання з пошти, і вхід запрацює",
+      "Забули пароль? У вікні входу є посилання, яке надішле лист для встановлення нового",
+      "Вхід через Telegram прибрано — залишаються пошта з паролем і Google",
+    ],
+  },
+  {
+    version: "0.55.6",
     title: "міцніший вхід",
     date: "2026-09-12",
     kind: "patch",

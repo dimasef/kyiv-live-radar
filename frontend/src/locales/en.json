@@ -30,6 +30,27 @@
     "hidePassword": "Hide password",
     "or": "or",
     "close": "Close",
+    "forgot": "Forgot password?",
+    "forgotTitle": "Reset password",
+    "sendReset": "Send the link",
+    "backToLogin": "Back to sign-in",
+    "registerSentTitle": "Check your inbox",
+    "registerSent": "We sent a verification link to {{email}}. Open it to finish registering.",
+    "resetSent": "If there is an account for {{email}}, a password-reset link is on its way.",
+    "resend": "Send the email again",
+    "resent": "Email sent",
+    "unverified": "This email is not verified yet. Open the link from the email, or send it again.",
+    "verifyTitle": "Verify your email",
+    "verifyHint": "Press the button to verify the address and sign in.",
+    "verifyButton": "Verify email",
+    "verified": "Email verified — you are signed in.",
+    "resetTitle": "New password",
+    "newPassword": "New password",
+    "setPassword": "Set password",
+    "resetDone": "Password changed — you are signed in.",
+    "badToken": "This link is invalid or expired. Request a new one.",
+    "noToken": "The link is missing its code. Open the email again.",
+    "toMap": "To the map",
     "err": {
       "badCredentials": "Wrong email or password",
       "emailTaken": "This email is already registered",
@@ -38,7 +59,8 @@
       "loginFailed": "Could not sign in",
       "registerFailed": "Could not register",
       "googleFailed": "Could not sign in with Google",
-      "telegramFailed": "Could not sign in with Telegram"
+      "mail": "Could not send the email. Try again later.",
+      "tooMany": "Too many attempts. Try again in a minute."
     }
   },
   "citywide": {

@@ -1,6 +1,8 @@
-"""Registration/login/SSO inputs and the token pair they return."""
+"""Registration/login/SSO/email-link inputs and the token pair they return."""
 
 from __future__ import annotations
+
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -63,20 +65,35 @@ class GoogleAuthIn(BaseModel):
     credential: str
 
 
-class TelegramAuthIn(BaseModel):
-    """POST /auth/telegram — the Telegram Login Widget payload. extra='allow'
-    so any future widget field is preserved for the HMAC data-check-string
-    (which must include EXACTLY the fields Telegram signed)."""
+class VerifyEmailIn(BaseModel):
+    """POST /auth/verify-email — the token from the link in the mail."""
 
-    model_config = ConfigDict(extra="allow")
+    token: str = Field(min_length=1, max_length=128)
 
-    id: int
-    first_name: str
-    last_name: str | None = None
-    username: str | None = None
-    photo_url: str | None = None
-    auth_date: int
-    hash: str
+
+class EmailOnlyIn(BaseModel):
+    """POST /auth/resend-verification and /auth/forgot-password."""
+
+    email: EmailStr
+
+
+class ResetPasswordIn(BaseModel):
+    """POST /auth/reset-password — the token from the reset mail + new password."""
+
+    token: str = Field(min_length=1, max_length=128)
+    password: str = Field(min_length=8, max_length=128)
+
+
+class RegisterOut(BaseModel):
+    """POST /auth/register result: no tokens — the address has to be proven
+    first (the mail with the link is on its way)."""
+
+    status: Literal["verification_sent"] = "verification_sent"
+    email: str
+
+
+class OkOut(BaseModel):
+    ok: bool = True
 
 
 class UserOut(BaseModel):
