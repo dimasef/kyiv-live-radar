@@ -1,17 +1,17 @@
 import { useEffect } from "react";
 import { Marker } from "react-leaflet";
 
-import { aftermathDivIcon } from "@/aftermathIcons";
 import { canSeeImpacts } from "@/api";
 import { fadeFactor } from "@/lib/aftermathFreshness";
 import { useRadar } from "@/store";
 import { IMPACT_REFRESH_MS } from "@/store/impactsSlice";
 import { MARKER_PX } from "@/store/prefsSlice";
-import { threatDivIcon } from "@/threatIcons";
 
+import { aftermathDivIcon } from "./aftermathDivIcon";
 import AftermathPopup from "./AftermathPopup";
 import ImpactPopup from "./ImpactPopup";
 import { trackPoints } from "./track";
+import { threatDivIcon } from "./threatDivIcon";
 
 /** What this night did to these streets, for the accounts an operator has
  * vouched for: confirmed hits AND what a strike did to a raion — fires, damage,

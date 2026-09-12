@@ -1,5 +1,3 @@
-import L from 'leaflet'
-
 import { AFTERMATH_COLOR } from '@/theme'
 import type { AftermathCategory } from '@/types'
 
@@ -57,13 +55,4 @@ export function aftermathMarkerSvg(
   { size = 16, color = AFTERMATH_COLOR }: { size?: number; color?: string } = {},
 ): string {
   return aftermathGlyphSvg('rescue', { size, color })
-}
-
-export function aftermathDivIcon({ size = 22 }: { size?: number } = {}): L.DivIcon {
-  return L.divIcon({
-    html: aftermathMarkerSvg({ size }),
-    className: 'threat-icon',
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-  })
 }

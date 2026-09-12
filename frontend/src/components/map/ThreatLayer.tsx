@@ -6,8 +6,8 @@ import { fadeFactor, showsLiveMotion } from "@/lib/threatFreshness";
 import { useRadar } from "@/store";
 import { MARKER_PX } from "@/store/prefsSlice";
 
-import { threatDivIcon } from "@/threatIcons";
 import type { Threat } from "@/types";
+import { threatDivIcon } from "./threatDivIcon";
 import ThreatEchoDots from "./ThreatEchoDots";
 import ThreatHeadRings from "./ThreatHeadRings";
 import ThreatPopup from "./ThreatPopup";

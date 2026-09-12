@@ -1,5 +1,5 @@
 import { Analytics } from "@vercel/analytics/react";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 
 import { HomeNudge, ImpactLayerNotice, RegionLayerHint, StatusBanner, ZoneLayerNotice } from "@/components/banners";
 import {
@@ -10,11 +10,16 @@ import {
   RegionPickerModal,
 } from "@/components/chrome";
 import { ThreatLog } from "@/components/feed";
-import { MapView } from "@/components/map";
 import { riseDelay } from "@/lib/motion";
 import { safeGet, STORAGE_KEYS } from "@/lib/storage";
 import { useRadar } from "@/store";
 import { bootstrapApp } from "@/store/bootstrap";
+
+// Leaflet + react-leaflet alone are ~40% of what used to be the single initial
+// bundle — lazy here so the shell (top bar, banners, feed) can paint before the
+// map's JS has even downloaded. The fallback below matches MapContainer's own
+// background color so the swap is invisible, not a flash.
+const MapView = lazy(() => import("@/components/map/MapView"));
 
 /** Ties the collapse handle to the rail it controls, for `aria-controls`. */
 const FEED_RAIL_ID = "feed-rail";
@@ -46,7 +51,9 @@ export default function App() {
 
       {/* Map fills the shell slot; on mobile the sheet floats above it. */}
       <div className="absolute inset-0 lg:relative lg:flex-1 lg:min-w-0">
-        <MapView />
+        <Suspense fallback={<div className="h-full w-full" style={{ background: "#05080d" }} />}>
+          <MapView />
+        </Suspense>
         {/* Map overlays — pinned to the top of the map, not the navbar. */}
         {/* A column, so a second pill stacks under the banner rather than
             competing for its line — see banners/ZoneLayerNotice. */}
