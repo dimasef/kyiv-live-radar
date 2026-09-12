@@ -4621,6 +4621,150 @@
         "title": "StatsTotalsOut",
         "type": "object"
       },
+      "SyncOut": {
+        "properties": {
+          "epoch": {
+            "title": "Epoch",
+            "type": "integer"
+          },
+          "frames": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/WSMessage"
+            },
+            "title": "Frames",
+            "type": "array"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "snapshot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SyncSnapshotOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "current",
+              "delta",
+              "full"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "epoch",
+          "seq"
+        ],
+        "title": "SyncOut",
+        "type": "object"
+      },
+      "SyncSnapshotOut": {
+        "description": "Every slice `hydrate()` fetches, in one body — the same bytes the ten\nendpoints serve, spliced from the read cache.",
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/AlertOut"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
+          "axes": {
+            "items": {
+              "$ref": "#/components/schemas/AxisOut"
+            },
+            "title": "Axes",
+            "type": "array"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/FeedEntryOut"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "feed_ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feed Ok"
+          },
+          "incidents": {
+            "items": {
+              "$ref": "#/components/schemas/IncidentOut"
+            },
+            "title": "Incidents",
+            "type": "array"
+          },
+          "notices": {
+            "items": {
+              "$ref": "#/components/schemas/NoticeOut"
+            },
+            "title": "Notices",
+            "type": "array"
+          },
+          "recent_incidents": {
+            "items": {
+              "$ref": "#/components/schemas/IncidentOut"
+            },
+            "title": "Recent Incidents",
+            "type": "array"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceLinkOut"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "threats": {
+            "items": {
+              "$ref": "#/components/schemas/ThreatOut"
+            },
+            "title": "Threats",
+            "type": "array"
+          },
+          "zones": {
+            "items": {
+              "$ref": "#/components/schemas/AlertZoneOut"
+            },
+            "title": "Zones",
+            "type": "array"
+          }
+        },
+        "required": [
+          "threats",
+          "incidents",
+          "recent_incidents",
+          "axes",
+          "alerts",
+          "zones",
+          "events",
+          "notices",
+          "sources",
+          "server_time"
+        ],
+        "title": "SyncSnapshotOut",
+        "type": "object"
+      },
       "TelegramAuthIn": {
         "additionalProperties": true,
         "description": "POST /auth/telegram — the Telegram Login Widget payload. extra='allow'\nso any future widget field is preserved for the HMAC data-check-string\n(which must include EXACTLY the fields Telegram signed).",
@@ -5303,6 +5447,150 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "WSMessage": {
+        "description": "Envelope broadcast over the WebSocket.",
+        "properties": {
+          "alert": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AlertOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "axis": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AxisOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "epoch": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Epoch"
+          },
+          "event": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ThreatEventOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "feed_ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feed Ok"
+          },
+          "incident": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IncidentOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notice": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NoticeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "online": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Online"
+          },
+          "seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seq"
+          },
+          "server_time": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Time"
+          },
+          "threat": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ThreatOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "zones": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AlertZoneOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zones"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "WSMessage",
         "type": "object"
       }
     }
@@ -10691,6 +10979,106 @@
           }
         },
         "summary": "List Sources"
+      }
+    },
+    "/sync": {
+      "get": {
+        "operationId": "sync_sync_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "epoch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Epoch"
+            }
+          },
+          {
+            "in": "query",
+            "name": "seq",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Seq"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 60,
+              "maximum": 250,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "kyiv",
+                      "chernihiv",
+                      "sumy",
+                      "kharkiv",
+                      "dnipro"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Region"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sync"
       }
     },
     "/threats/active": {

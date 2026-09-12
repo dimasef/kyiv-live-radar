@@ -36,6 +36,17 @@ class Settings(BaseSettings):
     # than the server's idle timeout, the first query after a quiet night hits a
     # connection the server already hung up on.
     db_pool_recycle_seconds: int = 1800
+    # Connections the API process may hold open at once (pool + burst overflow).
+    # Every hydrate() is ten queries, so a crowd opening the map pins one
+    # connection per in-flight request; with the SQLAlchemy defaults (5 + 10) a
+    # 300-reader deploy storm queued on the pool for 30 s and timed out (see
+    # loadtest/README.md). Must stay well under the Postgres max_connections
+    # shared with the worker/reprocess processes.
+    db_pool_size: int = 10
+    db_max_overflow: int = 20
+    # Seconds a request waits for a pooled connection before failing. Failing
+    # fast beats holding a reader's boot for the full default 30 s.
+    db_pool_timeout_seconds: int = 10
 
     # A contact counts as online this long after their last authenticated
     # request. Must stay comfortably above the frontend's 30s friend-poll, or an
@@ -258,6 +269,22 @@ class Settings(BaseSettings):
     # (60s threshold) then never false-triggers during an otherwise-quiet
     # night. See app/pipeline/keepalive.py.
     ws_keepalive_s: int = 25
+    # Rendered hydrate responses are reused until the DB changes (api/read_cache.py);
+    # the TTL only bounds staleness from writes the ORM events cannot see.
+    read_cache_enabled: bool = True
+    read_cache_ttl_s: float = 30.0
+    # Seconds a single client may stall a frame before it is dropped. A socket
+    # whose TCP buffer is full blocks `send` — without a bound, one frozen phone
+    # would stall the fan-out for everyone else.
+    ws_send_timeout_s: float = 5.0
+    # The 'online' headcount frame is coalesced to at most one per this many
+    # seconds. Broadcasting it on EVERY connect/disconnect is O(N²) during a
+    # crowd's arrival: 1000 joins × 1000 recipients = a million frames.
+    ws_online_coalesce_s: float = 1.0
+    # Data frames kept for GET /sync replay. A reconnecting client whose last
+    # frame is still in here gets a delta; older than that (or another process)
+    # gets one full snapshot. A busy night is ~60 frames/min, so 2000 ≈ 30 min.
+    ws_history_frames: int = 2000
 
     # One-off maintenance: when true, rebuild ALL tracks/incidents from stored
     # raw_messages at startup (BEFORE the live listener starts — race-free) so a

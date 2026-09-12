@@ -15,6 +15,7 @@ import {
 import { resyncHomePush } from '@/lib/push'
 import { currentRegion } from '@/lib/regions'
 import { registerLifecycleListeners } from '@/lifecycle'
+import type { Region, SyncSnapshot } from '@/types'
 import { connectWS } from '@/ws'
 
 import { shownRegions } from './feedRegions'
@@ -76,10 +77,7 @@ async function runHydrate(): Promise<void> {
     // recently-ended alert for the banner's «щойно відбій» linger to fire.
     fetchRecentAlerts(60).then(apply(store.setAlerts)).catch(() => {}),
     fetchAlertZones().then(apply(store.setZones)).catch(() => {}),
-    fetchRecentEvents(
-      store.feedLimit,
-      shownRegions(store.feedExtraRegions, currentRegion(store)),
-    )
+    fetchRecentEvents(feedPage().limit, feedPage().regions)
       .then(apply(store.setLog))
       .catch(() => {}),
     fetchRecentNotices().then(apply(store.setNotices)).catch(() => {}),
@@ -100,6 +98,34 @@ async function runHydrate(): Promise<void> {
   // guard skip the recovery refetch for the next 10s — precisely when the
   // backend is coming back and we most need to re-ask.
   if (isCurrent() && anySucceeded) lastHydrateAt = Date.now()
+}
+
+/** Replace every live slice from one GET /sync snapshot — the same setters
+ * `runHydrate` uses, fed from one response instead of ten. */
+export function applySnapshot(snap: SyncSnapshot): void {
+  const store = useRadar.getState()
+  store.setThreats(snap.threats)
+  store.setIncidents(snap.incidents)
+  store.setRecentIncidents(snap.recent_incidents)
+  store.setAxes(snap.axes)
+  store.setAlerts(snap.alerts)
+  store.setZones(snap.zones)
+  store.setLog(snap.events)
+  store.setNotices(snap.notices)
+  store.setSources(snap.sources)
+  store.setFeedOk(snap.feed_ok ?? null)
+  store.setServerTime(snap.server_time)
+  lastHydrateAt = Date.now()
+}
+
+/** Which feed page this client asks for — `hydrate()` and `/sync` must agree,
+ * or a resync would hand the reader a differently sized feed. */
+export function feedPage(): { limit: number; regions: readonly Region[] } {
+  const store = useRadar.getState()
+  return {
+    limit: store.feedLimit,
+    regions: shownRegions(store.feedExtraRegions, currentRegion(store)),
+  }
 }
 
 /** One-shot static data + first hydration + live WS connection for the radar

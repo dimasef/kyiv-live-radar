@@ -125,6 +125,7 @@ async def health():
         "status": "ok",
         "simulator": settings.simulator_enabled,
         "server_time": utcnow().isoformat(),
+        "ws_clients": manager.online,
     }
     if settings.telegram_enabled:
         status = get_status()

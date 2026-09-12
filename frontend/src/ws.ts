@@ -1,5 +1,6 @@
 import { useRadar } from './store'
-import { hydrate, lastHydrateAt } from './store/bootstrap'
+import { fetchSync } from './api'
+import { applySnapshot, feedPage, hydrate, lastHydrateAt } from './store/bootstrap'
 import type { WSMessage } from './types'
 
 const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8137/ws/threats'
@@ -19,6 +20,12 @@ const RESYNC_MIN_FRESH_MS = 10_000
 
 let socket: WebSocket | null = null
 let retry = 0
+// Where in the server's frame stream this client is (see WSCommon). Null until
+// the first frame — the very first connect still does a full hydrate.
+let streamEpoch: number | null = null
+let streamSeq: number | null = null
+let resumeInFlight: { promise: Promise<void>; startedAt: number } | null = null
+const RESUME_COALESCE_MS = 2_000
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let lastMessageAt = Date.now()
 let resyncTimer: ReturnType<typeof setTimeout> | null = null
@@ -44,16 +51,15 @@ export function connectWS() {
     lastMessageAt = Date.now()
     clearReconnect()
     useRadar.getState().setConnected(true)
-    // Reconcile every active/recent slice: closes/ends/clears missed while
-    // disconnected would otherwise linger until a manual reload.
-    hydrate()
+    // Catch up on what was missed while disconnected: the exact frames when
+    // the server still has them, one snapshot otherwise (see resumeStream).
+    void resumeStream()
   }
 
   socket.onmessage = (e) => {
     lastMessageAt = Date.now()
     try {
-      const msg: WSMessage = JSON.parse(e.data)
-      useRadar.getState().handleWS(msg)
+      applyFrame(JSON.parse(e.data) as WSMessage)
     } catch {
       /* ignore malformed frame */
     }
@@ -67,13 +73,69 @@ export function connectWS() {
     socket = null
     retry = Math.min(retry + 1, 6)
     clearReconnect()
-    reconnectTimer = setTimeout(connectWS, 500 * 2 ** retry)
+    // Full jitter: a deploy drops every socket at the same instant, and without
+    // it every reader retries in lockstep — N boots (13 requests each) landing
+    // on the backend in the same second, wave after wave.
+    const base = 500 * 2 ** retry
+    reconnectTimer = setTimeout(connectWS, base / 2 + Math.random() * base)
   }
 
   socket.onclose = scheduleReconnect
   socket.onerror = () => socket?.close()
 
   startWatchdog()
+}
+
+function applyFrame(msg: WSMessage) {
+  if (msg.epoch != null && msg.seq != null) {
+    streamEpoch = msg.epoch
+    streamSeq = msg.seq
+  }
+  useRadar.getState().handleWS(msg)
+}
+
+/** Bring the store up to date after a (re)connect with ONE request instead of
+ * the ten `hydrate()` fires. Every open tab reconnects in the same second
+ * after a deploy, so this is what keeps that second survivable. Falls back to
+ * the full hydrate whenever the server cannot answer. */
+export function resumeStream(): Promise<void> {
+  if (resumeInFlight && Date.now() - resumeInFlight.startedAt < RESUME_COALESCE_MS)
+    return resumeInFlight.promise
+  const promise = runResume().finally(() => {
+    if (resumeInFlight?.promise === promise) resumeInFlight = null
+  })
+  resumeInFlight = { promise, startedAt: Date.now() }
+  return promise
+}
+
+async function runResume(): Promise<void> {
+  if (streamEpoch == null || streamSeq == null) return hydrate()
+  const page = feedPage()
+  let result
+  try {
+    result = await fetchSync(streamEpoch, streamSeq, page.limit, page.regions)
+  } catch {
+    return hydrate()
+  }
+  switch (result.status) {
+    case 'current':
+      return
+    case 'delta':
+      // Live frames may already have overtaken the replay on the fresh
+      // socket; a replayed frame older than the newest applied one would
+      // roll a track back, so only what is genuinely still ahead is applied.
+      for (const frame of result.frames as WSMessage[]) {
+        if (frame.epoch === streamEpoch && frame.seq != null && frame.seq <= (streamSeq ?? -1))
+          continue
+        applyFrame(frame)
+      }
+      return
+    case 'full':
+      if (result.snapshot) applySnapshot(result.snapshot)
+      streamEpoch = result.epoch
+      streamSeq = result.seq
+      return
+  }
 }
 
 /** Tears down the current socket WITHOUT the normal backoff path (detaches
@@ -110,7 +172,7 @@ export function resync() {
     resyncInFlight = true
     useRadar.getState().setResyncing(true)
     forceReconnect()
-    hydrate().finally(() => {
+    resumeStream().finally(() => {
       resyncInFlight = false
       useRadar.getState().setResyncing(false)
     })

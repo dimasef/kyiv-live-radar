@@ -30,7 +30,7 @@ jobs:
             backend/requirements.txt
             backend/constraints.txt
       - run: pip install -r requirements.txt ruff
-      - run: ruff check app tests eval scripts
+      - run: ruff check app tests eval scripts loadtest
       - run: pytest tests -q
       # The committed openapi.json is the contract the frontend types are built
       # from. Regenerating it here turns "changed a schema, forgot to publish

@@ -27,7 +27,7 @@ python3.11 -m venv .venv && .venv/bin/pip install -r requirements.txt ruff
 .venv/bin/uvicorn app.main:app --port 8137 --reload   # dev server
 
 .venv/bin/pytest tests/ -q                             # full suite
-.venv/bin/ruff check app tests eval scripts            # lint (config in pyproject.toml)
+.venv/bin/ruff check app tests eval scripts loadtest   # lint (config in pyproject.toml)
 
 # `requirements.txt` starts with `-c constraints.txt`, so that one command pins
 # every transitive version — CI, the Railway build and your venv all resolve the

@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import TypeAdapter
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -30,6 +31,7 @@ from ...schemas import (
     ThreatEventOut,
     ThreatOut,
 )
+from ..read_cache import cached_json
 
 router = APIRouter()
 
@@ -45,6 +47,15 @@ async def active_threats(session: AsyncSession = Depends(get_session)):
     api/public/journal.py) — the same reason `incident_out` never publishes an
     impact count and `broadcast.py` never fans one out.
     """
+    return await cached_json(THREATS_ACTIVE, lambda: render_active_threats(session))
+
+
+THREATS_ACTIVE = "threats:active"
+_THREATS = TypeAdapter(list[ThreatOut])
+_FEED = TypeAdapter(list[FeedEntryOut])
+
+
+async def render_active_threats(session: AsyncSession) -> bytes:
     stmt = (
         select(Threat)
         .where(Threat.closed_at.is_(None))
@@ -54,7 +65,11 @@ async def active_threats(session: AsyncSession = Depends(get_session)):
         )
         .order_by(Threat.created_at.desc())
     )
-    return [_threat_out(t) for t in await session.scalars(stmt)]
+    return _THREATS.dump_json([_threat_out(t) for t in await session.scalars(stmt)])
+
+
+def events_key(limit: int, region: list[Region] | None) -> str:
+    return f"events:{limit}:{','.join(sorted(region or []))}"
 
 
 @router.get("/events/recent", response_model=list[FeedEntryOut])
@@ -82,6 +97,14 @@ async def recent_events(
     it would get a page of 60 events with 20 left to look at. The client still
     filters what the WebSocket pushes afterwards — this only makes the page it
     loads worth `limit` rows."""
+    return await cached_json(
+        events_key(limit, region), lambda: render_recent_events(session, limit, region)
+    )
+
+
+async def render_recent_events(
+    session: AsyncSession, limit: int, region: list[Region] | None
+) -> bytes:
     stmt = (
         select(ThreatEvent)
         # Hide events of admin-dismissed tracks (is_distinct_from so open tracks,
@@ -107,7 +130,7 @@ async def recent_events(
     if region:
         stmt = stmt.where(Threat.region.in_(region))
     events = await session.scalars(stmt.limit(limit))
-    return [_feed_entry_out(ev) for ev in events]
+    return _FEED.dump_json([_feed_entry_out(ev) for ev in events])
 
 
 @router.get("/threats/impacts", response_model=list[ThreatOut])

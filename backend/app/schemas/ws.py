@@ -40,5 +40,12 @@ class WSMessage(BaseModel):
     # by minutes (TV browsers are the usual offender) would fade everything at
     # once — or never. The client keeps the offset and ages targets by it.
     server_time: datetime | None = None
+    # Stream position, so a client that reconnects can ask GET /sync for
+    # exactly the frames it missed instead of re-fetching everything. `epoch`
+    # identifies the server process (a restart starts a new stream), `seq` the
+    # frame within it. 'ping'/'online' carry the current position without
+    # advancing it — they are not part of the replayable stream.
+    epoch: int | None = None
+    seq: int | None = None
 
     _tz_server_time = field_validator("server_time", mode="before")(_as_utc)

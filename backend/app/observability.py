@@ -99,7 +99,35 @@ class _DomainMetrics:
             unit="{reconnect}",
             description="Watchdog-forced reconnects — a spike means the stream keeps zombie-ing.",
         )
+        self._ws_clients = logfire.metric_gauge(
+            "radar.ws.clients", unit="{client}", description="Connected WebSocket clients."
+        )
+        self._ws_broadcast = logfire.metric_histogram(
+            "radar.ws.broadcast_seconds",
+            unit="s",
+            description="Wall time of one fan-out to every connected client.",
+        )
+        self._cache_reads = logfire.metric_counter(
+            "radar.cache.reads",
+            unit="{read}",
+            description="Hydrate responses served, labelled result=hit|miss|bypass.",
+        )
         self._on = True
+
+    def record_cache_read(self, result: str) -> None:
+        if not self._on:
+            return
+        self._cache_reads.add(1, {"result": result})
+
+    def observe_ws_clients(self, count: int) -> None:
+        if not self._on:
+            return
+        self._ws_clients.set(count)
+
+    def record_broadcast(self, seconds: float) -> None:
+        if not self._on:
+            return
+        self._ws_broadcast.record(seconds)
 
     def record_ingest(self, outcome: str, decision_source: str) -> None:
         if not self._on:

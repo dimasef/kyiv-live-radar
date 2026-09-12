@@ -25,6 +25,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
+import app.api.read_cache as read_cache
 import app.domain.districts as districts
 import app.pipeline.ingest as ingest
 import app.pipeline.triage as triage
@@ -55,6 +56,7 @@ def _reset_ingest_globals():
     districts.reset_cache()
     triage.reset_queue()
     triage._invalidate_spend_cache()
+    read_cache.clear()
     yield
     ingest.reset_type_context()
     districts.reset_cache()

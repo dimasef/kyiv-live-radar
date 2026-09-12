@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from fastapi import APIRouter, Depends
+from pydantic import TypeAdapter
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +13,7 @@ from ...config import settings
 from ...db import get_session
 from ...models import Source
 from ...schemas import SourceLinkOut
+from ..read_cache import cached_json
 
 router = APIRouter()
 
@@ -42,19 +44,28 @@ async def list_sources(session: AsyncSession = Depends(get_session)):
     Spotters first, then the official alert channel — the ordering answers "who
     reports the targets you are looking at" before "where the siren comes from".
     """
+    return await cached_json(SOURCES, lambda: render_sources(session))
+
+
+SOURCES = "sources"
+
+
+async def render_sources(session: AsyncSession) -> bytes:
     ours = settings.own_channel_list
     stmt = select(Source).where(Source.is_active.is_(True))
     if ours:
         stmt = stmt.where(Source.channel_key.not_in(ours))
     rows = list(await session.scalars(stmt))
     rows.sort(key=lambda s: (s.role != "spotter", s.name))
-    return [
-        SourceLinkOut(
-            id=s.id,
-            name=s.name,
-            role=s.role,
-            region=s.region,
-            url=public_channel_url(s.channel_key),
-        )
-        for s in rows
-    ]
+    return TypeAdapter(list[SourceLinkOut]).dump_json(
+        [
+            SourceLinkOut(
+                id=s.id,
+                name=s.name,
+                role=s.role,
+                region=s.region,
+                url=public_channel_url(s.channel_key),
+            )
+            for s in rows
+        ]
+    )

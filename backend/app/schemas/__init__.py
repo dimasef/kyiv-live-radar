@@ -132,6 +132,10 @@ from .situation import (
     IncidentOut,
     NoticeOut,
 )
+from .sync import (
+    SyncOut,
+    SyncSnapshotOut,
+)
 from .threats import (
     FeedEntryOut,
     ThreatEventOut,
@@ -146,6 +150,8 @@ from .zones import (
 )
 
 __all__ = [
+    "SyncOut",
+    "SyncSnapshotOut",
     "AftermathOut",
     "PresencePrefIn",
     "PresencePrefOut",

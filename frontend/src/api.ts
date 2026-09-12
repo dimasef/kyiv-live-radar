@@ -22,6 +22,7 @@ import type {
   RawOutcomeFilter,
   RawSource,
   Region,
+  SyncResult,
   RegionAt,
   RegionInfo,
   RegionOutlines,
@@ -195,6 +196,19 @@ export const fetchRegionOutlines = () => get<RegionOutlines>('/regions/geometry'
 export const fetchRegionAt = (lat: number, lon: number) =>
   get<RegionAt>(`/regions/at?lat=${lat}&lon=${lon}`)
 export const fetchHealth = () => get<HealthStatus>('/health')
+/** What a client positioned at (epoch, seq) missed. `limit`/`regions` shape
+ * the feed slice of a full snapshot exactly like fetchRecentEvents does. */
+export const fetchSync = (
+  epoch: number | null,
+  seq: number | null,
+  limit: number,
+  regions?: readonly Region[],
+) =>
+  get<SyncResult>(
+    `/sync?limit=${limit}` +
+      (epoch != null && seq != null ? `&epoch=${epoch}&seq=${seq}` : '') +
+      (regions ?? []).map((r) => `&region=${encodeURIComponent(r)}`).join(''),
+  )
 // Address search for home placement. `region` narrows the OSM half to one
 // oblast's bounding box; `signal` aborts the answer to a prefix the reader has
 // already typed past.

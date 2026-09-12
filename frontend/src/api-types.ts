@@ -1935,6 +1935,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Sync */
+        get: operations["sync_sync_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/threats/active": {
         parameters: {
             query?: never;
@@ -4137,6 +4154,56 @@ export interface components {
              */
             tracks: number;
         };
+        /** SyncOut */
+        SyncOut: {
+            /** Epoch */
+            epoch: number;
+            /**
+             * Frames
+             * @default []
+             */
+            frames: components["schemas"]["WSMessage"][];
+            /** Seq */
+            seq: number;
+            snapshot?: components["schemas"]["SyncSnapshotOut"] | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "current" | "delta" | "full";
+        };
+        /**
+         * SyncSnapshotOut
+         * @description Every slice `hydrate()` fetches, in one body — the same bytes the ten
+         *     endpoints serve, spliced from the read cache.
+         */
+        SyncSnapshotOut: {
+            /** Alerts */
+            alerts: components["schemas"]["AlertOut"][];
+            /** Axes */
+            axes: components["schemas"]["AxisOut"][];
+            /** Events */
+            events: components["schemas"]["FeedEntryOut"][];
+            /** Feed Ok */
+            feed_ok?: boolean | null;
+            /** Incidents */
+            incidents: components["schemas"]["IncidentOut"][];
+            /** Notices */
+            notices: components["schemas"]["NoticeOut"][];
+            /** Recent Incidents */
+            recent_incidents: components["schemas"]["IncidentOut"][];
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time: string;
+            /** Sources */
+            sources: components["schemas"]["SourceLinkOut"][];
+            /** Threats */
+            threats: components["schemas"]["ThreatOut"][];
+            /** Zones */
+            zones: components["schemas"]["AlertZoneOut"][];
+        };
         /**
          * TelegramAuthIn
          * @description POST /auth/telegram — the Telegram Login Widget payload. extra='allow'
@@ -4408,6 +4475,32 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /**
+         * WSMessage
+         * @description Envelope broadcast over the WebSocket.
+         */
+        WSMessage: {
+            alert?: components["schemas"]["AlertOut"] | null;
+            axis?: components["schemas"]["AxisOut"] | null;
+            /** Epoch */
+            epoch?: number | null;
+            event?: components["schemas"]["ThreatEventOut"] | null;
+            /** Feed Ok */
+            feed_ok?: boolean | null;
+            incident?: components["schemas"]["IncidentOut"] | null;
+            notice?: components["schemas"]["NoticeOut"] | null;
+            /** Online */
+            online?: number | null;
+            /** Seq */
+            seq?: number | null;
+            /** Server Time */
+            server_time?: string | null;
+            threat?: components["schemas"]["ThreatOut"] | null;
+            /** Type */
+            type: string;
+            /** Zones */
+            zones?: components["schemas"]["AlertZoneOut"][] | null;
         };
     };
     responses: never;
@@ -7534,6 +7627,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SourceLinkOut"][];
+                };
+            };
+        };
+    };
+    sync_sync_get: {
+        parameters: {
+            query?: {
+                epoch?: number | null;
+                seq?: number | null;
+                limit?: number;
+                region?: ("kyiv" | "chernihiv" | "sumy" | "kharkiv" | "dnipro")[] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

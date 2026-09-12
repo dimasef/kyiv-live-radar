@@ -22,12 +22,13 @@ from . import (
     regions,
     situation,
     sources,
+    sync,
     threats,
     zones,
 )
 
 router = APIRouter()
-for _module in (districts, regions, sources, threats, situation, zones, journal, raw,
+for _module in (districts, regions, sources, threats, situation, zones, sync, journal, raw,
                 push, bugs, geocode):
     router.include_router(_module.router)
 router.include_router(auth_routes.router)

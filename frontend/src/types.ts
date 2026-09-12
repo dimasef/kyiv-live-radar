@@ -23,6 +23,9 @@ export type AnalyticsPeriod = JournalStats['period']
 export type Notice = Schemas['NoticeOut']
 export type ThreatAxis = Schemas['AxisOut']
 export type Alert = Schemas['AlertOut']
+/** GET /sync — what a reconnecting client missed (see ws.ts resumeStream). */
+export type SyncResult = Schemas['SyncOut']
+export type SyncSnapshot = Schemas['SyncSnapshotOut']
 /** What a strike did to a raion. Served only to vouched accounts (the backend's
  * IMPACT_ROLES), and shown in the same map layer as impacts. */
 export type Aftermath = Schemas['AftermathOut']
@@ -101,6 +104,10 @@ export type AlertZoneGeometry = Record<
  * needs this to age targets correctly (see store/clockSlice). */
 interface WSCommon {
   server_time?: string | null
+  /** Stream position — the server process and the frame within it. Kept by
+   * ws.ts so a reconnect can ask GET /sync for just the frames it missed. */
+  epoch?: number | null
+  seq?: number | null
 }
 
 /** Envelope pushed over `/ws/threats`. Not part of OpenAPI — FastAPI only

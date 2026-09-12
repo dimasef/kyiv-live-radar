@@ -11,6 +11,18 @@ from sqlalchemy.orm import DeclarativeBase
 
 from .config import settings
 
+# `:memory:` SQLite (the test suite) runs on a single-connection pool that
+# takes no sizing arguments.
+_pool_kwargs = (
+    {}
+    if ":memory:" in settings.database_url
+    else {
+        "pool_size": settings.db_pool_size,
+        "max_overflow": settings.db_max_overflow,
+        "pool_timeout": settings.db_pool_timeout_seconds,
+    }
+)
+
 engine = create_async_engine(
     settings.database_url,
     echo=False,
@@ -20,6 +32,7 @@ engine = create_async_engine(
     # are harmless there — see settings.db_pool_recycle_seconds for the why.
     pool_pre_ping=True,
     pool_recycle=settings.db_pool_recycle_seconds,
+    **_pool_kwargs,
 )
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
