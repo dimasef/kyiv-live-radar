@@ -1031,8 +1031,8 @@ export interface paths {
         put?: never;
         /**
          * Logout
-         * @description Stateless: the client discards its tokens. Endpoint exists for symmetry
-         *     and a future server-side revocation hook.
+         * @description Revoke the refresh token; the client discards both. The access token
+         *     stays valid until it expires (auth_access_ttl_minutes).
          */
         post: operations["logout_auth_logout_post"];
         delete?: never;
@@ -2035,11 +2035,14 @@ export interface components {
     schemas: {
         /**
          * AccessTokenOut
-         * @description POST /auth/refresh result — a fresh access token only.
+         * @description POST /auth/refresh result. The refresh token rotates on every use: the
+         *     one presented is dead, and `refresh` is its replacement — store it.
          */
         AccessTokenOut: {
             /** Access */
             access: string;
+            /** Refresh */
+            refresh: string;
             /**
              * Token Type
              * @default bearer
@@ -3279,6 +3282,15 @@ export interface components {
             password: string;
         };
         /**
+         * LogoutIn
+         * @description POST /auth/logout — the refresh token to revoke. Optional so an old
+         *     client that sends an empty body still logs out client-side.
+         */
+        LogoutIn: {
+            /** Refresh */
+            refresh?: string | null;
+        };
+        /**
          * MeUpdateIn
          * @description PATCH /auth/me — edit your own profile.
          *
@@ -3721,7 +3733,7 @@ export interface components {
         };
         /**
          * RefreshIn
-         * @description POST /auth/refresh — exchange a refresh token for a new access token.
+         * @description POST /auth/refresh — exchange a refresh token for a new token pair.
          */
         RefreshIn: {
             /** Refresh */
@@ -6136,7 +6148,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["LogoutIn"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -6145,6 +6161,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

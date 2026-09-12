@@ -41,7 +41,7 @@ async def ctx(session, monkeypatch):
     _CLOCK["now"] = BASE
     monkeypatch.setattr(home_push, "utcnow", lambda: _CLOCK["now"])
     sub = PushSubscription(
-        endpoint="https://push.example/abc", p256dh="k", auth="a",
+        endpoint="https://fcm.googleapis.com/fcm/send/abc", p256dh="k", auth="a",
         home_lat=HOME_LAT, home_lon=HOME_LON, home_radius_km=3.0,
     )
     session.add(sub)

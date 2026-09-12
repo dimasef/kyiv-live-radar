@@ -7,16 +7,17 @@ app/geocoding.py, along with the throttle and cache that honour it.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
 from ...geocoding import MIN_QUERY_LEN, search
 from ...regions import Region
 from ...schemas import GeocodeHitOut
+from ..ratelimit import per_ip
 
 router = APIRouter()
 
 
-@router.get("/geocode", response_model=list[GeocodeHitOut])
+@router.get("/geocode", response_model=list[GeocodeHitOut], dependencies=[Depends(per_ip("geocode", 60))])
 async def geocode(
     q: str = Query(min_length=1, max_length=120),
     # Narrows the OSM lookup to one oblast's bounding box. Optional, and a

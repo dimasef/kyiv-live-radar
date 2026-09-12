@@ -74,9 +74,11 @@ export const createAuthSlice: StateCreator<RadarState, [], [], AuthSlice> = (set
     const refresh = safeGet(STORAGE_KEYS.authRefresh)
     if (!refresh) return null
     try {
-      const { access } = await authRefreshToken(refresh)
-      setAccessToken(access)
-      return access
+      const pair = await authRefreshToken(refresh)
+      // Rotation: the token just used is dead, the reply carries its replacement.
+      safeSet(STORAGE_KEYS.authRefresh, pair.refresh)
+      setAccessToken(pair.access)
+      return pair.access
     } catch (err) {
       // Only a rejection FROM THE SERVER means the refresh token is dead. A
       // network failure says nothing about it, and wiping the session on one
@@ -111,8 +113,9 @@ export const createAuthSlice: StateCreator<RadarState, [], [], AuthSlice> = (set
     },
 
     logout: () => {
+      const refresh = safeGet(STORAGE_KEYS.authRefresh)
       clearSession()
-      void authLogout().catch(() => {})
+      void authLogout(refresh).catch(() => {})
     },
 
     refreshSession: async () => {
@@ -122,8 +125,9 @@ export const createAuthSlice: StateCreator<RadarState, [], [], AuthSlice> = (set
         return
       }
       try {
-        const { access } = await authRefreshToken(refresh)
-        setAccessToken(access)
+        const pair = await authRefreshToken(refresh)
+        safeSet(STORAGE_KEYS.authRefresh, pair.refresh)
+        setAccessToken(pair.access)
         const me = await authMe()
         set({ user: me, authStatus: 'authed' })
         get().hydrateGamification(me.gamification)

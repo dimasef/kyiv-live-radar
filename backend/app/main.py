@@ -136,6 +136,9 @@ async def health():
 
 @app.websocket("/ws/threats")
 async def ws_threats(ws: WebSocket):
+    if manager.online >= settings.ws_max_clients:
+        await ws.close(code=1013)
+        return
     await manager.connect(ws)
     try:
         # We only push; keep the socket open and ignore any inbound frames.

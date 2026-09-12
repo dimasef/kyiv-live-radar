@@ -152,7 +152,7 @@ async def test_wipe_since_prunes_push_state_without_choking_on_citywide_keys(wir
     _, straddler_id = await _seed_timeline(Session)
     async with Session() as s:
         s.add(PushSubscription(
-            endpoint="https://push.example/x", p256dh="k", auth="a",
+            endpoint="https://fcm.googleapis.com/fcm/send/x", p256dh="k", auth="a",
             danger_state={
                 str(straddler_id): {"level": 2},
                 f"city:{straddler_id}": {"pushed_at": "2026-08-18T20:00:00"},

@@ -161,6 +161,15 @@ def district_rows(*extra: dict) -> list:
 
 
 @pytest.fixture(autouse=True)
+def _fresh_rate_limits():
+    from app.api.ratelimit import limiter
+
+    limiter.reset()
+    yield
+    limiter.reset()
+
+
+@pytest.fixture(autouse=True)
 def _safe_jwt_secret(monkeypatch):
     """PyJWT's `InsecureKeyLengthWarning` fires under 32 bytes for HS256. Give
     every test a secret that clears it by default; a test that wants its own

@@ -3,24 +3,41 @@
 from __future__ import annotations
 
 from typing import Literal
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
+from ..config import settings
 from ..regions import Region
+
+
+def _allowed_push_endpoint(value: str) -> str:
+    parts = urlsplit(value)
+    host = (parts.hostname or "").lower()
+    if parts.scheme != "https" or not host:
+        raise ValueError("push endpoint must be an https URL")
+    if not any(host == h or host.endswith("." + h) for h in settings.push_endpoint_host_list):
+        raise ValueError(f"push endpoint host {host!r} is not a known push service")
+    return value
 
 
 class PushKeysIn(BaseModel):
     """The browser PushSubscription's encryption keys."""
 
-    p256dh: str
-    auth: str
+    p256dh: str = Field(max_length=200)
+    auth: str = Field(max_length=100)
 
 
 class BrowserSubscriptionIn(BaseModel):
     """PushSubscription.toJSON() from the browser."""
 
-    endpoint: str
+    endpoint: str = Field(max_length=1024)
     keys: PushKeysIn
+
+    # The server will POST to this URL on every danger event (pipeline/webpush.py),
+    # so only the browsers' real push services are accepted — see
+    # settings.push_endpoint_hosts.
+    _endpoint_host = field_validator("endpoint")(_allowed_push_endpoint)
 
 
 class HomeZoneIn(BaseModel):
@@ -57,7 +74,7 @@ class PushSubscribeIn(BaseModel):
 
 
 class PushUnsubscribeIn(BaseModel):
-    endpoint: str
+    endpoint: str = Field(max_length=1024)
 
 
 class PushConfigOut(BaseModel):

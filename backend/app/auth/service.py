@@ -5,14 +5,18 @@ account-linking and role rules live in exactly one place.
 """
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable, Sequence
 
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
-from ..models import MANUAL_ROLES, OAuthIdentity, RoleSource, User, utcnow
-from .security import encode_access, encode_refresh
+from ..models import MANUAL_ROLES, OAuthIdentity, RefreshToken, RoleSource, User, utcnow
+from ..timeutil import naive
+from .security import AuthError, decode_refresh, encode_access, encode_refresh
+
+log = logging.getLogger("auth")
 
 
 def role_for(verified_email: str | None, telegram_ids: list[int]) -> str:
@@ -140,6 +144,13 @@ async def get_or_create_user_for_identity(
     else:
         # Merging a verified SSO identity onto an existing account: the provider
         # now vouches for the email, and fill any profile gaps.
+        if email_verified and not user.email_verified and user.password_hash:
+            # Nobody has proven they own this email until now, so the password
+            # on the row may have been set by whoever registered the address
+            # first — a pre-registration hijack. The SSO login is the first
+            # trusted claim; the unverified password is dropped with it.
+            log.warning("auth: dropping unverified password on SSO merge for user %s", user.id)
+            user.password_hash = None
         if email_verified:
             user.email_verified = True
         if not user.display_name and display_name:
@@ -159,10 +170,65 @@ async def get_or_create_user_for_identity(
     return user
 
 
-def issue_tokens(user: User) -> tuple[str, str]:
-    """Return (access, refresh) for a user. Caller commits any role/timestamp
-    changes; this is pure token minting."""
-    return encode_access(user), encode_refresh(user)
+async def issue_tokens(session: AsyncSession, user: User) -> tuple[str, str]:
+    """Return (access, refresh) for a user, registering the refresh token's
+    `jti` so it can later be rotated or revoked. Caller commits."""
+    minted = encode_refresh(user)
+    session.add(RefreshToken(user_id=user.id, jti=minted.jti, expires_at=minted.expires_at))
+    return encode_access(user), minted.token
+
+
+async def rotate_refresh(session: AsyncSession, token: str) -> User | None:
+    """Consume a refresh token: verify it, revoke its row, and return the user
+    it belongs to (None when it is invalid, unknown, expired or revoked).
+
+    A token that was already revoked is treated as stolen: its whole family for
+    that user is revoked, so the legitimate holder and the thief both have to
+    sign in again. Caller mints the replacement pair and commits."""
+    try:
+        claims = decode_refresh(token)
+        user_id = int(claims["sub"])
+        jti = str(claims["jti"])
+    except (AuthError, KeyError, ValueError, TypeError):
+        return None
+    row = await session.scalar(select(RefreshToken).where(RefreshToken.jti == jti))
+    now = naive(utcnow())
+    if row is None or row.user_id != user_id:
+        return None
+    if row.revoked_at is not None:
+        log.warning("auth: reuse of a revoked refresh token for user %s — revoking all", user_id)
+        await revoke_all_refresh(session, user_id)
+        return None
+    if naive(row.expires_at) <= now:
+        return None
+    row.revoked_at = now
+    await session.execute(
+        delete(RefreshToken).where(RefreshToken.user_id == user_id, RefreshToken.expires_at < now)
+    )
+    return await session.get(User, user_id)
+
+
+async def revoke_refresh(session: AsyncSession, token: str) -> None:
+    """Logout: end this one refresh token. A malformed or foreign token is a
+    silent no-op — logout must never fail."""
+    try:
+        claims = decode_refresh(token)
+        jti = str(claims["jti"])
+    except (AuthError, KeyError, ValueError, TypeError):
+        return
+    await session.execute(
+        update(RefreshToken)
+        .where(RefreshToken.jti == jti, RefreshToken.revoked_at.is_(None))
+        .values(revoked_at=utcnow())
+    )
+
+
+async def revoke_all_refresh(session: AsyncSession, user_id: int) -> None:
+    await session.execute(
+        update(RefreshToken)
+        .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
+        .values(revoked_at=utcnow())
+    )
 
 
 async def touch_login(session: AsyncSession, user: User) -> None:

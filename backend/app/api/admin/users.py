@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ...auth.deps import require_admin
-from ...auth.service import role_source_for
+from ...auth.service import revoke_all_refresh, role_source_for
 from ...db import get_session
 from ...models import (
     ADMIN_ROLES,
@@ -30,6 +30,7 @@ from ...models import (
     Friendship,
     ParserCorrection,
     PushSubscription,
+    RefreshToken,
     Source,
     ThreatAnalysis,
     ToponymDismissal,
@@ -185,6 +186,7 @@ async def admin_delete_user(
         or_(Friendship.requester_id == user_id, Friendship.addressee_id == user_id),
     )
     analyses = await _delete_where(session, ThreatAnalysis, ThreatAnalysis.user_id == user_id)
+    await _delete_where(session, RefreshToken, RefreshToken.user_id == user_id)
     orphaned = 0
     for model, column in (
         (BugReport, BugReport.user_id),
@@ -246,5 +248,7 @@ async def _set_user_active(
             raise HTTPException(status_code=400, detail="cannot block an admin account")
     if user.is_active != active:
         user.is_active = active
+        if not active:
+            await revoke_all_refresh(session, user.id)
         await session.commit()
     return _out(user)

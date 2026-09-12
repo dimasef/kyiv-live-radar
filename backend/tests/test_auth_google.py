@@ -55,7 +55,32 @@ async def test_google_links_to_existing_email_account(client, session, monkeypat
     r = await c.post("/auth/google", json={"credential": "tok"})
     assert r.status_code == 200
     assert r.json()["user"]["id"] == uid  # merged, not a new account
-    assert set(r.json()["user"]["providers"]) == {"password", "google"}
+    # The password was set before anyone proved they own the email, so the
+    # merge drops it — see service.get_or_create_user_for_identity.
+    assert r.json()["user"]["providers"] == ["google"]
+    r = await c.post("/auth/login", json={"email": "dup@gmail.com", "password": "password123"})
+    assert r.status_code == 401
+
+
+async def test_prereg_password_cannot_ride_google_merge_to_admin(client, monkeypatch):
+    """Pre-registration hijack: someone registers the admin's email with their
+    own password before the admin's first Google sign-in. The merge must not
+    hand that password an admin account."""
+    monkeypatch.setattr(settings, "admin_emails", "victim@gmail.com")
+    r = await client.post(
+        "/auth/register", json={"email": "victim@gmail.com", "password": "attacker-pass"}
+    )
+    assert r.json()["user"]["role"] == "user"
+    _patch_profile(monkeypatch, {
+        "sub": "g-9", "email": "victim@gmail.com", "email_verified": True,
+        "name": "V", "picture": None,
+    })
+    r = await client.post("/auth/google", json={"credential": "tok"})
+    assert r.json()["user"]["role"] == "admin"
+    r = await client.post(
+        "/auth/login", json={"email": "victim@gmail.com", "password": "attacker-pass"}
+    )
+    assert r.status_code == 401
 
 
 async def test_google_unverified_email_rejected(client, session, monkeypatch):

@@ -65,7 +65,7 @@ async def test_run_listener_reconnects_with_backoff_after_crashes():
         assert calls == [True, True, True]
         # backoff doubles each consecutive failure (no successful connect yet)
         assert sleeps == [5, 10]
-        assert tl._state["last_error"] == "boom 2"
+        assert tl._state["last_error"] == "RuntimeError"
         assert tl._state["connected"] is False
     finally:
         settings.telegram_channels, settings.telegram_api_id = old_channels, old_api_id

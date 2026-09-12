@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Literal
 
 from pydantic import AliasChoices, Field, field_validator
@@ -285,6 +286,10 @@ class Settings(BaseSettings):
     # frame is still in here gets a delta; older than that (or another process)
     # gets one full snapshot. A busy night is ~60 frames/min, so 2000 ≈ 30 min.
     ws_history_frames: int = 2000
+    # Hard cap on simultaneous WebSocket clients; a newcomer above it is refused
+    # with 1013 (try again later). Every broadcast fans out to all of them, so
+    # an unbounded set is an unbounded cost per frame.
+    ws_max_clients: int = 5000
 
     # One-off maintenance: when true, rebuild ALL tracks/incidents from stored
     # raw_messages at startup (BEFORE the live listener starts — race-free) so a
@@ -550,12 +555,23 @@ class Settings(BaseSettings):
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
+    @property
+    def push_endpoint_host_list(self) -> list[str]:
+        return [h.strip().lower() for h in self.push_endpoint_hosts.split(",") if h.strip()]
+
     # --- Web Push + danger-near-home (app/domain/home_danger.py +
     #     app/pipeline/home_push.py). Fully dormant until VAPID keys are set.
     #     Push is SUPPLEMENTARY by policy: wording must never read as the
     #     official air-raid alert — «Допоміжно:» prefix, never «Повітряна
     #     тривога» (see .claude/plans/home-danger.md). ---
     push_enabled: bool = True
+    # Push services a subscription endpoint may point at (suffix match on the
+    # host). The server POSTs to every stored endpoint, so without this list an
+    # anonymous /push/subscribe is a blind SSRF into whatever the host can reach.
+    push_endpoint_hosts: str = (
+        "fcm.googleapis.com,push.apple.com,notify.windows.com,"
+        "push.services.mozilla.com,push.mozilla.com,push.samsungosp.com"
+    )
     vapid_public_key: str = ""   # base64url uncompressed point (applicationServerKey)
     vapid_private_key: str = ""  # base64url raw EC key or a path to a PEM file
     vapid_subject: str = "mailto:dfimov95@gmail.com"
@@ -597,6 +613,20 @@ class Settings(BaseSettings):
     auth_jwt_secret: str = ""
     auth_access_ttl_minutes: int = 30
     auth_refresh_ttl_days: int = 30
+    # Per-IP request caps on the auth routes (app/api/ratelimit.py). Password
+    # hashing costs ~35 ms of CPU per call, so an unthrottled login flood is the
+    # cheapest way to stall the event loop mid-raid. Per-minute windows.
+    auth_rate_limit_per_minute: int = 20
+    # Failed logins per email over auth_login_lockout_minutes before further
+    # attempts on that email are refused — bounds an offline-dictionary pace
+    # even when the attacker rotates IPs.
+    auth_login_attempts_per_email: int = 10
+    auth_login_lockout_minutes: int = 5
+    # Telegram Login Widget payloads older than this are refused as replays.
+    auth_telegram_max_age_s: int = 900
+    # Global switch for every in-memory rate limit (auth, geocode, push
+    # subscribe). Off only for load tests that hammer one route from one host.
+    rate_limit_enabled: bool = True
     # Comma-separated allowlists that resolve a login to role=admin. Email match
     # only counts for a VERIFIED email (Google id_token, never a self-registered
     # password account — see auth.service.resolve_role). Telegram is id-based.
@@ -630,10 +660,18 @@ class Settings(BaseSettings):
         return out
 
     @property
+    def is_local_dev(self) -> bool:
+        """True only for a laptop run. `environment` alone is not enough: it is
+        also fed by RAILWAY_ENVIRONMENT, so a Railway environment that happens to
+        be NAMED "development" would otherwise unlock the insecure dev JWT key
+        on a public host."""
+        return self.environment == "development" and "RAILWAY_ENVIRONMENT" not in os.environ
+
+    @property
     def auth_configured(self) -> bool:
         # Configured when a real secret is set, OR in local development (where an
         # insecure dev-only fallback key lets the app run with zero setup).
-        return bool(self.auth_jwt_secret) or self.environment == "development"
+        return bool(self.auth_jwt_secret) or self.is_local_dev
 
     @property
     def google_configured(self) -> bool:

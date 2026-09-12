@@ -8,6 +8,7 @@ issue tokens under a guessable key.
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 import jwt
@@ -43,7 +44,7 @@ def verify_password(password_hash: str, password: str) -> bool:
 def _signing_key() -> str:
     if settings.auth_jwt_secret:
         return settings.auth_jwt_secret
-    if settings.environment == "development":
+    if settings.is_local_dev:
         return _DEV_INSECURE_KEY
     # Fail closed: never sign/verify with the dev key outside development.
     raise AuthError("AUTH_JWT_SECRET is not configured")
@@ -53,24 +54,35 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
-def _encode(user: User, token_type: str, ttl: timedelta) -> str:
+@dataclass(frozen=True)
+class MintedToken:
+    token: str
+    jti: str
+    expires_at: datetime
+
+
+def _encode(user: User, token_type: str, ttl: timedelta) -> MintedToken:
     now = _now()
+    jti = uuid.uuid4().hex
+    expires_at = now + ttl
     payload = {
         "sub": str(user.id),
         "role": user.role,
         "type": token_type,
         "iat": int(now.timestamp()),
-        "exp": int((now + ttl).timestamp()),
-        "jti": uuid.uuid4().hex,
+        "exp": int(expires_at.timestamp()),
+        "jti": jti,
     }
-    return jwt.encode(payload, _signing_key(), algorithm=_ALGO)
+    return MintedToken(jwt.encode(payload, _signing_key(), algorithm=_ALGO), jti, expires_at)
 
 
 def encode_access(user: User) -> str:
-    return _encode(user, "access", timedelta(minutes=settings.auth_access_ttl_minutes))
+    return _encode(user, "access", timedelta(minutes=settings.auth_access_ttl_minutes)).token
 
 
-def encode_refresh(user: User) -> str:
+def encode_refresh(user: User) -> MintedToken:
+    """A refresh token is only valid while its `jti` has a live row in
+    `refresh_tokens` (see auth.service.mint_refresh) — the caller must store it."""
     return _encode(user, "refresh", timedelta(days=settings.auth_refresh_ttl_days))
 
 

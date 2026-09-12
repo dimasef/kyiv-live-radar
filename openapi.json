@@ -2,10 +2,14 @@
   "components": {
     "schemas": {
       "AccessTokenOut": {
-        "description": "POST /auth/refresh result — a fresh access token only.",
+        "description": "POST /auth/refresh result. The refresh token rotates on every use: the\none presented is dead, and `refresh` is its replacement — store it.",
         "properties": {
           "access": {
             "title": "Access",
+            "type": "string"
+          },
+          "refresh": {
+            "title": "Refresh",
             "type": "string"
           },
           "token_type": {
@@ -15,7 +19,8 @@
           }
         },
         "required": [
-          "access"
+          "access",
+          "refresh"
         ],
         "title": "AccessTokenOut",
         "type": "object"
@@ -711,6 +716,7 @@
         "description": "PushSubscription.toJSON() from the browser.",
         "properties": {
           "endpoint": {
+            "maxLength": 1024,
             "title": "Endpoint",
             "type": "string"
           },
@@ -2455,6 +2461,24 @@
         "title": "LoginIn",
         "type": "object"
       },
+      "LogoutIn": {
+        "description": "POST /auth/logout — the refresh token to revoke. Optional so an old\nclient that sends an empty body still logs out client-side.",
+        "properties": {
+          "refresh": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refresh"
+          }
+        },
+        "title": "LogoutIn",
+        "type": "object"
+      },
       "MeUpdateIn": {
         "description": "PATCH /auth/me — edit your own profile.\n\nBoth fields are tri-state: absent leaves the value alone, null clears it\n(removing an avatar falls back to the monogram), a value sets it. That's why\n`avatar_url` can't just be `str | None` with a default — the route inspects\n`model_fields_set` to tell \"not mentioned\" from \"explicitly cleared\".",
         "properties": {
@@ -2751,10 +2775,12 @@
         "description": "The browser PushSubscription's encryption keys.",
         "properties": {
           "auth": {
+            "maxLength": 100,
             "title": "Auth",
             "type": "string"
           },
           "p256dh": {
+            "maxLength": 200,
             "title": "P256Dh",
             "type": "string"
           }
@@ -2881,6 +2907,7 @@
       "PushUnsubscribeIn": {
         "properties": {
           "endpoint": {
+            "maxLength": 1024,
             "title": "Endpoint",
             "type": "string"
           }
@@ -3633,7 +3660,7 @@
         "type": "object"
       },
       "RefreshIn": {
-        "description": "POST /auth/refresh — exchange a refresh token for a new access token.",
+        "description": "POST /auth/refresh — exchange a refresh token for a new token pair.",
         "properties": {
           "refresh": {
             "title": "Refresh",
@@ -8387,8 +8414,25 @@
     },
     "/auth/logout": {
       "post": {
-        "description": "Stateless: the client discards its tokens. Endpoint exists for symmetry\nand a future server-side revocation hook.",
+        "description": "Revoke the refresh token; the client discards both. The access token\nstays valid until it expires (auth_access_ttl_minutes).",
         "operationId": "logout_auth_logout_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/LogoutIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -8397,6 +8441,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Logout",

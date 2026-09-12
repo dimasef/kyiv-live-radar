@@ -873,6 +873,21 @@ class User(Base):
     )
 
 
+class RefreshToken(Base):
+    """One issued refresh JWT, by its `jti`. A refresh token is live only while
+    its row exists with `revoked_at` NULL — see auth.service for rotation and
+    reuse detection."""
+
+    __tablename__ = "refresh_tokens"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    jti: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class Friendship(Base):
     """One directed friendship edge with a consent status. A `pending` row is an
     outstanding request from `requester` to `addressee`; `accepted` means they are

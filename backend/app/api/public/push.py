@@ -21,6 +21,7 @@ from ...schemas import (
     PushSubscribeIn,
     PushUnsubscribeIn,
 )
+from ..ratelimit import per_ip
 
 router = APIRouter()
 
@@ -54,7 +55,7 @@ async def push_prefs(
     return PushPrefsOut(prefs=PushPrefsIn(**row.prefs))
 
 
-@router.post("/push/subscribe")
+@router.post("/push/subscribe", dependencies=[Depends(per_ip("push-subscribe", 30))])
 async def push_subscribe(
     body: PushSubscribeIn,
     session: AsyncSession = Depends(get_session),

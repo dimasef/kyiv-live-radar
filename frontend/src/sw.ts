@@ -67,7 +67,7 @@ self.addEventListener('push', (e) => {
       ...( { renotify: true } as object ),
       icon: '/icon-192.png',
       badge: '/icon-192.png',
-      data: { url: data.url ?? '/' },
+      data: { url: typeof data.url === 'string' && data.url.startsWith('/') ? data.url : '/' },
     }),
   )
 })

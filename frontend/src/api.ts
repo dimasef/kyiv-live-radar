@@ -490,13 +490,14 @@ export const authGoogle = (credential: string) =>
 export const authTelegram = (payload: TelegramAuthPayload) =>
   authPost<TokenPair>('/auth/telegram', payload)
 export const authRefreshToken = (refresh: string) =>
-  authPost<{ access: string; token_type: string }>('/auth/refresh', { refresh })
+  authPost<Schemas['AccessTokenOut']>('/auth/refresh', { refresh })
 export const authMe = () => get<AuthUser>('/auth/me')
 /** Edit your own profile. Fields left out are untouched; an explicit null
  * clears one (an avatar of null falls back to the monogram). */
 export const patchMe = (patch: { display_name?: string | null; avatar_url?: string | null }) =>
   send<AuthUser>('/auth/me', 'PATCH', patch)
-export const authLogout = () => authPost<{ ok: boolean }>('/auth/logout', {})
+export const authLogout = (refresh: string | null) =>
+  authPost<{ ok: boolean }>('/auth/logout', { refresh })
 
 // --- Friends (contacts) + shareable home (see store/friendsSlice.ts) --------
 export type HomePoint = Schemas['HomePointOut']

@@ -5,6 +5,8 @@ insecure key). Each SSO route additionally 503s until ITS provider is set up.
 """
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,17 +15,13 @@ from ...auth.avatar import AvatarError, validate_avatar_data_url
 from ...auth.deps import get_current_user
 from ...auth.providers.google import GoogleAuthError, verify_google_id_token
 from ...auth.providers.telegram import TelegramAuthError, verify_telegram_login
-from ...auth.security import (
-    AuthError,
-    decode_refresh,
-    encode_access,
-    hash_password,
-    verify_password,
-)
+from ...auth.security import hash_password, verify_password
 from ...auth.service import (
     get_or_create_user_for_identity,
     issue_tokens,
     resolve_and_set_role,
+    revoke_refresh,
+    rotate_refresh,
     touch_login,
 )
 from ...config import settings
@@ -33,6 +31,7 @@ from ...schemas import (
     AccessTokenOut,
     GoogleAuthIn,
     LoginIn,
+    LogoutIn,
     MeUpdateIn,
     RefreshIn,
     RegisterIn,
@@ -40,8 +39,17 @@ from ...schemas import (
     TokenPairOut,
     UserOut,
 )
+from ..ratelimit import enforce, limiter, per_ip
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _auth_ip_limit():
+    return per_ip("auth", settings.auth_rate_limit_per_minute)
+
+
+def _email_key(email: str) -> str:
+    return f"auth-login-email:{email}"
 
 
 def _require_auth_configured() -> None:
@@ -72,12 +80,12 @@ async def _finish_login(session: AsyncSession, user: User) -> TokenPairOut:
     by every provider."""
     await resolve_and_set_role(session, user)
     await touch_login(session, user)
+    access, refresh = await issue_tokens(session, user)
     await session.commit()
-    access, refresh = issue_tokens(user)
     return TokenPairOut(access=access, refresh=refresh, user=await _user_out(session, user))
 
 
-@router.post("/register", response_model=TokenPairOut)
+@router.post("/register", response_model=TokenPairOut, dependencies=[Depends(_auth_ip_limit())])
 async def register(body: RegisterIn, session: AsyncSession = Depends(get_session)):
     _require_auth_configured()
     email = body.email.lower()
@@ -86,7 +94,9 @@ async def register(body: RegisterIn, session: AsyncSession = Depends(get_session
     user = User(
         email=email,
         email_verified=False,  # password accounts are unverified; never admin via email
-        password_hash=hash_password(body.password),
+        # argon2 is ~35 ms of CPU: off the event loop, or a signup flood stalls
+        # every WebSocket broadcast (same reason pipeline/webpush.py threads).
+        password_hash=await asyncio.to_thread(hash_password, body.password),
         display_name=body.display_name,
     )
     session.add(user)
@@ -94,41 +104,56 @@ async def register(body: RegisterIn, session: AsyncSession = Depends(get_session
     return await _finish_login(session, user)
 
 
-@router.post("/login", response_model=TokenPairOut)
+@router.post("/login", response_model=TokenPairOut, dependencies=[Depends(_auth_ip_limit())])
 async def login(body: LoginIn, session: AsyncSession = Depends(get_session)):
     _require_auth_configured()
-    user = await session.scalar(select(User).where(User.email == body.email.lower()))
+    email = body.email.lower()
+    # Per-email cap on FAILED attempts, on top of the per-IP one: it holds when
+    # the guesses come from many addresses. A success clears it.
+    enforce(
+        _email_key(email),
+        settings.auth_login_attempts_per_email,
+        settings.auth_login_lockout_minutes * 60,
+    )
+    user = await session.scalar(select(User).where(User.email == email))
+    ok = (
+        user is not None
+        and bool(user.password_hash)
+        and await asyncio.to_thread(verify_password, user.password_hash, body.password)
+    )
     # Uniform 401 whether the email is unknown or the password is wrong — no
     # account enumeration.
-    if user is None or not user.password_hash or not verify_password(user.password_hash, body.password):
+    if not ok:
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account disabled")
+    limiter.forget(_email_key(email))
     return await _finish_login(session, user)
 
 
-@router.post("/refresh", response_model=AccessTokenOut)
+@router.post("/refresh", response_model=AccessTokenOut, dependencies=[Depends(_auth_ip_limit())])
 async def refresh(body: RefreshIn, session: AsyncSession = Depends(get_session)):
     _require_auth_configured()
-    try:
-        claims = decode_refresh(body.refresh)
-        user = await session.get(User, int(claims["sub"]))
-    except (AuthError, KeyError, ValueError, TypeError):
-        # `from None`: which of these the token tripped is a hint we don't hand
-        # to whoever is presenting it. Same for the other auth handlers below.
-        raise HTTPException(status_code=401, detail="Invalid refresh token") from None
+    user = await rotate_refresh(session, body.refresh)
     if user is None or not user.is_active:
+        # A reuse of a revoked token has already revoked the family inside
+        # rotate_refresh; that has to persist even though the caller gets 401.
+        await session.commit()
         raise HTTPException(status_code=401, detail="Invalid refresh token")
     # Re-resolve so an allowlist promotion/demotion reaches the new access token.
     await resolve_and_set_role(session, user)
+    access, refresh = await issue_tokens(session, user)
     await session.commit()
-    return AccessTokenOut(access=encode_access(user))
+    return AccessTokenOut(access=access, refresh=refresh)
 
 
 @router.post("/logout")
-async def logout():
-    """Stateless: the client discards its tokens. Endpoint exists for symmetry
-    and a future server-side revocation hook."""
+async def logout(body: LogoutIn | None = None, session: AsyncSession = Depends(get_session)):
+    """Revoke the refresh token; the client discards both. The access token
+    stays valid until it expires (auth_access_ttl_minutes)."""
+    if body is not None and body.refresh:
+        await revoke_refresh(session, body.refresh)
+        await session.commit()
     return {"ok": True}
 
 
@@ -163,7 +188,7 @@ async def update_me(
     return await _user_out(session, user)
 
 
-@router.post("/google", response_model=TokenPairOut)
+@router.post("/google", response_model=TokenPairOut, dependencies=[Depends(_auth_ip_limit())])
 async def google_login(body: GoogleAuthIn, session: AsyncSession = Depends(get_session)):
     _require_auth_configured()
     if not settings.google_configured:
@@ -188,7 +213,7 @@ async def google_login(body: GoogleAuthIn, session: AsyncSession = Depends(get_s
     return await _finish_login(session, user)
 
 
-@router.post("/telegram", response_model=TokenPairOut)
+@router.post("/telegram", response_model=TokenPairOut, dependencies=[Depends(_auth_ip_limit())])
 async def telegram_login(body: TelegramAuthIn, session: AsyncSession = Depends(get_session)):
     _require_auth_configured()
     if not settings.telegram_login_configured:
@@ -198,7 +223,12 @@ async def telegram_login(body: TelegramAuthIn, session: AsyncSession = Depends(g
     payload = body.model_dump(exclude_none=True)
     received_hash = payload.pop("hash", "")
     try:
-        verify_telegram_login(payload, received_hash, settings.telegram_login_bot_token)
+        verify_telegram_login(
+            payload,
+            received_hash,
+            settings.telegram_login_bot_token,
+            max_age_s=settings.auth_telegram_max_age_s,
+        )
     except TelegramAuthError:
         raise HTTPException(status_code=401, detail="Telegram verification failed") from None
     name = body.first_name + (f" {body.last_name}" if body.last_name else "")

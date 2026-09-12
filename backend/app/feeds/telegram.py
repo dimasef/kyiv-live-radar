@@ -535,7 +535,9 @@ async def run_listener() -> None:
             raise
         except Exception as ex:
             log.exception("telegram listener crashed: %s", ex)
-            _state["last_error"] = str(ex)
+            # /health is public: the class is enough to see that it broke,
+            # the message can carry paths and internals.
+            _state["last_error"] = type(ex).__name__
 
         if run_state.get("reached_connected"):
             backoff = _RECONNECT_INITIAL_SECONDS  # was actually live — retry fast

@@ -45,9 +45,16 @@ class LoginIn(BaseModel):
 
 
 class RefreshIn(BaseModel):
-    """POST /auth/refresh — exchange a refresh token for a new access token."""
+    """POST /auth/refresh — exchange a refresh token for a new token pair."""
 
     refresh: str
+
+
+class LogoutIn(BaseModel):
+    """POST /auth/logout — the refresh token to revoke. Optional so an old
+    client that sends an empty body still logs out client-side."""
+
+    refresh: str | None = None
 
 
 class GoogleAuthIn(BaseModel):
@@ -101,7 +108,9 @@ class TokenPairOut(BaseModel):
 
 
 class AccessTokenOut(BaseModel):
-    """POST /auth/refresh result — a fresh access token only."""
+    """POST /auth/refresh result. The refresh token rotates on every use: the
+    one presented is dead, and `refresh` is its replacement — store it."""
 
     access: str
+    refresh: str
     token_type: str = "bearer"

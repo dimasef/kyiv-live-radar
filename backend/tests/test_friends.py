@@ -182,7 +182,7 @@ async def test_contact_requests_push_the_other_party(client, monkeypatch):
             headers=_auth(token),
             json={
                 "subscription": {
-                    "endpoint": f"https://push.example/{ep}",
+                    "endpoint": f"https://fcm.googleapis.com/fcm/send/{ep}",
                     "keys": {"p256dh": "k", "auth": "s"},
                 },
                 "home": None,
