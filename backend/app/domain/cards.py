@@ -22,7 +22,17 @@ STALE_AFTER = timedelta(hours=12)
 
 # Number of distinct collectible cards. MUST match the length of the frontend
 # catalog in frontend/src/lib/cards.ts.
-CARD_COUNT = 32
+CARD_COUNT = 37
+
+# Milestone cards (`card_id` → analyses required) are EARNED, never drawn: the
+# only way to get one is to keep analysing. They are excluded from the weighted
+# draw below. Reaching a threshold is what this module answers; HANDING the
+# card over is a `card_awards` row written by the next analysis (see
+# api/public/gamification._grant_milestones), so a card is never in a collection
+# before the user has been shown it. Each still carries an ordinary rarity
+# (below) — that is its frame, not its odds. MUST mirror `requires` in the
+# frontend catalog.
+MILESTONE_CARDS = {33: 10, 34: 100, 35: 1000, 36: 5000, 37: 10000}
 
 # Relative drop weight per rarity — higher = more likely. Target type never
 # biases the drop; only card rarity. With the v3 deck (15 common / 8 rare /
@@ -46,9 +56,11 @@ CARD_RARITY = {
     28: "legendary",
     29: "epic", 30: "epic", 31: "epic",
     32: "eternal",
+    # Milestone cards wear a rarity for their frame; they are never drawn.
+    33: "common", 34: "rare", 35: "legendary", 36: "epic", 37: "eternal",
 }
 
-_CARD_IDS = list(range(1, CARD_COUNT + 1))
+_CARD_IDS = [i for i in range(1, CARD_COUNT + 1) if i not in MILESTONE_CARDS]
 _DRAW_WEIGHTS = [RARITY_WEIGHT[CARD_RARITY.get(i, "common")] for i in _CARD_IDS]
 
 # Target types that represent a real inbound weapon a spotter would track — the
@@ -58,11 +70,18 @@ ANALYSABLE_TARGET_TYPES = frozenset(
 
 
 def draw_card() -> int:
-    """A random card id in [1, CARD_COUNT], weighted by rarity (rarer cards drop
-    less often — see RARITY_WEIGHT). Duplicates are allowed: a repeat just stacks
-    in the owner's collection (count += 1), there is no re-roll to guarantee a
-    new card."""
+    """A random drawable card id, weighted by rarity (rarer cards drop less often
+    — see RARITY_WEIGHT). Milestone cards are never in the pool. Duplicates are
+    allowed: a repeat just stacks in the owner's collection (count += 1), there
+    is no re-roll to guarantee a new card."""
     return random.choices(_CARD_IDS, weights=_DRAW_WEIGHTS, k=1)[0]
+
+
+def milestones_owned(analysis_count: int) -> list[int]:
+    """Every milestone card an account with this many analyses has earned, in
+    ascending threshold order."""
+    return [cid for cid, need in MILESTONE_CARDS.items() if analysis_count >= need]
+
 
 
 # Track lifecycle → which analysis it offers. 'track' while the target is live;

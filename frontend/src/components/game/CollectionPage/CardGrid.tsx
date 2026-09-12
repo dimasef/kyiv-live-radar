@@ -1,5 +1,5 @@
-import CardView from '@/components/game/CardView'
-import type { CardDef } from '@/lib/cards'
+import CardView from "@/components/game/CardView";
+import type { CardDef } from "@/lib/cards";
 
 /** The card grid: 2/3/4 columns; owned cards are buttons that pop up, locked
  * ones are inert placeholders. */
@@ -9,20 +9,26 @@ export default function CardGrid({
   newIds,
   onSelect,
 }: {
-  cards: CardDef[]
-  counts: Map<number, number>
+  cards: CardDef[];
+  counts: Map<number, number>;
   /** Card ids that should play the one-time "just obtained" shimmer. */
-  newIds?: Set<number>
-  onSelect: (card: CardDef) => void
+  newIds?: Set<number>;
+  onSelect: (card: CardDef) => void;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 pt-3">
       {cards.map((card) => {
-        const count = counts.get(card.id)
-        const locked = count == null
+        const count = counts.get(card.id);
+        const locked = count == null;
         const tile = (
-          <CardView card={card} locked={locked} count={count ?? 0} isNew={newIds?.has(card.id)} showFlavor />
-        )
+          <CardView
+            card={card}
+            locked={locked}
+            count={count ?? 0}
+            isNew={newIds?.has(card.id)}
+            showFlavor
+          />
+        );
         return locked ? (
           <div key={card.id}>{tile}</div>
         ) : (
@@ -33,8 +39,8 @@ export default function CardGrid({
           >
             {tile}
           </button>
-        )
+        );
       })}
     </div>
-  )
+  );
 }

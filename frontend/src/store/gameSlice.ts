@@ -12,6 +12,15 @@ import {
 
 import type { RadarState } from './types'
 
+export interface Reveal {
+  cardId: number
+  kind: AnalysisKind
+  isNew: boolean
+  count: number
+  /** Earned by analysis count rather than drawn — captioned differently. */
+  milestone?: boolean
+}
+
 // The "analysing…" animation runs a random time in this window before the card
 // drops — the suspense IS the point; keep it passive so the user can put the
 // phone down. (Design: 3–10s.)
@@ -37,7 +46,10 @@ export interface GameSlice {
   /** A freshly-won card to show in the reveal modal, or null. `isNew` is false
    * when the user already owned a copy (a duplicate); `count` is the resulting
    * total copies, so the reveal can badge and caption it accordingly. */
-  reveal: { cardId: number; kind: AnalysisKind; isNew: boolean; count: number } | null
+  reveal: Reveal | null
+  /** Milestone cards the same analysis unlocked, shown one after the other once
+   * the drawn card is dismissed — a rare event, usually empty. */
+  pendingReveals: Reveal[]
   /** Why the last claim failed: 'taken' (someone won it first) or 'error'. */
   claimError: 'taken' | 'error' | null
 
@@ -47,7 +59,7 @@ export interface GameSlice {
   ensureThreatState: (threatId: number) => Promise<void>
   /** Run an analysis: the 3–10s wait, then claim a card (or surface a 409). */
   analyze: (threatId: number, kind: AnalysisKind) => Promise<void>
-  /** Dismiss the reveal / error modal. */
+  /** Dismiss the reveal / error modal, advancing to any queued milestone card. */
   dismissReveal: () => void
 }
 
@@ -57,6 +69,7 @@ export const createGameSlice: StateCreator<RadarState, [], [], GameSlice> = (set
   threatStateFailed: {},
   analyzing: null,
   reveal: null,
+  pendingReveals: [],
   claimError: null,
 
   loadCollection: async () => {
@@ -70,6 +83,7 @@ export const createGameSlice: StateCreator<RadarState, [], [], GameSlice> = (set
       threatStateFailed: {},
       analyzing: null,
       reveal: null,
+      pendingReveals: [],
       claimError: null,
     }),
 
@@ -91,7 +105,7 @@ export const createGameSlice: StateCreator<RadarState, [], [], GameSlice> = (set
   analyze: async (threatId, kind) => {
     // One analysis at a time — the overlay is a single global surface.
     if (get().analyzing) return
-    set({ analyzing: { threatId, kind }, reveal: null, claimError: null })
+    set({ analyzing: { threatId, kind }, reveal: null, pendingReveals: [], claimError: null })
 
     await new Promise((resolve) => setTimeout(resolve, analysisDelayMs()))
 
@@ -103,6 +117,13 @@ export const createGameSlice: StateCreator<RadarState, [], [], GameSlice> = (set
       set({
         analyzing: null,
         reveal: { cardId: res.card_id, kind, isNew: !had, count: (had?.count ?? 0) + 1 },
+        pendingReveals: res.milestones.map((cardId) => ({
+          cardId,
+          kind,
+          isNew: true,
+          count: 1,
+          milestone: true,
+        })),
       })
       void get().loadCollection().catch(() => {})
     } catch (e) {
@@ -118,5 +139,9 @@ export const createGameSlice: StateCreator<RadarState, [], [], GameSlice> = (set
     }
   },
 
-  dismissReveal: () => set({ reveal: null, claimError: null }),
+  dismissReveal: () =>
+    set((s) => {
+      const [next, ...rest] = s.pendingReveals
+      return { reveal: next ?? null, pendingReveals: rest, claimError: null }
+    }),
 })

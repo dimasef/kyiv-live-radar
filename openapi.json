@@ -558,7 +558,7 @@
         "type": "object"
       },
       "AnalyzeOut": {
-        "description": "A successful analysis: the card that dropped.",
+        "description": "A successful analysis: the card that dropped, plus any milestone cards\nthis analysis just unlocked (see domain/cards.MILESTONE_CARDS) — usually\nempty, and shown after the drawn card in the reveal.",
         "properties": {
           "card_id": {
             "title": "Card Id",
@@ -576,6 +576,14 @@
             ],
             "title": "Kind",
             "type": "string"
+          },
+          "milestones": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "Milestones",
+            "type": "array"
           },
           "threat_id": {
             "title": "Threat Id",
@@ -1072,7 +1080,7 @@
         "type": "object"
       },
       "CardCountOut": {
-        "description": "One collected card + how many copies the user has.",
+        "description": "One collected card + how many copies the user has. A milestone card is\nalways a single copy, earned at the analysis that crossed its threshold.",
         "properties": {
           "card_id": {
             "title": "Card Id",

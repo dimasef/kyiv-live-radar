@@ -10,8 +10,14 @@ import pytest
 import pytest_asyncio
 from httpx import AsyncClient
 
-from app.domain.cards import CARD_COUNT, CARD_RARITY, draw_card
-from app.models import Threat
+from app.domain.cards import (
+    CARD_COUNT,
+    CARD_RARITY,
+    MILESTONE_CARDS,
+    draw_card,
+    milestones_owned,
+)
+from app.models import Threat, ThreatAnalysis
 
 
 def test_draw_card_is_weighted_by_rarity():
@@ -23,6 +29,25 @@ def test_draw_card_is_weighted_by_rarity():
     commons = sum(1 for c in draws if CARD_RARITY[c] == "common")
     legendaries = sum(1 for c in draws if CARD_RARITY[c] == "legendary")
     assert commons > legendaries * 2  # huge margin — not flaky
+
+
+def test_milestone_cards_never_drop():
+    """They are earned by volume of analyses, so a draw must never hand one out
+    for free — 6000 draws would hit a 1-in-1650 card several times over. They
+    still carry an ordinary rarity, which is exactly why this has to be tested:
+    nothing about card 33 marks it as undrawable except its absence from the
+    draw pool."""
+    random.seed(2)
+    assert not {draw_card() for _ in range(6000)} & set(MILESTONE_CARDS)
+
+
+def test_milestones_owned_counts_every_threshold_passed():
+    """Not just the newest one: an account that analysed 1008 targets before this
+    shipped has earned 10, 100 AND 1000, and collects all three at once."""
+    assert milestones_owned(0) == []
+    assert milestones_owned(9) == []
+    assert milestones_owned(1008) == [33, 34, 35]
+    assert milestones_owned(10000) == [33, 34, 35, 36, 37]
 
 
 @pytest_asyncio.fixture
@@ -62,6 +87,73 @@ async def test_track_analysis_awards_card_and_shows_in_collection(env):
     assert col["total_analyses"] == 1
     assert col["card_count"] == CARD_COUNT
     assert len(col["cards"]) == 1 and col["cards"][0]["count"] == 1
+
+
+async def _seed_analyses(s, uid: int, n: int) -> None:
+    """n past analyses for this user, the way an account that predates milestone
+    cards looks."""
+    for _ in range(n):
+        s.add(ThreatAnalysis(threat_id=await _new_threat(s), user_id=uid, kind="track", card_id=1))
+    await s.commit()
+
+
+async def test_milestone_card_is_awarded_on_the_analysis_that_reaches_it(env):
+    c, s = env
+    auth = await _register(c, "a@x.com")
+    uid = (await c.get("/auth/me", headers=auth)).json()["id"]
+    need = MILESTONE_CARDS[33]
+
+    # One short of the first milestone: nothing earned yet.
+    await _seed_analyses(s, uid, need - 1)
+    col = (await c.get("/analysis/collection", headers=auth)).json()
+    assert col["total_analyses"] == need - 1
+    assert 33 not in [card["card_id"] for card in col["cards"]]
+
+    r = await c.post(
+        "/analysis", json={"threat_id": await _new_threat(s), "kind": "track"}, headers=auth
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["milestones"] == [33]
+
+    col = (await c.get("/analysis/collection", headers=auth)).json()
+    # The milestone card is a single owned copy, and it is NOT itself an analysis.
+    assert col["total_analyses"] == need
+    earned = [card for card in col["cards"] if card["card_id"] == 33]
+    assert len(earned) == 1 and earned[0]["count"] == 1
+
+    # Awarded once: the next analysis reveals nothing and adds no second copy.
+    r = await c.post(
+        "/analysis", json={"threat_id": await _new_threat(s), "kind": "track"}, headers=auth
+    )
+    assert r.json()["milestones"] == []
+    col = (await c.get("/analysis/collection", headers=auth)).json()
+    assert [card["count"] for card in col["cards"] if card["card_id"] == 33] == [1]
+
+
+async def test_backlog_of_milestones_is_handed_over_on_the_next_analysis(env):
+    """The catch-up case this feature exists for: an account with 1008 analyses
+    from before milestone cards. Nothing appears in its collection on its own —
+    the three cards arrive together on the next analysis, so the reveal can show
+    them one after another."""
+    c, s = env
+    auth = await _register(c, "a@x.com")
+    uid = (await c.get("/auth/me", headers=auth)).json()["id"]
+    await _seed_analyses(s, uid, 1008)
+
+    col = (await c.get("/analysis/collection", headers=auth)).json()
+    assert col["total_analyses"] == 1008
+    assert not [card for card in col["cards"] if card["card_id"] in MILESTONE_CARDS]
+
+    r = await c.post(
+        "/analysis", json={"threat_id": await _new_threat(s), "kind": "track"}, headers=auth
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["milestones"] == [33, 34, 35]  # ascending, one reveal each
+
+    col = (await c.get("/analysis/collection", headers=auth)).json()
+    owned = {card["card_id"]: card["count"] for card in col["cards"]}
+    assert {33: 1, 34: 1, 35: 1}.items() <= owned.items()
+    assert 36 not in owned  # 5000 is still out of reach
 
 
 async def test_remains_requires_destroyed(env):

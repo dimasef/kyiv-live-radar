@@ -16,16 +16,23 @@ export interface CardDef {
   title: string
   flavor: string
   rarity: Rarity
+  /** Milestone cards only: analyses needed to earn it. Such a card still wears
+   * a normal rarity (its frame and its place in the grid), it just can't drop —
+   * MUST mirror the backend MILESTONE_CARDS (app/domain/cards.py), which is
+   * what actually awards it. */
+  requires?: number
 }
 
 /** The collectible deck (from the Claude Design "Collectible Cards" v3 mock).
  * `id` MUST stay 1..N contiguous and in sync with the backend's CARD_COUNT
  * (app/domain/cards.py) — the server only stores the id. Cards are laid out in
  * ascending rarity, and `id` equals the card's display № on the collection page
- * (common 1–15, rare 16–23, legendary 24–28, epic 29–31, eternal 32). The
- * per-card glyph plate lives in cardGlyphs.ts, keyed by id. Rarity per id MUST
- * match the backend CARD_RARITY (drop weighting). Content is Ukrainian by
- * design. */
+ * (common 1–15, rare 16–23, legendary 24–28, epic 29–31, eternal 32). The five
+ * `requires` cards were added later and keep ids 33–37, so array ORDER — not
+ * id — is what puts each of them last in its own rarity group, the way the mock
+ * lays them out. The per-card glyph plate lives in cardGlyphs.ts, keyed by id.
+ * Rarity per id MUST match the backend CARD_RARITY (drop weighting). Content is
+ * Ukrainian by design. */
 export const CARDS: CardDef[] = [
   { id: 1, rarity: 'common', title: "Тінь у небі", flavor: "Силует «шахеда» на тлі зірок. Чути — значить ще летить." },
   { id: 2, rarity: 'common', title: "Уламки", flavor: "Іноді уламки небезпечніші за цілі вироби." },
@@ -42,6 +49,7 @@ export const CARDS: CardDef[] = [
   { id: 13, rarity: 'common', title: "Укриття", flavor: "Сьогодні знов не ночуємо вдома?" },
   { id: 14, rarity: 'common', title: "Міг у повітрі", flavor: "Щоб тебе підняло да гепнуло!" },
   { id: 15, rarity: 'common', title: "Конус Маха", flavor: "Летить і бахає, летить і багає." },
+  { id: 33, rarity: 'common', requires: 10, title: "Дослідник", flavor: "10 проаналізованих цілей." },
   { id: 16, rarity: 'rare', title: "Робота ППО", flavor: "Те, на що ми покладаємо надії." },
   { id: 17, rarity: 'rare', title: "Мобільна група", flavor: "Прожектор і кулемет проти дрона в темряві." },
   { id: 18, rarity: 'rare', title: "Ешелон", flavor: "Коли їх «10х» і треба рахувати кожен." },
@@ -50,15 +58,19 @@ export const CARDS: CardDef[] = [
   { id: 21, rarity: 'rare', title: "НПЗ", flavor: "Мені нравицця дивиться як воно горить." },
   { id: 22, rarity: 'rare', title: "Wildberries", flavor: "Це лише ягідки..." },
   { id: 23, rarity: 'rare', title: "Хаймарс", flavor: "Дайте два!" },
+  { id: 34, rarity: 'rare', requires: 100, title: "Спостерігач", flavor: "100 цілей. Око вже саме бачить траєкторію." },
   { id: 24, rarity: 'legendary', title: "Крейсер Москва", flavor: "Сдавайтесь это русский военный корабль." },
   { id: 25, rarity: 'legendary', title: "Ще 2-3 неділі", flavor: "Чесно? Да, Чесно!!!" },
   { id: 26, rarity: 'legendary', title: "Карта для нападу", flavor: "«А я сейчас вам покажу, откуда на Беларусь готовилось нападение»." },
   { id: 27, rarity: 'legendary', title: "Ізраїль за нас", flavor: "Треба допомагати Україні, а ви тільки пи*дите." },
   { id: 28, rarity: 'legendary', title: "Народний Спутник", flavor: "Ай сіі юю." },
+  { id: 35, rarity: 'legendary', requires: 1000, title: "Око Саурона", flavor: "Їх тисячі, розумієш? тисяці!" },
   { id: 29, rarity: 'epic', title: "Чорнобаївка", flavor: "Місце, звідки ворожа техніка вже не повертається." },
   { id: 30, rarity: 'epic', title: "Павутина", flavor: "Коли до павучка потрапили великі метелики." },
   { id: 31, rarity: 'epic', title: "Київ за 3 дня", flavor: "Не кажи гоп, поки не перескочиш." },
+  { id: 36, rarity: 'epic', requires: 5000, title: "Безліміт", flavor: "5000 аналізів - це вже не норм." },
   { id: 32, rarity: 'eternal', title: "Кінець Війни", flavor: "Коли звичайний день перетвориться в найкращий день в житті." },
+  { id: 37, rarity: 'eternal', requires: 10000, title: "Без Назви", flavor: "Війна кінчится раніше ніж хтось стільки проаналізує..." },
 ]
 
 const BY_ID = new Map(CARDS.map((c) => [c.id, c]))
@@ -132,14 +144,27 @@ export function collectionCounts(cards: OwnedCard[] | null | undefined): Map<num
   return new Map((cards ?? []).map((c) => [c.card_id, c.count]))
 }
 
-/** Owned-vs-total per rarity, for progress readouts and filter-tab badges. */
+/** Total cards on hand, duplicates included — the "скільки карток у мене" number,
+ * as opposed to `counts.size`, which is how many distinct ones are unlocked. */
+export function totalCopies(owned: Map<number, number>): number {
+  let n = 0
+  for (const count of owned.values()) n += count
+  return n
+}
+
+/** Per rarity: distinct cards unlocked, how many exist, and copies on hand —
+ * for progress readouts and filter-tab badges. */
 export function rarityBreakdown(
   owned: Map<number, number>,
-): Record<Rarity, { have: number; total: number }> {
-  const out = {} as Record<Rarity, { have: number; total: number }>
+): Record<Rarity, { have: number; total: number; copies: number }> {
+  const out = {} as Record<Rarity, { have: number; total: number; copies: number }>
   for (const r of RARITIES) {
     const inR = CARDS.filter((c) => c.rarity === r)
-    out[r] = { have: inR.filter((c) => owned.has(c.id)).length, total: inR.length }
+    out[r] = {
+      have: inR.filter((c) => owned.has(c.id)).length,
+      total: inR.length,
+      copies: inR.reduce((n, c) => n + (owned.get(c.id) ?? 0), 0),
+    }
   }
   return out
 }

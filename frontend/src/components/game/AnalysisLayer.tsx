@@ -53,6 +53,7 @@ function ResultModal() {
   const reveal = useRadar((s) => s.reveal)
   const claimError = useRadar((s) => s.claimError)
   const dismiss = useRadar((s) => s.dismissReveal)
+  const queued = useRadar((s) => s.pendingReveals.length)
 
   const card = reveal ? cardById(reveal.cardId) : undefined
   if (card && reveal) {
@@ -60,15 +61,27 @@ function ResultModal() {
       dismiss()
       navigate(COLLECTION_PATH)
     }
+    // While milestone cards are still queued the ONLY way on is «Далі»: leaving
+    // for the collection here would skip the reveal they exist for.
     return (
       <Suspense fallback={null}>
         <CardModal
           card={card}
           count={reveal.count}
-          caption={reveal.isNew ? t('game.newCard') : t('game.dupCard')}
+          caption={
+            reveal.milestone
+              ? t('game.milestoneCard')
+              : reveal.isNew
+                ? t('game.newCard')
+                : t('game.dupCard')
+          }
           captionGlow={reveal.isNew}
-          action={{ label: t('game.toCollection'), onClick: toCollection }}
-          closeLabel={t('game.close')}
+          action={
+            queued > 0
+              ? { label: t('game.nextCard'), onClick: dismiss }
+              : { label: t('game.toCollection'), onClick: toCollection }
+          }
+          closeLabel={queued > 0 ? undefined : t('game.close')}
           onClose={dismiss}
         />
       </Suspense>

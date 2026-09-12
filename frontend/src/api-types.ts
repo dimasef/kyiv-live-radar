@@ -2367,7 +2367,9 @@ export interface components {
         };
         /**
          * AnalyzeOut
-         * @description A successful analysis: the card that dropped.
+         * @description A successful analysis: the card that dropped, plus any milestone cards
+         *     this analysis just unlocked (see domain/cards.MILESTONE_CARDS) — usually
+         *     empty, and shown after the drawn card in the reveal.
          */
         AnalyzeOut: {
             /** Card Id */
@@ -2382,6 +2384,11 @@ export interface components {
              * @enum {string}
              */
             kind: "track" | "remains";
+            /**
+             * Milestones
+             * @default []
+             */
+            milestones: number[];
             /** Threat Id */
             threat_id: number;
         };
@@ -2574,7 +2581,8 @@ export interface components {
         };
         /**
          * CardCountOut
-         * @description One collected card + how many copies the user has.
+         * @description One collected card + how many copies the user has. A milestone card is
+         *     always a single copy, earned at the analysis that crossed its threshold.
          */
         CardCountOut: {
             /** Card Id */

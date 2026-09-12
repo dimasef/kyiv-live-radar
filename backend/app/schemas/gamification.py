@@ -18,12 +18,15 @@ class AnalyzeIn(BaseModel):
 
 
 class AnalyzeOut(BaseModel):
-    """A successful analysis: the card that dropped."""
+    """A successful analysis: the card that dropped, plus any milestone cards
+    this analysis just unlocked (see domain/cards.MILESTONE_CARDS) — usually
+    empty, and shown after the drawn card in the reveal."""
 
     threat_id: int
     kind: AnalysisKind
     card_id: int
     created_at: datetime
+    milestones: list[int] = []
 
     _tz = field_validator("created_at", mode="before")(_as_utc)
 
@@ -40,7 +43,8 @@ class ThreatAnalysisStateOut(BaseModel):
 
 
 class CardCountOut(BaseModel):
-    """One collected card + how many copies the user has."""
+    """One collected card + how many copies the user has. A milestone card is
+    always a single copy, earned at the analysis that crossed its threshold."""
 
     card_id: int
     count: int
@@ -53,7 +57,7 @@ class CollectionOut(BaseModel):
     """GET /analysis/collection — the current user's whole card collection."""
 
     cards: list[CardCountOut] = []
-    total_analyses: int
+    total_analyses: int  # real analyses only — milestone cards are not analyses
     card_count: int  # size of the full deck, so the UI can show "collected N of M"
 
 

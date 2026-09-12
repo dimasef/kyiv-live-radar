@@ -20,8 +20,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...auth.deps import get_current_user
 from ...db import get_session
-from ...domain.cards import CARD_COUNT, STALE_AFTER, draw_card, eligible_kind_for
+from ...domain.cards import (
+    CARD_COUNT,
+    MILESTONE_CARDS,
+    STALE_AFTER,
+    draw_card,
+    eligible_kind_for,
+    milestones_owned,
+)
 from ...models import (
+    CardAward,
     Threat,
     ThreatAnalysis,
     ThreatEvent,
@@ -83,7 +91,47 @@ async def analyze_target(
         kind=row.kind,
         card_id=row.card_id,
         created_at=row.created_at,
+        milestones=await _grant_milestones(session, user.id),
     )
+
+
+async def _grant_milestones(session: AsyncSession, user_id: int) -> list[int]:
+    """Hand over every milestone card this account's analysis count has now
+    reached but never received, ascending — what the reveal shows one by one
+    after the drawn card.
+
+    Usually empty, and at most one at a time going forward. It returns several
+    only on the first analysis after a threshold moves, or after this feature
+    shipped to an account that had already passed one: the catch-up is the whole
+    reason the grant is a row rather than arithmetic over the count.
+    """
+    done = await session.scalar(
+        select(func.count()).select_from(ThreatAnalysis).where(ThreatAnalysis.user_id == user_id)
+    )
+    owed = set(milestones_owned(done)) - await _awarded_ids(session, user_id)
+    if not owed:
+        return []
+
+    granted = []
+    for card_id in sorted(owed, key=lambda c: MILESTONE_CARDS[c]):
+        try:
+            # A SAVEPOINT per insert: a concurrent analysis on another device can
+            # only lose this unique constraint, and losing it must not take the
+            # rest of the grant (or the analysis just committed) down with it.
+            async with session.begin_nested():
+                session.add(CardAward(user_id=user_id, card_id=card_id))
+            granted.append(card_id)
+        except IntegrityError:
+            pass  # already awarded by that other analysis — not ours to reveal
+    await session.commit()
+    return granted
+
+
+async def _awarded_ids(session: AsyncSession, user_id: int) -> set[int]:
+    rows = await session.scalars(
+        select(CardAward.card_id).where(CardAward.user_id == user_id)
+    )
+    return set(rows)
 
 
 @gamification_router.get("/analysis/threat/{threat_id}", response_model=ThreatAnalysisStateOut)
@@ -136,11 +184,16 @@ async def _collection_for(session: AsyncSession, user_id: int) -> CollectionOut:
         )
     ).all()
     cards = [CardCountOut(card_id=r.card_id, count=r.count, first_at=r.first_at) for r in rows]
-    return CollectionOut(
-        cards=cards,
-        total_analyses=sum(c.count for c in cards),
-        card_count=CARD_COUNT,
+    # Every row above IS one analysis, so the copies sum is the analysis count.
+    done = sum(c.count for c in cards)
+    # Milestone cards come from the award ledger, NOT from `done` — one this
+    # account has earned but not yet been handed stays out of the collection
+    # until the analysis that reveals it (see _grant_milestones).
+    awards = await session.scalars(
+        select(CardAward).where(CardAward.user_id == user_id).order_by(CardAward.card_id)
     )
+    cards += [CardCountOut(card_id=a.card_id, count=1, first_at=a.created_at) for a in awards]
+    return CollectionOut(cards=cards, total_analyses=done, card_count=CARD_COUNT)
 
 
 @gamification_router.get("/analysis/collection", response_model=CollectionOut)

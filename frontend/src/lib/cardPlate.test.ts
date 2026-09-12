@@ -37,6 +37,15 @@ describe('cardPlateHtml — rare glyph tagging', () => {
   })
 })
 
+describe('cardPlateHtml — every card is drawable', () => {
+  // A card added to the catalog without a plate renders as an empty frame, and
+  // nothing else in the app would notice.
+  it('has a plate for every card in the deck', () => {
+    const empty = CARDS.filter((c) => !cardPlateHtml(c.id, { animated: false, count: 1 }))
+    expect(empty.map((c) => c.id)).toEqual([])
+  })
+})
+
 describe('cardPlateHtml — existing behaviour still holds', () => {
   it('freezes plate animations when not animated', () => {
     // The eternal card is the only plate with its own animations.

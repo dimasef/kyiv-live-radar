@@ -1156,7 +1156,32 @@ class ThreatAnalysis(Base):
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     kind: Mapped[str] = mapped_column(String(10))  # see ANALYSIS_KINDS
-    card_id: Mapped[int] = mapped_column()  # 1..len(CARD_IDS), the awarded card
+    card_id: Mapped[int] = mapped_column()  # the drawn card, never a milestone one
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CardAward(Base):
+    """A milestone card handed to one account (see domain/cards.MILESTONE_CARDS).
+
+    Those cards are earned by volume of analyses rather than drawn, and the row
+    is written by the analysis that reaches the threshold — including every
+    threshold already passed, so an account that had 1008 analyses before this
+    shipped collects all three on its NEXT analysis and sees them revealed one
+    after another. That is why ownership is a row and not just arithmetic on the
+    analysis count: a card the user has never been shown must not already be
+    sitting in their collection. `UniqueConstraint(user_id, card_id)` makes the
+    grant idempotent — a concurrent second analysis can only lose the insert,
+    never duplicate the card.
+    """
+
+    __tablename__ = "card_awards"
+    __table_args__ = (UniqueConstraint("user_id", "card_id", name="uq_card_award_user_card"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    card_id: Mapped[int] = mapped_column()  # a MILESTONE_CARDS key
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

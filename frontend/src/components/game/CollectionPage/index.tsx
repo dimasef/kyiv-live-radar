@@ -1,4 +1,3 @@
-import { ChevronLeft, Info } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 
@@ -9,7 +8,8 @@ import { collectionUserId, useRoute } from '@/router'
 import { useRadar } from '@/store'
 
 import CardGrid from './CardGrid'
-import RarityTabs, { type Tab } from './RarityTabs'
+import CollectionHeader from './CollectionHeader'
+import type { Tab } from './RarityTabs'
 import RulesModal from './RulesModal'
 import { useNewCards } from './useNewCards'
 
@@ -61,36 +61,17 @@ export default function CollectionPage() {
   const visible = CARDS.filter((c) => tab === 'all' || c.rarity === tab)
 
   return (
-    <div className="h-full overflow-y-auto bg-ink-950 px-4 py-6 text-slate-200">
+    <div className="h-full overflow-y-auto bg-ink-950 px-4 pb-6 text-slate-200">
       <div className="mx-auto max-w-3xl lg:max-w-5xl">
-        <header className="mb-5 flex items-start gap-3">
-          <button
-            onClick={() => window.history.back()}
-            aria-label="Назад"
-            className="mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-white/[0.06] hover:text-slate-100"
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <div className="min-w-0 flex-1">
-            <span className="font-mono text-[11px] uppercase tracking-[0.24em] text-phosphor-soft">
-              UA Live Radar // Колекція
-            </span>
-            <h1 className="font-display text-xl font-bold text-slate-100">
-              {ownerName ? `Картки: ${ownerName}` : 'Мої картки'}
-            </h1>
-          </div>
-          {friendId == null && (
-            <button
-              onClick={() => setShowRules(true)}
-              aria-label="Як отримати картки"
-              className="mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-white/[0.06] hover:text-slate-200"
-            >
-              <Info size={16} />
-            </button>
-          )}
-        </header>
+        <CollectionHeader
+          ownerName={ownerName}
+          onShowRules={isOwn ? () => setShowRules(true) : undefined}
+          tab={tab}
+          onSelectTab={setTab}
+          counts={counts}
+          total={total}
+        />
 
-        <RarityTabs tab={tab} onSelect={setTab} counts={counts} total={total} />
         <CardGrid cards={visible} counts={counts} newIds={newIds} onSelect={setSelected} />
       </div>
 

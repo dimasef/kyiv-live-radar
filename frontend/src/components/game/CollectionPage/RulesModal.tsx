@@ -10,6 +10,9 @@ const RULES = [
   'Сканування триває кілька секунд — і ти отримуєш випадкову картку.',
   'З однієї цілі можна зробити 2 аналізи (політ + рештки). Перший, хто встиг, забирає картку.',
   'Цілі, старші за 12 годин, аналізувати вже не можна.',
+  // No thresholds spelled out: each milestone card states its own number on its
+  // face, and finding out where the next one sits is half of why they exist.
+  'П\'ять карток не випадають зовсім — їх дають за кількість проаналізованих цілей.',
 ]
 
 export default function RulesModal({ onClose }: { onClose: () => void }) {

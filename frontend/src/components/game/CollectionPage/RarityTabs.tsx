@@ -1,9 +1,14 @@
-import { RARITIES, RARITY_STYLE, rarityBreakdown, type Rarity } from '@/lib/cards'
+import { RARITY_STYLE, RARITIES, rarityBreakdown, type Rarity } from '@/lib/cards'
 
 export type Tab = 'all' | Rarity
 
-/** Rarity filter tabs, each with an owned/total badge; the "Усі" tab shows the
- * overall total. */
+const FADE_RIGHT = 'linear-gradient(to right, #000 calc(100% - 32px), transparent)'
+
+/** Rarity filter pills, in the mock's pill styling, each carrying how much of
+ * that rarity is unlocked — distinct cards, not copies; the copies of whatever
+ * is selected are counted by the chip beside them (CollectionStats). The
+ * unselected pills are dimmed rather than recoloured, so the rarity accent stays
+ * the thing that identifies a pill. */
 export default function RarityTabs({
   tab,
   onSelect,
@@ -13,56 +18,90 @@ export default function RarityTabs({
   tab: Tab
   onSelect: (tab: Tab) => void
   counts: Map<number, number>
+  /** Deck size, for the «Усі» pill. */
   total: number
 }) {
   const breakdown = rarityBreakdown(counts)
   return (
-    <div className="mb-4 flex flex-wrap gap-1.5">
-      <TabChip label="Усі" active={tab === 'all'} onClick={() => onSelect('all')} owned={counts.size} total={total} />
+    // One rail, never wrapping: on a phone the pills run off the right edge and
+    // are swiped through. The mask fades a leaving pill out instead of letting
+    // the scroll box slice it down the middle — it masks the pill itself, so it
+    // works whatever is behind the rail. `pr-8` matches the fade, so the last
+    // pill parks clear of it at the end of the swipe rather than half-ghosted;
+    // `-my-1 py-1` keeps the active dot's glow out of the overflow clip.
+    <div
+      className="scroll-none -my-1 flex gap-2 overflow-x-auto py-1 pr-8"
+      style={{ maskImage: FADE_RIGHT, WebkitMaskImage: FADE_RIGHT }}
+    >
+      <Pill
+        label="Усі"
+        color="#67e8f9"
+        dot={false}
+        have={counts.size}
+        total={total}
+        active={tab === 'all'}
+        onClick={() => onSelect('all')}
+      />
       {RARITIES.map((r) => (
-        <TabChip
+        <Pill
           key={r}
           label={RARITY_STYLE[r].plural}
           color={RARITY_STYLE[r].rc}
+          have={breakdown[r].have}
+          total={breakdown[r].total}
           active={tab === r}
           onClick={() => onSelect(r)}
-          owned={breakdown[r].have}
-          total={breakdown[r].total}
         />
       ))}
     </div>
   )
 }
 
-function TabChip({
+function Pill({
   label,
   color,
+  dot = true,
+  have,
+  total,
   active,
   onClick,
-  owned,
-  total,
 }: {
   label: string
-  color?: string
+  color: string
+  dot?: boolean
+  have: number
+  total: number
   active: boolean
   onClick: () => void
-  owned: number
-  total: number
 }) {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors ${
-        active
-          ? 'border-white/20 bg-white/[0.08] text-slate-100'
-          : 'border-white/[0.07] bg-white/[0.02] text-slate-400 hover:text-slate-200'
+      aria-pressed={active}
+      className={`inline-flex flex-none items-center gap-2 whitespace-nowrap rounded-full border px-3.5 py-2 font-mono text-[11.5px] tracking-[0.08em] transition-opacity ${
+        active ? 'opacity-100' : 'opacity-50 hover:opacity-80'
       }`}
+      style={{
+        borderColor: hexAlpha(color, active ? 0.55 : 0.28),
+        background: hexAlpha(color, active ? 0.14 : 0.05),
+        color,
+      }}
     >
-      {color && <i className="h-[6px] w-[6px] rounded-full" style={{ background: color }} />}
-      {label}
-      <span className="font-mono text-[10px] text-slate-500">
-        {owned}/{total}
+      {dot && (
+        <i
+          className="h-2 w-2 rounded-full"
+          style={{ background: color, boxShadow: active ? `0 0 7px ${color}` : 'none' }}
+        />
+      )}
+      {label.toUpperCase()}
+      <span className="text-slate-200">
+        {have}/{total}
       </span>
     </button>
   )
+}
+
+function hexAlpha(hex: string, alpha: number): string {
+  const n = parseInt(hex.replace('#', ''), 16)
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`
 }

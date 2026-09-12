@@ -97,7 +97,7 @@ body::after {
    switching between them shifted the whole layout sideways. */
 .page-col {
   width: 100%;
-  max-width: 42rem;
+  max-width: 46rem;
   margin-inline: auto;
 }
 
@@ -1193,6 +1193,16 @@ body::after {
 }
 .scroll-slim::-webkit-scrollbar-thumb:hover {
   background: rgba(34, 211, 238, 0.4);
+}
+
+/* A swipeable rail (the collection's rarity filters) — the bar itself would eat
+   a whole row under it on a phone, and the chips already spill visibly. */
+.scroll-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scroll-none::-webkit-scrollbar {
+  display: none;
 }
 
 /* ---------- range slider ---------- */
