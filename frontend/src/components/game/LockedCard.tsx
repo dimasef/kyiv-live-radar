@@ -32,7 +32,7 @@ export default function LockedCard({ card }: { card: CardDef }) {
         }}
       />
 
-      <div className="flex flex-none items-center justify-between px-4 pt-3.5">
+      <div className="flex flex-none items-center justify-between px-3 pt-3 sm:px-4 sm:pt-3.5">
         <span className="font-mono text-[11px] tracking-[0.14em]" style={{ color: a(0.42) }}>
           № {String(card.id).padStart(2, "0")}
         </span>
@@ -45,7 +45,7 @@ export default function LockedCard({ card }: { card: CardDef }) {
       </div>
 
       <div
-        className="relative m-3.5 flex flex-1 items-center justify-center overflow-hidden rounded-xl border border-dashed"
+        className="relative m-2.5 flex flex-1 items-center justify-center overflow-hidden rounded-xl border border-dashed sm:m-3.5"
         style={{
           minHeight: 148,
           borderColor: a(0.14),
@@ -68,7 +68,7 @@ export default function LockedCard({ card }: { card: CardDef }) {
       {/* Skeleton title + flavor. Reserves the SAME vertical space as an owned
           tile's title/flavor block (min-h-[2.35em] + min-h-[2.6em] with the same
           paddings) so a mixed owned/locked grid stays perfectly aligned. */}
-      <div className="flex-none px-4 pb-4 pt-0.5">
+      <div className="flex-none px-3 pb-3 pt-0.5 sm:px-4 sm:pb-4">
         <div className="min-h-[2.35em]">
           <div
             className="h-[15px] w-[58%] rounded-[5px]"

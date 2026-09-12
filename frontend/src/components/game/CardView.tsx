@@ -43,10 +43,15 @@ export default function CardView({
     "--bd": s.border,
   } as CSSProperties;
   const frameClass = isNew ? "card-new" : eternalGlow ? "card-eternal-anim" : "";
+  // A grid tile on a phone shares the row with a neighbour, so it tightens its
+  // gutters below `sm`; the popped-up card keeps the mock's spacing everywhere.
+  const gutter = grid ? "[--plate-margin:10px_12px] sm:[--plate-margin:14px_16px]" : "";
+  const headPad = grid ? "px-3 pt-3 sm:px-4 sm:pt-3.5" : "px-4 pt-3.5";
+  const footPad = grid ? "px-3 pb-3 sm:px-4 sm:pb-4" : "px-4 pb-4";
 
   return (
     <article
-      className={`relative flex flex-col overflow-hidden rounded-2xl border ${frameClass}`}
+      className={`relative flex flex-col overflow-hidden rounded-2xl border ${frameClass} ${gutter}`}
       style={{
         ...vars,
         width,
@@ -68,7 +73,7 @@ export default function CardView({
       />
 
       {/* Header: card number + rarity pill */}
-      <div className="flex flex-none items-center justify-between px-4 pt-3.5">
+      <div className={`flex flex-none items-center justify-between ${headPad}`}>
         <span className="font-mono text-[11px] tracking-[0.14em] text-slate-500">
           № {String(card.id).padStart(2, "0")}
         </span>
@@ -93,7 +98,7 @@ export default function CardView({
         dangerouslySetInnerHTML={{ __html: cardPlateHtml(card.id, { animated, count }) }}
       />
 
-      <div className="flex-none px-4 pb-4 pt-0.5">
+      <div className={`flex-none pt-0.5 ${footPad}`}>
         <h3
           className={`font-display text-base font-bold leading-tight text-slate-100 ${
             grid ? "line-clamp-2 min-h-[2.35em]" : ""

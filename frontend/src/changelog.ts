@@ -35,6 +35,16 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 export const CHANGELOG: Release[] = [
   {
     version: APP_VERSION,
+    title: "колекція на телефоні",
+    date: "2026-09-13",
+    kind: "patch",
+    changes: [
+      "Колекція на телефоні: картки більше не тісняться — вужчі відступи між ними, всередині них і в секціях",
+      "Повністю зібрана рідкість тепер помітна одразу: секція світиться, а замість позначки — печатка «Зібрано повністю»",
+    ],
+  },
+  {
+    version: "0.57.1",
     title: "мапа без привидів",
     date: "2026-09-13",
     kind: "patch",

@@ -593,11 +593,28 @@ body::after {
   animation-delay: 2.27s;
 }
 
+/* A fully collected rarity's progress line: a slow light running along it —
+   one thin gradient on background-position, so it costs nothing on the map's
+   budget and the eye still catches that this section is done. */
+.section-line-complete {
+  background-size: 200% 100%;
+  animation: section-sheen 3.6s linear infinite;
+}
+@keyframes section-sheen {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .card-flow-border,
   .card-rare-glyph,
   .card-arcs path,
-  .card-eternal-anim {
+  .card-eternal-anim,
+  .section-line-complete {
     animation: none;
   }
   /* The arcs are pure motion — with the flicker gone they'd sit on the card as

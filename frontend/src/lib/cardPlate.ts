@@ -23,7 +23,11 @@ function dupBadge(count: number): string {
  *   which is what makes this rewrite safe to do by pattern.
  * The `var(--rc)/--tint/--glow/--bd` it references are set by the host CardView. */
 export function cardPlateHtml(id: number, { animated, count }: { animated: boolean; count: number }): string {
-  let html = (CARD_PLATES[id] ?? '').replace(/<span[^>]*>×\d+<\/span>/g, '')
+  let html = (CARD_PLATES[id] ?? '')
+    .replace(/<span[^>]*>×\d+<\/span>/g, '')
+    // The mock bakes the plate's margin in; a grid tile on a phone needs a
+    // tighter one, which CardView sets through the variable.
+    .replace('margin:14px 16px', 'margin:var(--plate-margin,14px 16px)')
   if (count > 1) html = html.replace(/(>)/, `$1${dupBadge(count)}`) // after the plate's opening tag
   if (!animated) html = html.replace(/animation:[^;"']*/g, 'animation:none')
   if (animated && cardById(id)?.rarity === 'rare') {

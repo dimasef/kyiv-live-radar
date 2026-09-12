@@ -1,4 +1,5 @@
 import CardGrid from './CardGrid'
+import CompleteSeal from './CompleteSeal'
 import { RARITY_RGB, RARITY_STYLE, type CardDef, type Rarity } from '@/lib/cards'
 
 import { copiesLabel, sectionId } from './sections'
@@ -35,17 +36,24 @@ export default function RaritySection({
   return (
     <section
       id={sectionId(rarity)}
-      className="relative mt-5 overflow-hidden rounded-3xl border p-4 first:mt-1 sm:p-5"
+      // On a phone the panel bleeds almost to the screen edge (`-mx-3`) and keeps
+      // a slim inner gutter, so the two-column cards get the same width they
+      // had before the panels existed instead of paying for both paddings.
+      className="relative -mx-3 mt-5 overflow-hidden rounded-[22px] border px-3 pb-3 pt-4 first:mt-1 sm:mx-0 sm:rounded-3xl sm:p-5"
+      // A finished rarity is lit from the inside: stronger frame, deeper tint,
+      // a glow that spills past the panel — it has to read from across the
+      // room, not from a chip.
       style={{
-        borderColor: `rgba(${rgb}, 0.14)`,
-        background: `linear-gradient(180deg, rgba(${rgb}, 0.05), rgba(${rgb}, 0.015) 40%, transparent)`,
+        borderColor: `rgba(${rgb}, ${complete ? 0.45 : 0.14})`,
+        background: `linear-gradient(180deg, rgba(${rgb}, ${complete ? 0.12 : 0.05}), rgba(${rgb}, 0.015) 40%, transparent)`,
+        boxShadow: complete ? `0 0 60px -24px rgba(${rgb}, 0.75), inset 0 1px 0 rgba(${rgb}, 0.25)` : undefined,
       }}
     >
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-0 top-0 h-56"
         style={{
-          background: `radial-gradient(640px 200px at 8% 0%, rgba(${rgb}, 0.12), transparent 70%)`,
+          background: `radial-gradient(640px 200px at 8% 0%, rgba(${rgb}, ${complete ? 0.22 : 0.12}), transparent 70%)`,
         }}
       />
 
@@ -60,36 +68,35 @@ export default function RaritySection({
           </span>
           <h2
             className="font-display text-2xl font-bold text-slate-100"
-            style={{ textShadow: `0 0 28px rgba(${rgb}, 0.4)` }}
+            style={{ textShadow: `0 0 28px rgba(${rgb}, ${complete ? 0.75 : 0.4})` }}
           >
             {plural}
           </h2>
         </div>
-        <div className="pb-1 text-right font-mono text-[11.5px] tracking-[0.08em]">
-          {complete ? (
-            <span
-              className="inline-block rounded-full border px-2.5 py-1 text-[10px] tracking-[0.2em]"
-              style={{ color: rc, borderColor: `rgba(${rgb}, 0.5)`, background: `rgba(${rgb}, 0.12)` }}
-            >
-              ПОВНА
-            </span>
-          ) : (
+        {complete ? (
+          <CompleteSeal rarity={rarity} total={cards.length} copies={copiesLabel(copies)} />
+        ) : (
+          <div className="pb-1 text-right font-mono text-[11.5px] tracking-[0.08em]">
             <div className="text-slate-100">
               <span style={{ color: rc }}>{have}</span>
               <span className="text-slate-500">/{cards.length}</span>
             </div>
-          )}
-          <div className="mt-1 text-slate-500">{copiesLabel(copies)}</div>
-        </div>
+            <div className="mt-1 text-slate-500">{copiesLabel(copies)}</div>
+          </div>
+        )}
       </header>
 
       <div className="relative h-px w-full bg-white/[0.06]">
         <i
-          className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-700"
+          className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-700 ${
+            complete ? 'section-line-complete' : ''
+          }`}
           style={{
             width: `${(have / cards.length) * 100}%`,
-            background: `linear-gradient(90deg, ${rc}, rgba(${rgb}, 0.25))`,
-            boxShadow: `0 0 10px rgba(${rgb}, 0.55)`,
+            background: complete
+              ? `linear-gradient(90deg, rgba(${rgb}, 0.35), #fff, ${rc}, rgba(${rgb}, 0.35))`
+              : `linear-gradient(90deg, ${rc}, rgba(${rgb}, 0.25))`,
+            boxShadow: `0 0 ${complete ? 14 : 10}px rgba(${rgb}, ${complete ? 0.8 : 0.55})`,
           }}
         />
       </div>

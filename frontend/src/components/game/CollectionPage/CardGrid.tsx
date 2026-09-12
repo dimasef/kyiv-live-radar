@@ -16,7 +16,7 @@ export default function CardGrid({
   onSelect: (card: CardDef) => void;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 pt-3">
+    <div className="grid grid-cols-2 gap-2 pt-3 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4">
       {cards.map((card) => {
         const count = counts.get(card.id);
         const locked = count == null;
