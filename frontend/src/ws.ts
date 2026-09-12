@@ -1,5 +1,6 @@
 import { useRadar } from './store'
 import { fetchSync } from './api'
+import { advance, alreadyApplied, type StreamPosition } from './lib/streamPosition'
 import { applySnapshot, feedPage, hydrate, lastHydrateAt } from './store/bootstrap'
 import type { WSMessage } from './types'
 
@@ -22,8 +23,7 @@ let socket: WebSocket | null = null
 let retry = 0
 // Where in the server's frame stream this client is (see WSCommon). Null until
 // the first frame — the very first connect still does a full hydrate.
-let streamEpoch: number | null = null
-let streamSeq: number | null = null
+let position: StreamPosition | null = null
 let resumeInFlight: { promise: Promise<void>; startedAt: number } | null = null
 const RESUME_COALESCE_MS = 2_000
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -87,10 +87,7 @@ export function connectWS() {
 }
 
 function applyFrame(msg: WSMessage) {
-  if (msg.epoch != null && msg.seq != null) {
-    streamEpoch = msg.epoch
-    streamSeq = msg.seq
-  }
+  position = advance(position, msg)
   useRadar.getState().handleWS(msg)
 }
 
@@ -109,11 +106,11 @@ export function resumeStream(): Promise<void> {
 }
 
 async function runResume(): Promise<void> {
-  if (streamEpoch == null || streamSeq == null) return hydrate()
+  if (position == null) return hydrate()
   const page = feedPage()
   let result
   try {
-    result = await fetchSync(streamEpoch, streamSeq, page.limit, page.regions)
+    result = await fetchSync(position.epoch, position.seq, page.limit, page.regions)
   } catch {
     return hydrate()
   }
@@ -125,15 +122,12 @@ async function runResume(): Promise<void> {
       // socket; a replayed frame older than the newest applied one would
       // roll a track back, so only what is genuinely still ahead is applied.
       for (const frame of result.frames as WSMessage[]) {
-        if (frame.epoch === streamEpoch && frame.seq != null && frame.seq <= (streamSeq ?? -1))
-          continue
-        applyFrame(frame)
+        if (!alreadyApplied(position, frame)) applyFrame(frame)
       }
       return
     case 'full':
       if (result.snapshot) applySnapshot(result.snapshot)
-      streamEpoch = result.epoch
-      streamSeq = result.seq
+      position = { epoch: result.epoch, seq: result.seq }
       return
   }
 }

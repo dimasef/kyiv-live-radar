@@ -55,4 +55,4 @@ def test_only_the_full_serialization_publishes_freshness():
     # No events yet -> last seen is the creation time, and with no reply chain to
     # show for itself the fade spans a shahed's short window (domain/staleness.py).
     assert full.last_event_at == th.created_at
-    assert full.stale_at == th.created_at + timedelta(minutes=5)
+    assert full.stale_at == th.created_at + timedelta(minutes=7)

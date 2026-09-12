@@ -464,7 +464,7 @@ async def test_unfollowed_dot_closes_on_the_short_window_per_type(ctx):
     s, m, src = ctx
     from app.domain.tracking import close_stale_tracks
     # Two one-shot sightings nobody follows up on: a ballistic dot (2 min) and a
-    # shahed (5 min). Neither can ever be joined — a reply can't arrive and
+    # shahed (7 min). Neither can ever be joined — a reply can't arrive and
     # corroboration only merges the same district within 3 min — so each clears
     # on its own type's window rather than lingering for 20.
     await ingest_message(s, text="🚀 Балістика над Оболонню", matcher=m, when=BASE,
@@ -476,8 +476,9 @@ async def test_unfollowed_dot_closes_on_the_short_window_per_type(ctx):
     assert closed[0].target_type == "ballistic" and closed[0].scope != "city"
     shahed = (await s.scalars(select(Threat).where(Threat.target_type == "shahed"))).one()
     assert shahed.closed_at is None
-    # ...and the shahed follows two minutes later, on its own window.
-    assert len(await close_stale_tracks(s, BASE + timedelta(minutes=6))) == 1
+    # ...and the shahed follows on its own window.
+    assert await close_stale_tracks(s, BASE + timedelta(minutes=6)) == []
+    assert len(await close_stale_tracks(s, BASE + timedelta(minutes=8))) == 1
 
 
 async def test_reply_followed_track_keeps_the_long_window(ctx):

@@ -93,11 +93,11 @@ class Settings(BaseSettings):
         # callouts sit 0.7 min apart at the median and 3.2 at p90, which is what
         # these two numbers already were. A new type does not oblige new windows.
         "kab": 6,
-        # Deliberately the SAME as its orphan window: a reactive drone crossing
-        # the city is re-reported at the same cadence whether or not a channel
-        # happens to be threading its callouts, so the tracked/orphan split buys
-        # nothing here — and 10 min of silence on the fastest thing over the city
-        # was a dot nobody could still vouch for. Maintainer's call, 2026-08-30.
+        # A reactive drone crossing the city is re-reported at the same cadence
+        # whether or not a channel happens to be threading its callouts, so the
+        # tracked/orphan split buys little here — and 10 min of silence on the
+        # fastest thing over the city was a dot nobody could still vouch for.
+        # Maintainer's call, 2026-08-30.
         "jet_drone": 8,
         # Measured on 3760 Сумщина messages: within one FPV run the callouts
         # sit 3.0 min apart at the median and 8.6 at p90. It is also the
@@ -131,12 +131,16 @@ class Settings(BaseSettings):
         # is the callout an operator most often goes back to re-read, and at 3
         # minutes it was gone before they could — the dot being slightly stale
         # costs less here than it costs to have nothing to look at. The fade
-        # still marks it as ageing from a third of the way in.
-        "jet_drone": 8,
+        # still marks it as ageing from a third of the way in. Trimmed 8 -> 6
+        # on 2026-09-12 (maintainer's call): a one-shot fix on the fastest
+        # thing over the city was outliving its usefulness.
+        "jet_drone": 6,
         # At the measured floor, not above it: an FPV is neither slow nor
         # loitering, so the exception the two lines above make does not apply.
         "fpv": 3,
-        "shahed": 5,
+        # 5 -> 7 on 2026-09-12 (maintainer's call): the slowest type, and a
+        # one-shot callout on it was fading before the next one arrived.
+        "shahed": 7,
         "unknown": 6,
     }
     # Prefer Telegram reply-threading over time-proximity for track grouping: a

@@ -1,27 +1,39 @@
-import { RARITY_STYLE, RARITIES, rarityBreakdown, type Rarity } from '@/lib/cards'
+import { useEffect, useRef } from 'react'
 
-export type Tab = 'all' | Rarity
+import { RARITY_STYLE, RARITIES, rarityBreakdown, type Rarity } from '@/lib/cards'
 
 const FADE_RIGHT = 'linear-gradient(to right, #000 calc(100% - 32px), transparent)'
 
-/** Rarity filter pills, in the mock's pill styling, each carrying how much of
- * that rarity is unlocked — distinct cards, not copies; the copies of whatever
- * is selected are counted by the chip beside them (CollectionStats). The
- * unselected pills are dimmed rather than recoloured, so the rarity accent stays
- * the thing that identifies a pill. */
-export default function RarityTabs({
-  tab,
-  onSelect,
+/** The rarity rail as navigation: each pill jumps to its section, and the one
+ * whose section is under the sticky bar right now is lit (see useSectionNav).
+ * Each carries how much of that rarity is unlocked — distinct cards, not
+ * copies. Unselected pills are dimmed rather than recoloured, so the rarity
+ * accent stays the thing that identifies a pill. */
+export default function RarityNav({
+  active,
+  onJump,
   counts,
-  total,
 }: {
-  tab: Tab
-  onSelect: (tab: Tab) => void
+  active: Rarity | null
+  onJump: (rarity: Rarity) => void
   counts: Map<number, number>
-  /** Deck size, for the «Усі» pill. */
-  total: number
 }) {
   const breakdown = rarityBreakdown(counts)
+  const rail = useRef<HTMLDivElement>(null)
+
+  // Scrolling the page walks the lit pill along the rail; on a phone the rail
+  // is narrower than its pills, so it has to follow or the lit one hides off
+  // the right edge. Horizontal only — scrollIntoView would also nudge the page.
+  useEffect(() => {
+    const el = rail.current
+    const pill = el?.querySelector<HTMLElement>('[aria-current="true"]')
+    if (!el || !pill) return
+    const left = pill.offsetLeft - 12
+    const right = pill.offsetLeft + pill.offsetWidth + 40 - el.clientWidth
+    if (el.scrollLeft > left) el.scrollLeft = left
+    else if (el.scrollLeft < right) el.scrollLeft = right
+  }, [active])
+
   return (
     // One rail, never wrapping: on a phone the pills run off the right edge and
     // are swiped through. The mask fades a leaving pill out instead of letting
@@ -30,18 +42,10 @@ export default function RarityTabs({
     // pill parks clear of it at the end of the swipe rather than half-ghosted;
     // `-my-1 py-1` keeps the active dot's glow out of the overflow clip.
     <div
-      className="scroll-none -my-1 flex gap-2 overflow-x-auto py-1 pr-8"
+      ref={rail}
+      className="scroll-none -my-1 flex gap-2 overflow-x-auto scroll-smooth py-1 pr-8"
       style={{ maskImage: FADE_RIGHT, WebkitMaskImage: FADE_RIGHT }}
     >
-      <Pill
-        label="Усі"
-        color="#67e8f9"
-        dot={false}
-        have={counts.size}
-        total={total}
-        active={tab === 'all'}
-        onClick={() => onSelect('all')}
-      />
       {RARITIES.map((r) => (
         <Pill
           key={r}
@@ -49,8 +53,8 @@ export default function RarityTabs({
           color={RARITY_STYLE[r].rc}
           have={breakdown[r].have}
           total={breakdown[r].total}
-          active={tab === r}
-          onClick={() => onSelect(r)}
+          active={active === r}
+          onClick={() => onJump(r)}
         />
       ))}
     </div>
@@ -60,7 +64,6 @@ export default function RarityTabs({
 function Pill({
   label,
   color,
-  dot = true,
   have,
   total,
   active,
@@ -68,7 +71,6 @@ function Pill({
 }: {
   label: string
   color: string
-  dot?: boolean
   have: number
   total: number
   active: boolean
@@ -77,7 +79,7 @@ function Pill({
   return (
     <button
       onClick={onClick}
-      aria-pressed={active}
+      aria-current={active}
       className={`inline-flex flex-none items-center gap-2 whitespace-nowrap rounded-full border px-3.5 py-2 font-mono text-[11.5px] tracking-[0.08em] transition-opacity ${
         active ? 'opacity-100' : 'opacity-50 hover:opacity-80'
       }`}
@@ -87,12 +89,10 @@ function Pill({
         color,
       }}
     >
-      {dot && (
-        <i
-          className="h-2 w-2 rounded-full"
-          style={{ background: color, boxShadow: active ? `0 0 7px ${color}` : 'none' }}
-        />
-      )}
+      <i
+        className="h-2 w-2 rounded-full"
+        style={{ background: color, boxShadow: active ? `0 0 7px ${color}` : 'none' }}
+      />
       {label.toUpperCase()}
       <span className="text-slate-200">
         {have}/{total}

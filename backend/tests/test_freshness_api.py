@@ -56,7 +56,7 @@ async def test_active_threats_publish_the_fade_window(client, session):
     seen = datetime.fromisoformat(row["last_event_at"])
     stale = datetime.fromisoformat(row["stale_at"])
     # Nobody followed this shahed up, so the fade spans its short window.
-    assert (stale - seen) == timedelta(minutes=5)
+    assert (stale - seen) == timedelta(minutes=7)
 
 
 async def test_a_followed_track_publishes_the_long_window(client, session):

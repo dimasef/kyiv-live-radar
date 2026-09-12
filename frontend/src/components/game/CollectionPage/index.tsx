@@ -1,19 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { fetchUserCollection, type Collection } from '@/api'
 import CardModal from '@/components/game/CardModal'
-import { CARDS, collectionCounts, type CardDef } from '@/lib/cards'
+import { CARDS, RARITIES, collectionCounts, type CardDef } from '@/lib/cards'
 import { collectionUserId, useRoute } from '@/router'
 import { useRadar } from '@/store'
 
-import CardGrid from './CardGrid'
 import CollectionHeader from './CollectionHeader'
-import type { Tab } from './RarityTabs'
+import RaritySection from './RaritySection'
 import RulesModal from './RulesModal'
+import { SECTION_IDS, rarityOfSection, sectionId } from './sections'
 import { useNewCards } from './useNewCards'
+import { useSectionNav } from './useSectionNav'
 
-/** Dedicated «Колекція» page with rarity tabs. Shows your own collection
+/** Dedicated «Колекція» page: one section per rarity, the rarity rail in the
+ * sticky bar navigating between them. Shows your own collection
  * (`/collection`) or a friend's (`/collection/<id>`, server-gated to friends). */
 export default function CollectionPage() {
   const route = useRoute()
@@ -26,9 +28,10 @@ export default function CollectionPage() {
 
   const [friendCol, setFriendCol] = useState<Collection | null>(null)
   const [denied, setDenied] = useState(false)
-  const [tab, setTab] = useState<Tab>('all')
   const [selected, setSelected] = useState<CardDef | null>(null)
   const [showRules, setShowRules] = useState(false)
+  const sticky = useRef<HTMLDivElement>(null)
+  const { active, jumpTo, scrollerRef } = useSectionNav(sticky, SECTION_IDS)
 
   // Load the right collection: a friend's over the network, your own from store.
   useEffect(() => {
@@ -58,21 +61,29 @@ export default function CollectionPage() {
   const friend = friendId != null ? friends.find((f) => f.id === friendId) : null
   const ownerName = friend ? friend.display_name || friend.email || 'Друг' : null
 
-  const visible = CARDS.filter((c) => tab === 'all' || c.rarity === tab)
-
   return (
-    <div className="h-full overflow-y-auto bg-ink-950 px-4 pb-6 text-slate-200">
+    <div ref={scrollerRef} className="h-full overflow-y-auto bg-ink-950 px-4 pb-6 text-slate-200">
       <div className="mx-auto max-w-3xl lg:max-w-5xl">
         <CollectionHeader
+          stickyRef={sticky}
           ownerName={ownerName}
           onShowRules={isOwn ? () => setShowRules(true) : undefined}
-          tab={tab}
-          onSelectTab={setTab}
+          active={rarityOfSection(active)}
+          onJump={(r) => jumpTo(sectionId(r))}
           counts={counts}
           total={total}
         />
 
-        <CardGrid cards={visible} counts={counts} newIds={newIds} onSelect={setSelected} />
+        {RARITIES.map((r) => (
+          <RaritySection
+            key={r}
+            rarity={r}
+            cards={CARDS.filter((c) => c.rarity === r)}
+            counts={counts}
+            newIds={newIds}
+            onSelect={setSelected}
+          />
+        ))}
       </div>
 
       {selected && (

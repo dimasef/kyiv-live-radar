@@ -1,10 +1,13 @@
 import { ChevronLeft, Info } from 'lucide-react'
+import type { RefObject } from 'react'
+
+import type { Rarity } from '@/lib/cards'
 
 import CollectionStats from './CollectionStats'
-import RarityTabs, { type Tab } from './RarityTabs'
+import RarityNav from './RarityNav'
 
-/** Title, totals and rarity filters, riding along while the grid scrolls under
- * them. Solid ink, not a blur: a backdrop-filter over a long scrolling grid is
+/** Title, totals and the rarity nav, riding along while the sections scroll
+ * under them. Solid ink, not a blur: a backdrop-filter over a long scrolling grid is
  * the one effect this page cannot afford (see the map render budget).
  *
  * The page owns no top padding — this block does (`pt-6`). A sticky element is
@@ -13,24 +16,28 @@ import RarityTabs, { type Tab } from './RarityTabs'
  * eats the top of the first card row. `-mx-4` still cancels the page's side
  * gutters, so nothing scrolls past it at the edges. */
 export default function CollectionHeader({
+  stickyRef,
   ownerName,
   onShowRules,
-  tab,
-  onSelectTab,
+  active,
+  onJump,
   counts,
   total,
 }: {
+  /** The bar's own box — useSectionNav measures it to place the probe line. */
+  stickyRef: RefObject<HTMLDivElement>
   /** Whose collection this is, when it isn't yours. */
   ownerName: string | null
   /** Omitted on a friend's collection — the rules are about earning your own. */
   onShowRules?: () => void
-  tab: Tab
-  onSelectTab: (tab: Tab) => void
+  active: Rarity | null
+  onJump: (rarity: Rarity) => void
   counts: Map<number, number>
+  /** Deck size, for the unlock readout beside the title. */
   total: number
 }) {
   return (
-    <div className="sticky top-0 z-20 -mx-4 bg-ink-950 px-4 pb-4 pt-6">
+    <div ref={stickyRef} className="sticky top-0 z-20 -mx-4 bg-ink-950 px-4 pb-4 pt-6">
       <header className="mb-4 flex items-start gap-3">
         <button
           onClick={() => window.history.back()}
@@ -43,8 +50,11 @@ export default function CollectionHeader({
           <span className="font-mono text-[11px] uppercase tracking-[0.24em] text-phosphor-soft">
             UA Live Radar // Колекція
           </span>
-          <h1 className="font-display text-xl font-bold text-slate-100">
+          <h1 className="flex items-baseline gap-3 font-display text-xl font-bold text-slate-100">
             {ownerName ? `Картки: ${ownerName}` : 'Мої картки'}
+            <span className="font-mono text-[11.5px] font-normal tracking-[0.08em] text-slate-500">
+              <span className="text-phosphor-soft">{counts.size}</span>/{total}
+            </span>
           </h1>
         </div>
         {onShowRules && (
@@ -60,9 +70,9 @@ export default function CollectionHeader({
 
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
-          <RarityTabs tab={tab} onSelect={onSelectTab} counts={counts} total={total} />
+          <RarityNav active={active} onJump={onJump} counts={counts} />
         </div>
-        <CollectionStats counts={counts} tab={tab} />
+        <CollectionStats counts={counts} />
       </div>
 
       {/* Cards dissolve into the bar instead of being sliced by its edge. */}
