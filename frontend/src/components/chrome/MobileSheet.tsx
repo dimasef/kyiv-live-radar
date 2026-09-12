@@ -27,13 +27,6 @@ export default function MobileSheet() {
   }, [inspectedThreatId]);
 
   return (
-    // No backdrop-filter, deliberately — this used to be `backdrop-blur-2xl`.
-    // It was a 40px blur over half a phone screen, and the thing behind it is
-    // the MAP: during a raid the backdrop is dirty every frame, so the blur was
-    // recomputed every frame over that whole area. At 90% opacity it was
-    // spending the most expensive effect on the mobile GPU for the last tenth
-    // of the image. The extra 5% of ink covers what the blur was softening, so
-    // what shows through is a hint of depth rather than sharp map detail.
     <section
       className={`sheet lg:hidden absolute inset-x-0 bottom-0 z-[1100] ${HEIGHT_CLASS[sheetHeight]} flex flex-col rounded-t-2xl border-t border-x border-white/10 bg-ink-900/95 shadow-[0_-18px_50px_-20px_rgba(0,0,0,0.8)] ${
         sheetOpen ? "translate-y-0" : "translate-y-[calc(100%-3.4rem)]"
@@ -41,7 +34,6 @@ export default function MobileSheet() {
     >
       <button
         onClick={() => setSheetOpen(!sheetOpen)}
-        aria-label={sheetOpen ? t("panel.close") : t("panel.open")}
         className="flex-none flex items-center justify-between gap-3 px-6 h-[3.4rem] w-full text-left"
       >
         <span className="flex items-center gap-2.5 min-w-0">
@@ -61,6 +53,7 @@ export default function MobileSheet() {
             aria-hidden
           />
         </span>
+        <span className="sr-only"> — {sheetOpen ? t("panel.close") : t("panel.open")}</span>
       </button>
 
       <div className="flex-1 min-h-0 overflow-y-auto scroll-slim px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">

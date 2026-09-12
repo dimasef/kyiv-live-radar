@@ -46,8 +46,14 @@ export const WORLD_BOUNDS: [[number, number], [number, number]] = [
 // 5M tiles/month, requested at carto.com/basemaps/apikey) removes it. Left
 // optional so a checkout with no .env still renders a map, watermark and all.
 const CARTO_KEY = import.meta.env.VITE_CARTO_KEY;
+// No `{r}` (retina @2x) placeholder: Leaflet substitutes it whenever
+// `devicePixelRatio > 1` — true on nearly every phone — REGARDLESS of the
+// `detectRetina` option (that one only resizes the tile grid; the URL swap in
+// TileLayer.getTileUrl is unconditional). That was ~4x the pixel data for a
+// flat, schematic dark basemap displayed at the same 256px either way —
+// measured as PageSpeed's single largest "improve image loading" flag.
 export const BASEMAP_URL =
-  "https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" +
+  "https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png" +
   (CARTO_KEY ? `?key=${CARTO_KEY}` : "");
 
 // Above this many tracks ON SCREEN at once, every target stops animating on its

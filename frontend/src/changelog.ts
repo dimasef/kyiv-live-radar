@@ -35,6 +35,16 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 export const CHANGELOG: Release[] = [
   {
     version: APP_VERSION,
+    title: "легша мапа",
+    date: "2026-09-12",
+    kind: "patch",
+    changes: [
+      "Тайли мапи стали вдвічі-втричі легшими на завантаження — на телефонах це помітно швидший перший показ мапи",
+      "Ще двоє елементів (банер тривоги, ручка стрічки на телефоні) отримали підписи для читання екрана",
+    ],
+  },
+  {
+    version: "0.55.4",
     title: "доступність, частина друга",
     date: "2026-09-12",
     kind: "patch",

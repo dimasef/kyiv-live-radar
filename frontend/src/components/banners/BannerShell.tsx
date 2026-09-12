@@ -1,8 +1,8 @@
-import type { CSSProperties, ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from "react";
 
-import { PILL_CLASS, PILL_TONE } from './pillStyles'
+import { PILL_CLASS, PILL_TONE } from "./pillStyles";
 
-export type BannerTone = 'attack' | 'alert' | 'clear'
+export type BannerTone = "attack" | "alert" | "clear";
 
 export default function BannerShell({
   tone,
@@ -13,24 +13,23 @@ export default function BannerShell({
   onToggle,
   children,
 }: {
-  tone: BannerTone
-  color: string
-  role: 'alert' | 'status'
-  label: string
-  expanded: boolean
-  onToggle: () => void
-  children: ReactNode
+  tone: BannerTone;
+  color: string;
+  role: "alert" | "status";
+  label: string;
+  expanded: boolean;
+  onToggle: () => void;
+  children: ReactNode;
 }) {
-  const attack = tone === 'attack'
+  const attack = tone === "attack";
 
   return (
     <div role={role} className="pointer-events-none flex w-full justify-center">
       <button
         type="button"
         onClick={onToggle}
-        aria-label={label}
         aria-expanded={expanded}
-        className={`pointer-events-auto ${PILL_CLASS} ${attack ? '' : PILL_TONE[tone]}`}
+        className={`pointer-events-auto ${PILL_CLASS} ${attack ? "" : PILL_TONE[tone]}`}
         style={
           attack
             ? ({
@@ -43,7 +42,8 @@ export default function BannerShell({
         }
       >
         {children}
+        <span className="sr-only"> — {label}</span>
       </button>
     </div>
-  )
+  );
 }
