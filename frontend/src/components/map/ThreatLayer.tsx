@@ -1,5 +1,6 @@
 import type L from "leaflet";
-import { memo, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Marker, useMap } from "react-leaflet";
 
 import { fadeFactor, showsLiveMotion } from "@/lib/threatFreshness";
@@ -7,6 +8,7 @@ import { useRadar } from "@/store";
 import { MARKER_PX } from "@/store/prefsSlice";
 
 import type { Threat } from "@/types";
+import { threatAriaLabel } from "./markerAriaLabel";
 import { threatDivIcon } from "./threatDivIcon";
 import ThreatEchoDots from "./ThreatEchoDots";
 import ThreatHeadRings from "./ThreatHeadRings";
@@ -39,6 +41,7 @@ const ThreatLayer = memo(function ThreatLayer({
    * inspected track is exempt — it is the one the operator is reading. */
   lean?: boolean;
 }) {
+  const { t } = useTranslation();
   // Ticks every 10s (clockSlice), corrected for a wrong device clock. Selected
   // as a primitive right here rather than passed down from MapView, so the tick
   // re-renders only the threat layers and not every other map layer.
@@ -98,6 +101,16 @@ const ThreatLayer = memo(function ThreatLayer({
   );
 
   useAutoOpenPopup({ map, markerRef, enabled: highlighted && !pickable });
+
+  // Leaflet makes every clickable marker keyboard-focusable (role="button")
+  // but never names it — a divIcon gets no `alt` the way an <img> icon would.
+  // Imperative, not an `icon` option: setIcon() reuses this same DOM node (see
+  // the memo comment above threatDivIcon's useMemo), so the label must be
+  // re-applied whenever the wording actually changes rather than set once.
+  const ariaLabel = threatAriaLabel(threat, t);
+  useEffect(() => {
+    markerRef.current?.getElement()?.setAttribute("aria-label", ariaLabel);
+  }, [ariaLabel]);
 
   if (pts.length === 0) return null;
   // City-wide threats have no real location (their event sits on the city-centre

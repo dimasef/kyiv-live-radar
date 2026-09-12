@@ -35,6 +35,15 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 export const CHANGELOG: Release[] = [
   {
     version: APP_VERSION,
+    title: "доступність для читання екрана",
+    date: "2026-09-12",
+    kind: "patch",
+    changes: [
+      "Цілі на мапі та картки у стрічці тепер мають описові підписи для читання екрана та навігації з клавіатури",
+    ],
+  },
+  {
+    version: "0.55.2",
     title: "ще швидший старт",
     date: "2026-09-12",
     kind: "patch",

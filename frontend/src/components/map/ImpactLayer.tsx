@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Marker } from "react-leaflet";
 
 import { canSeeImpacts } from "@/api";
@@ -10,6 +11,7 @@ import { MARKER_PX } from "@/store/prefsSlice";
 import { aftermathDivIcon } from "./aftermathDivIcon";
 import AftermathPopup from "./AftermathPopup";
 import ImpactPopup from "./ImpactPopup";
+import { threatAriaLabel } from "./markerAriaLabel";
 import { trackPoints } from "./track";
 import { threatDivIcon } from "./threatDivIcon";
 
@@ -35,6 +37,7 @@ import { threatDivIcon } from "./threatDivIcon";
  * Points, never trails: an impact is where something arrived, and threatVisual
  * already refuses it a vector. A report is a raion, not a path. */
 export default function ImpactLayer() {
+  const { t } = useTranslation();
   const on = useRadar((s) => s.impactLayerOn);
   const impacts = useRadar((s) => s.impacts);
   const aftermath = useRadar((s) => s.aftermath);
@@ -74,6 +77,13 @@ export default function ImpactLayer() {
               count: impact.target_count,
               seed: impact.id,
             })}
+            // Leaflet's own tabindex/role="button" needs a name — see
+            // ThreatLayer's ariaLabel effect. An impact never changes its type
+            // once confirmed, so setting it once on mount (rather than
+            // re-applying on every icon swap) is enough.
+            eventHandlers={{
+              add: (e) => e.target.getElement()?.setAttribute("aria-label", threatAriaLabel(impact, t)),
+            }}
           >
             <ImpactPopup threat={impact} />
           </Marker>
@@ -90,6 +100,15 @@ export default function ImpactLayer() {
             // without competing with anything still flying.
             icon={aftermathDivIcon({ size: Math.round(MARKER_PX[markerSize] * 0.8) })}
             opacity={fadeFactor(report, now)}
+            eventHandlers={{
+              add: (e) =>
+                e.target
+                  .getElement()
+                  ?.setAttribute(
+                    "aria-label",
+                    report.categories.map((c) => t(`aftermath.category.${c}`, c)).join(", "),
+                  ),
+            }}
           >
             <AftermathPopup report={report} />
           </Marker>
