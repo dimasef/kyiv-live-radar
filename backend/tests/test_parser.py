@@ -443,6 +443,28 @@ def test_official_after_action_recap_is_summary_not_impact():
     assert r.summary
 
 
+def test_may_go_on_is_a_route_hedge_not_a_denial():
+    # «може піти» was added to the conditional hedges as forward cover on ZERO
+    # corpus hits. Every real hit since is a live warning about where an existing
+    # target goes NEXT, not a statement that there is no target: «Пирогів, може
+    # піти на удар» lost its raion and produced no event at all, and the prod feed
+    # of 2026-09-13 lost «+ Новий дрон на Глухів (Сумщина), далі може піти до нас».
+    r = parse_message("Пирогів, може піти на удар.", M)
+    assert not r.negated and r.matched and r.districts != []
+    r = parse_message("Київ уважно, це все може піти до нас", M)
+    assert not r.negated
+
+
+def test_support_the_channel_signoff_is_promo():
+    # Real prod feed, 2026-09-13: one channel's recurring situation-map caption.
+    # No URL and no card number, so neither link nor card marker saw it, while its
+    # bare "БпЛА" typed it `shahed` and bought a triage call every single time —
+    # 8 of the 50 LLM calls in that export.
+    r = parse_message(
+        "📡 Приблизна ситуація по БпЛА.\n\nПідтримати канал | @RadarChernihiv", M)
+    assert r.promo and not r.matched
+
+
 def test_live_probable_type_callout_not_suppressed_as_advisory():
     # "Ймовірно" about the TYPE (not whether it's real) is a genuine live
     # city-wide callout — the advisory markers must not swallow it.
@@ -703,6 +725,31 @@ def test_siren_only_suppresses_the_district():
     ]:
         r = parse_message(txt, M)
         assert not r.matched and r.siren_only and r.districts == [], txt
+
+
+def test_siren_echo_for_a_raion_with_no_gazetteer_stem():
+    # Real prod feed, 2026-09-13 («Чернігівський Моніторинг»): the oblast monitor
+    # posts one identical line per raion, and whether the raion adjective happened
+    # to have a gazetteer stem decided the outcome — «Ніжинський»/«Новгород-
+    # Сіверський» read as siren_only, «Прилуцький» («прилуцьк» is not the stem
+    # «прилук») fell through to the LLM as an unlocalized threat. Same template,
+    # same verdict now; the raion's alert state comes from the zone poller anyway.
+    for txt in [
+        "🔴 Прилуцький район — Повітряна тривога",
+        "🔴 Ніжинський район — Повітряна тривога",
+        "🔴 Новгород-Сіверський район — Повітряна тривога",
+    ]:
+        r = parse_message(txt, M)
+        assert not r.matched and r.siren_only and r.districts == [], txt
+
+
+def test_raion_phrase_alone_is_not_a_siren_echo():
+    # The raion phrase only suppresses ALONGSIDE the siren word — a live callout
+    # naming a raion keeps its district and its count.
+    r = parse_message("2 БпЛА на Бориспільський район, курс на Київ", M)
+    assert r.matched and not r.siren_only and r.districts != []
+    r = parse_message("Ціль на Броварський район", M)
+    assert r.matched and not r.siren_only and r.districts != []
 
 
 def test_siren_word_does_not_suppress_a_real_sighting():
@@ -1906,6 +1953,37 @@ def test_kab_case_forms_type_but_kabinet_does_not(text, expected):
     Ukrainian plural and oblique forms typing as nothing at all — 81 corpus
     messages against 10 colliders. The forms are listed explicitly rather than
     the stem relaxed."""
+    assert parse_message(text, _SUMY_M).target_type == expected, text
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        # Real Сумщина/RDS callouts that typed as nothing at all before.
+        ("Великий Бобрик шах курсом на Верхню Сироватку", "shahed"),
+        ("болото > Буринь район пара шахів", "shahed"),
+        ("Путивль шах курсом на Конотоп район", "shahed"),
+        ("Знову три шахи сунуть у напрямку Київщини", "shahed"),
+        ("Приліт шаха в Сумах", "shahed"),
+        ("Ромни район увага по шаху, кружляє у вас", "shahed"),
+        ("По шахам в області станом на зараз чисто", "shahed"),
+        # «реактивний» is checked before the generic drone bucket and stays
+        # there — the short form must not downgrade a jet drone.
+        ("Реактивний шах курсом на Хотінську громаду", "jet_drone"),
+        ("2 реактивних шахи з рф курсом на Юнаківську громаду", "jet_drone"),
+        # ...and the words the whole-word restriction exists for stay out.
+        ("Шахраї масово розсилають фейкові листи", "unknown"),
+        ("Схема кришування шахрайських колцентрів", "unknown"),
+        ("Працює шахта, руху немає", "unknown"),
+    ],
+)
+def test_shah_short_form_types_but_shahrai_does_not(text, expected):
+    """«шах» is the Сумщина/RDS short form for a Shahed — 495 occurrences of the
+    bare forms, 493 of them on those two channels. Whole-word for the same reason
+    «каб» is: as a stem it heads «шахрай»/«шахта»/«шахтар». Most such callouts say
+    «реактивний шах» and already typed jet_drone; the 89 that did not are the
+    point, and 73 of those were localized — a live target as an untyped grey dot.
+    """
     assert parse_message(text, _SUMY_M).target_type == expected, text
 
 

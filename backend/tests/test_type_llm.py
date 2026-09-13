@@ -252,6 +252,39 @@ async def test_a_stored_verdict_is_replayed_without_a_new_call(db, stub_type, mo
     assert track.target_type == "ballistic"
 
 
+async def test_a_backfilled_sighting_is_not_typed_before_the_age_veto_drops_it(
+    db, stub_type, monkeypatch
+):
+    # The live feed's age veto (_dispatch) drops anything a backfill replay would
+    # OPEN — but the classifier ran before it, so the type was bought for a
+    # message that then produced nothing. Measured: of 163 type calls on messages
+    # stored more than a stale window late, 4 produced an event; the other 159
+    # cost $0.33, a third of this tier's spend.
+    session, matcher = db
+    calls, _ = stub_type
+    monkeypatch.setattr(settings, "llm_type_mode", "live")
+    old = utcnow() - timedelta(minutes=settings.track_stale_minutes + 5)
+    await _ingest(session, matcher, "Троєщина 🔴", when=old, message_id=1,
+                  enforce_age=True)
+    assert calls == []
+    assert (await session.scalars(select(Threat))).all() == []
+
+
+async def test_a_late_message_is_still_typed_when_the_age_veto_is_off(
+    db, stub_type, monkeypatch
+):
+    # Reprocess and the replay feed legitimately re-run an old corpus with
+    # enforce_age=False; the gate must not reach them.
+    session, matcher = db
+    calls, _ = stub_type
+    monkeypatch.setattr(settings, "llm_type_mode", "live")
+    old = utcnow() - timedelta(minutes=settings.track_stale_minutes + 5)
+    await _ingest(session, matcher, "Троєщина 🔴", when=old, message_id=1)
+    assert len(calls) == 1
+    track = (await session.scalars(select(Threat))).one()
+    assert track.target_type == "shahed"
+
+
 async def test_no_llm_reprocess_does_not_start_new_calls(db, stub_type, monkeypatch):
     # `--no-llm` (and the admin reprocess) flips llm_fallback_enabled off; a
     # message with no stored verdict must then stay untyped rather than turning

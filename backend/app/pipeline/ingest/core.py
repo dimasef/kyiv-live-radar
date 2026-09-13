@@ -22,6 +22,7 @@ from .context import (
     IngestContext,
     MessageOrigin,
     _note_and_inherit_type,
+    is_late,
     note_inferred_type,
     note_type_decline,
     type_context_declined,
@@ -367,7 +368,18 @@ async def process_parsed(
         # Fourth tier — the LLM reads the type off the last two hours of the
         # whole feed. Last on purpose: it must never overrule a type the rules,
         # the channel or the live incident already established.
-        type_from_llm = await _maybe_llm_type(session, raw, parsed, origin, allow_llm=allow_llm,
+        #
+        # Not for a message `_dispatch` is about to drop on age, though: a
+        # backfill replay opens nothing, so the type it would buy has nothing to
+        # label. Measured on the local corpus — of 163 type calls on messages
+        # stored more than a stale window after they were posted, exactly 4
+        # produced an event; the other 159 cost $0.33, a third of this tier's
+        # spend. `allow_llm` is the right lever because it stops a NEW call while
+        # leaving a stored verdict replayable, which is what keeps an admin
+        # reprocess (enforce_age=False) byte-identical.
+        arrived_late = enforce_age and is_late(origin.when)
+        type_from_llm = await _maybe_llm_type(session, raw, parsed, origin,
+                                              allow_llm=allow_llm and not arrived_late,
                                               region=region,
                                               source_llm_enabled=source_llm_enabled,
                                               window_minutes=inherit_window,

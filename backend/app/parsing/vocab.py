@@ -1,9 +1,10 @@
 """Curated Ukrainian keyword/phrase vocabulary and regex literals for the rule
 parser (see `rules.py`). Pure data — no matching/decision logic here.
 
-Every list below is narrow on purpose. Where a comment says a word was REJECTED
-or is gated, that is a recorded corpus finding — widening it there has broken
-the live map before.
+Every list is narrow on purpose. A word marked REJECTED, or a note that a list is
+gated, is a recorded corpus finding — widening it there has broken the live map
+before. `git log -p` on this file carries the case behind each one; GAZETTEER.md
+covers the whole-word aliases at the bottom.
 """
 
 from __future__ import annotations
@@ -12,134 +13,57 @@ import re
 
 from ..regions import REGION_SPECS
 
-# --- Target type keywords (checked in priority order) ---
-# Ballistic first: sub-minute flight, and it must beat the generic "ракет" in the
-# same message. A distinct type from cruise because it drives different output —
-# ballistic is city-wide with no trajectory, cruise draws a spotter-tracked
-# vector. С-300/400 fly surface-to-surface at cities, so they belong here.
-# "Циркон" too: same un-spottable profile, and a channel that only said
-# "циркони" produced a night of `unknown` tracks (07-18). "КН-23" is
-# Iskander-class quasi-ballistic — ballistic, but NOT _HYPERSONIC; both
-# spellings appear in the feed.
+# --- Target type keywords, checked in the order they are declared ---
+
+# First, so it beats the generic "ракет" in the same message. С-300/400 fly
+# surface-to-surface at cities. "КН-23" is ballistic but NOT _HYPERSONIC.
 _BALLISTIC = ("баліст", "іскандер", "кинджал", "кн-23", "кн23", "с-400", "с400",
               "с-300", "с300", "аеробаліст", "циркон", "гіперзвук")
-# Cruise/guided-bomb/generic, split by how SPECIFIC the identification is.
-# A named cruise weapon pins down what is flying as precisely as any ballistic
-# stem does; the bare generic "ракет" is what a spotter drops between two
-# ballistic toponyms and means nothing on its own (only an explicit ballistic
-# marker above promotes it). That distinction decides whether a message may
-# correct a channel's ballistic type context — see
-# ingest/context.py::_note_and_inherit_type.
+# Split from the generic "ракет" by how SPECIFIC the identification is: only a
+# named weapon may correct a channel's ballistic type context
+# (ingest/context.py::_note_and_inherit_type).
 _MISSILE_NAMED = ("крилат", "калібр", "х-101", "х-59", "х-22")
-# Guided glide bombs, their own target type since 2026-08-29 — a KAB is not a
-# missile. It is dropped by an aircraft across the border, glides for minutes and
-# lands near the border; a cruise missile crosses the country. Everything they
-# share is the word «ракета» a spotter occasionally reaches for.
-#
-# «каб» is whole-word (see rules._WHOLE_WORD) because it is the head of
-# «кабінет»/«кабіна»/«Кабмін» — which meant its Ukrainian plural and oblique
-# forms never typed at all. Over the whole corpus that is 81 messages against 10
-# colliders. Listed as explicit forms rather than relaxed to a stem, so the
-# colliders stay unreachable.
-#
-# 💣 is `sumyregion`'s own marker for the same weapon: 9 corpus messages carry
-# it, 7 of which never say the word at all («💣Підлітають до ДКУ курс Юнаківка»)
-# and typed `unknown`. One channel's convention, so it lives beside the word
-# rather than replacing it.
+# A glide bomb is not a missile: released across the border, lands near it.
+# "каб" is whole-word (rules._WHOLE_WORD) — it heads "кабінет"/"Кабмін" — so the
+# oblique forms are listed explicitly rather than the stem relaxed.
+# 💣 is sumyregion's own marker for the same weapon.
 _KAB = ("каб", "каби", "кабів", "кабам", "кабами", "авіабомб", "керован авіа", "💣")
 _MISSILE_WEAPON = ("ракет", *_MISSILE_NAMED)
-# Strategic aviation IS the cruise-missile threat, and the spotters name the
-# CARRIER instead of the weapon: "пуски зі стратегічної авіації", "пуски ракет
-# із ТУшок", "виліт групи Ту-95МС", "в повітрі: 7 Ту-95, 2 Ту-160". Those
-# messages typed as `unknown`, and an untyped message can never become a
-# threat-level notice (rules.py::_level_notice) — so the earliest warning a
-# cruise wave gives, hours of it, surfaced nowhere at all.
-#
-# Kept separate from the weapon stems because a carrier says nothing about what
-# is over a raion RIGHT NOW: a bomber leaving Olenya is four hours from
-# launching, so this must not become the channel's live target-type context
-# (ingest/context.py::_note_and_inherit_type).
-# "тушок" is the genitive plural with a fleeting vowel (туш-о-к), so the "тушк"
-# stem does not reach it — both forms are listed. 8 of the 38 real mentions.
+# The CARRIER, not the weapon — spotters name it hours before a launch, so it
+# must never become the channel's live target type. "тушок" has a fleeting vowel,
+# so the "тушк" stem does not reach it.
 _MISSILE_CARRIER = ("стратегічн авіац", "стратегічної авіа", "тушк", "тушок",
                     "ту-95", "ту95", "ту-160", "ту160", "бомбардувальник")
 _MISSILE = _MISSILE_WEAPON + _MISSILE_CARRIER
-# Named JET models. Checked BEFORE _MISSILE, for the same reason ballistic is:
-# one night's feed called С8000 «Бандероль» a «ракета», a «баражуючий
-# боєприпас» and a bare «бандероль» — and the generic "ракет" would win the
-# priority chain and label it cruise.
-#
-# It is formally a small cruise missile with a jet engine, but on this map the
-# type means how the target BEHAVES: ~620 km/h, manoeuvres, and the northern
-# spotters track it position by position, which is exactly the jet-drone
-# profile the vector rendering is built for. 14 callouts in one night
-# (2026-08-19) stayed `unknown` before it was listed at all.
-# «Молнія» joins it for the same reason and on the same evidence: a jet-powered
-# one-way drone that the Сумщина feed names 110 times, 84 of them in a message
-# the parser could otherwise not type at all. Listed here rather than in _JET
-# because it is a MODEL name and the feed pairs it with «ракета» twice — the
-# same priority argument Бандероль already makes.
+# Checked BEFORE _MISSILE: the feed calls Бандероль a "ракета" and a "баражуючий
+# боєприпас", and the generic stem would win the chain. MODEL names only.
 _JET_MODEL = ("бандерол", "молні")
-# Bare "реактив", not "реактивн" — the noun form is used too ("3 реактива повз
-# Славутич"); on 08-04 those stayed unknown and inherited ballistic.
-#
-# «рбпла» is the Kyiv channel's own abbreviation for «реактивний БПЛА», 12
-# messages and every one of them a live callout («Виноградар рБПЛА 🔴», «2х
-# рБПЛА море/Вишгород»). It typed as `unknown`, not even as a generic drone:
-# keywords anchor on a word START, so the «бпла» in `_UAV` cannot see it behind
-# the «р». Those callouts took their type from the channel context instead,
-# which means they were right only while a wave was already typed.
+# Bare "реактив" — the noun form is used too ("3 реактива повз Славутич").
+# "рбпла" = реактивний БПЛА; keywords anchor on a word START, so _UAV's "бпла"
+# cannot see it behind the "р".
 _JET = ("реактив", "швидкісн", "рбпла")
-# "баражуюч"/"баражаюч" = loitering munition, both spellings in the feed. It is
-# the generic class word the alert channel uses when it names no model
-# ("двом баражаючим боєприпасам"); with a model named, the more specific list
-# above wins the priority chain.
-# The three model names the Сумщина feed uses that the Kyiv one does not:
-# «Ланцет» (a loitering munition, 59 callouts), «Італмас» (a cheap long-range
-# strike drone, 25) and «Гербера» (the Shahed decoy clone, 37). None has a slot
-# of its own in `TargetType` and none behaves differently enough on this map to
-# earn one — they are all "a drone is coming", which is what `shahed` means
-# here. Гербера overlaps «шахед» in 21 of its 37 messages, so it only adds the
-# other 16; the other two are standalone in every message they appear in.
-# Named `_UAV`, not `_SHAHED`: this is the GENERIC drone bucket, and always was —
-# «дрон», «бпла», «безпілотник» and the class word «баражуюч» have been in it
-# since the first pass. It feeds `target_type == "shahed"`, which is a wire value
-# frozen in five DB columns, two JSON blobs, the OpenAPI schema, the LLM enum
-# rail and 44 hand-labelled eval rows, so THAT string stays. Every surface a
-# reader sees already says «БПЛА»/«UAV».
+# The GENERIC drone bucket, feeding target_type == "shahed" — a wire value frozen
+# in the DB, the OpenAPI schema, the LLM enum rail and the eval rows, so that
+# string stays however the list grows.
+# "шах" is the Сумщина/RDS short form, whole-word (rules._WHOLE_WORD) for the
+# same reason "каб" is: as a stem it heads "шахрай"/"шахта"/"шахтар".
 _UAV = ("шахед", "shahed", "мопед", "герань", "герані", "дрон", "бпла",
            "безпілотник", "безпілотн", "баражуюч", "баражаюч",
-           "ланцет", "італмас", "гербер")
-
-# FPV — a short-range quadcopter flown by an operator on a video link, and the
-# dominant weapon over a BORDER oblast: 198 Сумщина messages, 154 of them
-# localized and typed as nothing at all before this list existed. It is its own
-# `TargetType` rather than a `shahed`, because the two agree on nothing that
-# matters operationally — an FPV has ~20 km of range against a Shahed's 1000+,
-# flies at rooftop height, and is stale within minutes.
-#
-# «оптоволокно» is the fibre-optic control spool, not a weapon, but on this feed
-# it is only ever written about an FPV («fpv на оптоволокні», «загроза
-# оптоволокна для Сум») and it carries 28 messages that name no other type.
-# Zero occurrences in the Kyiv/Chernihiv corpus, all three of them — so this
-# list cannot move the existing type evals.
+           "ланцет", "італмас", "гербер",
+           "шах", "шаха", "шаху", "шахи", "шахів", "шахам", "шахами")
+# Its own TargetType rather than a drone: ~20 km of range against a Shahed's
+# 1000+, rooftop height, stale within minutes. "оптоволок" is the control spool,
+# only ever written about an FPV on this feed.
 _FPV = ("fpv", "фпв", "оптоволок")
-
-# Gender fallback: a bare masculine numeral implies a drone, since шахед/дрон/
-# БПЛА are masculine and "ракета" is feminine ("Один на водосховище"). Corpus:
-# 6/6 real target-count messages, zero counter-examples. Feminine "одна"/"одне"
-# REJECTED — every real hit was casualty news agreeing with "людина"/"тіло", and
-# a generic "одна ціль" would collide. Jets are excluded because spotters always
-# say "реактивний" explicitly (caught by _JET), so a bare "один" is the default.
+# A bare masculine numeral implies a drone — шахед/дрон/БПЛА are masculine,
+# "ракета" is feminine. Feminine "одна" REJECTED: every real hit was casualty
+# news agreeing with "людина"/"тіло". Jets always say "реактивний" (_JET).
 _MASC_ONE_RE = re.compile(r"(?<![а-яіїєґ])(?:один|одне)(?![а-яіїєґ])", re.IGNORECASE)
 
 # --- Status keywords ---
 _CLEAR = ("відбій",)
-# "Чекаємо відбій" ANTICIPATES the all-clear, it is not one — the bare "відбій"
-# stem would read these as a real clear and close every open track. Curated
-# phrases, not the bare "чека"/"очіку" stems (a genuine clear says "дякуємо за
-# очікування"). Includes infinitive/genitive forms and the predictive
-# "скоро/надія на відбій" (a real clear says "Дали відбій", never that).
+# "Чекаємо відбій" ANTICIPATES the all-clear; the bare stem would read it as one
+# and close every open track. Curated phrases, not the "чека"/"очіку" stems.
 _CLEAR_ANTICIPATION = ("чекаємо на відбій", "чекаємо відбій", "чекаєм на відбій",
                        "чекаєм відбій", "очікуємо відбій", "очікуємо на відбій",
                        "очікуєм відбій", "чекатимемо відбій", "очікуватимемо відбій",
@@ -150,29 +74,19 @@ _CLEAR_ANTICIPATION = ("чекаємо на відбій", "чекаємо ві�
                        "очікуватимемо відбою", "очікується відбою",
                        "коли відбій", "коли вже відбій",
                        "скоро відбій", "надія на відбій")
-# The SIREN itself ended ("Відбій тривоги") => the clear is unscoped, even if a
-# target type is also named. Gates clear_scope: ballistics never carry a Kyiv
-# district, so "По балістиці відбій" would otherwise look like a full all-clear
-# and close unrelated tracks (real case: "тривога зберігається по цих БПЛА. По
-# балістиці відбій.").
+# The SIREN ended => the clear is unscoped even when a type is also named, so
+# "По балістиці відбій" cannot close unrelated tracks.
 _UNSCOPED_CLEAR_WORD = "тривог"
-# "мінус" = spotter shorthand for a downed target; substring-safe in this feed.
+# "мінус" = spotter shorthand for a downed target.
 _DESTROYED = ("збил", "збито", "знищ", "нейтраліз", "уражен", "ліквідов", "впав",
               "мінус")
 _UNCONFIRMED = ("уточнюється", "непідтвердж", "не підтвердж", "попередньо", "можливо")
 _CONFIRMED = ("підтвердж", "🔴")
 
-# Small counts are written as WORDS about as often as digits, and until now the
-# counting rules below were digit-only, so every one of them was read as a single
-# target: "ШІСТЬ БАЛІСТИК НА КИЇВ!", "‼️П'ЯТЬ ЦІЛЕЙ НА КИЇВ!", "Ще два Циркони на
-# столицю", "Три реактивні «Шахеди»". 97 real messages spell a count this way and
-# 39 of them became located tracks that then showed ×1 on the map — the same
-# undercount reached `incident.target_count`, so the attack banner and the
-# journal inherited it.
-#
-# Apostrophe-less spellings only: `normalize` strips apostrophes, so "п'ять"
-# reaches these patterns as "пять". Stops at ten: past that spotters use digits,
-# and the long forms ("двадцять три") would need real number parsing.
+# Small counts are written as WORDS as often as digits, and the rules below were
+# digit-only, so every one of them read as a single target.
+# Apostrophe-less spellings only (`normalize` strips apostrophes). Stops at ten:
+# past that spotters use digits.
 _NUM_WORDS: dict[str, int] = {
     "два": 2, "дві": 2, "двоє": 2, "двох": 2,
     "три": 3, "троє": 3, "трьох": 3,
@@ -183,19 +97,15 @@ _NUM_WORDS: dict[str, int] = {
     "вісім": 8, "восьмеро": 8, "восьми": 8,
     "девять": 9, "девятеро": 9, "девяти": 9,
     "десять": 10, "десятеро": 10, "десяти": 10,
-    # "both" is a count word too — "Уважно по групі одній, обидва реактивні".
-    # Listed on purpose: it ENDS in "два"/"дві", so without an entry of its own
-    # it would have been counted anyway, by the accident of a suffix match.
+    # Listed on purpose: it ENDS in "два"/"дві", so without its own entry it
+    # would be counted anyway, by the accident of a suffix match.
     "обидва": 2, "обидві": 2, "обох": 2,
 }
 # Longest-first, so "двоє" can't be shadowed by "два" (and "обидва" not by "два").
 _NUM_WORD_ALT = "|".join(sorted(map(re.escape, _NUM_WORDS), key=len, reverse=True))
-# Either form. The word branch carries its own word-START guard: the trailing
-# `\s+` every caller adds already stops a numeral matching the HEAD of a longer
-# word ("три" in "тривога"), but nothing stopped it matching the TAIL of one, and
-# `_COUNT_NOUN_RE` has no lookbehind of its own. The guard is inside the branch
-# rather than on the whole pattern so the digit form keeps matching exactly what
-# it matched before.
+# The word branch carries its own word-START guard (callers anchor only the end,
+# so nothing else stops a numeral matching the TAIL of a longer word). Inside the
+# branch, so the digit form keeps matching exactly what it did.
 _NUM = rf"(?:\d+|(?<![а-яіїєґ])(?:{_NUM_WORD_ALT}))"
 _NUM_SHORT = rf"(?:\d{{1,2}}|(?<![а-яіїєґ])(?:{_NUM_WORD_ALT}))"
 
@@ -208,212 +118,137 @@ def count_value(token: str) -> int | None:
 # --- New-target markers (start a fresh track) ---
 _NEW_TARGET = ("новий", "нова ціль", "ще один", "ще одна", "інша ціль",
                "друга ціль", "додатков", "нові цілі")
-# "ще N <noun>" — additional targets. Noun-anchored, not bare "ще N", so a
-# time reference ("ще 20хв") never matches.
-# The type ADJECTIVES and named weapons belong here for the same reason they do
-# in _COUNT_NOUN_RE: "Ще два реактивні чмошника на Сеньківку" is as much an
-# additional-targets callout as "ще 2 БпЛA", and the noun a spotter picks after
-# the adjective is unpredictable.
+# Noun-anchored, not bare "ще N", so a time reference ("ще 20хв") never matches.
+# Type ADJECTIVES belong here for the same reason as in _COUNT_NOUN_RE: the noun
+# a spotter picks after one is unpredictable.
 _NEW_TARGET_COUNT_RE = re.compile(
     rf"ще\s+{_NUM}\s+(?:ракет|ціл|шахед|бпла|дрон|баліст|реактивн|крилат|циркон|калібр)",
     re.IGNORECASE,
 )
 
-# Count shorthand: a number then х/x ("2х", "їх вже 3х"). The lookahead drops
-# "20хв" and numbers glued to words. This is the size of ONE group flying
-# together — it annotates the track, it never fabricates N tracks.
+# A number then х/x ("2х"). The lookahead drops "20хв" and numbers glued to
+# words. This is the size of ONE group — it never fabricates N tracks.
 _COUNT_RE = re.compile(r"(\d+)\s*[хx](?![а-яіїєґa-z])", re.IGNORECASE)
-# A number directly qualifying a target noun ("3 ракети", "2 цілі").
-#
-# The type ADJECTIVES belong here as much as the nouns do: spotters put the
-# number in front of them ("10 реактивних Шахедів на Бровари", "До 10 крилатих
-# ракет", "2 калібри залишилось"), and since the digit isn't adjacent to the
-# noun those 33 real messages lost their count entirely — a located track that
-# should have shown ×10 showed ×1.
-# "циркон" sits here with "калібр" for the same reason — a named weapon a
-# spotter counts directly ("Ще два Циркони на столицю").
+# A number qualifying a target noun ("3 ракети") — or a type ADJECTIVE, since
+# spotters put the number in front of those too ("10 реактивних Шахедів").
 _COUNT_NOUN_RE = re.compile(
     rf"({_NUM})\s+(?:ракет|ціл|шахед|бпла|дрон|баліст|реактивн|крилат|калібр|циркон)",
     re.IGNORECASE,
 )
-# A bare number heading for a place: "3 на Славутич", "2 на Бровари", "Ще 4 на
-# Бровари", "2 курсом на Центр". Spotters count targets this way constantly and
-# neither the "3х" nor the "3 ракети" form covers it — 9 real messages lost their
-# count entirely.
-#
-# Deliberately only HALF the rule: the caller additionally requires a
-# gazetteer-matched place to start where this match ends (rules.py::_target_count).
-# A bare digit before a preposition alone is a minefield — "Ту-22м3 на Київщину"
-# would read as 3 targets. The lookbehind rejects a digit glued to a word or to
-# another number ("22м3") and time-ish forms ("о 3:00", "3.5").
+# A bare number heading for a place ("3 на Славутич"). Deliberately only HALF the
+# rule: the caller additionally requires a gazetteer-matched place to start where
+# this ends (rules.py::_target_count), because a bare digit before a preposition
+# alone would read "Ту-22м3 на Київщину" as 3 targets. The lookbehind rejects a
+# digit glued to a word or number and time-ish forms.
 _COUNT_TO_PLACE_RE = re.compile(
     rf"(?<![0-9а-яіїєґa-z:.,])({_NUM_SHORT})\s+"
     r"(?:на|над|до|біля|курсом\s+на|у\s+напрямку(?:\s+на)?)\s+",
     re.IGNORECASE,
 )
-# A number that is DOING something: "Знову 3 долітають до Броварів", "Ще 4
-# летить". The verb is the anchor here — a place can sit several words away, or
-# be absent entirely, so the place-anchored form above can't reach these.
-#
-# PRESENT TENSE ONLY, and that is the guard: "3 летять" is a live callout, while
-# the past tense is the voice of recaps and news ("30 ракет летіли", "випустила
-# 8 балістичних ракет") — those numbers are salvo totals for a whole night, and
-# stamping one on a district track is what once had the journal reporting
-# hundreds of phantom targets. Verified against the whole real corpus: 3 matches,
-# all of them genuine live counts, zero false positives.
+# A number that is DOING something ("Знову 3 долітають до Броварів") — the verb
+# is the anchor, so a place may sit several words away or be absent.
+# PRESENT TENSE ONLY, and that is the guard: the past tense is the voice of
+# recaps, whose numbers are night-long salvo totals, and stamping one on a
+# district track had the journal reporting hundreds of phantom targets.
 _COUNT_MOVING_RE = re.compile(
     rf"(?<![0-9а-яіїєґa-z:.,])({_NUM_SHORT})\s+"
     r"(?:долітаю|долітає|летят|летить|йдут|ідут|іде\b|рухаю|сунут|заходят|прямую|проходят)",
     re.IGNORECASE,
 )
-# A count written NEXT TO the place, with no noun, preposition or verb between
-# them: «Замглай два», «Бровари 6 штук», «Славутич 2», «Два хрінівка на
-# Добрянка». It is how the northern channel counts almost everything, and none
-# of the four rules above can see it — 36 real messages showed a located track
-# as ×1 while the spotter had said how many.
-#
-# The PLACE is the anchor, so these are half-rules like _COUNT_TO_PLACE_RE: the
-# caller applies them to the text right after / right before a gazetteer match
-# (rules.py::_target_count), using the match's real end. That end is what tells
-# «Район ТЕЦ два» (a count) from «ТЕЦ-5» (the plant's number, inside the name) —
-# 20 real messages name the two plants that way.
-#
-# Guards, each from a real corpus line:
-#   - at least one separator, so a digit glued to the name is not a count;
-#   - not a clock or a decimal («Суми 3:30 Харків 3:45» is an arrival table);
-#   - not a unit («Ніжин 5 хв увага» is a warning time, not five targets).
-# Ordinals need no guard: the channel indexes targets with «перша/другий/
-# третій», none of which is a numeral word (see _NUM_WORDS), so «Мекшунівка
-# третій» stays uncounted on its own.
+# A count written NEXT TO the place with nothing between them ("Замглай два",
+# "Бровари 6 штук") — how the northern channel counts almost everything.
+# Place-anchored half-rules like _COUNT_TO_PLACE_RE: the caller applies them to
+# the text right after / before a gazetteer match, and the match's real end is
+# what tells "Район ТЕЦ два" (a count) from "ТЕЦ-5" (part of the name).
+# Guards: at least one separator, not a clock or decimal, not a unit ("Ніжин 5 хв"
+# is a warning time). Ordinals need no guard — none is a _NUM_WORDS entry.
 _NOT_A_COUNT_TAIL = r"(?![а-яіїєґ0-9])(?![.:]\d)(?!\s*(?:хв|год|км|сек)[а-яіїєґ]*)"
 _COUNT_AFTER_PLACE_RE = re.compile(
     rf"^[\s,.•]{{1,3}}({_NUM_SHORT}){_NOT_A_COUNT_TAIL}", re.IGNORECASE)
 _COUNT_BEFORE_PLACE_RE = re.compile(
     rf"(?<![-:0-9а-яіїєґa-z])({_NUM_SHORT}){_NOT_A_COUNT_TAIL}[\s,.•]{{1,3}}$", re.IGNORECASE)
 
-# Terse target/launch "pulse" with no location ("Ціль!", "Ще вихід", "3 ракети").
-# Too terse to localize alone; only acted on during an open city-wide alert.
-# "вихід" = a launch callout here. The 07-18 additions are the words spotters
-# actually shouted between toponyms while everything above stayed silent.
+# Terse target/launch "pulse" with no location ("Ціль!", "Ще вихід"). Too terse
+# to localize alone; only acted on during an open city-wide alert.
 _PULSE_WORD = ("ціль", "цілі", "вихід", "ракет", "баліст", "шахед", "бпла", "дрон",
                "циркон",
                "цілей",   # genitive — "ціль"/"цілі" don't substring-match it
                "пуск",    # "Ще пуски!"
                "пада",    # "Падають!" — live incoming
                "летить", "летять",
-               # The type ADJECTIVES spotters use on their own, with the noun
-               # left implicit: "2 реактивні", "Крилаті", "По калібрам". Each
-               # one used to fall through to "без району" AND buy a full LLM
-               # call (~$0.006) that could only answer "noise" — 6 of the 33
-               # calls on the night of 2026-08-20.
+               # Type adjectives spotters use alone, noun implicit.
                "реактивн", "крилат", "калібр")
 
-# --- Pulse guard: a pulse corroborates the KYIV city alert, so it must not name
-# a place we can't recognize. A word right after one of these prepositions is in
-# TARGET position ("біля Пирятина", "На короп крилаті") — if the gazetteer
-# didn't match it, the message is about somewhere we don't know and pulsing it
-# would credit a Kyiv track with someone else's sighting (the T2445 class).
-# FROM-position prepositions (з/зі/від) are deliberately absent: an origin is
-# legitimately ours and already pulses ("Балістика з Курщини", "Ціль зі
-# Сумщини"). ---
+# A pulse corroborates the KYIV city alert, so it must not name a place we can't
+# recognize: a word right after one of these prepositions is in TARGET position,
+# and if the gazetteer missed it the message is about somewhere else.
+# FROM-position prepositions (з/зі/від) are deliberately absent — an origin is
+# legitimately ours and already pulses ("Балістика з Курщини").
 _PULSE_TARGET_PREP = ("на", "над", "до", "біля", "під", "по", "у", "в")
-# Kyiv itself is not an unknown place: "Ракети до Києва!" pulses and must keep
-# doing so. Target vocabulary ("По калібрам") is allowed by the caller.
+# Kyiv itself is not an unknown place. Target vocabulary is allowed by the caller.
 _PULSE_PREP_KNOWN = ("київ", "києв", "столиц", "міст")
 
-# --- Standby: the raions a spotter puts on notice for a target that has NOT
-# reached them. One message routinely carries both claims — «Пухівка/Зазимʼя 🔴
-# та готовність Бровари», «Рожни/Пухівка 🔴. Троя готовність.» — and the parser
-# used to flatten them, so the standby raion joined the track with the SAME
-# confirmed status as the two the spotter actually saw a target over.
-#
-# "Увага"/"уважно" deliberately do NOT belong here: 111 of the 136 real messages
-# carrying them are plain target callouts («Увага Троя 🔴.»), so treating them as
-# a warning frame would gut the feed. «Готовність» is the marker that means it. ---
+# Raions put on notice for a target that has NOT reached them — one message
+# routinely carries both claims ("Пухівка/Зазимʼя 🔴 та готовність Бровари").
+# "Увага"/"уважно" deliberately do NOT belong here: they head plain callouts.
 _READINESS_RE = re.compile(r"(?<![а-яіїєґ])(?:готовн|поготов|приготуй)[а-яіїєґ]*")
 _SENTENCE_END_RE = re.compile(r"[.!?\n]")
 # A gazetteer hit's own word, to find where it ends (DistrictHit carries only its
-# start offset), and the connectors that make several hits ONE coordinated list
-# ("Район Обухова/Василькова/Фастова готовність" — all three are on standby).
+# start offset), and the connectors that make several hits ONE coordinated list.
 _TOPONYM_WORD_RE = re.compile(r"[а-яіїєґ'’ʼ\-]+")
 _LIST_JOIN_RE = re.compile(r"^[\s/,]*(?:та|і|й)?[\s/,]*$")
 
-# --- Movement cues: mark a multi-district message as ONE target on a route
-# ("через Броварський район", "курсом на Троєщину") rather than an enumeration of
-# simultaneous targets ("Вишневе Жуляни"). On 07-18 every enumeration glued its
-# districts onto one track, recreating the zigzag mega-track. ---
+# Mark a multi-district message as ONE target on a route rather than an
+# enumeration of simultaneous targets — the latter recreates the zigzag
+# mega-track.
 _MOVEMENT_CUE = ("курс", "у бік", "в бік", "через", "прямує", "рухаєт", "повз",
                  "напрям", "заходить", "захід у", "летить на")
-# A district in a prepositional phrase is a located frame, not an enumeration
-# item ("удар по Оболоні", "над Оболонню").
+# A district in a prepositional phrase is a located frame, not an enumeration item.
 _PREPOSITION_BEFORE_DISTRICT = ("на", "у", "в", "до", "з", "зі", "із", "над",
                                 "біля", "під", "по")
 
-# Connectives that, sitting BETWEEN two named places, state a path FROM the
-# earlier one TO the later («Мамекине на Смяч», «Талалаївка на Ічню»). The
-# northern spotter channel writes almost every movement this way. Deliberately
-# excludes the FROM-markers "з"/"від": «На Смяч з Мамекиного» puts the
-# destination first, and drawing text-order there would reverse the arrow. That
-# shape does not occur in the corpus (measured 2026-08-24: 89 «A на B», 0 real
-# reversed), so it is left unhandled rather than guessed at.
+# Between two named places: a path FROM the earlier one TO the later ("Мамекине
+# на Смяч"). Deliberately excludes the FROM-markers "з"/"від" — "На Смяч з
+# Мамекиного" puts the destination first, and drawing text order would reverse
+# the arrow. That shape does not occur in the corpus, so it is left unhandled
+# rather than guessed at.
 _PATH_CONNECTIVE = ("на", "до", "через", "повз")
-# Only these may stand between the connective and the destination — anything
-# else means the connective governs something other than the place, which is
-# how «…районах через БпЛА з Чернігівщини, в районі Ніжина» read as a path.
+# Only these may stand between the connective and the destination; anything else
+# means the connective governs something other than the place.
 _PATH_FILLER = ("район", "районі", "району", "районом", "рн", "р-н",
                 "лівий", "правий", "бік", "боку", "сторону", "межу", "межі")
 # A gap carrying its own count is a DISTRIBUTION of separate targets, not one
-# path: «6 БпЛА на Вишгород, 2 на Згурівку», «Крутиться біля Глевахи, ще один
-# на Бориспіль». Each place has its own target, and chaining them would redraw
-# the 07-18 zigzag mega-track.
+# path ("6 БпЛА на Вишгород, 2 на Згурівку").
 _PATH_COUNT_BREAK = ("ще один", "ще одна", "ще два", "ще дві", "другий", "друга",
                      "друге", "третій", "третя", "інший", "інша", "група")
 
-# --- Aftermath: the RESULT of a strike (casualties, damage, rescue) is news
-# about a place, not a live target, even when it names a district. ---
+# The RESULT of a strike is news about a place, not a live target, even when it
+# names a district.
 _AFTERMATH = ("постраждал", "загинул", "поранен", "жертв", "уламк", "пошкодж",
               "зруйнов", "врятув", "рятувальник", "надзвичайник", "дснс",
               "багатоповерхів", "наслідк", "кмва", "госпіталіз", "медик",
               "евакуй", "загибл", "потерпіл",
               "пожеж",
-              # Post-strike fire. Stems picked to avoid collisions:
-              # "згорі" ⊄ "Вишгород", "горять" ⊄ "говорять". NOT the bare stem
-              # "горіл": it sits inside the village Погорільці, so «БпЛА на
-              # Погорільці» was suppressed as aftermath (2026-08-23, id 8089).
-              # "вигорі" keeps the one real form the corpus actually uses
-              # ("вигорілі авто"); dropping "горіл" cost 0 suppressions across
-              # 1171 real messages — both hits carry 2+ other aftermath stems.
+              # Post-strike fire. NOT the bare stem "горіл": it sits inside the
+              # village Погорільці.
               "горить", "горять", "вигорі", "згорі",
-              # Full forms, NOT the stem "пала" — "ракета впала" contains it and
-              # must keep its live meaning. ("Вся Лукʼянівка палає" raised a live
-              # ballistic track on 07-19.)
+              # Full forms, NOT the stem "пала" — "ракета впала" contains it.
               "палає", "палають", "палала", "палало",
               "відновленн",
-              # Smoke seen after a strike, always paired with a "close your
-              # windows" advisory. Qualified forms only: the bare "дим" sits
-              # inside Димер, Димерка and «видимість». These surfaced the day
-              # the two banks became matchable places — before that the
-              # messages named nothing and the miss was invisible.
+              # Qualified forms only: the bare "дим" sits inside Димер, Димерка
+              # and "видимість".
               "густий дим", "сильний дим", "позачиняти вікна", "закрийте вікна",
-              # The channel explaining what a sound WAS ("Звуки, що може чути
-              # лівий берег — детонація", "Звуки які може чути Оболонь та
-              # Вишгород наші: планові тренування") — commentary about a place,
-              # never a target over it. Both corpus hits were raising tracks.
+              # The channel explaining what a sound WAS — commentary about a
+              # place, never a target over it.
               "може чути", "можете чути")
 
-# --- Aftermath CATEGORIES. Read only by domain/aftermath.py, never by a
-# suppressor: `_AFTERMATH` above decides whether a message is suppressed (and it
-# must keep deciding exactly what it decides today), these four decide what an
-# already-suppressed message is ABOUT. Keeping them apart is not tidiness —
-# folding «детонац»/«загорянн» into `_AFTERMATH` to categorise with was measured
-# to suppress 8 more messages, two of which currently keep a live raion
-# («У Вишневому закликають залишатися в укриттях… через загрозу повторної
-# детонації»). Calibrated against the 20 real corpus reports that name a place.
-#
-# fire vs damage is "is it still happening": «горить»/«загоряння» is burning
-# now, «вигорілі авто»/«понівечена багатоповерхівка» is the static result. Same
-# question puts `rescue` above `fire` in the severity order (domain/aftermath):
-# people still under rubble is an event in progress with people in it.
+# Aftermath CATEGORIES. Read only by domain/aftermath.py: `_AFTERMATH` above
+# decides whether a message is suppressed and must keep deciding exactly what it
+# decides today, these four decide what an already-suppressed message is ABOUT.
+# Folding them together was measured to suppress messages that currently keep a
+# live raion.
+# fire vs damage is "is it still happening"; the same question puts rescue above
+# fire in the severity order (domain/aftermath).
 _CAT_CASUALTIES = ("загинул", "загибл", "поранен", "жертв", "потерпіл", "госпіталіз",
                    "постраждал", "тіло", "тіла", "під завалами", "з-під завалів")
 _CAT_RESCUE = ("рятувальник", "дснс", "надзвичайник", "врятув", "евакуй", "деблокув",
@@ -423,350 +258,233 @@ _CAT_FIRE = ("пожеж", "горить", "горять", "загорянн", "
 _CAT_DAMAGE = ("пошкодж", "зруйнов", "понівечен", "вигорі", "згорі", "уламк", "завал",
                "відновленн", "руйнув")
 
-# «постраждал» is the one word in _CAT_CASUALTIES that a BUILDING can do:
-# «У Деснянському районі попередньо постраждала багатоповерхівка» (raw 29567) is
-# damage, and reading it as casualties both mislabels the marker and — since
-# nothing else in that message is a damage word — was the difference between
-# recording it as the wrong thing and not recording it at all. Anchored to the
-# following noun, the same shape as _HEDGE_MODAL_RE above, rather than dropping
-# «постраждал» from the casualties list (which would cost «двоє людей
-# постраждали», raw 29495, its only casualties word).
+# "постраждал" is the one word in _CAT_CASUALTIES that a BUILDING can do, so it
+# is anchored to the following noun rather than dropped from the list (which
+# would cost "двоє людей постраждали" its only casualties word).
 _STRUCTURE_HARM_RE = re.compile(
     r"постраждал\w*\s+(?:багатоповерхів|будин|будівл|будов|склад|авто|гуртожит|поверх)"
 )
 
-# --- Not an aftermath at all, though it reads like one. Blocks the aftermath
-# RECORD only; the message stays suppressed either way, which is why this could
-# not be folded into `_AFTERMATH` (it is not a reason to suppress — suppression
-# already happened — it is a reason not to place a marker).
-#
-#   1. A controlled demolition the rescue service ANNOUNCED in advance: «Звуки,
-#      що чує Вишгород, загрози не становлять. ДСНС попереджали про знищення
-#      вибухонебезпечних предметів.» Reads as rescue work over Вишгород.
-#   2. The rescue service doing its ordinary peacetime job: «Рятувальники вже
-#      6 добу ліквідовують забруднення нафтопродуктами на Кирилівському озері»
-#      — six days of an oil spill, pinned onto Почайна. «рятувальник» is a
-#      common word outside a raid, and this is the class that would otherwise
-#      feed the layer noise all year.
+# Not an aftermath at all, though it reads like one: an ANNOUNCED controlled
+# demolition, and the rescue service doing its ordinary peacetime job (an oil
+# spill pinned onto Почайна). Blocks the aftermath RECORD only — the message is
+# suppressed either way, which is why this is not part of `_AFTERMATH`.
 _NOT_AN_AFTERMATH = ("знищення вибухонебезпечн", "планове знищення", "планові тренуванн",
                      "загрози не становлять", "не становить загрози",
                      "забруднення", "нафтопродукт")
 
-# --- Words that say a message is about an ATTACK. The aftermath record needs
-# either one of these or a live incident in the region (see domain/aftermath.py):
-# «Поділ. Горять автомобілі» names no attack, and on its own it could as well be
-# a car fire in July. Measured: text alone would drop 5 of 18 real reports, the
-# region's open incident recovers the four that arrived during that night's raid,
-# and what stays dropped is the days-later rescue update — which is the half a
-# LIVE map layer has least business showing.
-#
-# «вибух» carries a veto: «вибухонебезпечних предметів» is the controlled
-# demolition above, i.e. the exact phrase this gate must not wave through.
+# The aftermath record needs one of these or a live incident in the region (see
+# domain/aftermath.py): "Поділ. Горять автомобілі" names no attack and could as
+# well be a car fire in July.
+# "вибух" carries a veto — "вибухонебезпечних предметів" is the announced
+# demolition above, the exact phrase this gate must not wave through.
 _STRIKE_WORD = ("атак", "удар", "обстріл", "влучанн", "приліт", "вибух",
                 "бпла", "ракет", "шахед", "дрон")
 _STRIKE_WORD_VETO = ("вибухонебезпечн",)
 
-# --- Our air defence engaged ("Відпрацювали установки по Дарницькому та
-# Соломʼянському", "працює ППО") — not an incoming target, and matching its two
-# districts would draw a bogus vector between them. ---
+# Our air defence engaged — not an incoming target, and matching its two
+# districts would draw a bogus vector between them.
 _AD_ACTION = ("відпрацюв",
               "працює ппо", "ппо працює", "працює наша ппо", "сили ппо", "робота ппо")
 
-# --- Civic notices the channels reprint (transport routes, road closures). They
-# name streets/neighbourhoods the gazetteer matches but are city news — the
-# T217/M668 FP class. Bare "маршрут"/"рух"/"транспорт" are deliberately absent:
-# a real target "змінила маршрут руху". Only transport-mode words and multiword
-# traffic phrases are safe (validated absent from real sightings). ---
+# Civic notices the channels reprint: they name streets/neighbourhoods the
+# gazetteer matches but are city news. Bare "маршрут"/"рух"/"транспорт" are
+# deliberately absent — a real target "змінила маршрут руху"; only transport-mode
+# words and multiword traffic phrases are safe.
 _CIVIC_NOTICE = ("тролейбус", "трамвай", "маршрутк", "фунікулер", "автобус",
                  "громадського транспорт", "громадський транспорт",
                  "дорожнього руху", "рух транспорт", "руху транспорт",
                  "організації руху", "обмежать рух", "обмежуватимуть рух",
                  "перекрито рух", "перекрито середню",
-                 # Street closures announced for a visiting delegation read
-                 # exactly like a transport notice and name the place the same
-                 # way: "❗️Частково перекриють центр Києва завтра. Обмеження
-                 # запроваджуються у зв'язку з проведенням охоронних заходів за
-                 # участю іноземних делегацій" (raw 2816) — which, the moment
-                 # «Центр» became a known place, started raising a track over
-                 # the middle of the city.
+                 # Street closures for a visiting delegation — same register,
+                 # and they name "Центр" the same way.
                  "перекриють", "обмеження запровадж", "охоронних заход",
-                 # Scheduled utility works — the same class as transport news:
-                 # a neighbourhood named in a plumbing/repair announcement
-                 # ("У житловому масиві Пуща-Водиця … під час виконання
-                 # ремонтних робіт можливе зниження тиску у водопостачанні",
-                 # raw 1371, which was raising a track).
+                 # Scheduled utility works naming a neighbourhood.
                  "водопостачанн", "водогін", "ремонтних робіт", "ремонтні роботи",
                  "планові роботи", "зниження тиску", "профілактичн",
-                 # City-services news in the same register — it names beaches,
-                 # lakes and neighbourhoods ("🏖 На більшості пляжів Києва вода
-                 # відповідає нормам … у Пущі-Водиці", raw 1724).
+                 # City-services news naming beaches, lakes, neighbourhoods.
                  "пляж", "водойм", "відповідає нормам", "якість води",
-                 # A blackout report is the same register as the utility works
-                 # above, and it names the half of the city it happened in
-                 # («На Правому березі подекуди зникло світло»).
+                 # A blackout report names the half of the city it happened in.
                  "зникло світло")
 
-# єППО = the crowd-sensor app. Spotters relay its marks while dismissing them as
-# unverified. Suppress only when an єППО mention is PAIRED with a dismissal cue,
-# so "єППО показує ціль на Троєщині, підтверджую" survives. _EPPO_WORD covers
-# the Cyrillic-є spelling and the common Cyrillic-е typo.
+# єППО = the crowd-sensor app. Spotters relay its marks while dismissing them, so
+# suppress only when a mention is PAIRED with a dismissal cue — "єППО показує
+# ціль на Троєщині, підтверджую" must survive. _EPPO_WORD covers the Cyrillic-є
+# spelling and the common Cyrillic-е typo.
 _EPPO_WORD = ("єппо", "еппо")
 _EPPO_DISMISS = ("не видно", "не бачим", "не фіксу", "не спостеріга", "дорозвідк",
                  "хибн", "локаційно чист")
 
-# --- Impact: a LOCALIZED hit whose location is worth mapping, as opposed to
-# generic aftermath news. Needs a district — "є влучання десь" places nothing.
-# When impact verbs and aftermath words co-occur, impact WINS (the location is
-# the useful signal). "пошкодж"/"зруйнов" are also in _AFTERMATH, so without a
-# district they still suppress. "влучил" covers влучила/влучило/влучили — on
-# 07-18 Кличко's "Балістика влучила прямо в багатоповерхівку у Шевченківському"
-# had no noun form, the aftermath stem won, and a real strike never reached the
-# map. ---
+# A LOCALIZED hit worth mapping, as opposed to generic aftermath news. Needs a
+# district. When impact verbs and aftermath words co-occur, impact WINS — the
+# location is the useful signal; "пошкодж"/"зруйнов" are in _AFTERMATH too, so
+# without a district they still suppress.
 _IMPACT = ("влучанн", "влучил", "приліт", "пошкодж", "зруйнов")
 
-# Retrospective footage/report of a PAST strike — not a fresh hit. Blocks the
-# impact reading only (the message falls back to aftermath suppression); it does
-# NOT block a citywide reading — see _SUMMARY for the phrases that must.
+# Retrospective footage/report of a PAST strike. Blocks the impact reading only
+# (the message falls back to aftermath suppression); it does NOT block a citywide
+# reading — see _SUMMARY for the phrases that must.
 _RETROSPECTIVE = ("на відео", "останньої атаки", "минулої атаки", "нічної атаки",
                   "вчорашн", "минулої ночі")
 
-# --- Grid outages say "пошкодж" next to districts, which `_impact` otherwise
-# reads as a confirmed hit and pins a phantom marker. Blocks impact unless an
-# unambiguous strike word (влучанн/приліт) is present too. Grid-specific stems,
-# not bare "світл", so a building strike mentioning lights survives. ---
+# Grid outages say "пошкодж" next to districts, which `_impact` otherwise reads
+# as a confirmed hit. Blocks impact unless an unambiguous strike word
+# (влучанн/приліт) is present too. Grid-specific stems, not bare "світл", so a
+# building strike mentioning lights survives.
 _POWER_OUTAGE = ("електропостачанн", "електроенерг", "електромереж", "енергетик",
                  "енергооб", "знеструмл", "підстанці", "обленерго", "дтек",
                  "аварійне пошкодж", "немає світл", "нема світл", "без світл",
                  "зникло світл", "відключенн світл")
 
-# --- Explicit denial ("Не йде на Оболонь"). Curated phrases, not bare "не" —
-# that would swallow "не підтверджено" (a different status). LIMITATION:
-# message-scoped, so a message that both denies one target and reports another
-# live one would be dropped whole; no such shape seen in the feed yet. ---
+# Explicit denial. Curated phrases, not bare "не" — that would swallow "не
+# підтверджено" (a different status). LIMITATION: message-scoped, so a message
+# that denies one target and reports another live one is dropped whole.
 _NEGATION = ("не йде", "не летить", "не рухається", "не курсом", "не в бік",
              "не фіксується", "не спостерігається", "не зафіксовано",
              "без загроз", "поза загрозою")
 
-# --- Conditional/speculative hedge — a possible future event, not a sighting.
-# Corpus findings: bare "якщо" is UNSAFE (it appears in a live sighting as a
-# distance qualifier, "5/8 хвилин до області, якщо по прямій"), so it needs a
-# consequence verb alongside — clean across all 18 real hits. Bare "у разі" is
-# unsafe too: the idiom "у жодному разі" occurs twice, hence the exclude list.
-# "якщо піде"/"може піти" had zero hits — kept as forward cover, verb-anchored.
-_CONDITIONAL_PHRASES = ("якщо піде", "може піти")
+# Conditional/speculative hedge — a possible future event, not a sighting.
+# Bare "якщо" is UNSAFE (a live sighting uses it as a distance qualifier, "якщо
+# по прямій"), so it needs a consequence verb alongside. Bare "у разі" is unsafe
+# too — the idiom "у жодному разі" — hence the exclude list.
+# "може піти" REMOVED: it hedges where a REAL target goes NEXT, not whether it
+# exists, and it was suppressing live callouts whole.
+_CONDITIONAL_PHRASES = ("якщо піде",)
 _CONDITIONAL_IDIOM_EXCLUDE = ("жодному разі", "жодним разі")
 _CONDITIONAL_CONSEQUENCE = ("очіку", "відбудеться", "відбуватимуться")
 
-# --- Preparatory/forecast advisory ("Росія готує удар балістикою по Києву") —
-# a planned future strike, not one in flight. Same treatment as the hedges above.
-# Corpus findings: "готу" is safe as a bare stem WHEN gated on a weapon word
-# (_THREAT_CONTEXT); an ungated live shorthand ("готується знову Троя") then
-# correctly keeps its district. "план" is NOT safe even gated — "Кияни,
-# плануйте день…" pairs a reader-facing imperative with a real live weapon word
-# two clauses later, so only 3rd-person "планує"/"планують" (always the enemy)
-# is used. "може застосув" is kept as a two-word phrase, not the bare stem,
-# which would collide with the live "загроза застосування балістики".
+# Preparatory/forecast advisory — a planned future strike, not one in flight.
+# "готу" is safe as a bare stem only because rules gates it on a weapon word
+# (_THREAT_CONTEXT). "план" is NOT safe even gated ("Кияни, плануйте день…"), so
+# only 3rd-person "планує"/"планують" — always the enemy. "може застосув" stays a
+# two-word phrase; the bare stem collides with "загроза застосування балістики".
 _FORECAST_VERB = ("готу", "планує", "планують", "може застосув", "можуть застосув")
 
-# --- Night/evening forecast ("На цю ніч загроза по балістиці актуальна") — a
-# heads-up about a coming night; the "по Києву" inside one raised a live citywide
-# ballistic alert (raw 1771). The register is nominal, so the anchor is the
-# timeframe phrase, gated on a weapon word. Corpus: ~10 hits, all forecasts.
+# Night/evening forecast — a heads-up about a coming night. The register is
+# nominal, so the anchor is the timeframe phrase, gated on a weapon word.
 # "вночі" REJECTED — too broad, collides with aftermath recaps.
 _FORECAST_TIMEFRAME = ("на сьогоднішню ніч", "на цю ніч", "цієї ночі", "на ніч",
                        "протягом ночі", "на вечір", "найближчими ноч")
 
-# --- "можуть бути" as a bare hedge is UNSAFE: a real strike report with real
-# casualties uses it for an unrelated clause ("під завалами можуть бути люди"),
-# and a bare match would wipe that correct impact marker. Anchored to a
-# following explosion/strike noun instead.
+# "можуть бути" as a bare hedge is UNSAFE: a real strike report uses it for an
+# unrelated clause ("під завалами можуть бути люди") and a bare match would wipe
+# that correct impact marker. Anchored to a following explosion/strike noun.
 _HEDGE_MODAL_RE = re.compile(r"(?:можуть бути|може бути)\s+(вибух|обстріл|удар|приліт|пуск)")
 
-# --- Advisory / relayed-opinion preview of which raions MIGHT be hit — second-
-# hand or forecast, not first-hand. Three real shapes (all 07-23): relayed rumour
-# ("Пишуть що також є загроза для Броварів"), relayed speculation ("в інших
-# джерелах … ворога цікавлять такі райони: …"), warning bulletin ("Є
-# попередження про використання 35 балістичних ракет … Підвищена загроза таким
-# районам: …"). Each listed gazetteer raions and raised live dots for targets not
-# in flight. Routed through the conditional-hedge path.
-#
-# These phrases are self-sufficient (corpus: they appear ONLY in this class).
-# The nominal "підвищена загроза" and "ворога цікавлять" markers need a weapon
-# word — handled in rules._has_conditional_hedge — because "підвищена загроза"
-# also occurs in an air-pollution notice. "за даними" (5 hits, all news/recap/
-# forecast), "до застосування"/"підвезенн" (enemy-side stockpile reports, 9+3
-# hits) and "маю інформац" (2 intel relays) carry the class alone: none is ever
-# a first-hand callout. ---
+# Advisory / relayed-opinion preview of which raions MIGHT be hit — second-hand
+# or forecast, not first-hand, and each listed real raions and raised live dots.
+# These phrases are self-sufficient (corpus: they appear ONLY in this class); the
+# nominal "підвищена загроза" and "ворога цікавлять" markers need a weapon word
+# and live in rules._has_conditional_hedge instead.
 _ADVISORY_RELAY = ("пишуть що", "пишуть, що", "інших джерелах", "є попередження про",
                    "за даними", "до застосування", "підвезенн", "маю інформац")
 
-# --- Recon-analysis prose ("Ворог здійснив серію розвідувальних заходів… у
-# фокусі противника опинилися Фастівський район, Вишгород…") — an intelligence
-# write-up, not a callout. It names raions (the recon focus), so unsuppressed it
-# raised phantom tracks AND its "крилатих ракет" seeded a false `missile` type
-# that bled onto terse callouts via inheritance (07-31, incident 153). Gated on a
-# weapon word; every marker is 0-hit in the real spotter corpus. ---
+# Recon-analysis prose — an intelligence write-up, not a callout. It names raions
+# and its weapon words seeded a false type via inheritance. Gated on a weapon
+# word; every marker is 0-hit in the real spotter corpus.
 _RECON_ANALYSIS = ("у фокусі противник", "розвідувальних заход", "опрацюванн",
                    "приділяє")
 
-# --- Siren echo ("Тривога у Вишгородському районі"): a district but no target
-# type at all. A real sighting here always states a type, so "type unresolved +
-# тривога" isolates the echo without a shape-specific regex. ---
+# Siren echo ("Тривога у Вишгородському районі"): a place but no target type at
+# all. A real sighting here always states a type.
 _SIREN_WORD = "тривог"
+# The raion need not be a GAZETTEER entry: the oblast monitors post one line per
+# raion, and the raion adjective often has no stem of its own ("прилуцьк" is not
+# "прилук"), which decided whether the identical template was suppressed or sent
+# to the LLM. Requires _SIREN_WORD alongside, which keeps a live "ціль на
+# Броварський район" out.
+_RAION_PHRASE_RE = re.compile(r"\w+[сц]ьк(?:ому|ий|ого|ім)\s+район")
 
-# --- Day recap ("Знову Деснянський район під атакою сьогодні"): a district, no
-# live type or vector. "сьогодні" also appears in real sightings, so this only
-# lowers confidence and KEEPS the district — safer than suppressing. ---
+# Day recap ("Знову Деснянський район під атакою сьогодні"). "сьогодні" also
+# appears in real sightings, so this only lowers confidence and KEEPS the
+# district — safer than suppressing.
 _DAY_RECAP_WORD = "сьогодн"
 
-# --- Buzz-slang: "бджілки"/"бджоли" = OUR drones over enemy territory, so the
-# message is reassurance chatter. Corpus: all 3 hits are commentary. One carried
-# "реактивні", which typed the channel context as jet_drone and a citywide
-# ballistic callout 26s later inherited it — the main city card of the 07-24
-# salvo stuck at «БпЛА». So buzz-slang must not set/consume the per-channel type
-# context (ingest._note_and_inherit_type). ---
+# Buzz-slang: "бджілки"/"бджоли" = OUR drones over enemy territory, so the
+# message is reassurance chatter. It must not set or consume the per-channel type
+# context (ingest._note_and_inherit_type) — one carrying "реактивні" typed the
+# channel and a citywide ballistic callout inherited it seconds later.
 _BUZZ_CHATTER = ("бджілк", "бджол")
 
-# --- Explainer posts: a channel telling readers what a weapon IS, not that one
-# is flying ("Чергове нагадування, що таке Бандероль."). Same treatment and the
-# same reason as buzz-slang — the model name types the message (Бандероль ->
-# jet_drone via _JET_MODEL), and with no district that type is the ONLY thing it
-# contributes: it becomes the channel's live target type for the next window,
-# and it buys a triage LLM call looking for a place the sentence never had (two
-# such calls on 2026-08-23, both returning `noise`).
-#
-# «що таке» is the whole marker, and deliberately nothing broader. The obvious
-# widenings were checked against the corpus and every one of them is wrong:
-# «нагадування»/«нагадую» is how this channel opens a REAL warning («❗️Нагадую
-# Підвищена загроза балістики для Києва до самого ранку!», 6 more like it), and
-# «пояснення»/«стосовно питань» sit in genuine threat commentary that should
-# keep typing the channel. A definition is the one shape that is never about
-# the sky. ---
+# Explainer posts — a channel telling readers what a weapon IS, not that one is
+# flying. Same treatment and reason as buzz-slang: with no district the model
+# name is the ONLY thing the message contributes.
+# "що таке" is the whole marker and deliberately nothing broader: "нагадування"
+# is how this channel opens a REAL warning, and "пояснення" sits in genuine
+# threat commentary.
 _EXPLAINER = ("що таке", "шо таке")
 
-# --- Ground-war / disinformation news ("нібито захоплення села Х", "ФЕЙК рф",
-# "під контролем Сил оборони"). These name border villages the Сумщина
-# gazetteer matches, so each one raised phantom air tracks over them — 14738
-# raised four at once (Садки, Храпівщина, Писарівка, Хотінь). The class is about
-# the GROUND front or about what russian channels claim, never about the sky.
-#
-# Corpus sweep (19 328 messages): "захопленн" 5 hits, "фейк" 4, "пропагандист" 3,
-# "дезінформац" 3, the rest 1 each — and not one sits in a real callout. A
-# spotter announcing a target has no reason to talk about who holds a village. ---
+# Ground-war / disinformation news. These name border villages the Сумщина
+# gazetteer matches, so each raised phantom air tracks. The class is about the
+# GROUND front or about what russian channels claim, never about the sky.
 _GROUND_WAR = ("захопленн", "фейк", "пропагандист", "дезінформац", "іпсо",
                "не відповідає дійсності", "прориву оборони", "критично ставит")
 
-# --- Personal prose from the channel admin — reminiscence, a birthday
-# thank-you, a mood post. Long-form, names places in passing, and nothing else
-# reads it as anything but a sighting.
-#
-# Corpus: the bare stem "памятаю" is 3 messages in 19 328 and none is a callout.
-# Only 21133 ("Пам'ятаю, як колись їздив по Храпівщині, Соснівці, Кияниці")
-# actually raised tracks — two Сумщина villages. The birthday post 3611 matches
-# too and reads `missile` + Подільський/«Щасливе» (the homonym GAZETTEER.md kept
-# the entry despite), but its "а не відбій після тривоги" makes it status=clear,
-# so the carve-out below lets it through as a scoped missile stand-down. Nothing
-# was open when it arrived, so it cost nothing — noted because it means this
-# suppressor does NOT cover that shape, not because it is handled.
-#
-# The stem, NOT "памятаю, як": normalize() strips the apostrophe but KEEPS the
-# comma, so the phrase form would miss a variant written without one. And NOT
-# "хочеться вірити", checked and dropped — 2 hits, one of them a real відбій
-# ("Перший за сьогоднішню добу та осінь відбій…"), which the clear carve-out
-# would save but for no gain the stem doesn't already give. ---
+# Personal prose from the channel admin — reminiscence, a birthday thank-you.
+# Long-form, names places in passing, and nothing else reads it as anything but a
+# sighting. The stem, NOT "памятаю, як": normalize() keeps the comma, so the
+# phrase form would miss a variant written without one.
 _PERSONAL_POST = ("памятаю",)
 
-# --- Political/official quote naming a place ("У Вишневому був склад
-# боєприпасів... — Зеленський") — a news repost, not a sighting; about WHO is
-# speaking, unlike siren_only/day_recap. Marker: dash + named official. Corpus:
-# only 2 hits (both the same Вишневе/Зеленський story), so a curated name list
-# is proportionate — a generic "dash + capitalized surname" regex would be far
-# riskier without more real examples. ---
+# Political/official quote naming a place — a news repost, about WHO is speaking.
+# Marker: dash + named official. A curated name list is proportionate; a generic
+# "dash + capitalized surname" regex would be far riskier.
 _QUOTE_ATTRIBUTION_RE = re.compile(
     r"[—-]\s*(президент\w*|зеленськ\w*|сирськ\w*|кличк\w*|ігнат\w*|умєров\w*|"
     r"буданов\w*|малюк\w*|генштаб\w*)",
     re.IGNORECASE,
 )
 
-# --- Second-hand reportage ("Повідомляють про знищення в Сибіру ешелону…" —
-# raw 6097). A relayed news item carries a _DESTROYED keyword, so status reads
-# "destroyed", and a destroyed message with no district adopts whichever track is
-# open: on 2026-08-14 this post closed T3332 — a live Шахед over Київське
-# водосховище — as «знищено» while it was in fact continuing west.
-#
-# Gated on NO DISTRICT + destroyed (rules.py::_reportage), which is what keeps it
-# off real callouts, since a first-hand sighting always localizes. Corpus (4242
-# unique): 14 messages carry a marker, only 2 surface at all ("Гатне
-# повідомляють про приліт", the Ворзель/Ірпінь/Буча recon drone) and BOTH name a
-# raion; with the status gate exactly 1 message changes — raw 6097 itself.
-# Deliberately NOT fixed by adding "сибір" to _OTHER_OBLAST: the class is the
-# relayed register, and a geography list needs a new entry per region. ---
+# Second-hand reportage. A relayed news item carries a _DESTROYED keyword, so
+# status reads "destroyed", and a destroyed message with no district adopts
+# whichever track is open — one such post closed a live Шахед as "знищено".
+# Gated on NO DISTRICT + destroyed (rules.py::_reportage), which keeps it off
+# real callouts since a first-hand sighting always localizes.
 _REPORTAGE = ("повідомляють", "повідомляється", "як повідомля",
               "за попередніми даними")
 
-# --- "Дорозвідка" = our side no longer sees targets of the stated type and is
+# "Дорозвідка" = our side no longer sees targets of the stated type and is
 # re-scanning: a temporary stand-down, NOT "it was a harmless recon drone" (a
-# dictionary-meaning trap, confirmed with the user). Message-scoped, so a message
-# that ALSO names a district is a concurrent sighting and must not be swallowed —
-# the rules gate requires no district. Corpus: 21 of 23 real hits match cleanly,
-# 1 has a district (correctly excluded), 1 resolves via "відбій". ---
+# dictionary-meaning trap). Message-scoped, so the rules gate requires no
+# district — one that names a district is a concurrent sighting.
 _LOST_WORD = "дорозвід"
-# "Чисто!" / "Поки чисто" — the same stand-down in shorthand (confirmed with the
-# user after 07-18). Word-bounded so "чистота"/"очистити" never match; the rules
-# gate also requires no district and no other-oblast scoping ("По Житомирщині
-# чисто" is about Zhytomyr).
+# The same stand-down in shorthand. Word-bounded so "чистота"/"очистити" never
+# match; the rules gate also requires no district and no other-oblast scoping.
 _STANDDOWN_CLEAN_RE = re.compile(r"(?<![а-яіїєґ])чисто(?![а-яіїєґ])")
-# A stand-down whose next clause announces a live threat must close nothing —
-# the live half wins. Curated adversatives, not bare "але" (too common in
-# harmless asides). On 08-04 «Поки чисто. Але ще виходи!» closed 5 live tracks.
+# A stand-down whose next clause announces a live threat must close nothing — the
+# live half wins. Curated adversatives, not bare "але" (too common in harmless
+# asides).
 _STANDDOWN_LIVE_THREAT = ("паралельно", "але загроза", "але триває загроза",
                           "ще виходи", "ще можливі цілі", "можливі ще цілі")
 
-# --- City-wide threat: aimed at the city as a whole, no raion ("Ціль на місто!",
-# "Балістика на Київ"). During the sub-minute ballistic phase spotters warn the
-# whole city before any raion is named, so this must raise a city alert rather
-# than nothing. All three channels are Kyiv-dedicated, so a directional callout
-# IS about Kyiv. STRONG phrases are the threat signal on their own; WEAK ones
-# ("по Києву") also occur in news ("новини по Києву") and need a threat word. ---
+# City-wide threat: aimed at the city as a whole, no raion. During the sub-minute
+# ballistic phase spotters warn the whole city before any raion is named. STRONG
+# phrases are the threat signal on their own; WEAK ones also occur in news and
+# need a threat word.
 _CITYWIDE_STRONG = ("на місто", "над містом", "на київ", "на столиц",
                     "увага місто", "увага, місто")
-# Bare "Київ!!" — the city twin of a bare district callout, dropped 08-04 one
-# second before "Балістика!!". Anchored to the WHOLE message: a loose "київ"
-# stem would swallow every recap naming the city.
+# Bare "Київ!!" — the city twin of a bare district callout. Anchored to the WHOLE
+# message: a loose "київ" stem would swallow every recap naming the city.
 _CITYWIDE_BARE_RE = re.compile(r"^\W*(?:київ|столиця|столиці)\W*$")
-# "над Києвом"/"над столицею" are WEAK, not strong, even though the twin "над
-# містом" is strong: the corpus sweep found all three of their existing hits are
-# «🌈 Над Києвом зʼявилася яскрава веселка» rainbow posts. With the threat-word
-# gate, "4 БпЛА над Києвом" (raw 4824, which used to produce nothing at all)
-# raises the city alert and the rainbows stay silent.
+# "над Києвом"/"над столицею" are WEAK even though the twin "над містом" is
+# strong: all their existing corpus hits are rainbow posts. City-BOUND phrasing
+# is weak for the same reason — "в напрямку Києва" also shows up in logistics
+# reposts.
 _CITYWIDE_WEAK = ("по місту", "по києву", "удар по києву", "по столиц",
                   "над києвом", "над столицею",
-                  # City-BOUND phrasing from the same sweep: "до 10х ворожих
-                  # БпЛА в бік Столиці", "~10х крилатих ракет в напрямку
-                  # Столиці" — a live city warning that used to localize
-                  # nowhere. Weak (needs a threat word) because "в напрямку
-                  # Києва" also shows up in travel/logistics reposts.
                   "бік столиці", "бік києва", "напрямку столиці", "напрямку києва",
                   "напрямок києва", "напрямку на київ")
 _THREAT_CONTEXT = ("ціль", "цілі", "ракет", "баліст", "шахед", "бпла", "дрон",
                    "загроз", "удар", "приліт", "вибух", "кинджал", "іскандер",
                    "каб", "с-400", "с400", "с-300", "с300", "циркон", "пуск")
 
-# --- Threat-LEVEL bulletin: commentary about a target TYPE with no target and
-# no place of its own ("Сьогодні червоний рівень по балістиці", "По балістиці
-# тихо на даний момент"). The spotters run this as a standing side-channel
-# beside the live callouts — 51 "по балістиці" messages in the captured corpus —
-# and every one of them used to die silently after paying for an LLM call.
-#
-# Two shapes, mapped onto the notice kinds the feed already renders:
-# RAISED -> `forecast` (the level is up / the warning still stands),
-# QUIET  -> `status`   (nothing of that type is flying right now).
-# RAISED is tested first, so a mixed "попередження дійсні, але поки тихо" reads
-# as the warning rather than the lull.
-#
+# Threat-LEVEL bulletin: commentary about a target TYPE with no target and no
+# place of its own. The spotters run this as a standing side-channel beside the
+# live callouts.
+# RAISED -> `forecast`, QUIET -> `status`. RAISED is tested first, so a mixed
+# "попередження дійсні, але поки тихо" reads as the warning.
 # QUIET is emphatically NOT an all-clear: a spotter's "по балістиці тихо" must
-# never close a track — the same reason _dispatch keeps a spotter's full відбій
-# inert. It only states the situation in the feed. ---
+# never close a track, it only states the situation in the feed.
 _LEVEL_RAISED = ("загроза баліст", "небезпека баліст", "загроза балістики",
                  "тривога в області", "тривога у області", "тривога в обл",
                  "тривога по області", "тривога в київській обл",
@@ -777,11 +495,9 @@ _LEVEL_RAISED = ("загроза баліст", "небезпека баліст
                  "дійсні попередження", "попередження дійсні", "попередження по",
                  "реагуємо на тривог", "реагування на загрозу", "реагуємо",
                  "залишається спорядж")
-# Oblast-scope situation reports ("По області 2-3 БПЛА", "В області цей один",
-# "Залишився один в області"). The threat is in Kyiv OBLAST with no raion named:
-# nothing to place on the map, but it answers the operator's actual question —
-# is it near yet. `status`, not `forecast`; the "тривога в області" heads-up
-# above is the forecast half of the same family.
+# Oblast-scope situation reports: the threat is in Kyiv OBLAST with no raion
+# named — nothing to place, but it answers "is it near yet". `status`, not
+# `forecast`; "тривога в області" above is the forecast half of the same family.
 _LEVEL_OBLAST = ("в області", "у області", "по області", "в обл.", "області вже",
                  "областi", "в київській області", "по київській області")
 
@@ -789,36 +505,26 @@ _LEVEL_QUIET = ("тихо", "не видно", "без запусків", "бе�
                 "наразі немає", "поки немає",
                 "не фіксується", "спокійно", "ситуація спокійна", "минула без",
                 "поки все спокійно", "фальш цілі", "фальшцілі",
-                # The type-scoped all-quiet the spotters actually write when a
-                # type stops being a problem: "По БПЛА в нас все чисто",
-                # "Ніяких Кинджалів на даний момент немає". A NOTICE and never a
-                # stand-down — the suppressor gate above keeps a real «чисто»
-                # (lost_signal) on its own type-scoped path.
+                # The type-scoped all-quiet: a NOTICE, never a stand-down — the
+                # suppressor gate keeps a real "чисто" (lost_signal) on its own
+                # type-scoped path.
                 "все чисто", "наразі чисто", "поки чисто", "момент немає",
                 # The negative half of the launch/carrier families below. Both
-                # say the word they are about ("без фіксації пусків", "ТУшки
-                # неактивні", "Посадка 4× Ту-95МС на аеродром"), so without
-                # these the forecast branches would read a stand-down as a
-                # raised level — the exact inversion this list exists to stop.
+                # say the word they are about, so without these the forecast
+                # branches would read a stand-down as a raised level.
                 "без фіксац", "неактивн", "посадк")
 
-# --- The two forecast families below are checked AFTER _LEVEL_QUIET on purpose.
-# Both markers routinely sit in the same sentence as an all-quiet report
-# ("Ситуація спокійна по балістиці. Чекатимемо відбою найближчим часом") and
-# reading that as a raised level would be a lie in the operator's face. Quiet
-# now wins; these speak only when nothing says quiet. ---
+# The two forecast families below are checked AFTER _LEVEL_QUIET on purpose: both
+# markers routinely sit in the same sentence as an all-quiet report, and reading
+# that as a raised level would be a lie in the operator's face.
 #
-# A LAUNCH somewhere far away, with no place of ours to put on the map. This is
-# the earliest warning a cruise wave gives — "Попередньо відбулися пуски зі
-# стратегічної авіації" lands 30-90 min before anything reaches Kyiv, and it
-# used to surface nowhere. The negative forms ("без пусків", "пусків немає") are
-# already claimed by _LEVEL_QUIET above. The lookbehind keeps "Спуск!" (a live
-# overhead callout, not a launch report) and "випуск" out.
+# A LAUNCH somewhere far away, with no place of ours to map — the earliest
+# warning a cruise wave gives, 30-90 min before anything reaches Kyiv. The
+# negative forms are already claimed by _LEVEL_QUIET. The lookbehind keeps
+# "Спуск!" (a live overhead callout) and "випуск" out.
 _LEVEL_LAUNCH_RE = re.compile(r"(?<![а-яіїєґ])(?:за)?пуск(?:[иіауео]\w{0,3})?(?![а-яіїєґ])")
-# ANTICIPATION of the next wave ("можлива повторна хвиля балістики", "ракети
-# приблизно очікуємо 3-4 ранку", "поки ще діє балістична загроза"). A live
-# callout never talks about "найближчим часом"; this is the sentence the
-# operator plans the next hour around.
+# ANTICIPATION of the next wave. A live callout never talks about "найближчим
+# часом"; this is the sentence the operator plans the next hour around.
 _LEVEL_AHEAD_RE = re.compile(
     r"найближчим часом"
     r"|можлив\w*\s+(?:\w+\s+)?(?:повторн|нов|чергов|наступн)"
@@ -827,389 +533,183 @@ _LEVEL_AHEAD_RE = re.compile(
     r"|варто реагувати"
     r"|ще діє"
 )
-# Carrier activity is its own notice family (_MISSILE_CARRIER, declared with the
-# type keywords): pre-launch bookkeeping that is never a target on the map, and
-# has nothing in it for the LLM to localize either.
-#
-# "Без змін" is the WEAK half of the quiet family, and it is weak because it
-# usually modifies something else in the same sentence rather than being the
-# news: "Без змін, найближчим часом очікуємо на виліт бомбардувальників" and "У
-# повітрі без змін продовжують перебувати Ту-95МС" are both reports of carrier
-# activity CONTINUING. So it is checked last, after the forecast families — it
-# speaks only when nothing louder is in the message.
+# The WEAK half of the quiet family, checked last: "без змін" usually modifies
+# something else in the same sentence rather than being the news ("Без змін,
+# найближчим часом очікуємо на виліт бомбардувальників").
 _LEVEL_QUIET_WEAK = ("без змін", "без критичних змін")
-# "Quiet HERE, busy THERE" is the standard shape of a type bulletin: «По БПЛА в
-# нас все чисто, ворог атакував частково Чернігівщину», «Біля Києва наразі
-# чисто, ще одна група ракет на Черкащині». The foreign oblast is the contrast
-# clause, not the subject — but `target_not_kyiv` (rightly, for a terse pulse)
-# throws the whole message away over it. An explicit claim of OUR scope is what
-# tells the two shapes apart.
+# "Quiet HERE, busy THERE" is the standard shape of a type bulletin. The foreign
+# oblast is the contrast clause, not the subject — but `target_not_kyiv`
+# (rightly, for a terse pulse) throws the whole message away over it, so an
+# explicit claim of OUR scope is what tells the two shapes apart.
 _OWN_SCOPE_RE = re.compile(
     r"(?<![а-яіїєґ])[ву]\s+нас(?![а-яіїєґ])"
     r"|біля києва|по києву|[ву]\s+києві|для нашого регіону|нашого регіону"
 )
 
-# --- Retrospective attack SUMMARY ("Загалом по Києву пустили до 8 ракет") —
-# recaps what already happened; info, never a live city alert. Distinguished from
-# a live callout by an aggregate/past marker. "під час (нічної) атаки" is a
-# retrospective frame. "завдав удару" + the official "повідомили у ПС"
-# attribution mark the after-action ПС bulletin, which otherwise parsed as a
-# fresh impact (it names a raion + "влучили"); a live strike is present-tense
-# first-hand, never "завдав удару о 11:30 — повідомили у ПС".
-#
-# "попередньої атаки" / "було атакован" are the ANALYTIC past frame (raw 6145
-# "…попередньої атаки, що була на Київ, ворог також застосував ракети ЗРК";
-# raw 6143 "Місто було атаковане після атаки БПЛА"). They belong HERE, not in
-# _RETROSPECTIVE with their synonyms, because the damage is a CITY-WIDE alert:
-# "на київ" matched inside the past clause and raised a live ballistic threat
-# over the whole city at 23:09 with nothing in the sky, while 6143 reached the
-# LLM and was rescued into a live citywide notice. `summary` is what _citywide
-# and should_fallback both exclude, so it fixes the alert and the paid call at
-# once. Corpus (4242 unique): 3 hits for "попередньої атаки" (2 already
-# summary), 1 for "було атакован" — nothing else changes behaviour.
-#
-# "застосував" was REJECTED here: 12 corpus hits that aren't already summaries,
-# 3 of them unmatched messages that would newly become notices (a Zaporizhzhia
-# strike report, two forecasts), and it buys nothing 6145 doesn't already get. ---
+# Retrospective attack SUMMARY — recaps what already happened; info, never a live
+# city alert. Distinguished from a live callout by an aggregate/past marker.
+# "завдав удару" + "повідомили у ПС" mark the after-action bulletin, which
+# otherwise parsed as a fresh impact.
+# "попередньої атаки"/"було атакован" are the ANALYTIC past frame and belong HERE
+# rather than in _RETROSPECTIVE, because the damage is a CITY-WIDE alert: "на
+# київ" matched inside the past clause and raised a live ballistic threat over
+# the whole city with nothing in the sky. `summary` is what _citywide and
+# should_fallback both exclude, so it fixes the alert and the paid call at once.
+# "застосував" was REJECTED: it buys nothing these don't already get and would
+# newly surface a Zaporizhzhia strike report and two forecasts.
 _SUMMARY = ("загалом", "всього", "за останні", "випустил", "під час",
             "завдав удар", "завдали удар", "завдано удар",
             "повідомили у пс", "повідомили у повітр",
             "попередньої атаки", "було атакован")
 
-# Softer past-strike aggregate ("Близько 6 балістичних ракет ВДАРИЛО по Києву").
-# Separate from _SUMMARY because "вдарил" also appears in a single live strike
-# ("ракета вдарила по Троєщині"), so these count ONLY when no raion is named
-# (rules.py::_summary's has_district gate). "застосован" (past passive) is the
-# same register — raw 2167 raised a live citywide ballistic alert for an attack
-# already over — and stays district-gated because its one district-bearing hit is
-# a real localized impact. The present tense "застосовує" doesn't share the stem.
+# Softer past-strike aggregate. Separate from _SUMMARY because "вдарил" also
+# appears in a single live strike ("ракета вдарила по Троєщині"), so these count
+# ONLY when no raion is named (rules.py::_summary). "застосован" is the same
+# register and stays district-gated because its one district-bearing hit is a
+# real localized impact; the present tense "застосовує" doesn't share the stem.
 _SUMMARY_NO_DISTRICT = ("вдарил", "застосован")
 
-# --- Every link-bearing message in the corpus is promo/donation/ad/meta, never a
-# live callout — a spotter's sighting never carries a link. ---
+# Every link-bearing message in the corpus is promo/donation/ad/meta, never a
+# live callout — a spotter's sighting never carries a link.
 _LINK_MARKERS = ("http", "t.me/")
-# A bare 16-digit card number — the link-less donation variant. Same corpus
-# guarantee. On 07-18 these slipped past _LINK_MARKERS and their "до останнього
-# Шахеда та ракети" sign-off kept re-typing the channel context.
+# The link-less donation variant.
 _CARD_NUMBER_RE = re.compile(r"(?<!\d)\d{16}(?!\d)")
-# A phone number — the link-less, card-less ad variant. «Green Room Lounge Bar
-# на Масельського… ☎️+380661004659» carried neither a URL nor a card, so it
-# reached the parser as an ordinary sighting; once Харківщина had a gazetteer it
-# resolved to Харків and would have drawn a live target over the city. Corpus
-# guarantee, same standard as the two above: 5 messages in 11 885 carry a phone
-# number and not one is a sighting (three are Укргідрометцентр storm warnings,
-# two are this ad). The country code is required — a bare ten-digit run is not
-# rare enough to suppress on.
+# The link-less, card-less ad variant (a bar ad that resolved to Харків once that
+# oblast had a gazetteer). The country code is required — a bare ten-digit run is
+# not rare enough to suppress on.
 _PHONE_RE = re.compile(r"\+?38[\s\-]?0\d{2}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}(?!\d)")
-# The link-less channel ad: a subscribe post listing localities ("❗️Вишневе
-# тепер в Telegram… ▪️Вишневе ▪️Софіївська Борщагівка…" — raw 1038 raised 5
-# raion tracks). Corpus: "тепер в telegram"/"якщо ти живеш у" hit only this ad;
-# "підписуйс" also hits an already-suppressed power-schedule promo.
+# The link-less channel ad: a subscribe post listing localities, and the @-handle
+# sign-off that rides one channel's recurring situation-map caption (whose bare
+# "БпЛА" types it and buys a triage call every time).
 _AD_RECRUIT = ("тепер в telegram", "тепер у telegram", "якщо ти живеш у",
-               "підписуйс", "підписуйтес")
-# The link-less, card-less donation/engagement post — one channel runs these as
-# a fundraiser scoreboard and audience call-and-response, and the sign-off
-# ("бережіть себе", "до останнього шахеда") keeps them threat-flavoured. The
-# identical "підтримало збір тільки 4ро людей" text appeared 8 times in one
-# 5000-message window, each one paying for its own LLM call. Phrases are the
-# scoreboard/engagement frames themselves, never the sign-off, so a real callout
-# in the same register is untouched.
+               "підписуйс", "підписуйтес", "підтримати канал")
+# The link-less, card-less donation/engagement post — a fundraiser scoreboard and
+# audience call-and-response whose sign-off keeps it threat-flavoured. Phrases are
+# the scoreboard/engagement frames themselves, never the sign-off, so a real
+# callout in the same register is untouched.
 _ENGAGEMENT = ("підтримало збір", "підтримали збір", "підтримало тільки",
                "підтримала лише", "підтримав лише", "підтримало лише",
                "хто не пройде повз", "хто не ігнорує", "дайте реакцію",
                "дайте реакції", "дивитесь футбол", "буде зі мною", "люблю цілую")
 
-# --- Decoy / EW ("Ймовірно, імітація", "працює РЕБ") — a modifier on the attack
-# (attack.py::classify), NOT a replacement classification: a raid can be combined
-# AND partly imitation. "реб" is 3 letters and collides, so it lives in
-# _WHOLE_WORD like "каб". Behavioural inference ("every track vanished with no
-# impacts" => decoy) is deliberately NOT done — a hint for a human, not a
-# classifier signal. ---
+# Decoy / EW — a modifier on the attack (attack.py::classify), NOT a replacement
+# classification: a raid can be combined AND partly imitation. "реб" is 3 letters
+# and collides, so it lives in rules._WHOLE_WORD like "каб". Behavioural
+# inference ("every track vanished with no impacts" => decoy) is deliberately NOT
+# done — a hint for a human, not a classifier signal.
 _DECOY = ("імітаці", "реб", "реби", "обманк", "хибн", "фальшив")
 
-# --- Hypersonic names — a flag on the attack (has_hypersonic), deliberately not
-# a 6th target_type (which would spread into evals/icons/severity for one
-# rendering need). "кинджал"/"аеробаліст" already type ballistic via _BALLISTIC;
-# this list only ALSO raises the flag. ---
+# A flag on the attack (has_hypersonic), deliberately not a 6th target_type,
+# which would spread into evals/icons/severity for one rendering need.
+# "кинджал"/"аеробаліст" already type ballistic via _BALLISTIC.
 _HYPERSONIC = ("кинджал", "циркон", "аеробаліст")
 
 # Case endings stripped (longest first) to reduce a word to a rough stem, so one
-# regex matches most forms (Троєщина/Троєщині/Троєщину). The adjectival
-# "-ськ/-цьк" root is deliberately KEPT (only "ий"/"ого"/"их" come off after it),
-# so a raion adjective (Оболонський) stays distinct from the noun (Оболонь).
+# regex matches most forms. The adjectival "-ськ/-цьк" root is deliberately KEPT
+# (only "ий"/"ого"/"их" come off after it), so a raion adjective (Оболонський)
+# stays distinct from the noun (Оболонь).
 _SUFFIXES = ("ого", "ому", "ій", "ої", "ою", "их", "ий", "им", "ах", "ям",
              "ам", "ів", "ь", "и", "а", "я", "у", "ю", "і", "е", "о")
 
 _APOSTROPHES = "'ʼ`’‘"
 
-# Street-name collision guard: a raion adjective is also part of real street
-# names ("Оболонський проспект", "Дарницьке шосе") in utility announcements.
-# Same class as the Остер/"остерігайтеся" collision, fixed contextually instead
-# of dropping the toponym: a district stem adjacent to one of these street nouns
-# is a street, so DistrictMatcher discards it and keeps looking.
-# "метро" is here for the same reason as the street words: Kyiv names metro
-# stations after far-away cities, and the station is a Kyiv landmark, not the
-# city it is named for. «район метро "Чернігівська"» is Дніпровський raion, not
-# Чернігів 130 km north — the exact collision that kept "житомир"
-# («станція метро "Житомирська"») out of the gazetteer for years.
+# A raion adjective is also part of real street names ("Оболонський проспект"),
+# so a district stem adjacent to one of these is a street and DistrictMatcher
+# discards it. "метро" is here for the same reason: Kyiv names stations after
+# far-away cities, and the station is a Kyiv landmark, not the city.
 _STREET_WORDS = ("проспект", "вулиц", "вул", "провулок", "бульвар", "узвіз", "шосе",
                   "набережн", "площ", "метро")
 
-# Gazetteer entries that are a CITY sharing its name with an OBLAST. For these
-# the adjectival form is the oblast, never the city — «мандрує Чернігівською»
-# (область elided) is a direction, not a sighting over Чернігів. Kept as an
-# explicit registry rather than a general "-ськ- in the tail" rule, because for
-# most entries the adjective IS the place («Оболонський», «Білоцерківський»).
-#
-# Not gated on `RegionSpec.active`: the veto only fires when a gazetteer entry
-# for the city exists, and an inactive region has none — so gating would be dead
-# code carrying a footgun.
+# Gazetteer entries that are a CITY sharing its name with an OBLAST: for these the
+# adjectival form is the oblast, never the city. An explicit registry rather than
+# a general "-ськ- in the tail" rule, because for most entries the adjective IS
+# the place. Not gated on `RegionSpec.active` — the veto only fires when a
+# gazetteer entry for the city exists, so gating would be dead code with a footgun.
 _OBLAST_CITY_STEMS = frozenset(
     stem for spec in REGION_SPECS for stem in spec.oblast_city_stems
 )
 
 # Gazetteer aliases that must match as WHOLE words with no case tail — the same
-# discipline rules.py::_WHOLE_WORD uses for "каб"/"реб", so a short alias can
-# never fire inside an unrelated word. Two reasons to be in here: an alias below
-# DistrictMatcher's 4-char stem floor (which would otherwise be dropped
-# silently), or one whose stem collides with everyday words —
-#   "пох"   -> "похолодання", "поховались", "походу"
-#   "голос" -> "голосно", "проголосуйте", "оголосили"
-#   "пущею" -> stems to "пуще", which fires inside "Пущено ракети"
-#   "морі"  -> a prefix of "Морівськ", a real village on the northern corridor,
-#              so «Район моря» swallowed it (all 10 real uses of море/моря/морі
-#              in the corpus are the bare noun — "на море", "з моря")
-#   "остер" -> fires inside "остерігайтеся"=beware. The town was left out of the
-#              gazetteer for years because of it; as a whole word it is safe,
-#              and it is the 3rd most-named place on the Chernihiv feed (16/300)
-# Keep this set tiny: only forms the spotters really use as a standalone toponym.
-#   "центр" -> a prefix of an adjectival family nobody means as the place
-#              ("центральній", "центрального", "центрів") and of compounds
-#              ("укргідрометцентр", "концентрацію", "децентралізацію"). As whole
-#              words, "центр"/"центру"/"центрі" are 37 clean corpus hits and one
-#              of the most-named places on the feed.
+# discipline rules._WHOLE_WORD uses for "каб"/"реб". Two reasons to be here: an
+# alias below DistrictMatcher's 4-char stem floor (dropped silently otherwise), or
+# one whose stem collides with an everyday word ("остер" fires inside
+# "остерігайтеся", "троя"/"троєю" reach "троянди" and the numeral "троє").
+# A whole-word alias carries no case tail, so every form the corpus uses is listed
+# separately. GAZETTEER.md records the collision behind each entry — read it
+# before touching one. Keep this set tiny: only forms spotters really use as a
+# standalone toponym.
 _WHOLE_WORD_ALIASES = frozenset({"чзв", "пох", "бц", "голос", "пущею",
                                  "море", "моря", "морі", "морю", "остер",
-                                 # Віта-Литовська's bare callout; the stem is
-                                 # inside вітаю/вітання (2026-09-11).
                                  "віта",
-                                 # Чернігівщина 2026-09-11: an everyday noun
-                                 # (hooves), an adjective, «лісн» ⊂ Лісники,
-                                 # «козар» ⊂ Козаровичі, «вербов» a street,
-                                 # «артеменк» a surname. See the entries.
                                  "копита", "красне", "лісне", "козари",
                                  "вербове", "артеменків",
                                  "центр", "центру", "центрі",
-                                 # The Antonov plant, next to Нивки. As a stem
-                                 # it swallowed «Антоновичі» — a Chernihiv-oblast
-                                 # village — and put a live target 150 km away on
-                                 # a Kyiv microdistrict (raw 7249, 2026-08-21).
-                                 # Both real case forms listed, like море/моря.
                                  "антонов", "антонова",
-                                 # Конча-Заспа as the Kyiv feed actually types
-                                 # it — bare «Заспа/Сади 🔴.». This is the form
-                                 # that kept the name out of the gazetteer for
-                                 # the life of the project: the stem "засп"
-                                 # fires inside «заспокоїтись», and two tests
-                                 # lock that down. As whole words the three case
-                                 # forms cover all 15 corpus mentions and cannot
-                                 # reach the verb. All three listed, like
-                                 # море/моря/морі — a whole-word alias carries
-                                 # no case tail of its own.
                                  "заспа", "заспу", "заспи",
-                                 # The plural the northern channel uses for the
-                                 # Василева/Хатилова Гута pair. Four letters, so
-                                 # it could never be a stem anyway.
                                  "гути",
-                                 # The stem «березн» also fires on «березня» —
-                                 # the MONTH, which the town's own case forms
-                                 # never produce (raw 1255, a policy-news repost
-                                 # on a Kyiv channel). Both real forms listed,
-                                 # like море/моря.
                                  "березна", "березну",
-                                 # Both cities' power plant, as the spotters
-                                 # type it bare. Three letters, so it could
-                                 # never be a stem anyway. Чернігів's plant owns
-                                 # the bare word (region_only); Kyiv's two are
-                                 # 12 km apart, so each requires its own digit
-                                 # as the next word — see their `match_context`
-                                 # in gazetteer.py, which is what lets «ТЕЦ 5»
-                                 # and «ТЕЦ - 6» resolve at all.
                                  "тец",
-                                 # Two 2026-08-22 villages whose stems are
-                                 # ordinary words: "заміст" is inside «замість»
-                                 # (2 real messages) and "розсуд" inside «на
-                                 # власний розсуд». Whole-word keeps the place
-                                 # and drops the collision, exactly as for
-                                 # «остер»; the corpus only ever names them in
-                                 # the nominative.
                                  "замістя", "розсудів",
-                                 # Same class, 08-22: a Кіптівська-громада
-                                 # village whose name is an ordinary noun — as a
-                                 # stem it would claim «прогресу»/«прогресом» in
-                                 # any fundraising or status post.
                                  "прогрес",
-                                 # --- Сумщина, 2026-08-28. Each of these is a
-                                 # real place whose STEM is an ordinary word;
-                                 # whole-word matching keeps the place and drops
-                                 # the collision, exactly as for «остер».
-                                 # "суми" as a stem also swallows Сумихімпром,
-                                 # Сумиобленерго and a local media handle; the
-                                 # plant is a target of its own, so the city has
-                                 # to stop at the word boundary. All four case
-                                 # forms the corpus uses are listed — a
-                                 # whole-word alias carries no case tail.
                                  "суми", "сум", "сумах", "сумами",
-                                 # "терн" reaches Тернопільщина and Тернівка.
                                  "терни",
-                                 # "крут" is inside «крутиться»/«крутяться» —
-                                 # the two verbs this genre uses for a loitering
-                                 # drone, 12 corpus hits against the street's 15.
                                  "крут",
-                                 # "перемог" is inside «заради нашої перемоги»
-                                 # and there is also a village Перемога. Paired
-                                 # with _ALIAS_PREV_WORD_REQUIRED below, so it
-                                 # counts only after «просп…».
                                  "перемоги",
-                                 # "топол" is the poplar, and it is also the
-                                 # head of Тополянська — a different Суми area
-                                 # 1.2 km away with its own entry.
                                  "тополя", "тополю",
-                                 # "сад" is 3 chars (never a stem) and "сади"
-                                 # would eat «садиби»/«садків».
                                  "сад", "сади",
-                                 # Зелений Гай's only distinctive word, and
-                                 # "зелен" as a stem swallows «Зеленський» (39
-                                 # corpus hits against the place's 37).
                                  "зелений",
-                                 # Блакитні Озера, same shape: «озера» is
-                                 # generic, and "блакитн" would claim any
-                                 # ordinary use of the adjective. Both, plus
-                                 # «старе», are additionally pinned to the noun
-                                 # that follows them — see
-                                 # _ALIAS_NEXT_WORD_REQUIRED below.
                                  "блакитні", "старе",
-                                 # "річк" is the singular «річка» — it pinned
-                                 # the Kyiv feed's «річка "Либідь"
-                                 # пофарбувалася» onto a Sumy village. The
-                                 # hromada form rides on the longer «річків».
                                  "річки",
-                                 # --- Київщина, 2026-08-30. The two banks of
-                                 # the Dnipro, the coarsest place this feed
-                                 # names and 102 corpus callouts. The stems
-                                 # "лів"/"прав" are inside «ліворуч»,
-                                 # «правил(а)», «правоохоронних», «правильно» —
-                                 # so only the exact case forms the corpus types
-                                 # count, and «праві»/«правій» are left out
-                                 # («праві смуги», a road-closure notice).
                                  "лівий", "лівим", "лівому", "лівого",
                                  "правий", "правим", "правому", "правого",
-                                 # Золоті ворота, always called out as just
-                                 # «Золоті»; the stem "золот" would also take
-                                 # «Золотий берег», a beach 130 km north.
                                  "золоті",
-                                 # The Vyshhorod dam, three letters like «тец».
                                  "гес",
-                                 # Русанівські сади' only way in (a spaced name).
-                                 # As a stem "русанівськ" it also took
-                                 # «Русанівського каналу» — a drowning-rescue
-                                 # news item, i.e. the aftermath class this map
-                                 # must not draw.
                                  "русанівські",
-                                 # Троєщина's shorthand, and the sharpest case
-                                 # in this set: «троєю» stems to "троє" — which
-                                 # is an entry in _NUM_WORDS above. So one word
-                                 # was both a number and a place, and the stem
-                                 # claimed «троє людей» in every casualty tally
-                                 # AND «троє шахедів курсом на Бровари» — a
-                                 # phantom target over a microdistrict from a
-                                 # count. "троя"/"трої"/"трою" reach «троянди»
-                                 # and «троянський» the same way. All four case
-                                 # forms stay (bare «Троя» is 57 corpus
-                                 # callouts, «над Троєю» is the instrumental the
-                                 # sample lacks but the language has) — as whole
-                                 # words none of them can reach the numeral, and
-                                 # the longer stem "троєщин" still carries
-                                 # Троєщина/-і/-у/-о.
                                  "троя", "трої", "трою", "троєю",
-                                 # Чернігівщина, 2026-09-12: two more real
-                                 # places whose stems are ordinary words. "мирн"
-                                 # is the alert channel's own all-clear sign-off
-                                 # ("...стаємо 🟢! мирного вечора"), 106 corpus
-                                 # hits; "макс" is "максимально"/"максимальна",
-                                 # 76 hits. Both places are named only in the
-                                 # nominative so far — same shape as «остер».
                                  "мирне", "максим"})
 
 # An alias that is also part of a PROPER NAME, keyed to the word that follows it.
-# "Голос Києва" is a Telegram channel other channels quote ("Голос Києва —
-# @golos_kieva попередив про загрозу"), not a callout over Holosiivskyi. Same
-# idea as _FOREIGN_SEA_ADJ in matcher.py: the toponym stays, its collision is
-# resolved by the adjacent word.
+# "Голос Києва" is a Telegram channel other channels quote, not a callout over
+# Holosiivskyi; "центр спеціальних операцій" is an institution, not the middle of
+# the city. The toponym stays, its collision is resolved by the adjacent word.
 _ALIAS_NEXT_WORD_VETO: dict[str, tuple[str, ...]] = {
     "голос": ("києва", "кієва"),
-    # An institution's name, not the middle of the city: «Центр спеціальних
-    # операцій "Альфа" СБУ», «керівниця центру міжнародної...», «центр
-    # досліджень». Swept the whole corpus for what follows a standalone
-    # "центр": the place is followed by nothing, an emoji, "Києва", "міста",
-    # "увага", "уважно", "знову", "летить" — an organisation, by a genitive
-    # qualifier. These three are all of them that occur.
     "центр": ("спеціальн", "міжнародн", "дослідж"),
     "центру": ("спеціальн", "міжнародн", "дослідж"),
     "центрі": ("спеціальн", "міжнародн", "дослідж"),
 }
 
-# The mirror image: an alias that only counts when the PRECEDING word starts
-# with one of these. "церкв" is Біла Церква's only matchable word (a spaced name
-# never becomes one stem), but on its own it would read a real strike report
-# ("приліт у церкву") as a callout over a town 80 km south.
+# The mirror image: an alias that only counts when the PRECEDING word starts with
+# one of these. "церкв" is Біла Церква's only matchable word (a spaced name never
+# becomes one stem), but alone it would read "приліт у церкву" as a callout 80 km
+# south; "перемоги" is an ordinary noun and also a village.
 _ALIAS_PREV_WORD_REQUIRED: dict[str, tuple[str, ...]] = {
     "церкв": ("біл",),
-    # Суми's Проспект Перемоги is a spaced name, so it can only ride on
-    # «перемоги» — which is also an ordinary noun and the name of a village.
-    # The corpus never writes the avenue without the word before it («просп.»
-    # once, one typo «пропеспект»), so the preceding word settles it.
     "перемоги": ("просп", "пропесп"),
 }
 
-# There is no global PREV_WORD_VETO. It existed for exactly one case — «писарівк»
-# after a «Велик…» word — and that case is the shape a global dict cannot state:
-# two entries sharing their only matchable word, where the rule that saves one
-# must not touch the other. Being keyed by matched text, the veto silenced Велика
-# Писарівка's 24 callouts to keep the bare village's 41 honest. Both now carry
-# their own half as `match_context` on the entry (see matcher.MatchContext), and
-# both localize. Write a new one there, not here.
+# There is deliberately no global PREV_WORD_VETO. It existed for one case — two
+# entries sharing their only matchable word, where the rule that saves one must
+# not touch the other — which a dict keyed by matched text cannot state. Write a
+# new one as `match_context` on the entry (see matcher.MatchContext), not here.
 
-# The third of the set, and the mirror of _ALIAS_PREV_WORD_REQUIRED: an alias
-# that counts only when the word AFTER it starts with one of these.
-#
-# It is what makes a spaced name shippable when the DISTINCTIVE half is the
-# first word and the second is generic. `_stem` strips spaces, so «зеленийгай»
-# never appears in text and such an entry can only ride on one of its words —
-# but «зелений», «блакитні» and «старе» are ordinary adjectives, so on their own
-# they are the Красна Гірка class GAZETTEER.md rejects. Pinned to the noun that
-# follows they are exact: all 37 Сумщина callouts of Зелений Гай carry it, and
-# the Kyiv feed's «яскраво зелений колір» — a real match before this existed —
-# cannot.
-#
-# Kept as whole-word aliases too, so the requirement is checked against a whole
-# adjective rather than a stem that a longer word could smuggle in.
+# The third of the set: an alias that counts only when the word AFTER it starts
+# with one of these. It is what makes a spaced name shippable when the
+# DISTINCTIVE half is the first word and the second is generic — `_stem` strips
+# spaces, so "зеленийгай" never appears in text, and "зелений"/"блакитні"/"старе"
+# alone are the ordinary-adjective class GAZETTEER.md rejects.
 _ALIAS_NEXT_WORD_REQUIRED: dict[str, tuple[str, ...]] = {
     "зелений": ("гай",),
     "блакитні": ("озер",),
     "старе": ("сел",),
 }
 
-# --- Everything above, as one word-start stem set ---
-# Consumed by `toponyms.py` to answer "is this word already something the parser
-# knows about?" — a word the vocabulary explains is never a missing gazetteer
-# entry. Assembled here rather than re-listed there so a stem added above is
-# automatically excluded from the coverage-gap queue too; the queue silently
-# re-proposing "реактивних" as a place after someone extends _JET is exactly
-# the drift this avoids.
-#
-# Multi-word phrases are kept out: these are matched against single tokens, so a
-# phrase could never match, and leaving them in would only be misleading.
+# Everything above as one word-start stem set, consumed by `toponyms.py` to answer
+# "is this word already something the parser knows about?" — a word the vocabulary
+# explains is never a missing gazetteer entry. Assembled here rather than
+# re-listed there, so a stem added above is automatically excluded from the
+# coverage-gap queue too.
+# Multi-word phrases are kept out: these are matched against single tokens.
 NON_TOPONYM_STEMS: frozenset[str] = frozenset(
     stem
     for stem in (
@@ -1222,18 +722,13 @@ NON_TOPONYM_STEMS: frozenset[str] = frozenset(
     if " " not in stem
 )
 
-# The numerals are the same vocabulary but must be matched as WHOLE words, never
-# as prefixes — which is how the parser itself uses them (`_NUM` carries a
-# word-start guard and every caller anchors the end). Ukrainian place names
-# begin with them often enough that treating them as stems is a live hazard:
-# "три" is the head of Трипілля, "троє" of Троєщина, "семи" of Семиполки.
-# «пара» ("a couple of targets") belongs to the same class and for the same
-# reason: as a prefix it is the head of Парафіївка, so the coverage-gap queue
-# would never have proposed that village (2026-08-24).
+# The same vocabulary that must be matched as WHOLE words, never as prefixes —
+# which is how the parser itself uses them. Ukrainian place names begin with them
+# often enough that treating them as stems is a live hazard: "три" heads
+# Трипілля, "троє" Троєщина, "семи" Семиполки, "пара" Парафіївка, "кияни"
+# Кияниця, "пост" Постольне.
 NON_TOPONYM_WORDS: frozenset[str] = frozenset(_NUM_WORDS) | {
     "пара", "пари", "пару",
-    # Kyiv's inhabitants, and «пост» — same class again: as prefixes they are the
-    # heads of Кияниця and Постольне, two Sumy villages (2026-08-28).
     "кияни", "киян", "киянам", "киянами", "киянка", "киянин",
     "пост", "пости", "постів", "постом",
 }

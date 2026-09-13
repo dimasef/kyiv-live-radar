@@ -62,6 +62,16 @@ def test_should_triage_suppressed_but_threat_flavored():
         assert should_triage(parsed, "rule", None)
 
 
+def test_siren_echo_is_never_enqueued():
+    # The raion's alert state already arrives from the zone poller, so a verdict
+    # can add nothing — and what it did add was noise: on 2026-09-13 three of the
+    # four echoes came back `localized` and were filed as coverage-gap candidates,
+    # seeding the admin queue with raion names that are alert ZONES.
+    parsed = parse_message("🔴 Прилуцький район — Повітряна тривога", M)
+    assert parsed.siren_only
+    assert not should_triage(parsed, "rule", None)
+
+
 def test_should_not_triage_when_disabled(monkeypatch):
     monkeypatch.setattr(settings, "triage_enabled", False)
     parsed = parse_message("Реактивний йде на зниження у районі", M)
@@ -209,6 +219,36 @@ async def test_the_switch_also_blocks_replay_of_a_stored_triage_verdict(ctx):
     )
     assert out == []
     assert await session.scalar(select(func.count()).select_from(ThreatAxis)) == 0
+
+
+async def test_a_backfilled_message_is_not_paid_for_before_being_dropped(
+    db_sessionmaker, stub_llm, monkeypatch
+):
+    # The age gate used to run in route_verdict, i.e. AFTER the API call: a
+    # reconnect backfill bought a verdict and route_verdict then discarded it as
+    # 'late'. Measured on the corpus: 152 calls, $0.38, a quarter of this engine's
+    # spend, at a median 64 min behind. Same outcome now, without the call.
+    from app.pipeline import triage as triage_mod
+
+    monkeypatch.setattr(triage_mod, "SessionLocal", db_sessionmaker)
+    old = utcnow() - timedelta(minutes=settings.triage_max_age_minutes + 5)
+    async with db_sessionmaker() as s:
+        raw = RawMessage(source_id=1, message_id=901, text="щось із брянська",
+                         event_time=old)
+        s.add(raw)
+        await s.commit()
+        raw_id = raw.id
+    job = TriageJob(raw_id=raw_id, text="щось із брянська", when=old, source_id=1,
+                    message_id=901, reply_to_message_id=None, forwarded_from_id=None,
+                    forwarded_from_channel_id=None, verdict=None)
+
+    await triage_mod._process_job(job)
+
+    assert stub_llm.calls == []
+    async with db_sessionmaker() as s:
+        stored = await s.get(RawMessage, raw_id)
+        assert stored.triage_action == "late" and stored.triage_state == "done"
+        assert stored.llm_cost_usd is None
 
 
 async def test_budget_counts_when_we_paid_not_when_the_message_was_posted(

@@ -100,9 +100,15 @@ def should_triage(parsed: ParseResult, decision_source: str, llm_response: dict 
         return False
     if llm_response is not None:       # inline call ran, didn't localize — reuse it
         return True
+    # `siren_only` is deliberately NOT here. A siren echo states no target type
+    # and names only a raion, and that raion's alert state already arrives, free
+    # and authoritative, from the alert-zone poller (feeds/alert_zones.py) — so
+    # there is nothing for a verdict to add. What it did add was noise: on
+    # 2026-09-13 three of the four echoes came back `localized` and were filed as
+    # `gap_candidate`, i.e. the admin coverage queue was being seeded with raion
+    # names that are alert ZONES, not gazetteer holes.
     suppressed = (parsed.aftermath or parsed.negated or parsed.civic_notice
                   or parsed.eppo_marks or parsed.ground_war or parsed.personal_post
-                  or parsed.siren_only
                   or parsed.political_quote or parsed.day_recap)
     threat_flavored = parsed.target_type != "unknown" or parsed.status in ("confirmed", "unconfirmed")
     if suppressed and threat_flavored:
@@ -206,6 +212,15 @@ async def _process_job(job: TriageJob) -> None:
     verdict = job.verdict
     usage = None
     if verdict is None:
+        # The age gate that `route_verdict` applies below used to run AFTER the
+        # API call, so a backfill replay bought a verdict and then threw it away:
+        # 152 calls / $0.38 on the local corpus, 25% of this engine's spend, at a
+        # median 64 min behind. Checked here instead — same moment, same
+        # threshold, same 'late' outcome, minus the money. Only on the path that
+        # would CALL: a reused inline verdict is free and still routes normally.
+        if _age_minutes(job.when, utcnow()) > settings.triage_max_age_minutes:
+            await _mark_state(job.raw_id, "done", action="late")
+            return
         if not await llm_spend_ok():
             await _mark_state(job.raw_id, "budget")
             return
@@ -238,11 +253,13 @@ async def _process_job(job: TriageJob) -> None:
             await broadcast_results(session, broadcasts)
 
 
-async def _mark_state(raw_id: int, state: str) -> None:
+async def _mark_state(raw_id: int, state: str, action: str | None = None) -> None:
     async with SessionLocal() as session:
         raw = await session.get(RawMessage, raw_id)
         if raw is not None:
             raw.triage_state = state
+            if action is not None:
+                raw.triage_action = action
             await session.commit()
 
 
