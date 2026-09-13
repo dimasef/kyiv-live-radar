@@ -35,6 +35,15 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 export const CHANGELOG: Release[] = [
   {
     version: APP_VERSION,
+    title: "заголовки колекції на телефоні",
+    date: "2026-09-13",
+    kind: "patch",
+    changes: [
+      "Колекція на телефоні: назва рідкості більше не ховається під печаткою «Зібрано повністю»",
+    ],
+  },
+  {
+    version: "0.57.3",
     title: "легший сервер",
     date: "2026-09-13",
     kind: "patch",

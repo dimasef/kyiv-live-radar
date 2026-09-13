@@ -67,7 +67,7 @@ export default function RaritySection({
             {TAGLINE[rarity]}
           </span>
           <h2
-            className="font-display text-2xl font-bold text-slate-100"
+            className="font-display text-[18px] font-bold text-slate-100 sm:text-2xl"
             style={{ textShadow: `0 0 28px rgba(${rgb}, ${complete ? 0.75 : 0.4})` }}
           >
             {plural}
