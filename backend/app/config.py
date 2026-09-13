@@ -793,6 +793,8 @@ class Settings(BaseSettings):
     log_json: bool = False
     # Trace sampling for Logfire (1.0 = every request; lower on a busy prod).
     trace_sample_rate: float = 1.0
+    # Span per SQL statement. Off: they were 91% of the quota (see observability.py).
+    logfire_sql_spans: bool = False
 
 
 settings = Settings()

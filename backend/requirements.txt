@@ -46,7 +46,7 @@ pyjwt[crypto]>=2.8      # JWT: HS256 for our tokens, RS256 to verify Google id_t
 email-validator>=2.1    # pydantic EmailStr
 
 # Observability (opt-in: dormant unless LOGFIRE_TOKEN / SENTRY_DSN are set)
-logfire[fastapi,sqlalchemy,asyncpg,httpx,system-metrics]>=3.0
+logfire[fastapi,sqlalchemy,httpx,system-metrics]>=3.0
 sentry-sdk[fastapi]>=2.0
 
 # Tests

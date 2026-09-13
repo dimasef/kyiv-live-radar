@@ -35,6 +35,15 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 export const CHANGELOG: Release[] = [
   {
     version: APP_VERSION,
+    title: "легший сервер",
+    date: "2026-09-13",
+    kind: "patch",
+    changes: [
+      "Сервер став легшим: прибрано зайву службову діагностику, яка не впливала на мапу, але з'їдала ресурси",
+    ],
+  },
+  {
+    version: "0.57.2",
     title: "колекція на телефоні",
     date: "2026-09-13",
     kind: "patch",

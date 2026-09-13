@@ -218,14 +218,19 @@ def setup_logfire(app=None) -> None:
     )
 
     if app is not None:
-        logfire.instrument_fastapi(app)
+        logfire.instrument_fastapi(app, excluded_urls="/health")
 
-    # Import the engine lazily so a missing/broken observability dep can never
-    # take down DB setup at import time.
-    from .db import engine
+    # Per-statement SQL spans were 91% of every record shipped (~24 per
+    # ingested message plus one `connect` per session), and on Postgres the
+    # asyncpg layer doubled that again — 17M records against a 10M quota in
+    # 13 days. Opt-in for a debugging session, never the default; the asyncpg
+    # layer is not offered at all, it only ever mirrored the SQLAlchemy one.
+    if settings.logfire_sql_spans:
+        # Import the engine lazily so a missing/broken observability dep can
+        # never take down DB setup at import time.
+        from .db import engine
 
-    logfire.instrument_sqlalchemy(engine=engine)
-    logfire.instrument_asyncpg()
+        logfire.instrument_sqlalchemy(engine=engine)
     # HTTPX + Anthropic: the LLM client in parsing/llm.py is created lazily, but
     # instrumentation patches the class, so instrumenting here (before the first
     # call) covers every later request with per-call latency/token spans.

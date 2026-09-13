@@ -35,7 +35,7 @@
 | Інструментація | Що дає | Чому корисно саме нам |
 |----------------|--------|------------------------|
 | **FastAPI** (`instrument_fastapi`) | Span на кожен HTTP-запит: маршрут, статус, латентність | Бачимо, чи `/threats/active`, `/events/recent`, `/raw` не туплять під навантаженням фронта |
-| **SQLAlchemy + asyncpg** | Span на кожен SQL-запит із текстом і часом | Ingest серіалізований під одним `asyncio.Lock` — повільний запит = затримка **всього** конвеєра. Тут це видно одразу |
+| **SQLAlchemy** (`LOGFIRE_SQL_SPANS=true`, **вимкнено за замовч.**) | Span на кожен SQL-запит із текстом і часом | Ingest серіалізований під одним `asyncio.Lock` — повільний запит = затримка **всього** конвеєра. Але це ~24 спани на повідомлення + `connect` на кожну сесію = 91% усіх записів (17M проти квоти 10M за 13 днів у вересні 2026). Вмикай на час розбору, не назавжди. asyncpg-шар прибрано зовсім — він лише дублював SQLAlchemy на Postgres |
 | **HTTPX + Anthropic** | Span на кожен виклик LLM: латентність, токени, вартість | LLM-fallback і триаж коштують гроші. Бачимо hit-rate, скільки токенів палимо, які виклики повільні/падають |
 | **System metrics** | CPU, памʼять, GC процесу | Railway-контейнер невеликий; лістенеру Telethon потрібне живе з'єднання — витік памʼяті вбʼє його тихо |
 | **Логи (bridge)** | Кожен наявний `log.info/warning/exception` стає span-ом/логом у Logfire | Не переписуючи код — уся наявна діагностика конвеєра вже в Logfire |
@@ -55,7 +55,8 @@
    пусто (`should_fallback`).
 3. **Здоровʼя БД.** Ingest — суто послідовний; будь-який повільний запит
    (напр. пошук відкритого треку/осі) гальмує обробку наступних повідомлень.
-   SQL-спани це виявляють.
+   Спан `ingest_message` покаже, ЩО повільно; аби побачити, ЯКИЙ запит, —
+   тимчасово `LOGFIRE_SQL_SPANS=true`.
 4. **Здоровʼя WebSocket / broadcast.** Фронт живе на `/ws/threats`; падіння
    з'єднань видно і як HTTP/WS-спани, і як логи (`ws_threats connection dropped`).
 
@@ -94,7 +95,8 @@ Railway Variables.
 | `SENTRY_DSN` | (за бажанням) | так | Порожній → `sentry_sdk.init` пропускається |
 | `ENVIRONMENT` | `development` | проставляється сам із `RAILWAY_ENVIRONMENT` (`production`) | Тег середовища для обох сервісів |
 | `LOG_JSON` | `false` (людиночитний текст у терміналі) | `true` (JSON-рядки для Railway-в'ювера) | Формат stdout-логів |
-| `TRACE_SAMPLE_RATE` | `1.0` | можна знизити на busy-проді | Head-семплінг Logfire (`logfire.configure(sampling=SamplingOptions(head=...))`). `1.0` = кожен trace; на масованій атаці можна знизити, щоб не палити ліміт спанів |
+| `TRACE_SAMPLE_RATE` | `1.0` | `1.0` | Head-семплінг Logfire (`logfire.configure(sampling=SamplingOptions(head=...))`). `1.0` = кожен trace. Не важіль проти квоти: він ріже цілі трейси, тобто разом із зайвим викидає й `ingest_message`, який потрібен на 100% |
+| `LOGFIRE_SQL_SPANS` | `false` | `false` | Span на кожен SQL-запит. Вмикати лише на час розбору повільної БД — це був 91% обсягу записів |
 
 > **Два токени Logfire** — навмисно. Локальний dev шле у dev-проєкт, прод — у
 > prod-проєкт, вони не змішуються. Локальний токен ніколи не потрапляє в git
@@ -108,8 +110,8 @@ Railway Variables.
 
 ## Поточний стан і що варто додати далі
 
-**Є зараз:** повна **автоінструментація** (FastAPI, SQL, HTTPX/Anthropic,
-system-metrics, logging-bridge) + Sentry на всіх критичних `log.exception`.
+**Є зараз:** **автоінструментація** (FastAPI без `/health`, HTTPX/Anthropic,
+system-metrics, logging-bridge; SQL — за прапорцем) + Sentry на всіх критичних `log.exception`.
 Плюс два доменні доповнення:
 
 - **Кастомний span конвеєра.** `process_parsed` (тіло `ingest_message`)
