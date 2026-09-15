@@ -35,6 +35,15 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 export const CHANGELOG: Release[] = [
   {
     version: APP_VERSION,
+    title: "назва в пошуку",
+    date: "2026-09-16",
+    kind: "patch",
+    changes: [
+      "Застосунок тепер називає себе тим, що показує — «мапа шахедів і ракет онлайн». Так він і підписаний у вкладці браузера, і в прев'ю надісланого посилання, і в пошуку",
+    ],
+  },
+  {
+    version: "0.58.0",
     title: "посилання на кожен день",
     date: "2026-09-15",
     kind: "minor",
