@@ -35,6 +35,16 @@ export const SEMVER_RULES: { part: string; label: string; desc: string }[] = [
 export const CHANGELOG: Release[] = [
   {
     version: APP_VERSION,
+    title: "ще п'ять карток",
+    date: "2026-09-16",
+    kind: "patch",
+    changes: [
+      "У колоді п'ять нових карток: «Повербанк», «Три години сну», «Кавуся», «Генератор» і «P1-Sun». Тепер їх 42 — і шанси випадання рідкісних трохи розрідились",
+      "«Уламки» перемальовані, а в підписі «Конуса Маха» виправлена друкарська помилка",
+    ],
+  },
+  {
+    version: "0.58.1",
     title: "назва в пошуку",
     date: "2026-09-16",
     kind: "patch",

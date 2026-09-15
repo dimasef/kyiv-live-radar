@@ -22,7 +22,7 @@ STALE_AFTER = timedelta(hours=12)
 
 # Number of distinct collectible cards. MUST match the length of the frontend
 # catalog in frontend/src/lib/cards.ts.
-CARD_COUNT = 37
+CARD_COUNT = 42
 
 # Milestone cards (`card_id` → analyses required) are EARNED, never drawn: the
 # only way to get one is to keep analysing. They are excluded from the weighted
@@ -35,10 +35,12 @@ CARD_COUNT = 37
 MILESTONE_CARDS = {33: 10, 34: 100, 35: 1000, 36: 5000, 37: 10000}
 
 # Relative drop weight per rarity — higher = more likely. Target type never
-# biases the drop; only card rarity. With the v3 deck (15 common / 8 rare /
-# 5 legendary / 3 epic / 1 eternal) the weighted sum is 1650
-# (15×83 + 8×34 + 5×12 + 3×4 + 1×1), so 'eternal' («Кінець Війни») is a ~1-in-
-# 1650 drop. MUST cover every rarity in CARD_RARITY.
+# biases the drop; only card rarity. With the current DRAWABLE deck (19 common /
+# 9 rare / 5 legendary / 3 epic / 1 eternal — milestones are excluded) the
+# weighted sum is 1956 (19×83 + 9×34 + 5×12 + 3×4 + 1×1), so 'eternal'
+# («Кінець Війни») is a ~1-in-1956 drop. Adding commons dilutes every rarer
+# card, which is the intended shape: the long tail stays long.
+# MUST cover every rarity in CARD_RARITY.
 RARITY_WEIGHT = {"common": 83, "rare": 34, "legendary": 12, "epic": 4, "eternal": 1}
 
 # Each card's rarity, by id — MUST mirror the `rarity` field of the frontend
@@ -58,6 +60,12 @@ CARD_RARITY = {
     32: "eternal",
     # Milestone cards wear a rarity for their frame; they are never drawn.
     33: "common", 34: "rare", 35: "legendary", 36: "epic", 37: "eternal",
+    # Added after the milestones, so their ids continue past them rather than
+    # slotting into their rarity group — a card id is stored in
+    # `threat_analyses.card_id`, and renumbering would rewrite collections that
+    # already exist. The frontend catalog places them by array order instead.
+    38: "common", 39: "common", 40: "common", 41: "common",
+    42: "rare",
 }
 
 _CARD_IDS = [i for i in range(1, CARD_COUNT + 1) if i not in MILESTONE_CARDS]

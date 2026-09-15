@@ -26,11 +26,14 @@ export interface CardDef {
 /** The collectible deck (from the Claude Design "Collectible Cards" v3 mock).
  * `id` MUST stay 1..N contiguous and in sync with the backend's CARD_COUNT
  * (app/domain/cards.py) — the server only stores the id. Cards are laid out in
- * ascending rarity, and `id` equals the card's display № on the collection page
- * (common 1–15, rare 16–23, legendary 24–28, epic 29–31, eternal 32). The five
- * `requires` cards were added later and keep ids 33–37, so array ORDER — not
- * id — is what puts each of them last in its own rarity group, the way the mock
- * lays them out. The per-card glyph plate lives in cardGlyphs.ts, keyed by id.
+ * ascending rarity. `id` STOPPED equalling the display № once cards were added
+ * after the first layout: ids 33–37 (the `requires` cards) and 38–42 came later
+ * and keep the ids they were given, because a card id is stored in the database
+ * (`threat_analyses.card_id`) — renumbering would silently rewrite what people
+ * already collected. Array ORDER, not id, is what places each card in the mock's
+ * layout: the originals run common 1–15, rare 16–23, legendary 24–28, epic
+ * 29–31, eternal 32, with the later ones slotted in where the canvas draws
+ * them. The per-card glyph plate lives in cardGlyphs.ts, keyed by id.
  * Rarity per id MUST match the backend CARD_RARITY (drop weighting). Content is
  * Ukrainian by design. */
 export const CARDS: CardDef[] = [
@@ -48,10 +51,15 @@ export const CARDS: CardDef[] = [
   { id: 12, rarity: 'common', title: "Реактивний", flavor: "Воно як звичайне але трошки швидше." },
   { id: 13, rarity: 'common', title: "Укриття", flavor: "Сьогодні знов не ночуємо вдома?" },
   { id: 14, rarity: 'common', title: "Міг у повітрі", flavor: "Щоб тебе підняло да гепнуло!" },
-  { id: 15, rarity: 'common', title: "Конус Маха", flavor: "Летить і бахає, летить і багає." },
+  { id: 15, rarity: 'common', title: "Конус Маха", flavor: "Летить і бахає, летить і бахає." },
   { id: 33, rarity: 'common', requires: 10, title: "Дослідник", flavor: "10 проаналізованих цілей." },
+  { id: 38, rarity: 'common', title: "Повербанк", flavor: "Має бути зарядженим на 100%." },
+  { id: 39, rarity: 'common', title: "Три години сну", flavor: "Робимо вигляд, що ми всі виспались." },
+  { id: 40, rarity: 'common', title: "Кавуся", flavor: "Друга чашка — це вже не кофеїн, а характер." },
+  { id: 41, rarity: 'common', title: "Генератор", flavor: "Гуде на весь двір, зато з кавою і вайфаєм." },
   { id: 16, rarity: 'rare', title: "Робота ППО", flavor: "Те, на що ми покладаємо надії." },
   { id: 17, rarity: 'rare', title: "Мобільна група", flavor: "Прожектор і кулемет проти дрона в темряві." },
+  { id: 42, rarity: 'rare', title: "P1-Sun", flavor: "Неймінг наше все!" },
   { id: 18, rarity: 'rare', title: "Ешелон", flavor: "Коли їх «10х» і треба рахувати кожен." },
   { id: 19, rarity: 'rare', title: "Байрактар", flavor: "Найкращий пастух баранячих отар." },
   { id: 20, rarity: 'rare', title: "Бавовна", flavor: "Коли «десь щось» — а насправді все за планом." },

@@ -31,6 +31,16 @@ def test_draw_card_is_weighted_by_rarity():
     assert commons > legendaries * 2  # huge margin — not flaky
 
 
+def test_every_card_has_a_rarity():
+    """The deck grows by hand on two sides (this table and the frontend
+    catalog), and a card added here without a rarity would silently fall back to
+    'common' in the draw — a legendary handed out at 83x its odds. The gap is
+    invisible until someone notices the drop rates are wrong, so assert the
+    table covers the count exactly."""
+    assert set(CARD_RARITY) == set(range(1, CARD_COUNT + 1))
+    assert set(MILESTONE_CARDS) <= set(CARD_RARITY)
+
+
 def test_milestone_cards_never_drop():
     """They are earned by volume of analyses, so a draw must never hand one out
     for free — 6000 draws would hit a 1-in-1650 card several times over. They
