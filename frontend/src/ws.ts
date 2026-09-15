@@ -1,10 +1,20 @@
 import { useRadar } from './store'
 import { fetchSync } from './api'
+import { deviceId } from './lib/deviceId'
 import { advance, alreadyApplied, type StreamPosition } from './lib/streamPosition'
 import { applySnapshot, feedPage, hydrate, lastHydrateAt } from './store/bootstrap'
 import type { WSMessage } from './types'
 
 const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8137/ws/threats'
+
+/** A websocket cannot send an Authorization header, so the device id travels in
+ * the query string — it is the only thing that tells the server two sockets are
+ * one reader, and (via that reader's authenticated requests) whether there is an
+ * account behind them. See backend app/realtime/sessions.py. */
+function socketUrl(): string {
+  const sep = WS_URL.includes('?') ? '&' : '?'
+  return `${WS_URL}${sep}device=${encodeURIComponent(deviceId())}`
+}
 
 // The backend pushes a 'ping' keepalive frame every ~25s (ws_keepalive_s) —
 // a healthy socket never goes this long without SOME frame. If it does, the
@@ -44,7 +54,7 @@ export function connectWS() {
   if (socket && socket.readyState <= WebSocket.OPEN) return
   clearReconnect() // avoid stacking a pending reconnect with a fresh connect
 
-  socket = new WebSocket(WS_URL)
+  socket = new WebSocket(socketUrl())
 
   socket.onopen = () => {
     retry = 0

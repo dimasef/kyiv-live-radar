@@ -21,6 +21,8 @@ export default function InspectController() {
   // Narrow on purpose: subscribing to the whole `threats` map re-ran this
   // effect on every live frame, for a component that only ever reads ONE track.
   const liveCopy = useRadar((s) => (inspected ? s.threats[inspected.id] : undefined));
+  const armPopupOpen = useRadar((s) => s.armPopupOpen);
+  const disarmPopupOpen = useRadar((s) => s.disarmPopupOpen);
   const fittedId = useRef<number | null>(null);
 
   useMapEvents({
@@ -36,6 +38,7 @@ export default function InspectController() {
     if (!inspected) {
       // Re-selecting the same track after a deselect should fly to it again.
       fittedId.current = null;
+      disarmPopupOpen();
       return;
     }
     if (fittedId.current === inspected.id) return;
@@ -50,6 +53,10 @@ export default function InspectController() {
     // frame, and a moving popup autoPans, which stops the animation halfway.
     // The new selection's popup opens on landing (ThreatLayer).
     map.closePopup();
+    // Armed here rather than wherever the selection changed: the popup opens on
+    // the landing of THIS flight, and only a flight that is about to start can
+    // promise one. See useAutoOpenPopup.
+    armPopupOpen(inspected.id);
     if (pts.length === 1) {
       // Never zoom IN past INSPECT_ZOOM, but don't zoom the operator OUT if
       // they're already closer — just recenter at their current zoom.
@@ -60,7 +67,7 @@ export default function InspectController() {
         { padding: [56, 56], maxZoom: INSPECT_MAX_ZOOM },
       );
     }
-  }, [inspected, liveCopy, map]);
+  }, [inspected, liveCopy, map, armPopupOpen, disarmPopupOpen]);
 
   return null;
 }

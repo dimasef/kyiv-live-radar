@@ -28,6 +28,15 @@ export type AnalyzeButtonState =
   /** Free to analyse. */
   | 'available'
 
+/** The analyst who won this slot, when it was someone else and they have a
+ * name to show. Null both when the slot is free and when the winner never set
+ * a display name — the server withholds the name rather than falling back to an
+ * email, so the button falls back to the plain «Вже проаналізовано». */
+export function takenBy(kind: AnalysisKind, state: ThreatAnalysisState | undefined): string | null {
+  if (!state) return null
+  return (kind === 'track' ? state.track_by : state.remains_by) ?? null
+}
+
 export function analyzeButtonState({
   kind,
   state,

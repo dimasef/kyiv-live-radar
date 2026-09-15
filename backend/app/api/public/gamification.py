@@ -145,16 +145,29 @@ async def threat_analysis_state(
             select(ThreatAnalysis).where(ThreatAnalysis.threat_id == threat_id)
         )
     ).all()
+    # At most two rows (one per ANALYSIS_KIND), so naming their authors is one
+    # small IN query rather than a join on every poll of this endpoint.
+    others = {r.user_id for r in rows if r.user_id != user.id}
+    names: dict[int, str | None] = {}
+    if others:
+        found = await session.execute(
+            select(User.id, User.display_name).where(User.id.in_(others))
+        )
+        names = dict(found.all())
     state = ThreatAnalysisStateOut(track_taken=False, remains_taken=False)
     for r in rows:
         if r.kind == "track":
             state.track_taken = True
             if r.user_id == user.id:
                 state.mine_track = r.card_id
+            else:
+                state.track_by = names.get(r.user_id)
         elif r.kind == "remains":
             state.remains_taken = True
             if r.user_id == user.id:
                 state.mine_remains = r.card_id
+            else:
+                state.remains_by = names.get(r.user_id)
     return state
 
 

@@ -9,6 +9,12 @@ export interface AsyncData<T> {
   /** Refetch on demand (after a mutation that changes what the server would
    * return). Obeys the same staleness guard as the automatic fetch. */
   reload: () => void
+  /** What the last attempt failed with, null when it succeeded.
+   *
+   * Exposed because `loaded` alone cannot tell "the server said nothing" from
+   * "the request never landed", and a panel that renders its empty state for
+   * both is lying about the second one. */
+  error: Error | null
 }
 
 /** Fetch-on-mount / fetch-on-dependency-change, with the stale-response guard
@@ -29,6 +35,7 @@ export function useAsyncData<T>(
 ): AsyncData<T> {
   const [data, setData] = useState<T>(initial)
   const [loaded, setLoaded] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
   const [nonce, setNonce] = useState(0)
 
   // The fetcher is a fresh closure every render; `deps` is what actually says
@@ -43,8 +50,12 @@ export function useAsyncData<T>(
       .then((value) => {
         if (cancelled) return
         setData(value)
+        setError(null)
       })
-      .catch(() => {})
+      .catch((e: unknown) => {
+        if (cancelled) return
+        setError(e instanceof Error ? e : new Error(String(e)))
+      })
       .finally(() => {
         if (!cancelled) setLoaded(true)
       })
@@ -55,5 +66,5 @@ export function useAsyncData<T>(
 
   const reload = useCallback(() => setNonce((n) => n + 1), [])
 
-  return { data, loaded, setData, reload }
+  return { data, loaded, setData, reload, error }
 }

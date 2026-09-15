@@ -5,5 +5,10 @@ Disallow: /raw
 Disallow: /account
 Disallow: /user/
 Disallow: /collection
+# Both carry a single-use token IN THE URL. Nothing links to them, and the app
+# marks them noindex — but it does that from JavaScript, which is a promise a
+# crawler is free to read late or not at all.
+Disallow: /verify-email
+Disallow: /reset-password
 
 Sitemap: https://www.ua-radar.online/sitemap.xml

@@ -219,6 +219,50 @@ class AdminUserDeleteOut(BaseModel):
     orphaned: int
 
 
+class AdminOnlineOut(BaseModel):
+    """GET /admin/online — who is reading the radar right now.
+
+    A different question from `AdminUserOut.last_seen_at`, and answered by a
+    different thing. `last_seen_at` is stamped on authenticated requests, so it
+    can only ever describe accounts; most readers here never sign in. This
+    counts LIVE SOCKETS instead (realtime/sessions.py), which is everyone —
+    and nothing outlives the process, so it is a live view, never a history.
+
+    `total` is the socket count the app already publishes to every client as its
+    headcount badge; `devices` breaks it down, one row per reader.
+    """
+
+    total: int
+    with_account: int
+    anonymous: int
+    devices: list[AdminOnlineDeviceOut]
+
+
+class AdminOnlineDeviceOut(BaseModel):
+    """One reader currently connected — an account when their device is known
+    to belong to one, an anonymous row otherwise.
+
+    `device_id` is the client's own localStorage value, so it identifies a
+    BROWSER PROFILE and nothing more: it is never trusted for authorization,
+    and clearing site data makes the same person a new row. NULL for a socket
+    that sent none (a client older than this feature, or a bare connection).
+
+    `tabs` is how many sockets that device holds; `since` is the oldest of them
+    — when this reader arrived, not when they opened their newest tab.
+    """
+
+    device_id: str | None = None
+    tabs: int
+    since: datetime
+    user_agent: str | None = None
+    ip: str | None = None
+    user_id: int | None = None
+    display_name: str | None = None
+    email: str | None = None
+
+    _tz_since = field_validator("since", mode="before")(_as_utc)
+
+
 class ReprocessDayOut(BaseModel):
     date: str
     target_count: int

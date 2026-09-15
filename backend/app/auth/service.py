@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
 from ..models import MANUAL_ROLES, OAuthIdentity, RefreshToken, RoleSource, User, utcnow
+from ..realtime.sessions import accounts
 from ..timeutil import naive
 from .security import AuthError, decode_refresh, encode_access, encode_refresh
 
@@ -192,6 +193,12 @@ async def revoke_refresh(session: AsyncSession, token: str) -> None:
 
 
 async def revoke_all_refresh(session: AsyncSession, user_id: int) -> None:
+    """Every one of this account's sessions ends here — sign-out-everywhere, a
+    block, a delete. Also the seam where the live-session view must stop naming
+    this person behind a device that is still connected: their socket outlives
+    the token, and a blocked account still showing as online in the console
+    would read as the block not having worked."""
+    accounts.forget_user(user_id)
     now = naive(utcnow())
     await session.execute(
         update(RefreshToken)

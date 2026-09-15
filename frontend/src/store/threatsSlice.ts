@@ -46,6 +46,13 @@ export interface ThreatsSlice {
    * evicted from under the reader. */
   openPopupThreatId: number | null
   setOpenPopupThreat: (id: number | null) => void
+  /** Track whose popup should open when the map finishes flying to it. Armed by
+   * InspectController at the instant it starts that flight, so the landing the
+   * map layer waits for can only be that flight's — see useAutoOpenPopup for
+   * what went wrong while it waited for "the next moveend" instead. */
+  pendingPopupThreatId: number | null
+  armPopupOpen: (id: number) => void
+  disarmPopupOpen: () => void
   setThreats: (t: Threat[]) => void
   setLog: (log: FeedEntry[]) => void
   inspectThreat: (threat: Threat) => void
@@ -65,8 +72,12 @@ export const createThreatsSlice: StateCreator<RadarState, [], [], ThreatsSlice> 
   inspectedThreat: null,
   leavingThreatIds: [],
   openPopupThreatId: null,
+  pendingPopupThreatId: null,
 
   setOpenPopupThreat: (id) => set({ openPopupThreatId: id }),
+
+  armPopupOpen: (id) => set({ pendingPopupThreatId: id }),
+  disarmPopupOpen: () => set({ pendingPopupThreatId: null }),
 
   setThreats: (t) => set({ threats: Object.fromEntries(t.map((x) => [x.id, x])) }),
 

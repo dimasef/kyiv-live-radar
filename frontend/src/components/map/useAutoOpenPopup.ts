@@ -22,6 +22,17 @@ export function pulseIcon(color: string, lean: boolean): L.DivIcon {
 // "tell me about this one", and making the operator find the marker and click
 // it again to read what they just asked for is a step for nothing.
 //
+// Waits for the landing of ONE flight — the one InspectController armed this
+// for (store `pendingPopupThreatId`), never merely for the next `moveend`. An
+// open popup makes those two different things: react-leaflet calls
+// `popup.update()` whenever its children change (every live frame, every clock
+// tick), `update()` ends in `_adjustPan()`, and a popup near an edge answers
+// that by panning the map. Picking a second target while the first one's popup
+// was still open used to spend the listener on one of those pans, so the popup
+// opened BEFORE the flight and InspectController's `map.closePopup()` then shut
+// it on its way out — the first pick opened a popup, every pick after it flew
+// to a target and showed nothing.
+//
 // AFTER the fly-to lands, never during it: a popup's autoPan calls
 // `_panAnim.stop()` on open (Leaflet's Popup._adjustPan), so opening one
 // mid-flight kills InspectController's flight and leaves the map wherever it
@@ -49,10 +60,14 @@ export function useAutoOpenPopup({
   map,
   markerRef,
   enabled,
+  disarm,
 }: {
   map: L.Map;
   markerRef: RefObject<L.Marker | null>;
   enabled: boolean;
+  /** Clears the arming, so this track's popup opens once per pick rather than
+   * on every landing for as long as it stays selected. */
+  disarm: () => void;
 }): void {
   useEffect(() => {
     if (!enabled) return;
@@ -61,6 +76,7 @@ export function useAutoOpenPopup({
       timer = setTimeout(() => {
         const marker = markerRef.current;
         if (marker && !marker.isPopupOpen()) marker.openPopup();
+        disarm();
       }, 0);
     };
     map.once("moveend", open);
@@ -68,5 +84,5 @@ export function useAutoOpenPopup({
       map.off("moveend", open);
       clearTimeout(timer);
     };
-  }, [enabled, map, markerRef]);
+  }, [enabled, map, markerRef, disarm]);
 }

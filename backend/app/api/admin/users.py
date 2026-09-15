@@ -36,7 +36,15 @@ from ...models import (
     ToponymDismissal,
     User,
 )
-from ...schemas import AdminUserDeleteOut, AdminUserOut, AdminUserRoleIn
+from ...realtime.sessions import accounts, group_by_device
+from ...realtime.ws import manager
+from ...schemas import (
+    AdminOnlineDeviceOut,
+    AdminOnlineOut,
+    AdminUserDeleteOut,
+    AdminUserOut,
+    AdminUserRoleIn,
+)
 
 router = APIRouter()
 
@@ -87,6 +95,54 @@ async def admin_list_users(
     )
     rows = (await session.scalars(stmt)).all()
     return [_out(u) for u in rows]
+
+
+@router.get("/admin/online", response_model=AdminOnlineOut)
+async def admin_online(
+    session: AsyncSession = Depends(get_session),
+    _admin: User = Depends(require_admin),
+):
+    """Who is in the app right now, accounts and anonymous readers alike.
+
+    The account table above can only answer this for people who signed in
+    (`last_seen_at` is stamped on authenticated requests). This reads the live
+    sockets instead — one per open tab, held whether or not anyone signed in —
+    so it is the only view that sees the readers with no account at all.
+
+    Live and in-memory: it describes THIS process, empties on a restart, and
+    keeps no history. Nothing here is written to the database.
+    """
+    rows = group_by_device(manager.sessions(), accounts.user_for)
+    user_ids = {r.user_id for r in rows if r.user_id is not None}
+    named: dict[int, User] = {}
+    if user_ids:
+        # One query for the whole page, not one per row.
+        found = await session.scalars(select(User).where(User.id.in_(user_ids)))
+        named = {u.id: u for u in found}
+    devices = [
+        AdminOnlineDeviceOut(
+            device_id=r.device_id,
+            tabs=r.tabs,
+            since=r.since,
+            user_agent=r.user_agent,
+            ip=r.ip,
+            # An id whose account has since been deleted reads as anonymous
+            # rather than as a dangling number.
+            user_id=r.user_id if r.user_id in named else None,
+            display_name=named[r.user_id].display_name if r.user_id in named else None,
+            email=named[r.user_id].email if r.user_id in named else None,
+        )
+        for r in rows
+    ]
+    with_account = sum(1 for d in devices if d.user_id is not None)
+    return AdminOnlineOut(
+        # The socket count, not len(devices): two tabs are one row here but two
+        # connections in the headcount every client already sees.
+        total=manager.online,
+        with_account=with_account,
+        anonymous=len(devices) - with_account,
+        devices=devices,
+    )
 
 
 @router.patch("/admin/users/{user_id}/role", response_model=AdminUserOut)

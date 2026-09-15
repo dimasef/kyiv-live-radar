@@ -7,8 +7,8 @@ import { applyDocumentMeta, documentMeta } from './documentMeta'
  * and the language. The document head is outside React, which is what the
  * effect is for. */
 export function useDocumentMeta(path: string) {
-  const { t } = useTranslation()
-  const { title, indexable, canonical } = documentMeta(path, t)
+  const { t, i18n } = useTranslation()
+  const { title, indexable, canonical } = documentMeta(path, t, i18n.language)
   useEffect(() => {
     applyDocumentMeta({ title, indexable, canonical })
   }, [title, indexable, canonical])

@@ -1,12 +1,17 @@
 import type { TFunction } from 'i18next'
 
+import { isoDayLabel } from './kyivTime'
+
 import {
   ACCOUNT_PATH,
   CHANGELOG_PATH,
   isAdminRoute,
   isCollectionRoute,
   isJournalRoute,
+  journalDateFromPath,
+  journalDayPath,
   journalTabFromPath,
+  journalTabPath,
   RESET_PASSWORD_PATH,
   userRouteId,
   VERIFY_EMAIL_PATH,
@@ -26,13 +31,26 @@ export interface DocumentMeta {
   canonical: string | null
 }
 
-export function documentMeta(path: string, t: TFunction): DocumentMeta {
+export function documentMeta(path: string, t: TFunction, locale = 'uk'): DocumentMeta {
   const app = t('app.title')
   const page = (name: string) => `${name} — ${app}`
   if (isJournalRoute(path)) {
+    // Canonical from the RESOLVED route, never from the raw path: every
+    // sub-path under /journal renders the calendar, so /journal/2026-02-31 and
+    // /journal/anything used to each declare themselves a page of their own —
+    // an unbounded supply of duplicates, now that the day addresses invite a
+    // crawler in here at all.
+    const day = journalDateFromPath(path)
+    if (day != null) {
+      // The day leads the title: in a tab strip, and in a search result, the
+      // date is what tells two of these apart — «Журнал» is the same word on
+      // all of them.
+      const name = `${isoDayLabel(day, locale)} · ${t('nav.journal')}`
+      return { title: page(name), indexable: true, canonical: `${SITE_ORIGIN}${journalDayPath(day)}` }
+    }
     const tab = journalTabFromPath(path)
     const name = tab === 'stats' ? `${t('nav.journal')} · ${t('journal.tabs.stats')}` : t('nav.journal')
-    return { title: page(name), indexable: true, canonical: `${SITE_ORIGIN}${path}` }
+    return { title: page(name), indexable: true, canonical: `${SITE_ORIGIN}${journalTabPath(tab)}` }
   }
   if (path === CHANGELOG_PATH) {
     return { title: page(t('changelog.title')), indexable: true, canonical: `${SITE_ORIGIN}${path}` }

@@ -379,6 +379,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/online": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin Online
+         * @description Who is in the app right now, accounts and anonymous readers alike.
+         *
+         *     The account table above can only answer this for people who signed in
+         *     (`last_seen_at` is stamped on authenticated requests). This reads the live
+         *     sockets instead — one per open tab, held whether or not anyone signed in —
+         *     so it is the only view that sees the readers with no account at all.
+         *
+         *     Live and in-memory: it describes THIS process, empties on a restart, and
+         *     keeps no history. Nothing here is written to the database.
+         */
+        get: operations["admin_online_admin_online_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/raw_messages/{raw_id}/notice": {
         parameters: {
             query?: never;
@@ -2118,6 +2146,63 @@ export interface components {
              * @default bearer
              */
             token_type: string;
+        };
+        /**
+         * AdminOnlineDeviceOut
+         * @description One reader currently connected — an account when their device is known
+         *     to belong to one, an anonymous row otherwise.
+         *
+         *     `device_id` is the client's own localStorage value, so it identifies a
+         *     BROWSER PROFILE and nothing more: it is never trusted for authorization,
+         *     and clearing site data makes the same person a new row. NULL for a socket
+         *     that sent none (a client older than this feature, or a bare connection).
+         *
+         *     `tabs` is how many sockets that device holds; `since` is the oldest of them
+         *     — when this reader arrived, not when they opened their newest tab.
+         */
+        AdminOnlineDeviceOut: {
+            /** Device Id */
+            device_id?: string | null;
+            /** Display Name */
+            display_name?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Ip */
+            ip?: string | null;
+            /**
+             * Since
+             * Format: date-time
+             */
+            since: string;
+            /** Tabs */
+            tabs: number;
+            /** User Agent */
+            user_agent?: string | null;
+            /** User Id */
+            user_id?: number | null;
+        };
+        /**
+         * AdminOnlineOut
+         * @description GET /admin/online — who is reading the radar right now.
+         *
+         *     A different question from `AdminUserOut.last_seen_at`, and answered by a
+         *     different thing. `last_seen_at` is stamped on authenticated requests, so it
+         *     can only ever describe accounts; most readers here never sign in. This
+         *     counts LIVE SOCKETS instead (realtime/sessions.py), which is everyone —
+         *     and nothing outlives the process, so it is a live view, never a history.
+         *
+         *     `total` is the socket count the app already publishes to every client as its
+         *     headcount badge; `devices` breaks it down, one row per reader.
+         */
+        AdminOnlineOut: {
+            /** Anonymous */
+            anonymous: number;
+            /** Devices */
+            devices: components["schemas"]["AdminOnlineDeviceOut"][];
+            /** Total */
+            total: number;
+            /** With Account */
+            with_account: number;
         };
         /**
          * AdminUserDeleteOut
@@ -4340,17 +4425,29 @@ export interface components {
         };
         /**
          * ThreatAnalysisStateOut
-         * @description GET /analysis/threat/{id} — which analyses this target has left, and which
-         *     (if any) the current user already claimed. Drives the inspect-badge button:
-         *     `*_taken` disables it globally, `mine.*` shows the card the user won.
+         * @description GET /analysis/threat/{id} — which analyses this target has left, which
+         *     (if any) the current user already claimed, and who took the ones they
+         *     didn't. Drives the inspect-badge button: `*_taken` disables it globally,
+         *     `mine_*` shows the card the user won, `*_by` names the analyst otherwise.
+         *
+         *     `*_by` is the analyst's DISPLAY NAME and nothing else — never their email or
+         *     id. The claim is first-writer-wins and global, so "someone else got here
+         *     first" is already public; who that was is the part worth showing, and an
+         *     address is not part of it. Null when they never set a name, in which case
+         *     the UI says only that the slot is taken (the honest answer — inventing
+         *     «Анонім» would read like a real handle).
          */
         ThreatAnalysisStateOut: {
             /** Mine Remains */
             mine_remains?: number | null;
             /** Mine Track */
             mine_track?: number | null;
+            /** Remains By */
+            remains_by?: string | null;
             /** Remains Taken */
             remains_taken: boolean;
+            /** Track By */
+            track_by?: string | null;
             /** Track Taken */
             track_taken: boolean;
         };
@@ -4634,6 +4731,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 alert_id: number;
@@ -4667,6 +4765,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 alert_id: number;
@@ -4704,6 +4803,7 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -4735,6 +4835,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 report_id: number;
@@ -4768,6 +4869,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 report_id: number;
@@ -4807,6 +4909,7 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -4841,6 +4944,7 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -4872,6 +4976,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -4907,6 +5012,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 word: string;
@@ -4940,6 +5046,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -4974,6 +5081,7 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -5007,6 +5115,7 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -5038,6 +5147,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 event_id: number;
@@ -5071,6 +5181,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 event_id: number;
@@ -5108,6 +5219,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 event_id: number;
@@ -5145,6 +5257,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 incident_id: number;
@@ -5178,6 +5291,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 incident_id: number;
@@ -5211,6 +5325,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 incident_id: number;
@@ -5248,6 +5363,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 notice_id: number;
@@ -5274,11 +5390,44 @@ export interface operations {
             };
         };
     };
+    admin_online_admin_online_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-device-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOnlineOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     admin_add_notice_admin_raw_messages__raw_id__notice_post: {
         parameters: {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 raw_id: number;
@@ -5316,6 +5465,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -5353,6 +5503,7 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -5384,6 +5535,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -5415,6 +5567,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -5453,6 +5606,7 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 source_id: number;
@@ -5486,6 +5640,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 source_id: number;
@@ -5523,6 +5678,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 source_id: number;
@@ -5556,6 +5712,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 source_id: number;
@@ -5589,6 +5746,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 threat_id: number;
@@ -5622,6 +5780,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 threat_id: number;
@@ -5659,6 +5818,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 threat_id: number;
@@ -5696,6 +5856,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 threat_id: number;
@@ -5729,6 +5890,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 threat_id: number;
@@ -5764,6 +5926,7 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -5795,6 +5958,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 user_id: number;
@@ -5828,6 +5992,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 user_id: number;
@@ -5861,6 +6026,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 user_id: number;
@@ -5898,6 +6064,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 user_id: number;
@@ -5933,6 +6100,7 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -6087,6 +6255,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -6122,6 +6291,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -6153,6 +6323,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 threat_id: number;
@@ -6318,6 +6489,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -6349,6 +6521,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -6569,6 +6742,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -6604,6 +6778,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 user_id: number;
@@ -6709,6 +6884,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -6740,6 +6916,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -6771,6 +6948,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -6806,6 +6984,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 request_id: number;
@@ -6839,6 +7018,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 request_id: number;
@@ -6872,6 +7052,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 user_id: number;
@@ -6905,6 +7086,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 user_id: number;
@@ -7107,6 +7289,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -7138,6 +7321,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path: {
                 contact_id: number;
@@ -7175,6 +7359,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -7210,6 +7395,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -7241,6 +7427,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -7276,6 +7463,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -7307,6 +7495,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -7342,6 +7531,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -7377,6 +7567,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -7408,6 +7599,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -7494,6 +7686,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -7525,6 +7718,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -7607,6 +7801,7 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -7644,6 +7839,7 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -7681,6 +7877,7 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -7712,6 +7909,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -7743,6 +7941,7 @@ export interface operations {
             query?: never;
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -7922,6 +8121,7 @@ export interface operations {
             };
             header?: {
                 authorization?: string | null;
+                "x-device-id"?: string | null;
             };
             path?: never;
             cookie?: never;

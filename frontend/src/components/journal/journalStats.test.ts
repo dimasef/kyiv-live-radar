@@ -4,6 +4,7 @@ import type { JournalDay, TargetType } from '@/types'
 
 import {
   formatDuration,
+  neighbourDays,
   hasActivity,
   intensityBucket,
   intensityScore,
@@ -173,5 +174,28 @@ describe('formatDuration', () => {
     expect(formatDuration(90 * 60)).toBe('1г 30хв')
     expect(formatDuration(2 * 3600)).toBe('2г')
     expect(formatDuration(11 * 60)).toBe('11хв')
+  })
+})
+
+describe('neighbourDays', () => {
+  const active = ['2026-09-02', '2026-09-08', '2026-09-14', '2026-09-30']
+
+  it('links the published days either side, skipping the quiet ones between', () => {
+    expect(neighbourDays('2026-09-08', active)).toEqual({
+      prev: '2026-09-02',
+      next: '2026-09-14',
+    })
+  })
+
+  it('stops at the ends rather than wrapping — the list is one month', () => {
+    expect(neighbourDays('2026-09-02', active)).toEqual({ prev: null, next: '2026-09-08' })
+    expect(neighbourDays('2026-09-30', active)).toEqual({ prev: '2026-09-14', next: null })
+  })
+
+  it('gives a day that was never published no neighbours at all', () => {
+    // An empty day opened by its URL: it is not part of the chain, and pointing
+    // out of it would advertise pages the sitemap deliberately omits.
+    expect(neighbourDays('2026-09-09', active)).toEqual({ prev: null, next: null })
+    expect(neighbourDays('2026-09-14', [])).toEqual({ prev: null, next: null })
   })
 })

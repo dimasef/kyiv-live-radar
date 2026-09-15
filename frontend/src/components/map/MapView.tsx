@@ -192,11 +192,6 @@ export default function MapView() {
             threat={th}
             highlighted={inspectedThreat?.id === th.id}
             lean={overBudget}
-            dangerTriggerEventId={
-              danger.byThreat[th.id]?.level === "danger"
-                ? danger.byThreat[th.id].triggerEventId
-                : null
-            }
           />
         ))}
         {/* The inspected track isn't currently live (closed/evicted) — render

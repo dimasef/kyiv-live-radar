@@ -2,8 +2,16 @@ import asyncio
 
 import pytest
 
+from app.models import utcnow
 from app.pipeline import keepalive
+from app.realtime.sessions import LiveSession
 from app.realtime.ws import manager
+
+
+def _fake_client() -> dict:
+    """The manager keys sockets to what is known about the reader behind them
+    (realtime/sessions.py) — a bare set no longer stands in for it."""
+    return {object(): LiveSession(device_id=None, connected_at=utcnow(), user_agent=None, ip=None)}
 
 
 @pytest.mark.asyncio
@@ -28,7 +36,7 @@ async def test_keepalive_broadcasts_only_with_clients(monkeypatch):
         await orig_broadcast(message)
 
     monkeypatch.setattr(manager, "broadcast", spy_broadcast)
-    monkeypatch.setattr(manager, "_clients", {object()})
+    monkeypatch.setattr(manager, "_clients", _fake_client())
 
     with pytest.raises(asyncio.CancelledError):
         await keepalive.run_keepalive()
@@ -52,7 +60,7 @@ async def test_keepalive_skips_broadcast_with_no_clients(monkeypatch):
         broadcasts.append(message)
 
     monkeypatch.setattr(manager, "broadcast", spy_broadcast)
-    monkeypatch.setattr(manager, "_clients", set())
+    monkeypatch.setattr(manager, "_clients", {})
 
     with pytest.raises(asyncio.CancelledError):
         await keepalive.run_keepalive()

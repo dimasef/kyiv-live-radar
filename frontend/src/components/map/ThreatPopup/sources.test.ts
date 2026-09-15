@@ -13,7 +13,16 @@ describe('sourceSplit', () => {
       path_source_id: 5,
       events: [ev(5, 'Місто Кия'), ev(12, 'Небо'), ev(13, 'Віраж'), ev(12, 'Небо'), ev(13, 'Віраж', true)],
     } as unknown as Threat
-    expect(sourceSplit(t)).toEqual({ lead: 'Місто Кия', echoCount: 3, echoSources: ['Небо', 'Віраж'] })
+    expect(sourceSplit(t)).toEqual({
+      lead: { id: 5, name: 'Місто Кия' },
+      echoCount: 3,
+      // Ids as well as names: the chip resolves its Telegram link by id, and a
+      // name is a label, not a key.
+      echoSources: [
+        { id: 12, name: 'Небо' },
+        { id: 13, name: 'Віраж' },
+      ],
+    })
   })
 
   it('has nothing to say for history without a path source', () => {

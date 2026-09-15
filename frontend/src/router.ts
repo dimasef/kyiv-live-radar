@@ -55,10 +55,43 @@ export function journalTabPath(tab: JournalTab): string {
   return tab === 'calendar' ? THREAT_JOURNAL_PATH : `${THREAT_JOURNAL_PATH}/${tab}`
 }
 
-/** The journal tab a path selects; unknown sub-paths fall back to 'calendar'. */
+/** The journal tab a path selects; unknown sub-paths fall back to 'calendar'.
+ * A date sub-path (/journal/2026-09-14) is a calendar route — the day it names
+ * is read separately by `journalDateFromPath`. */
 export function journalTabFromPath(path: string): JournalTab {
   const seg = path.slice(THREAT_JOURNAL_PATH.length + 1)
   return (JOURNAL_TABS as readonly string[]).includes(seg) ? (seg as JournalTab) : 'calendar'
+}
+
+/** One day of the journal has its own address: it is the only durable,
+ * linkable thing this app holds (the map is live and gone), it is what someone
+ * means when they say "that night", and it is the only content a search engine
+ * can usefully index. Everything else here is one live view.
+ *
+ * ISO, because that is the shape the backend and `JournalDay.date` already use
+ * — no third format to convert between. */
+export function journalDayPath(date: string): string {
+  return `${THREAT_JOURNAL_PATH}/${date}`
+}
+
+const DAY_SEGMENT = /^(\d{4})-(\d{2})-(\d{2})$/
+
+/** The day a journal path names, or null for the calendar/stats routes.
+ *
+ * Validates the date rather than trusting the shape: /journal/2026-02-31 parses
+ * as four numbers but is not a day, and rolling it over to March 3rd would
+ * publish an address that quietly answers with a different date than it spells.
+ */
+export function journalDateFromPath(path: string): string | null {
+  if (!path.startsWith(`${THREAT_JOURNAL_PATH}/`)) return null
+  const seg = path.slice(THREAT_JOURNAL_PATH.length + 1)
+  const m = DAY_SEGMENT.exec(seg)
+  if (!m) return null
+  const [, y, mo, d] = m
+  const asDate = new Date(`${seg}T00:00:00Z`)
+  if (Number.isNaN(asDate.getTime())) return null
+  // A rolled-over date (31.02 -> 03.03) comes back spelled differently.
+  return asDate.toISOString().slice(0, 10) === `${y}-${mo}-${d}` ? seg : null
 }
 // Admin console (replaces the standalone /raw tab in the header). Hosts the
 // manual parser-override controls plus the raw-message log as tabs. Admin-only:

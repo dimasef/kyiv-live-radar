@@ -16,6 +16,7 @@ from .logging_setup import setup_logging
 from .migrate import upgrade_to_head
 from .observability import setup_observability
 from .pipeline.ingest import rehydrate_type_context
+from .realtime.sessions import describe
 from .realtime.ws import manager
 from .seed import bootstrap_sources_from_env, seed_districts, seed_sources
 
@@ -139,7 +140,18 @@ async def ws_threats(ws: WebSocket):
     if manager.online >= settings.ws_max_clients:
         await ws.close(code=1013)
         return
-    await manager.connect(ws)
+    # `?device=` is the client's own localStorage id — the only thing that makes
+    # a reader with no account more than an anonymous number (realtime/sessions).
+    # A socket cannot carry an Authorization header, so the account behind it is
+    # learned separately, from that same device's authenticated requests.
+    await manager.connect(
+        ws,
+        describe(
+            device_id=ws.query_params.get("device"),
+            headers=dict(ws.headers),
+            peer=ws.client.host if ws.client else None,
+        ),
+    )
     try:
         # We only push; keep the socket open and ignore any inbound frames.
         while True:

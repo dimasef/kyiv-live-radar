@@ -8,6 +8,7 @@ import type { JournalDay } from '@/types'
 
 import CalendarHeatmap from './CalendarHeatmap'
 import DayDetail from './DayDetail'
+import DayNav from './DayNav'
 import MonthSummary from './MonthSummary'
 import { hasActivity, monthLabel, monthRange, monthSummary, todayISO } from './journalStats'
 import { useDistrictNames } from './useDistrictNames'
@@ -25,19 +26,30 @@ function defaultSelection(days: JournalDay[], preferred: string | null): string 
 }
 
 /** The month calendar of past aerial-threat activity: an intensity heatmap plus
- * the selected day's breakdown. `initialDate` opens on that day's month (the
- * statistics tab links here); the page remounts this on change, so there is no
- * prop-syncing effect. */
-export default function CalendarTab({ initialDate = null }: { initialDate?: string | null }) {
+ * the selected day's breakdown.
+ *
+ * `date` is the day the URL names (/journal/2026-09-14) and it WINS over the
+ * auto-selection below — a link to a day has to open that day, whatever the
+ * month would have picked on its own. The page remounts this per month, so
+ * there is still no prop-syncing effect. */
+export default function CalendarTab({
+  date = null,
+  onSelectDay,
+}: {
+  date?: string | null
+  onSelectDay: (date: string) => void
+}) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language?.startsWith('en') ? 'en-GB' : 'uk-UA'
   const now = new Date()
-  const opening = initialDate ? new Date(`${initialDate}T00:00:00`) : now
+  const opening = date ? new Date(`${date}T00:00:00`) : now
   const [year, setYear] = useState(opening.getFullYear())
   const [month0, setMonth0] = useState(opening.getMonth())
   const [days, setDays] = useState<JournalDay[]>([])
   const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading')
-  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  // Only ever the fallback for a bare /journal — a URL with a day in it is the
+  // answer, and this is what the month picks when there is none.
+  const [autoSelected, setAutoSelected] = useState<string | null>(null)
   const districtName = useDistrictNames()
 
   useEffect(() => {
@@ -48,7 +60,7 @@ export default function CalendarTab({ initialDate = null }: { initialDate?: stri
       .then((j) => {
         if (cancelled) return
         setDays(j.days)
-        setSelectedDate(defaultSelection(j.days, initialDate))
+        setAutoSelected(defaultSelection(j.days, date))
         setPhase('ready')
       })
       .catch(() => {
@@ -59,11 +71,15 @@ export default function CalendarTab({ initialDate = null }: { initialDate?: stri
     return () => {
       cancelled = true
     }
-    // initialDate never changes within a mount — the page remounts to change it.
-  }, [year, month0, initialDate])
+    // `date` never changes MONTH within a mount — the page remounts for that.
+  }, [year, month0, date])
 
   const daysByDate = useMemo(() => new Map(days.map((d) => [d.date, d])), [days])
+  // Same rule the sitemap uses: only days with something on them are worth
+  // linking to (see scripts/prerender-routes.mjs).
+  const activeDates = useMemo(() => days.filter(hasActivity).map((d) => d.date), [days])
   const summary = useMemo(() => monthSummary(days), [days])
+  const selectedDate = date ?? autoSelected
   const selected = selectedDate ? (daysByDate.get(selectedDate) ?? null) : null
 
   const shiftMonth = (delta: number) => {
@@ -113,7 +129,7 @@ export default function CalendarTab({ initialDate = null }: { initialDate?: stri
                 <MonthSummary
                   summary={summary}
                   onJumpToHeaviest={() =>
-                    summary.heaviestDate && setSelectedDate(summary.heaviestDate)
+                    summary.heaviestDate && onSelectDay(summary.heaviestDate)
                   }
                   locale={locale}
                 />
@@ -124,7 +140,7 @@ export default function CalendarTab({ initialDate = null }: { initialDate?: stri
               month0={month0}
               daysByDate={daysByDate}
               selectedDate={selectedDate}
-              onSelect={setSelectedDate}
+              onSelect={onSelectDay}
               today={todayISO()}
               locale={locale}
             />
@@ -135,6 +151,7 @@ export default function CalendarTab({ initialDate = null }: { initialDate?: stri
       {phase === 'ready' && (
         <div className="rise panel mt-4 p-4 sm:p-5" style={riseDelay(3)}>
           <DayDetail day={selected} districtName={districtName} locale={locale} />
+          {selectedDate && <DayNav date={selectedDate} activeDates={activeDates} />}
         </div>
       )}
     </>

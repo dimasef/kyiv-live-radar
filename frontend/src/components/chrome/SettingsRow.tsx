@@ -1,5 +1,6 @@
 import { ChevronRight } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { isPlainClick } from '@/lib/plainClick'
 
 /** A settings row that leads somewhere — a modal, a page. One look for all
  * three of them: the marker editor, the changelog and the bug report, which
@@ -49,6 +50,9 @@ export default function SettingsRow({
       <a
         href={href}
         onClick={(e) => {
+          // A modified click belongs to the browser — swallowing it was what
+          // made this "anchor" un-middle-clickable despite having a real href.
+          if (!isPlainClick(e)) return
           e.preventDefault()
           onClick()
         }}

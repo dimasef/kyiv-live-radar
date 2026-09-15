@@ -3,8 +3,10 @@ import { useTranslation } from 'react-i18next'
 
 import { isAdminRole } from '@/api'
 import { AuthButton } from '@/components/auth'
-import { MAP_PATH, navigate, useRoute } from '@/router'
+import { MAP_PATH, useRoute } from '@/router'
 import { useRadar } from '@/store'
+
+import RouteLink from '@/components/common/RouteLink'
 
 import { NAV_DESTINATIONS } from './navDestinations'
 
@@ -49,23 +51,27 @@ export default function TopBar() {
   const isAdmin = useRadar((s) => isAdminRole(s.user?.role))
   const setSettingsOpen = useRadar((s) => s.setSettingsOpen)
   const dests = NAV_DESTINATIONS.filter((d) => !d.adminOnly || isAdmin)
+  // The brand is the map's OWN heading and nothing more: on the map it is the
+  // page's <h1>, everywhere else the page below has its own and a second one
+  // here would leave every route with two.
+  const BrandTag = route === MAP_PATH ? 'h1' : 'p'
 
   return (
     <header className="relative z-[1200] grid flex-none grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-white/5 bg-ink-900/70 px-3 py-2.5 backdrop-blur-xl sm:gap-3 sm:px-4">
-      <button
-        onClick={() => navigate(MAP_PATH)}
+      <RouteLink
+        to={MAP_PATH}
         className="flex min-w-0 items-center gap-2.5 justify-self-start"
         aria-label={t('nav.map')}
       >
         <img src="/favicon.svg" alt="" aria-hidden className="h-9 w-9 flex-none sm:h-10 sm:w-10" />
         {/* Mobile shows the mark alone; the wordmark appears from sm up. */}
         <div className="sr-only min-w-0 text-left sm:not-sr-only sm:block">
-          <h1 className="truncate font-display text-[13px] font-bold leading-tight tracking-wide text-slate-100 sm:text-[15px]">
+          <BrandTag className="truncate font-display text-[13px] font-bold leading-tight tracking-wide text-slate-100 sm:text-[15px]">
             <BrandTitle text={t('app.title')} />
-          </h1>
+          </BrandTag>
           <p className="truncate text-[11px] text-slate-400">{t('app.subtitle')}</p>
         </div>
-      </button>
+      </RouteLink>
 
       {/* Navigation — bare icon+label on mobile, pills from lg up. Centered in
           the bar via the grid's 1fr side columns. */}
@@ -76,16 +82,16 @@ export default function TopBar() {
           const active = route === d.path || route.startsWith(`${d.path}/`)
           const Icon = d.icon
           return (
-            <button
+            <RouteLink
               key={d.key}
-              onClick={() => navigate(d.path)}
+              to={d.path}
               aria-current={active ? 'page' : undefined}
               title={t(d.labelKey)}
               className={`${navBase} ${active ? navActive : navIdle}`}
             >
               <Icon size={18} className="flex-none lg:h-3.5 lg:w-3.5" />
               <span className="whitespace-nowrap">{t(d.labelKey)}</span>
-            </button>
+            </RouteLink>
           )
         })}
       </nav>

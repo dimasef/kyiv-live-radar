@@ -1,7 +1,6 @@
 import { CircleMarker } from "react-leaflet";
 
 import type { Pt } from "@/lib/geo";
-import { HOME_DANGER_COLORS } from "@/theme";
 
 /** --phosphor, the app's accent — spelled out because this is a Leaflet path
  * option, not a class. */
@@ -10,7 +9,6 @@ const PICK_COLOR = "#22d3ee";
 export default function ThreatHeadRings({
   head,
   highlighted,
-  triggerPt,
   color,
   dim,
   corroborated,
@@ -18,7 +16,6 @@ export default function ThreatHeadRings({
 }: {
   head: Pt;
   highlighted: boolean;
-  triggerPt: Pt | null;
   color: string;
   dim: number;
   corroborated: boolean;
@@ -26,20 +23,6 @@ export default function ThreatHeadRings({
 }) {
   return (
     <>
-      {triggerPt && (
-        <CircleMarker
-          center={[triggerPt.lat, triggerPt.lon]}
-          radius={highlighted ? 9 : 7}
-          interactive={false}
-          pathOptions={{
-            color: HOME_DANGER_COLORS.danger,
-            weight: 2,
-            opacity: 0.95,
-            fillColor: HOME_DANGER_COLORS.danger,
-            fillOpacity: 0.35,
-          }}
-        />
-      )}
       {/* Corroboration halo — a faint ring behind the head when >= 2 independent
           sources agree, so a well-attested target reads as heavier at a glance. */}
       {corroborated && (

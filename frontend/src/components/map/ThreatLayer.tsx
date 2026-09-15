@@ -29,14 +29,9 @@ const ThreatLayer = memo(function ThreatLayer({
   threat,
   highlighted = false,
   lean = false,
-  dangerTriggerEventId = null,
 }: {
   threat: Threat;
   highlighted?: boolean;
-  /** The sighting that put the home at DANGER, when it is this track's. Drawn
-   * as its own marker if it is not the head — an echo channel's fix near home
-   * while the narrator's path is elsewhere. A primitive, so the memo holds. */
-  dangerTriggerEventId?: number | null;
   /** The map is over MOTION_BUDGET: keep every shape, drop the motion. The
    * inspected track is exempt — it is the one the operator is reading. */
   lean?: boolean;
@@ -52,6 +47,7 @@ const ThreatLayer = memo(function ThreatLayer({
   // exit fade from closed_at made a clicked-on target dissolve while being read.
   const leaving = useRadar((s) => s.leavingThreatIds.includes(threat.id));
   const setOpenPopupThreat = useRadar((s) => s.setOpenPopupThreat);
+  const clearInspection = useRadar((s) => s.clearInspection);
   // Regrouping a sighting by picking its new track off the map: while that is
   // armed, every OTHER target is a destination rather than something to read.
   const regroupPick = useRadar((s) => s.regroupPick);
@@ -68,6 +64,10 @@ const ThreatLayer = memo(function ThreatLayer({
   // quiet at rest, never about withholding a track's history from someone who
   // just clicked it.
   const popupOpen = useRadar((s) => s.openPopupThreatId === threat.id);
+  // Set by InspectController the moment it flies here; this layer opens the
+  // popup when that flight lands.
+  const armedToOpen = useRadar((s) => s.pendingPopupThreatId === threat.id);
+  const disarmPopupOpen = useRadar((s) => s.disarmPopupOpen);
   const trail = showTrail || highlighted || popupOpen;
   const trailWeight = trackWidth + (highlighted ? 2 : 0);
   const pickable = regroupPick != null && regroupPick.sourceThreatId !== threat.id;
@@ -100,7 +100,26 @@ const ThreatLayer = memo(function ThreatLayer({
      still, markerSize],
   );
 
-  useAutoOpenPopup({ map, markerRef, enabled: highlighted && !pickable });
+  useAutoOpenPopup({ map, markerRef, enabled: armedToOpen && !pickable, disarm: disarmPopupOpen });
+
+  /** Closing the popup with its × means "done with this target", so the feed
+   * card stops being lit too — the same single act that Esc performs
+   * (SelectionEscape) and that a click into the map performs
+   * (InspectController). Only the × used to stop halfway.
+   *
+   * Guarded, because the app closes popups of its own accord and those closes
+   * must NOT deselect: picking another target closes the previous popup while
+   * the new one is already the inspected track, and arming a regroup pick
+   * unmounts every other target's popup. Both are excluded by asking who is
+   * inspected RIGHT NOW rather than trusting the `highlighted` prop — the
+   * handler's closure can still be the one from before the selection changed,
+   * since InspectController's effect runs ahead of this layer's re-binding. */
+  const dropSelectionIfMine = () => {
+    const state = useRadar.getState();
+    if (state.regroupPick == null && state.inspectedThreat?.id === threat.id) {
+      clearInspection();
+    }
+  };
 
   // Leaflet makes every clickable marker keyboard-focusable (role="button")
   // but never names it — a divIcon gets no `alt` the way an <img> icon would.
@@ -118,15 +137,6 @@ const ThreatLayer = memo(function ThreatLayer({
   if (threat.scope === "city") return null;
 
   const head = pts[pts.length - 1];
-  const trigger =
-    dangerTriggerEventId != null
-      ? (threat.events.find((ev) => ev.id === dangerTriggerEventId) ?? null)
-      : null;
-  const triggerPt =
-    trigger && trigger.lat != null && trigger.lon != null &&
-    (trigger.lat !== head.lat || trigger.lon !== head.lon)
-      ? { lat: trigger.lat, lon: trigger.lon }
-      : null;
   const active = !threat.closed_at;
   // Confidence is a VISUAL WEIGHT, not just popup text: a one-source guess reads
   // fainter than a multi-source confirmation. Floor at 0.5 so a low-confidence
@@ -162,7 +172,6 @@ const ThreatLayer = memo(function ThreatLayer({
       <ThreatHeadRings
         head={head}
         highlighted={highlighted}
-        triggerPt={triggerPt}
         color={color}
         dim={dim}
         corroborated={corroborated}
@@ -195,7 +204,10 @@ const ThreatLayer = memo(function ThreatLayer({
             ? { click: () => void completeRegroupPick(threat.id).catch(() => {}) }
             : {
                 popupopen: () => setOpenPopupThreat(threat.id),
-                popupclose: () => setOpenPopupThreat(null),
+                popupclose: () => {
+                  setOpenPopupThreat(null);
+                  dropSelectionIfMine();
+                },
               }
         }
       >

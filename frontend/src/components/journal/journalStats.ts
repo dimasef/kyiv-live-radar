@@ -163,6 +163,24 @@ export function monthRange(year: number, month0: number): { from: string; to: st
   return { from: `${year}-${m}-01`, to: `${year}-${m}-${String(daysIn).padStart(2, '0')}` }
 }
 
+/** The published days either side of `date`, within the list given.
+ *
+ * `null` at either end rather than wrapping around: the list is one month, and
+ * a "next day" that jumps to the 1st is a lie about what the arrow does. A date
+ * that is not in the list (an empty day, opened by its URL) has no neighbours
+ * here at all — it is not part of the published chain. */
+export function neighbourDays(
+  date: string,
+  activeDates: readonly string[],
+): { prev: string | null; next: string | null } {
+  const i = activeDates.indexOf(date)
+  if (i < 0) return { prev: null, next: null }
+  return {
+    prev: i > 0 ? activeDates[i - 1] : null,
+    next: i < activeDates.length - 1 ? activeDates[i + 1] : null,
+  }
+}
+
 export function todayISO(): string {
   const n = new Date()
   const m = String(n.getMonth() + 1).padStart(2, '0')

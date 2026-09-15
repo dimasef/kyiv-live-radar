@@ -14,6 +14,7 @@ from ..config import settings
 from ..db import get_session
 from ..domain.presence import needs_stamp
 from ..models import ADMIN_ROLES, IMPACT_ROLES, User, utcnow
+from ..realtime.sessions import accounts
 from .security import AuthError, decode_access
 
 
@@ -57,6 +58,7 @@ async def _stamp_last_seen(session: AsyncSession, user: User) -> None:
 
 async def get_current_user(
     authorization: str | None = Header(None),
+    x_device_id: str | None = Header(None),
     session: AsyncSession = Depends(get_session),
 ) -> User:
     """Require a valid access token → the active User, else 401."""
@@ -65,11 +67,16 @@ async def get_current_user(
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
     await _stamp_last_seen(session, user)
+    # The websocket carries no token, so this is the ONLY place the live-session
+    # view can learn whose device a connection belongs to — see
+    # realtime/sessions.py. In-memory and free; no throttle needed.
+    accounts.note(x_device_id, user.id)
     return user
 
 
 async def get_optional_user(
     authorization: str | None = Header(None),
+    x_device_id: str | None = Header(None),
     session: AsyncSession = Depends(get_session),
 ) -> User | None:
     """Return the User when a valid token is present, else None (never raises).
@@ -77,7 +84,10 @@ async def get_optional_user(
     token = _bearer_token(authorization)
     if not token:
         return None
-    return await _load_user_from_token(token, session)
+    user = await _load_user_from_token(token, session)
+    if user is not None:
+        accounts.note(x_device_id, user.id)
+    return user
 
 
 async def require_impact_access(user: User = Depends(get_current_user)) -> User:

@@ -69,6 +69,10 @@ export const STORAGE_KEYS = {
   // Card ids the user has already seen in their collection, keyed by user id
   // ({ [userId]: number[] }) — drives the one-time "just obtained" shimmer.
   seenCards: 'klr-seen-cards',
+  // A stable id for this browser profile (lib/deviceId.ts) — what lets the
+  // admin console count a returning anonymous reader as one row rather than a
+  // new stranger per reload.
+  deviceId: 'klr-device',
   // Whether the stats/filters/toolbar block above «Весь фід» is folded away.
   // Persisted because the reason to fold it is that you are reading messages,
   // and that outlives a page load.

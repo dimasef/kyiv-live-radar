@@ -6,6 +6,7 @@ import { useRadar } from '@/store'
 
 import AdminLoading from './AdminLoading'
 import { ADMIN_WIDTH } from './adminLayout'
+import OnlinePanel from './OnlinePanel'
 import { filterUsers } from './userFormat'
 import UserRow from './UserRow'
 
@@ -42,6 +43,12 @@ export default function UsersPanel() {
 
   return (
     <div className={`${ADMIN_WIDTH} flex flex-col gap-3 px-4 py-4`}>
+      {/* Above the accounts, because it answers the question the accounts
+          table cannot: who is here who never signed up. */}
+      <OnlinePanel />
+
+      <hr className="border-white/[0.06]" />
+
       <p className="text-xs text-slate-500">
         Акаунти застосунку. Блокування забирає доступ одразу — сесія обривається на наступному ж
         запиті, і його можна скасувати. Видалення остаточне.

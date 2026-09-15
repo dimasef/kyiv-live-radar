@@ -1,10 +1,10 @@
-import { Check, Clock, Loader2, Microscope } from "lucide-react";
+import { Check, Clock, Loader2, Microscope, User } from "lucide-react";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
 import { analysisKindFor } from "@/lib/cards";
 
-import { analyzeButtonState, showsAnalyzeAffordance } from "./analyzeButtonState";
+import { analyzeButtonState, showsAnalyzeAffordance, takenBy } from "./analyzeButtonState";
 import { useRadar } from "@/store";
 import type { Threat } from "@/types";
 
@@ -29,8 +29,8 @@ export default function AnalyzeButton({ threat }: { threat: Threat }) {
   // debris went cold.
   if (!kind) {
     return (
-      <span className="flex items-center gap-1 rounded-full bg-white/[0.04] px-2 py-1 text-[11px] text-slate-500">
-        <Clock size={12} /> {t("game.stale")}
+      <span className="flex items-center gap-1.5 rounded-full bg-white/[0.04] px-3 py-1.5 text-xs text-slate-500">
+        <Clock size={14} /> {t("game.stale")}
       </span>
     );
   }
@@ -40,32 +40,48 @@ export default function AnalyzeButton({ threat }: { threat: Threat }) {
   switch (analyzeButtonState({ kind, state, failed, busy })) {
     case "checking":
       return (
-        <span className="flex items-center gap-1 rounded-full bg-white/[0.04] px-2.5 py-1 text-[11px] text-slate-600">
-          <Loader2 size={12} className="animate-spin" />
+        <span className="flex items-center gap-1.5 rounded-full bg-white/[0.04] px-3 py-1.5 text-xs text-slate-600">
+          <Loader2 size={14} className="animate-spin" />
           {t("game.checking")}
         </span>
       );
     case "collected":
       return (
-        <span className="flex items-center gap-1 rounded-full bg-white/[0.04] px-2 py-1 text-[11px] font-medium text-slate-500">
-          <Check size={12} /> {t("game.collected")}
+        <span className="flex items-center gap-1.5 rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-slate-500">
+          <Check size={14} /> {t("game.collected")}
         </span>
       );
-    case "taken":
+    case "taken": {
+      // Naming whoever got here first, when they have a name to be named by.
+      // `max-w` + `truncate` rather than slicing the string: the popup is a
+      // fixed 270px and a display name can be anything, so the cut belongs to
+      // the font's real metrics, not to a character count.
+      const by = takenBy(kind, state);
       return (
-        <span className="rounded-full bg-white/[0.04] px-2 py-1 text-[11px] text-slate-500">
-          {t("game.taken")}
+        <span
+          className="flex items-center gap-1.5 rounded-full bg-white/[0.04] px-3 py-1.5 text-xs text-slate-500"
+          title={by ? t("game.takenBy", { name: by }) : t("game.taken")}
+        >
+          {by ? (
+            <>
+              <User size={14} className="flex-none" />
+              <span className="max-w-[130px] truncate">{by}</span>
+            </>
+          ) : (
+            t("game.taken")
+          )}
         </span>
       );
+    }
     case "busy":
     case "available":
       return (
         <button
           onClick={() => void analyze(threat.id, kind)}
           disabled={!!analyzing}
-          className="flex items-center gap-1 rounded-full border border-phosphor/30 bg-phosphor/10 px-2.5 py-1 text-[11px] font-medium text-phosphor-soft transition-colors duration-200 hover:bg-phosphor/20 disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-full border border-phosphor/30 bg-phosphor/10 px-3 py-1.5 text-xs font-medium text-phosphor-soft transition-colors duration-200 hover:bg-phosphor/20 disabled:opacity-50"
         >
-          {busy ? <Loader2 size={12} className="animate-spin" /> : <Microscope size={12} />}
+          {busy ? <Loader2 size={14} className="animate-spin" /> : <Microscope size={14} />}
           {busy ? t("game.analyzing") : kind === "remains" ? t("game.analyzeRemains") : t("game.analyze")}
         </button>
       );

@@ -44,9 +44,11 @@ const LEVEL_RANK: Record<HomeDangerLevel, number> = { none: 0, warning: 1, dange
 
 export interface ThreatDanger {
   level: HomeDangerLevel
-  /** The sighting that triggered the level — the map marks it when it is not
-   * the track head (an echo channel's fix near home while the narrator's is
-   * elsewhere). Null for none. */
+  /** The sighting that triggered the level, mirroring the second value the
+   * backend's assess() returns for the push body ("~4 км від дому
+   * (Шевченківський)"). The map deliberately draws nothing for it: a lone ring
+   * away from the track head read as an unexplained phantom, and the home
+   * marker's own colour already says danger is near. Null for none. */
   triggerEventId: number | null
 }
 

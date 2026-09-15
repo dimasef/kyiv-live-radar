@@ -1,5 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
+import { isPlainClick } from '@/lib/plainClick'
+import { journalDayPath } from '@/router'
 import { TYPE_COLORS } from '@/theme'
 import type { JournalDay } from '@/types'
 
@@ -69,11 +71,22 @@ export default function CalendarHeatmap({
           const hadBallistic = (day?.type_counts.ballistic ?? 0) > 0
           const targets = day ? day.target_count + day.impact_count : 0
           return (
-            <button
+            // A real link, not a button: each day is its own address
+            // (/journal/2026-09-14), so this must be middle-clickable,
+            // copyable, and — the reason the addresses exist at all —
+            // followable by a crawler, which never fires an onClick. The
+            // click itself is still handled in-app; only a modified click
+            // (new tab, new window) is left to the browser.
+            <a
               key={i}
-              onClick={() => onSelect(date)}
-              aria-pressed={isSelected}
-              className={`relative aspect-square rounded-lg p-1 text-left transition-all duration-200 ease-out hover:-translate-y-0.5 hover:brightness-125 focus:outline-none focus-visible:ring-2 focus-visible:ring-phosphor ${
+              href={journalDayPath(date)}
+              onClick={(e) => {
+                if (!isPlainClick(e)) return
+                e.preventDefault()
+                onSelect(date)
+              }}
+              aria-current={isSelected ? 'page' : undefined}
+              className={`relative block aspect-square rounded-lg p-1 text-left transition-all duration-200 ease-out hover:-translate-y-0.5 hover:brightness-125 focus:outline-none focus-visible:ring-2 focus-visible:ring-phosphor ${
                 isSelected
                   ? 'ring-2 ring-phosphor shadow-[0_0_16px_-4px_rgba(34,211,238,0.6)]'
                   : isToday
@@ -107,7 +120,7 @@ export default function CalendarHeatmap({
                   }}
                 />
               )}
-            </button>
+            </a>
           )
         })}
       </div>

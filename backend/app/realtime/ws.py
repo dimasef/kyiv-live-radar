@@ -10,6 +10,7 @@ from fastapi import WebSocket
 from ..config import settings
 from ..observability import metrics
 from ..schemas import WSMessage
+from .sessions import LiveSession
 
 log = logging.getLogger("ws")
 
@@ -28,7 +29,10 @@ class ConnectionManager:
     """
 
     def __init__(self) -> None:
-        self._clients: set[WebSocket] = set()
+        # A dict, not a set, only so each socket can carry what little is known
+        # about the reader behind it (sessions.py) — iteration and removal read
+        # exactly as they did when this was a set.
+        self._clients: dict[WebSocket, LiveSession] = {}
         self._lock = asyncio.Lock()
         self._online_task: asyncio.Task | None = None
         self.epoch = int(time.time())
@@ -39,10 +43,14 @@ class ConnectionManager:
     def online(self) -> int:
         return len(self._clients)
 
-    async def connect(self, ws: WebSocket) -> None:
+    def sessions(self) -> list[LiveSession]:
+        """Everyone currently connected, for the admin console's «Зараз онлайн»."""
+        return list(self._clients.values())
+
+    async def connect(self, ws: WebSocket, session: LiveSession) -> None:
         await ws.accept()
         async with self._lock:
-            self._clients.add(ws)
+            self._clients[ws] = session
         metrics.observe_ws_clients(self.online)
         # The newcomer gets the headcount (and the stream position) at once;
         # everyone else sees the count in the next coalesced 'online' frame.
@@ -51,7 +59,7 @@ class ConnectionManager:
 
     async def disconnect(self, ws: WebSocket) -> None:
         async with self._lock:
-            self._clients.discard(ws)
+            self._clients.pop(ws, None)
         metrics.observe_ws_clients(self.online)
         self._schedule_online()
 
@@ -103,7 +111,7 @@ class ConnectionManager:
         if dead:
             async with self._lock:
                 for ws in dead:
-                    self._clients.discard(ws)
+                    self._clients.pop(ws, None)
             metrics.observe_ws_clients(self.online)
         metrics.record_broadcast(time.perf_counter() - started)
 

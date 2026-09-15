@@ -159,6 +159,20 @@ const MONTHS: Record<string, string[]> = {
   ],
 }
 
+/** "14 вересня 2026" from an ISO calendar day (2026-09-14).
+ *
+ * Built from the STRING's own parts — never a Date — for two reasons: the value
+ * names a Kyiv calendar day rather than an instant, so it must not shift under
+ * a reader's (or a build machine's) timezone; and it is what the prerendered
+ * <title> of that day's page says, so the two must agree character for
+ * character without depending on an ICU that a TV browser may not ship. */
+export function isoDayLabel(iso: string, locale = 'uk'): string {
+  const [y, m, d] = iso.split('-')
+  const months = MONTHS[locale.slice(0, 2)] ?? MONTHS.uk
+  const month = months[Number(m) - 1]
+  return month && y && d ? `${Number(d)} ${month} ${y}` : iso
+}
+
 /** "18 серпня" / "18 August" for a Kyiv day. Prefers ICU (proper genitive month
  * names, other locales) and falls back to a built-in month list. */
 export function kyivDayMonth(date: Date, locale: string): string {

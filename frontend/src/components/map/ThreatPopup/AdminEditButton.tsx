@@ -39,8 +39,8 @@ export default function AdminEditButton({ threat }: { threat: Threat }) {
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        width: 24,
-        height: 24,
+        width: 30,
+        height: 30,
         padding: 0,
         borderRadius: '50%',
         border: `1px solid ${ADMIN_VIOLET}59`,
@@ -49,7 +49,7 @@ export default function AdminEditButton({ threat }: { threat: Threat }) {
         cursor: 'pointer',
       }}
     >
-      <Pencil size={12} />
+      <Pencil size={14} />
     </button>
   )
 }

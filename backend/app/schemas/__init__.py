@@ -8,6 +8,8 @@ the split is an internal reorganisation, not an API change.
 from __future__ import annotations
 
 from .admin import (
+    AdminOnlineDeviceOut,
+    AdminOnlineOut,
     AdminUserDeleteOut,
     AdminUserOut,
     AdminUserRoleIn,
@@ -163,6 +165,8 @@ __all__ = [
     "PublicUserBrief",
     "_as_utc",
     "AccessTokenOut",
+    "AdminOnlineDeviceOut",
+    "AdminOnlineOut",
     "AdminUserDeleteOut",
     "AdminUserOut",
     "AdminUserRoleIn",

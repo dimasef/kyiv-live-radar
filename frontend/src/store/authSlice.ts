@@ -147,8 +147,18 @@ export const createAuthSlice: StateCreator<RadarState, [], [], AuthSlice> = (set
         void get().loadFriends().catch(() => {})
         void get().loadCollection().catch(() => {})
         void get().hydrateNotifyPrefs().catch(() => {})
-      } catch {
-        clearSession()
+      } catch (err) {
+        // Same rule as the refresh handler above, and for the same reason: only
+        // a rejection FROM THE SERVER means this session is over. /auth/me runs
+        // milliseconds after a refresh that just SUCCEEDED, so anything else
+        // failing here is the network or the backend mid-deploy — and a blanket
+        // catch threw away a perfectly good refresh token over one 502, making
+        // the reader sign in again with a password.
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          clearSession()
+          return
+        }
+        if (get().authStatus === 'unknown') set({ authStatus: 'anon' })
       }
     },
 

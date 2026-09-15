@@ -32,6 +32,7 @@ import type {
   ThreatAxis,
   ThreatEvent,
 } from './types'
+import { deviceId } from './lib/deviceId'
 import type { components } from './api-types'
 
 type Schemas = components['schemas']
@@ -78,8 +79,22 @@ export function setRefreshHandler(fn: (() => Promise<string | null>) | null): vo
   refreshHandler = fn
 }
 
+/** Auth, plus the device id on the requests that carry a token.
+ *
+ * The id is how the server links the websocket this browser holds to the
+ * account it is signed into (backend app/realtime/sessions.py) — the socket
+ * carries no Authorization header, so it cannot say so itself.
+ *
+ * Only alongside a token, deliberately: `X-Device-Id` is not a CORS-safelisted
+ * header, so sending it would turn every anonymous GET — the bulk of this
+ * app's traffic, from readers who never sign in — into a preflight + request
+ * pair. An authenticated request is already preflighted by its own
+ * Authorization header, and an anonymous one has no account to link to anyway.
+ */
 function withAuth(headers: HeadersInit | undefined, token: string | null): HeadersInit {
-  return token ? { ...(headers ?? {}), Authorization: `Bearer ${token}` } : (headers ?? {})
+  return token
+    ? { ...(headers ?? {}), Authorization: `Bearer ${token}`, 'X-Device-Id': deviceId() }
+    : (headers ?? {})
 }
 
 /** Single-flight guard around `refreshHandler`. `hydrate()` fires ten requests
@@ -420,6 +435,13 @@ export const deleteSource = (id: number) =>
   send<SourceDeleteResult>(`/admin/sources/${id}`, 'DELETE')
 
 // --- Admin users ---
+/** Who is connected RIGHT NOW, accounts and anonymous readers alike — a live
+ * read of the backend's open sockets, not of the users table. `AdminUser`'s
+ * `last_seen_at` can only ever describe people who signed in. */
+export type AdminOnline = Schemas['AdminOnlineOut']
+export type AdminOnlineDevice = Schemas['AdminOnlineDeviceOut']
+export const fetchOnline = () => get<AdminOnline>('/admin/online')
+
 // `AdminUser`, not `User`: that name is the signed-in user's own profile
 // (types.ts), and this is the operator's view of somebody else's account.
 export type AdminUser = Schemas['AdminUserOut']

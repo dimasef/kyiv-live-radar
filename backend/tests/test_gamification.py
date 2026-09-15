@@ -210,6 +210,39 @@ async def test_state_reflects_claims(env):
     assert st["track_taken"] is True and st["mine_track"] is None  # taken, but not by B
 
 
+async def test_state_names_the_other_analyst(env):
+    """Whoever won the slot is named to everyone else — the claim being taken is
+    already public, and who took it is the part worth seeing."""
+    c, s = env
+    a = await _register(c, "a@x.com")
+    b = await _register(c, "b@x.com")
+    await c.patch("/auth/me", json={"display_name": "Спостерігач"}, headers=a)
+    tid = await _new_threat(s)
+    await c.post("/analysis", json={"threat_id": tid, "kind": "track"}, headers=a)
+
+    st = (await c.get(f"/analysis/threat/{tid}", headers=b)).json()
+    assert st["track_by"] == "Спостерігач"
+    assert st["remains_by"] is None  # nobody took that slot
+
+    # The winner is never named back to themselves — `mine_track` already says it.
+    st = (await c.get(f"/analysis/threat/{tid}", headers=a)).json()
+    assert st["track_by"] is None
+
+
+async def test_state_never_leaks_an_email(env):
+    """A name is a disclosure the account chose to make; an address is not. An
+    analyst with no display name stays unnamed rather than falling back to it."""
+    c, s = env
+    a = await _register(c, "nameless@x.com")
+    b = await _register(c, "b@x.com")
+    tid = await _new_threat(s)
+    await c.post("/analysis", json={"threat_id": tid, "kind": "track"}, headers=a)
+
+    body = (await c.get(f"/analysis/threat/{tid}", headers=b)).text
+    assert "nameless@x.com" not in body
+    assert (await c.get(f"/analysis/threat/{tid}", headers=b)).json()["track_by"] is None
+
+
 @pytest.mark.parametrize("status", ["lost", "impact", "destroyed"])
 async def test_off_board_statuses_allow_remains(env, status):
     c, s = env
